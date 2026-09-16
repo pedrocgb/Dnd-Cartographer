@@ -1,0 +1,1 @@
+ALTER TABLE `markers` ADD `background_shape` text DEFAULT 'circle' NOT NULL;

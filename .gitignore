@@ -39,3 +39,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# spike-only local data & generated tiles (not the real app data dir,
+# which lives outside the repo at ~/.world-wiki-maps by default)
+/data
+/public/tiles
+/public/osd-images
+*.log
+
+# local Claude Code tooling (personal skills/scratch, not project source)
+/.claude

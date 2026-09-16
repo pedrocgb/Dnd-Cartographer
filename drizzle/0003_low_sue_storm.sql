@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `map_categories_world_label_idx` ON `map_categories` (`world_id`,`label`);
