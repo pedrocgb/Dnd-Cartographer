@@ -49,6 +49,16 @@ npm run restore -- <backup-directory> <new-data-directory>
 
 Backup is safe to run while the app is live — it uses SQLite's `VACUUM INTO` for a consistent snapshot rather than copying the database file directly. Restore copies a backup into a fresh (must-be-empty) data directory; point `WORLD_WIKI_DATA_DIR` at it to use it.
 
+## Sample data
+
+This repo ships a `seed-data/` snapshot (database + images) captured with `npm run backup`. To start with it instead of an empty workspace:
+
+```bash
+npm run restore -- ./seed-data ~/.world-wiki-maps/data
+```
+
+(On Windows, use the actual path, e.g. `C:\Users\<you>\.world-wiki-maps\data`, or set `WORLD_WIKI_DATA_DIR` to point wherever you'd like it restored.) The target directory must not already exist or must be empty.
+
 ## Export and import a world
 
 Use the **Export** / **Import** links in the app's nav bar. Export downloads one JSON file containing your maps, markers, hierarchy, descriptions, and images. Import adds everything from a file into your current workspace as new items (fresh ids throughout, so nothing existing is ever overwritten) and re-generates tiles for any included images in the background.
