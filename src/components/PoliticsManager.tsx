@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Plus, Trash2, ChevronRight, ChevronDown } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import {
   TERRITORY_TYPE_CATALOG,
   GOVERNMENT_FORMS,
@@ -14,6 +14,7 @@ import {
   isAttachableType,
   type HierarchyLevel,
 } from "@/server/politics/hierarchy-config";
+import { buildTerritoryTree, TerritoryTreeRow } from "@/components/TerritoryTree";
 
 interface Territory {
   id: string;
@@ -66,21 +67,6 @@ async function json<T>(res: Response): Promise<T> {
 
 type Tab = "territory" | "person" | "organization" | "profile";
 
-interface TerritoryNode extends Territory {
-  children: TerritoryNode[];
-}
-
-function buildTerritoryTree(list: Territory[]): TerritoryNode[] {
-  const byId = new Map<string, TerritoryNode>(list.map((t) => [t.id, { ...t, children: [] }]));
-  const roots: TerritoryNode[] = [];
-  for (const node of byId.values()) {
-    const parent = node.parentId ? byId.get(node.parentId) : undefined;
-    if (parent) parent.children.push(node);
-    else roots.push(node);
-  }
-  return roots;
-}
-
 /**
  * A plain `<select>` — same control the rest of this form already uses
  * (Parent territory, Hierarchy profile, Government form, ...) — listing
@@ -123,50 +109,6 @@ function TypeSelect({ value, onChange }: { value: string; onChange: (value: stri
       {customMode && (
         <input type="text" placeholder="Custom type name" value={value} onChange={(e) => onChange(e.target.value)} />
       )}
-    </>
-  );
-}
-
-function TerritoryTreeRow({
-  node,
-  depth,
-  expanded,
-  onToggleExpand,
-  onSelect,
-}: {
-  node: TerritoryNode;
-  depth: number;
-  expanded: Set<string>;
-  onToggleExpand: (id: string) => void;
-  onSelect: (id: string) => void;
-}) {
-  const hasChildren = node.children.length > 0;
-  const isExpanded = expanded.has(node.id);
-  return (
-    <>
-      <li className="politics-list-row politics-tree-row" style={{ paddingLeft: depth * 18 }}>
-        {hasChildren ? (
-          <button
-            type="button"
-            className="politics-tree-toggle"
-            onClick={() => onToggleExpand(node.id)}
-            aria-label={isExpanded ? "Collapse" : "Expand"}
-            aria-expanded={isExpanded}
-          >
-            {isExpanded ? <ChevronDown size={13} strokeWidth={2.25} /> : <ChevronRight size={13} strokeWidth={2.25} />}
-          </button>
-        ) : (
-          <span className="politics-tree-spacer" />
-        )}
-        <button type="button" className="politics-list-pick" onClick={() => onSelect(node.id)}>
-          {node.name} <span className="field-label">({node.type})</span>
-        </button>
-      </li>
-      {hasChildren &&
-        isExpanded &&
-        node.children.map((child) => (
-          <TerritoryTreeRow key={child.id} node={child} depth={depth + 1} expanded={expanded} onToggleExpand={onToggleExpand} onSelect={onSelect} />
-        ))}
     </>
   );
 }

@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { X, Trash2, Search } from "lucide-react";
+import { buildTerritoryTree, TerritoryTreeRow } from "@/components/TerritoryTree";
 
 interface Territory {
   id: string;
@@ -80,18 +81,38 @@ function AuthorityRow({ authority, territoryName }: { authority: Authority; terr
   );
 }
 
-function TerritoryPicker({ onPick }: { onPick: (territory: Territory) => void }) {
+function TerritoryPicker({ onPick }: { onPick: (territoryId: string) => void }) {
   const [q, setQ] = useState("");
-  const [results, setResults] = useState<Territory[]>([]);
+  const [territories, setTerritories] = useState<Territory[]>([]);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
+  // Fetch the full, unfiltered set once so parent/child relationships can be
+  // rendered as a tree — a name-filtered fetch can return a child without
+  // its ancestors, which breaks indentation. Search instead falls back to a
+  // flat, client-side filtered match list (same pattern as the Politics
+  // management page's territory tree).
   useEffect(() => {
-    const timer = setTimeout(() => {
-      fetch(`/api/politics/territories?q=${encodeURIComponent(q)}`)
-        .then((r) => json<{ territories: Territory[] }>(r))
-        .then((d) => setResults(d.territories));
-    }, 200);
-    return () => clearTimeout(timer);
-  }, [q]);
+    fetch("/api/politics/territories")
+      .then((r) => json<{ territories: Territory[] }>(r))
+      .then((d) => setTerritories(d.territories));
+  }, []);
+
+  const tree = useMemo(() => buildTerritoryTree(territories), [territories]);
+  const searching = q.trim().length > 0;
+  const searchResults = useMemo(() => {
+    if (!searching) return [];
+    const needle = q.trim().toLowerCase();
+    return territories.filter((t) => t.name.toLowerCase().includes(needle));
+  }, [searching, q, territories]);
+
+  function toggleExpand(id: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   return (
     <div className="politics-picker">
@@ -99,20 +120,24 @@ function TerritoryPicker({ onPick }: { onPick: (territory: Territory) => void })
         <Search size={14} strokeWidth={2.25} />
         <input
           type="text"
-          placeholder="Search territories (smallest first)…"
+          placeholder="Search territories, or browse the hierarchy below…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
       </div>
-      <ul className="politics-list">
-        {results.map((t) => (
-          <li key={t.id} className="politics-list-row">
-            <button type="button" className="politics-list-pick" onClick={() => onPick(t)}>
-              {t.name} <span className="field-label">({t.type})</span>
-            </button>
-          </li>
-        ))}
-        {results.length === 0 && q.trim() && <li className="field-label">No matches.</li>}
+      <ul className="politics-list politics-tree">
+        {searching
+          ? searchResults.map((t) => (
+              <li key={t.id} className="politics-list-row">
+                <button type="button" className="politics-list-pick" onClick={() => onPick(t.id)}>
+                  {t.name} <span className="field-label">({t.type})</span>
+                </button>
+              </li>
+            ))
+          : tree.map((root) => (
+              <TerritoryTreeRow key={root.id} node={root} depth={0} expanded={expanded} onToggleExpand={toggleExpand} onSelect={onPick} />
+            ))}
+        {searching && searchResults.length === 0 && <li className="field-label">No matches.</li>}
       </ul>
       <a href="/politics" target="_blank" rel="noopener noreferrer" className="btn btn-sm">
         Create a new territory
@@ -159,14 +184,14 @@ export default function PoliticalReferencesPanel({ markerId, active }: { markerI
   // complete, attachable chain; anything short of that (incomplete
   // ancestry, or a non-attachable level like a bare Duchy) is saved as an
   // explicit draft instead of failing silently or forcing extra clicks.
-  async function pickTerritory(territory: Territory) {
-    const acceptRes = await putAffiliation(territory.id, "accepted");
+  async function pickTerritory(territoryId: string) {
+    const acceptRes = await putAffiliation(territoryId, "accepted");
     if (acceptRes.ok) {
       setPickerOpen(false);
       refresh();
       return;
     }
-    const draftRes = await putAffiliation(territory.id, "draft");
+    const draftRes = await putAffiliation(territoryId, "draft");
     if (!draftRes.ok) {
       const data = await draftRes.json();
       window.alert(data.error ?? "Could not set affiliation.");
