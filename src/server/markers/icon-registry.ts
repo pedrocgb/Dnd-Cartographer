@@ -87,3 +87,29 @@ export const DEFAULT_BACKGROUND_SHAPE: BackgroundShape = "circle";
 export function isValidBackgroundShape(key: string): key is BackgroundShape {
   return BACKGROUND_SHAPE_KEYS.has(key);
 }
+
+/**
+ * A marker's category is independent of its icon — it defaults to
+ * DEFAULT_MARKER_CATEGORY at creation time but is stored on the marker
+ * itself thereafter, so changing the icon later never silently changes it.
+ */
+export const MARKER_CATEGORIES = [
+  "Settlement",
+  "Fortification",
+  "Dungeon",
+  "Ruin",
+  "Point of Interest",
+  "Landmark",
+  "Natural Feature",
+  "Travel",
+  "Religious",
+  "Magical",
+  "Commerce",
+  "Danger",
+] as const;
+export type MarkerCategory = (typeof MARKER_CATEGORIES)[number];
+const MARKER_CATEGORY_SET = new Set<string>(MARKER_CATEGORIES);
+export function isValidMarkerCategory(key: string): key is MarkerCategory {
+  return MARKER_CATEGORY_SET.has(key);
+}
+export const DEFAULT_MARKER_CATEGORY: MarkerCategory = "Point of Interest";

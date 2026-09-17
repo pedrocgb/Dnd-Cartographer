@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { markers } from "@/server/db/schema";
+import { toClientMarker } from "@/server/markers/tag-registry";
 
 const OFFSET = 0.02;
 
@@ -24,10 +25,14 @@ export async function POST(_request: Request, { params }: { params: Promise<{ ma
       backgroundColor: source.backgroundColor,
       outlineColor: source.outlineColor,
       backgroundShape: source.backgroundShape,
+      category: source.category,
       categoryId: source.categoryId,
       linkedMapId: source.linkedMapId,
+      statusTags: source.statusTags,
+      environment: source.environment,
+      ownership: source.ownership,
     })
     .returning();
 
-  return NextResponse.json({ marker: duplicate }, { status: 201 });
+  return NextResponse.json({ marker: toClientMarker(duplicate) }, { status: 201 });
 }

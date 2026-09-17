@@ -11,7 +11,9 @@ import {
   DEFAULT_BACKGROUND_COLOR,
   DEFAULT_OUTLINE_COLOR,
   DEFAULT_BACKGROUND_SHAPE,
+  DEFAULT_MARKER_CATEGORY,
 } from "@/server/markers/icon-registry";
+import { toClientMarker } from "@/server/markers/tag-registry";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ mapId: string }> }) {
   const { mapId } = await params;
@@ -19,7 +21,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ map
     .select()
     .from(markers)
     .where(and(eq(markers.mapId, mapId), isNull(markers.deletedAt)));
-  return NextResponse.json({ markers: rows });
+  return NextResponse.json({ markers: rows.map(toClientMarker) });
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ mapId: string }> }) {
@@ -56,6 +58,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ map
       ? body.backgroundShape
       : DEFAULT_BACKGROUND_SHAPE;
   const linkedMapId = typeof body?.linkedMapId === "string" ? body.linkedMapId : null;
+  const category = DEFAULT_MARKER_CATEGORY;
 
   if (linkedMapId) {
     const linked = await db.query.maps.findFirst({ where: eq(maps.id, linkedMapId) });
@@ -66,7 +69,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ map
 
   const [marker] = await db
     .insert(markers)
-    .values({ mapId, name, u, v, iconKey, color, backgroundColor, outlineColor, backgroundShape, linkedMapId })
+    .values({ mapId, name, u, v, iconKey, color, backgroundColor, outlineColor, backgroundShape, category, linkedMapId })
     .returning();
-  return NextResponse.json({ marker }, { status: 201 });
+  return NextResponse.json({ marker: toClientMarker(marker) }, { status: 201 });
 }

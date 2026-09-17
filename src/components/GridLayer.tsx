@@ -10,6 +10,7 @@ export interface MapGrid {
   shape: string;
   columns: number;
   rows: number;
+  linkedColumnsRows: boolean;
   horizontalOffset: number;
   verticalOffset: number;
   opacity: number;
@@ -41,6 +42,34 @@ function HexPatternContent({ w, h, color, lineWidth }: { w: number; h: number; c
     <>
       <polygon points={points(0, 0)} fill="none" stroke={color} strokeWidth={lineWidth} />
       <polygon points={points(w * 0.75, h * 0.5)} fill="none" stroke={color} strokeWidth={lineWidth} />
+    </>
+  );
+}
+
+/**
+ * A pointy-top hexagon inscribed in a (w, h) box — the 90°-rotated
+ * counterpart of `HexPatternContent`: flat left/right sides, points at top
+ * and bottom. Rows are spaced `0.75h` apart (not a full `h`) and alternate
+ * columns are offset by `0.5w`, so the pattern tile is `w` wide by `1.5h`
+ * tall, holding two hexagons offset by half a row each way.
+ */
+function VerticalHexPatternContent({ w, h, color, lineWidth }: { w: number; h: number; color: string; lineWidth: number }) {
+  const points = (ox: number, oy: number) =>
+    [
+      [ox + w * 0.5, oy],
+      [ox + w, oy + h * 0.25],
+      [ox + w, oy + h * 0.75],
+      [ox + w * 0.5, oy + h],
+      [ox, oy + h * 0.75],
+      [ox, oy + h * 0.25],
+    ]
+      .map((p) => p.join(","))
+      .join(" ");
+
+  return (
+    <>
+      <polygon points={points(0, 0)} fill="none" stroke={color} strokeWidth={lineWidth} />
+      <polygon points={points(w * 0.5, h * 0.75)} fill="none" stroke={color} strokeWidth={lineWidth} />
     </>
   );
 }
@@ -82,16 +111,16 @@ function GridSvg({ grid, imageWidth, imageHeight }: { grid: MapGrid; imageWidth:
           >
             <HexPatternContent w={tileW} h={tileH} color={color} lineWidth={strokeWidth} />
           </pattern>
-        ) : shape === "circle" ? (
-          <pattern id={patternId} x={offsetX} y={offsetY} width={tileW} height={tileH} patternUnits="userSpaceOnUse">
-            <circle
-              cx={tileW / 2}
-              cy={tileH / 2}
-              r={(Math.min(tileW, tileH) / 2) * 0.85}
-              fill="none"
-              stroke={color}
-              strokeWidth={strokeWidth}
-            />
+        ) : shape === "hexagon-vertical" ? (
+          <pattern
+            id={patternId}
+            x={offsetX}
+            y={offsetY}
+            width={tileW}
+            height={tileH * 1.5}
+            patternUnits="userSpaceOnUse"
+          >
+            <VerticalHexPatternContent w={tileW} h={tileH} color={color} lineWidth={strokeWidth} />
           </pattern>
         ) : (
           <pattern

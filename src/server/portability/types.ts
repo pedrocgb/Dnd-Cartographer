@@ -49,10 +49,14 @@ export interface ExportedMarker {
   backgroundColor: string;
   outlineColor: string;
   backgroundShape: string;
+  category?: string | null;
   categoryId: string | null;
   descriptionDocumentId: string | null;
   linkedMapId: string | null;
   locked: boolean;
+  statusTags?: string;
+  environment?: string | null;
+  ownership?: string | null;
   deletedAt: string | null;
 }
 

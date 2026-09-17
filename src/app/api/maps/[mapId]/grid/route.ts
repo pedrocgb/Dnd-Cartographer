@@ -60,6 +60,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ma
   if (typeof body.opacity === "number") patch.opacity = clampOpacity(body.opacity);
   if (typeof body.lineWidth === "number") patch.lineWidth = clampLineWidth(body.lineWidth);
   if (typeof body.color === "string") patch.color = normalizeColor(body.color, DEFAULT_GRID.color);
+  if (typeof body.linkedColumnsRows === "boolean") patch.linkedColumnsRows = body.linkedColumnsRows;
 
   const [updated] = await db.update(mapGrids).set(patch).where(eq(mapGrids.mapId, mapId)).returning();
   return NextResponse.json({ grid: updated });

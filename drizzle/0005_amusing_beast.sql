@@ -1,0 +1,1 @@
+ALTER TABLE `map_grids` ADD `linked_columns_rows` integer DEFAULT false NOT NULL;

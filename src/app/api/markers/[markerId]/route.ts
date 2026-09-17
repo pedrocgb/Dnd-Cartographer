@@ -6,10 +6,12 @@ import {
   isValidIconKey,
   normalizeColor,
   isValidBackgroundShape,
+  isValidMarkerCategory,
   DEFAULT_COLOR,
   DEFAULT_BACKGROUND_COLOR,
   DEFAULT_OUTLINE_COLOR,
 } from "@/server/markers/icon-registry";
+import { isValidEnvironmentTag, isValidOwnershipTag, encodeStatusTags, toClientMarker } from "@/server/markers/tag-registry";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ markerId: string }> }) {
   const { markerId } = await params;
@@ -34,9 +36,19 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ma
     patch.outlineColor = normalizeColor(body.outlineColor, DEFAULT_OUTLINE_COLOR);
   if (typeof body.backgroundShape === "string" && isValidBackgroundShape(body.backgroundShape))
     patch.backgroundShape = body.backgroundShape;
+  if (typeof body.category === "string" && isValidMarkerCategory(body.category)) patch.category = body.category;
   if (typeof body.locked === "boolean") patch.locked = body.locked;
   if ("descriptionDocumentId" in body) {
     patch.descriptionDocumentId = body.descriptionDocumentId === null ? null : String(body.descriptionDocumentId);
+  }
+  if (Array.isArray(body.statusTags)) patch.statusTags = encodeStatusTags(body.statusTags);
+  if ("environment" in body) {
+    patch.environment =
+      body.environment === null ? null : typeof body.environment === "string" && isValidEnvironmentTag(body.environment) ? body.environment : marker.environment;
+  }
+  if ("ownership" in body) {
+    patch.ownership =
+      body.ownership === null ? null : typeof body.ownership === "string" && isValidOwnershipTag(body.ownership) ? body.ownership : marker.ownership;
   }
 
   if ("u" in body || "v" in body) {
@@ -66,7 +78,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ma
   }
 
   const [updated] = await db.update(markers).set(patch).where(eq(markers.id, markerId)).returning();
-  return NextResponse.json({ marker: updated });
+  return NextResponse.json({ marker: toClientMarker(updated) });
 }
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ markerId: string }> }) {

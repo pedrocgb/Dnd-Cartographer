@@ -5,7 +5,8 @@ import { useSearchParams } from "next/navigation";
 import { MapPin, ZoomIn, ZoomOut, Home, Maximize } from "lucide-react";
 import type OpenSeadragonType from "openseadragon";
 import MarkerLayer, { type Marker } from "./MarkerLayer";
-import MarkerPanel from "./MarkerPanel";
+import MarkerPanel, { type MarkerSection } from "./MarkerPanel";
+import MarkerSectionStrip from "./MarkerSectionStrip";
 import GridLayer, { type MapGrid } from "./GridLayer";
 import GridPanel from "./GridPanel";
 import { patchOverlayPositioning } from "./osd-overlay-position-fix";
@@ -40,6 +41,8 @@ export default function MapWorkspace({
   onCloseGridPanel,
   onUpdateGrid,
   onDeleteGrid,
+  imageWidth,
+  imageHeight,
 }: {
   mapId: string;
   assetId: string;
@@ -52,6 +55,8 @@ export default function MapWorkspace({
   onCloseGridPanel: () => void;
   onUpdateGrid: (patch: Partial<MapGrid>) => void;
   onDeleteGrid: () => void;
+  imageWidth: number;
+  imageHeight: number;
 }) {
   const viewerElRef = useRef<HTMLDivElement | null>(null);
   const viewerRef = useRef<OpenSeadragonType.Viewer | null>(null);
@@ -60,6 +65,7 @@ export default function MapWorkspace({
 
   const [addingMarker, setAddingMarker] = useState(false);
   const [selectedMarkerId, setSelectedMarkerId] = useState<string | null>(null);
+  const [markerSection, setMarkerSection] = useState<MarkerSection>("basic");
   const [autoFocusName, setAutoFocusName] = useState(false);
   const [startInEdit, setStartInEdit] = useState(false);
   const [overlapChoices, setOverlapChoices] = useState<{ ids: string[]; x: number; y: number } | null>(null);
@@ -167,9 +173,14 @@ export default function MapWorkspace({
     onExternalFocusHandled();
   }, [viewer, osd, markers, externalFocusMarkerId, onExternalFocusHandled]);
 
-  // Central place to change which marker is selected.
+  // Central place to change which marker is selected. Profile links inside
+  // the Political References / Links sections open in a new tab (see
+  // MarkerSectionStrip's consumers) rather than navigating this page away,
+  // so there's no "restore after navigating back" state to manage here —
+  // the map/marker/section simply never went anywhere.
   function selectMarker(markerId: string, opts?: { startInEdit?: boolean }) {
     setSelectedMarkerId(markerId);
+    setMarkerSection("basic");
     setAutoFocusName(false);
     setStartInEdit(Boolean(opts?.startInEdit));
   }
@@ -257,17 +268,21 @@ export default function MapWorkspace({
         <div ref={viewerElRef} className="spike-viewer" />
 
         {selectedMarker && (
-          <MarkerPanel
-            key={selectedMarker.id}
-            marker={selectedMarker}
-            maps={allMaps}
-            autoFocusName={autoFocusName}
-            startInEdit={startInEdit}
-            onUpdate={(patch) => updateMarker(selectedMarker.id, patch)}
-            onDuplicate={() => duplicateMarker(selectedMarker.id)}
-            onDelete={() => deleteMarker(selectedMarker.id)}
-            onClose={() => setSelectedMarkerId(null)}
-          />
+          <>
+            <MarkerSectionStrip section={markerSection} onChange={setMarkerSection} />
+            <MarkerPanel
+              key={selectedMarker.id}
+              marker={selectedMarker}
+              maps={allMaps}
+              section={markerSection}
+              autoFocusName={autoFocusName}
+              startInEdit={startInEdit}
+              onUpdate={(patch) => updateMarker(selectedMarker.id, patch)}
+              onDuplicate={() => duplicateMarker(selectedMarker.id)}
+              onDelete={() => deleteMarker(selectedMarker.id)}
+              onClose={() => setSelectedMarkerId(null)}
+            />
+          </>
         )}
 
         <div className={selectedMarker ? "viewer-toolbar-left panel-open" : "viewer-toolbar-left"}>
@@ -335,7 +350,14 @@ export default function MapWorkspace({
         />
 
         {gridPanelOpen && grid && (
-          <GridPanel grid={grid} onUpdate={onUpdateGrid} onDelete={onDeleteGrid} onClose={onCloseGridPanel} />
+          <GridPanel
+            grid={grid}
+            onUpdate={onUpdateGrid}
+            onDelete={onDeleteGrid}
+            onClose={onCloseGridPanel}
+            imageWidth={imageWidth}
+            imageHeight={imageHeight}
+          />
         )}
 
         {overlapChoices && (

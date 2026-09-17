@@ -3,8 +3,8 @@ import { normalizeColor, DEFAULT_COLOR } from "../markers/icon-registry";
 export const GRID_SHAPES = [
   { key: "diamond", label: "Diamond" },
   { key: "square", label: "Square" },
-  { key: "circle", label: "Circle" },
   { key: "hexagon", label: "Hexagon" },
+  { key: "hexagon-vertical", label: "Vertical Hexagon" },
 ] as const;
 
 export type GridShape = (typeof GRID_SHAPES)[number]["key"];
@@ -19,6 +19,7 @@ export const DEFAULT_GRID = {
   shape: "square" as GridShape,
   columns: 100,
   rows: 100,
+  linkedColumnsRows: false,
   horizontalOffset: 0,
   verticalOffset: 0,
   opacity: 0.18,
@@ -26,12 +27,38 @@ export const DEFAULT_GRID = {
   color: DEFAULT_COLOR,
 };
 
+export const MAX_GRID_LINES = 300;
+
 export function clampColumns(n: number): number {
-  return Math.min(200, Math.max(1, Math.round(n)));
+  return Math.min(MAX_GRID_LINES, Math.max(1, Math.round(n)));
 }
 
 export function clampRows(n: number): number {
-  return Math.min(200, Math.max(1, Math.round(n)));
+  return Math.min(MAX_GRID_LINES, Math.max(1, Math.round(n)));
+}
+
+/**
+ * Ratio of tileHeight/tileWidth that makes one grid cell "regular" for a
+ * given shape: an exact square for square/diamond, and a geometrically
+ * regular hexagon for the two hex shapes (derived from the vertex math in
+ * GridLayer's HexPatternContent/VerticalHexPatternContent).
+ */
+export function regularCellRatio(shape: GridShape): number {
+  if (shape === "hexagon") return Math.sqrt(3) / 2;
+  if (shape === "hexagon-vertical") return 2 / Math.sqrt(3);
+  return 1;
+}
+
+/** Given a fixed columns count, the rows count that keeps cells regular. */
+export function computeLinkedRows(columns: number, shape: GridShape, imageWidth: number, imageHeight: number): number {
+  const ratio = regularCellRatio(shape);
+  return clampRows((imageHeight * columns) / (imageWidth * ratio));
+}
+
+/** Given a fixed rows count, the columns count that keeps cells regular. */
+export function computeLinkedColumns(rows: number, shape: GridShape, imageWidth: number, imageHeight: number): number {
+  const ratio = regularCellRatio(shape);
+  return clampColumns((imageWidth * rows * ratio) / imageHeight);
 }
 
 export function clampOffset(n: number): number {

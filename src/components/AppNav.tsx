@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Compass, MapPlus, Trash2, Download, Upload } from "lucide-react";
+import { Compass, MapPlus, Trash2, Download, Upload, Crown } from "lucide-react";
 import SearchBox from "./SearchBox";
 
 const LINKS = [
   { href: "/maps", label: "Maps", icon: Compass },
   { href: "/maps/new", label: "Create map", icon: MapPlus },
+  { href: "/politics", label: "Politics", icon: Crown },
   { href: "/maps/trash", label: "Trash", icon: Trash2 },
   { href: "/import", label: "Import", icon: Upload },
 ];

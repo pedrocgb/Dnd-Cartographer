@@ -13,11 +13,24 @@ import {
   DEFAULT_OUTLINE_COLOR,
   DEFAULT_BACKGROUND_SHAPE,
 } from "../markers/icon-registry";
+import { isValidEnvironmentTag, isValidOwnershipTag, encodeStatusTags } from "../markers/tag-registry";
+import { isValidMarkerCategory } from "../markers/icon-registry";
 import { originalPath, originalKey, tempUploadPath } from "../assets/paths";
 import { validateImageFile, InvalidImageError } from "../assets/validate";
 import type { ExportBundle } from "./types";
 
 export class ImportValidationError extends Error {}
+
+/** Tolerates bundles from before statusTags existed (undefined/malformed). */
+function parseJsonArraySafe(raw: string | undefined): unknown[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
 
 const LIMITS = { maxMaps: 5000, maxMarkers: 50_000, maxDocuments: 55_000, maxCategories: 1000 };
 
@@ -148,12 +161,16 @@ export async function importBundle(raw: unknown, worldId: string): Promise<Impor
         marker.backgroundShape && isValidBackgroundShape(marker.backgroundShape)
           ? marker.backgroundShape
           : DEFAULT_BACKGROUND_SHAPE,
+      category: marker.category && isValidMarkerCategory(marker.category) ? marker.category : null,
       categoryId: marker.categoryId ? markerCategoryIdMap.get(marker.categoryId) ?? null : null,
       descriptionDocumentId: marker.descriptionDocumentId
         ? documentIdMap.get(marker.descriptionDocumentId) ?? null
         : null,
       linkedMapId: marker.linkedMapId ? mapIdMap.get(marker.linkedMapId) ?? null : null,
       locked: marker.locked,
+      statusTags: encodeStatusTags(parseJsonArraySafe(marker.statusTags)),
+      environment: marker.environment && isValidEnvironmentTag(marker.environment) ? marker.environment : null,
+      ownership: marker.ownership && isValidOwnershipTag(marker.ownership) ? marker.ownership : null,
       deletedAt: marker.deletedAt ? new Date(marker.deletedAt) : null,
     });
     markersCreated += 1;

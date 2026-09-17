@@ -15,10 +15,14 @@ export interface Marker {
   backgroundColor: string;
   outlineColor: string;
   backgroundShape: string;
+  category: string | null;
   linkedMapId: string | null;
   descriptionDocumentId: string | null;
   locked: boolean;
   revision: number;
+  statusTags: string[];
+  environment: string | null;
+  ownership: string | null;
 }
 
 const DRAG_THRESHOLD_PX = 5;
@@ -122,9 +126,8 @@ export default function MarkerLayer({
     }
 
     // Overlap is judged by distance between markers' own anchor points, not
-    // by distance from the raw click — the user clicks the visible glyph,
-    // which sits above the anchor (placement is BOTTOM), so comparing to the
-    // click point would make even exact-coordinate overlaps miss the radius.
+    // by distance from the raw click — comparing to the click point would
+    // make even exact-coordinate overlaps miss the radius.
     function selectOrChoose(markerId: string) {
       const clicked = latestRef.current.markers.find((m) => m.id === markerId);
       if (!clicked) return;
@@ -256,10 +259,16 @@ export default function MarkerLayer({
         const root = createRoot(el);
         entry = { el, root };
         overlaysRef.current.set(marker.id, entry);
+        // Anchored at TOP_LEFT (OSD's simplest, most reliable placement
+        // mode) with the actual centering done in CSS via a static
+        // `transform: translate(-50%, -50%)` on `.marker-overlay` itself —
+        // this sidesteps relying on OSD's own CENTER placement math, which
+        // measures the *wrapper* element it creates around ours and can
+        // disagree with our element's real rendered box.
         viewer.addOverlay({
           element: el,
           location: viewportPoint,
-          placement: osd.Placement.BOTTOM,
+          placement: osd.Placement.TOP_LEFT,
           checkResize: false,
         });
         attachDragHandlers(el, marker.id);

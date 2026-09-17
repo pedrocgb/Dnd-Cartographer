@@ -290,6 +290,8 @@ export default function MapViewer({ mapId }: { mapId: string }) {
               onCloseGridPanel={() => setGridPanelOpen(false)}
               onUpdateGrid={updateGrid}
               onDeleteGrid={deleteGrid}
+              imageWidth={asset.width ?? 1}
+              imageHeight={asset.height ?? 1}
             />
           </div>
         )}
