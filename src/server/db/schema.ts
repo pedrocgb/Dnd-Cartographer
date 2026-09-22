@@ -252,7 +252,7 @@ export const hierarchyProfiles = sqliteTable("hierarchy_profiles", {
   id: id(),
   worldId: text("world_id").notNull().references(() => worlds.id),
   name: text("name").notNull(),
-  description: text("description").notNull().default(""),
+  descriptionDocumentId: text("description_document_id").references(() => richDocuments.id),
   levels: text("levels").notNull().default("[]"),
   ...timestamps,
 });
@@ -272,7 +272,7 @@ export const territories = sqliteTable(
     worldId: text("world_id").notNull().references(() => worlds.id),
     name: text("name").notNull(),
     type: text("type").notNull(),
-    description: text("description").notNull().default(""),
+    descriptionDocumentId: text("description_document_id").references(() => richDocuments.id),
     parentId: text("parent_id"),
     hierarchyProfileId: text("hierarchy_profile_id")
       .notNull()
@@ -282,6 +282,9 @@ export const territories = sqliteTable(
     leadershipSelection: text("leadership_selection"),
     autonomy: text("autonomy"),
     situation: text("situation"),
+    // Relative storage key for the uploaded "Coat of arms" image (see
+    // src/server/assets/portrait-paths.ts), or null if none uploaded yet.
+    portraitKey: text("portrait_key"),
     deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
     ...timestamps,
   },
@@ -295,8 +298,11 @@ export const people = sqliteTable(
     id: id(),
     worldId: text("world_id").notNull().references(() => worlds.id),
     name: text("name").notNull(),
-    description: text("description").notNull().default(""),
+    descriptionDocumentId: text("description_document_id").references(() => richDocuments.id),
     houseId: text("house_id"),
+    // Relative storage key for the uploaded "Image" (portrait), or null.
+    portraitKey: text("portrait_key"),
+    status: text("status"),
     deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
     ...timestamps,
   },
@@ -311,7 +317,9 @@ export const organizations = sqliteTable(
     worldId: text("world_id").notNull().references(() => worlds.id),
     name: text("name").notNull(),
     kind: text("kind").notNull().default("House"),
-    description: text("description").notNull().default(""),
+    descriptionDocumentId: text("description_document_id").references(() => richDocuments.id),
+    // Relative storage key for the uploaded "Crest" image, or null.
+    portraitKey: text("portrait_key"),
     deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
     ...timestamps,
   },

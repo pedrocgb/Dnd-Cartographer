@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { eq, and, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { territories, hierarchyProfiles, markerAffiliations } from "@/server/db/schema";
-import { resolveChain, levelsByProfileId, toTerritoryLike, getAuthoritiesForChain } from "@/server/politics/queries";
+import { resolveChain, levelsByProfileId, toTerritoryLike, getAuthoritiesForChain, getAffiliatedMarkers } from "@/server/politics/queries";
 import { validateChain, computeMissingRequiredTypes } from "@/server/politics/hierarchy-config";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -20,8 +20,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const missing = computeMissingRequiredTypes(toTerritoryLike(chain), levelsMap);
   const authorities = await getAuthoritiesForChain(chain.map((t) => t.id));
   const children = await db.query.territories.findMany({ where: eq(territories.parentId, id) });
+  const affiliatedMarkers = await getAffiliatedMarkers(id);
 
-  return NextResponse.json({ territory, chain, missingRequiredTypes: missing, authorities, children });
+  return NextResponse.json({ territory, chain, missingRequiredTypes: missing, authorities, children, affiliatedMarkers });
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -35,7 +36,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const patch: Partial<typeof territories.$inferInsert> = { updatedAt: new Date() };
   if (typeof body.name === "string" && body.name.trim()) patch.name = body.name.trim();
   if (typeof body.type === "string" && body.type.trim()) patch.type = body.type.trim();
-  if (typeof body.description === "string") patch.description = body.description;
+  if ("descriptionDocumentId" in body) {
+    patch.descriptionDocumentId = body.descriptionDocumentId === null ? null : String(body.descriptionDocumentId);
+  }
   if ("governmentForm" in body) patch.governmentForm = body.governmentForm === null ? null : String(body.governmentForm);
   if ("powerHolders" in body) patch.powerHolders = body.powerHolders === null ? null : String(body.powerHolders);
   if ("leadershipSelection" in body) patch.leadershipSelection = body.leadershipSelection === null ? null : String(body.leadershipSelection);

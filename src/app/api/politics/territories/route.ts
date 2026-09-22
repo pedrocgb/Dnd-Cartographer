@@ -66,7 +66,6 @@ export async function POST(request: Request) {
       worldId,
       name,
       type,
-      description: typeof body?.description === "string" ? body.description : "",
       parentId,
       hierarchyProfileId,
       governmentForm: typeof body?.governmentForm === "string" ? body.governmentForm : null,

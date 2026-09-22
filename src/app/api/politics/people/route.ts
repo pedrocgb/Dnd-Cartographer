@@ -21,9 +21,10 @@ export async function POST(request: Request) {
 
   const worldId = await ensureDefaultWorld();
   const houseId = typeof body?.houseId === "string" && body.houseId ? body.houseId : null;
+  const status = typeof body?.status === "string" && body.status ? body.status : null;
   const [created] = await db
     .insert(people)
-    .values({ worldId, name, description: typeof body?.description === "string" ? body.description : "", houseId })
+    .values({ worldId, name, houseId, status })
     .returning();
   return NextResponse.json({ person: created }, { status: 201 });
 }

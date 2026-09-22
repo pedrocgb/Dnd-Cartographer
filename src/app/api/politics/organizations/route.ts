@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   const kind = typeof body?.kind === "string" && (ORGANIZATION_KINDS as readonly string[]).includes(body.kind) ? body.kind : "House";
   const [created] = await db
     .insert(organizations)
-    .values({ worldId, name, kind, description: typeof body?.description === "string" ? body.description : "" })
+    .values({ worldId, name, kind })
     .returning();
   return NextResponse.json({ organization: created }, { status: 201 });
 }

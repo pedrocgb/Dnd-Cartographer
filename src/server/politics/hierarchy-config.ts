@@ -48,7 +48,24 @@ export const LEADERSHIP_SELECTIONS = ["Hereditary", "Election", "Appointment", "
 export const SITUATIONS = ["Stable", "Disputed", "Rebellion", "Occupation", "Fragmented"] as const;
 
 export const ORGANIZATION_KINDS = ["House", "Council", "Clan", "Religious Institution", "Custom"] as const;
-export const AUTHORITY_ROLES = ["Ruler", "Co-Ruler", "Regent", "Council Member", "Council Head", "Steward", "Claimant", "Advisor", "Custom"] as const;
+export const PERSON_STATUSES = ["Alive", "Deceased", "Missing", "Unknown"] as const;
+export const AUTHORITY_ROLES = [
+  "Ruler",
+  "Co-Ruler",
+  "Regent",
+  "Council Member",
+  "Council Head",
+  "Steward",
+  "Claimant",
+  "Advisor",
+  "Chancellor",
+  "Treasurer",
+  "Chamberlain",
+  "Marshal",
+  "Justiciar",
+  "Bishop",
+  "Custom",
+] as const;
 
 /**
  * One rung of a hierarchy profile. `allowedParentTypes` lists territory

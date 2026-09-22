@@ -18,7 +18,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const patch: Partial<typeof hierarchyProfiles.$inferInsert> = { updatedAt: new Date() };
   if (typeof body.name === "string" && body.name.trim()) patch.name = body.name.trim();
-  if (typeof body.description === "string") patch.description = body.description;
+  if ("descriptionDocumentId" in body) {
+    patch.descriptionDocumentId = body.descriptionDocumentId === null ? null : String(body.descriptionDocumentId);
+  }
   if (Array.isArray(body.levels)) patch.levels = encodeHierarchyLevels(body.levels);
 
   // Editing rules atomically: reject the whole change if any territory

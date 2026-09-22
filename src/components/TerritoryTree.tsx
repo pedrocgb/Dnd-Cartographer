@@ -30,12 +30,14 @@ export function TerritoryTreeRow({
   expanded,
   onToggleExpand,
   onSelect,
+  selectedId,
 }: {
   node: TerritoryNode;
   depth: number;
   expanded: Set<string>;
   onToggleExpand: (id: string) => void;
   onSelect: (id: string) => void;
+  selectedId?: string | null;
 }) {
   const hasChildren = node.children.length > 0;
   const isExpanded = expanded.has(node.id);
@@ -55,14 +57,26 @@ export function TerritoryTreeRow({
         ) : (
           <span className="politics-tree-spacer" />
         )}
-        <button type="button" className="politics-list-pick" onClick={() => onSelect(node.id)}>
+        <button
+          type="button"
+          className={node.id === selectedId ? "politics-list-pick selected" : "politics-list-pick"}
+          onClick={() => onSelect(node.id)}
+        >
           {node.name} <span className="field-label">({node.type})</span>
         </button>
       </li>
       {hasChildren &&
         isExpanded &&
         node.children.map((child) => (
-          <TerritoryTreeRow key={child.id} node={child} depth={depth + 1} expanded={expanded} onToggleExpand={onToggleExpand} onSelect={onSelect} />
+          <TerritoryTreeRow
+            key={child.id}
+            node={child}
+            depth={depth + 1}
+            expanded={expanded}
+            onToggleExpand={onToggleExpand}
+            onSelect={onSelect}
+            selectedId={selectedId}
+          />
         ))}
     </>
   );

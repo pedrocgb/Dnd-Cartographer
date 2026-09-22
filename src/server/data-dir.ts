@@ -21,6 +21,10 @@ export const SUBDIRS = {
   thumbnails: path.join(DATA_DIR, "thumbnails"),
   temp: path.join(DATA_DIR, "temp"),
   exports: path.join(DATA_DIR, "exports"),
+  // Small square portrait images (territory coats of arms, person
+  // portraits, organization crests) — stored directly, no tiling/dzi
+  // pipeline, unlike map originals.
+  portraits: path.join(DATA_DIR, "portraits"),
 } as const;
 
 export const DB_FILE = path.join(DATA_DIR, "world-wiki.db");

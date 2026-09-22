@@ -64,8 +64,7 @@ function useHolderName(holderType: "person" | "organization", holderId: string) 
   return name;
 }
 
-function AuthorityRow({ authority, territoryName }: { authority: Authority; territoryName: string }) {
-  const name = useHolderName(authority.holderType, authority.holderId);
+function AuthorityRow({ authority, territoryName, name }: { authority: Authority; territoryName: string; name: string | undefined }) {
   return (
     <li className="politics-list-row">
       <span>
@@ -79,6 +78,44 @@ function AuthorityRow({ authority, territoryName }: { authority: Authority; terr
       </a>
     </li>
   );
+}
+
+/** Root → leaf hierarchy order (matching the Territories tab's Authorities
+ * list): the highest-ranked territory in the chain comes first, and
+ * authorities within the same territory (or that fall outside the chain
+ * entirely, which shouldn't normally happen here) tie-break alphabetically
+ * by holder name. */
+function useSortedChainAuthorities(chain: Territory[], authorities: Authority[]) {
+  const [names, setNames] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const personIds = new Set(authorities.filter((a) => a.holderType === "person").map((a) => a.holderId));
+    const orgIds = new Set(authorities.filter((a) => a.holderType === "organization").map((a) => a.holderId));
+    if (personIds.size === 0 && orgIds.size === 0) return;
+
+    Promise.all([
+      personIds.size > 0 ? fetch("/api/politics/people?q=").then((r) => json<{ people: PersonOrOrg[] }>(r)) : Promise.resolve({ people: [] }),
+      orgIds.size > 0 ? fetch("/api/politics/organizations?q=").then((r) => json<{ organizations: PersonOrOrg[] }>(r)) : Promise.resolve({ organizations: [] }),
+    ]).then(([peopleRes, orgsRes]) => {
+      const map: Record<string, string> = {};
+      for (const p of peopleRes.people) if (personIds.has(p.id)) map[p.id] = p.name;
+      for (const o of orgsRes.organizations) if (orgIds.has(o.id)) map[o.id] = o.name;
+      setNames(map);
+    });
+  }, [authorities]);
+
+  const territoryIndexById = useMemo(() => new Map(chain.map((t, i) => [t.id, i])), [chain]);
+
+  const sorted = useMemo(() => {
+    return [...authorities].sort((a, b) => {
+      const rankA = territoryIndexById.get(a.territoryId) ?? Number.POSITIVE_INFINITY;
+      const rankB = territoryIndexById.get(b.territoryId) ?? Number.POSITIVE_INFINITY;
+      if (rankA !== rankB) return rankA - rankB;
+      return (names[a.holderId] ?? "").localeCompare(names[b.holderId] ?? "");
+    });
+  }, [authorities, territoryIndexById, names]);
+
+  return { sorted, names, territoryIndexById };
 }
 
 function TerritoryPicker({ onPick }: { onPick: (territoryId: string) => void }) {
@@ -161,6 +198,7 @@ export default function PoliticalReferencesPanel({
   const [references, setReferences] = useState<PoliticalReference[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const { sorted: sortedAuthorities, names: authorityNames } = useSortedChainAuthorities(accepted?.chain ?? [], accepted?.authorities ?? []);
 
   function refresh() {
     fetch(`/api/markers/${markerId}/affiliation`)
@@ -287,12 +325,17 @@ export default function PoliticalReferencesPanel({
         </button>
       )}
 
-      {accepted && accepted.authorities.length > 0 && (
+      {accepted && sortedAuthorities.length > 0 && (
         <>
           <h3 className="marker-section-title">Authorities</h3>
           <ul className="politics-list">
-            {accepted.authorities.map((a) => (
-              <AuthorityRow key={a.id} authority={a} territoryName={accepted.chain.find((t) => t.id === a.territoryId)?.name ?? ""} />
+            {sortedAuthorities.map((a) => (
+              <AuthorityRow
+                key={a.id}
+                authority={a}
+                territoryName={accepted.chain.find((t) => t.id === a.territoryId)?.name ?? ""}
+                name={authorityNames[a.holderId]}
+              />
             ))}
           </ul>
         </>

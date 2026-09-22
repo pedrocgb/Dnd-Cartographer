@@ -818,6 +818,22 @@ textarea::placeholder {
   display: inline-block;
 }
 
+.map-tree-delete {
+  width: 1.5rem;
+  height: 1.5rem;
+  min-height: 0;
+  padding: 0;
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  color: var(--text-tertiary);
+}
+
+.map-tree-delete:hover:not(:disabled) {
+  background: var(--bg-surface-hover);
+  color: var(--danger-300);
+}
+
 .map-tree-link {
   font-weight: 600;
   color: var(--text-primary);
@@ -1160,6 +1176,37 @@ textarea::placeholder {
   font-weight: 700;
 }
 
+.politics-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  margin-bottom: var(--space-2);
+}
+
+.politics-breadcrumb button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text-tertiary);
+  font-size: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+}
+
+.politics-breadcrumb button:hover {
+  color: var(--text-secondary);
+  text-decoration-color: currentColor;
+}
+
+.politics-breadcrumb-sep {
+  margin-right: 4px;
+  color: var(--text-tertiary);
+}
+
 .marker-tag-summary {
   display: flex;
   flex-direction: row;
@@ -1191,7 +1238,9 @@ textarea::placeholder {
   min-width: 0;
 }
 
-.marker-tag-summary span {
+.marker-tag-summary span,
+.marker-tag-summary-left span,
+.marker-tag-summary-right span {
   font-size: 0.6875rem;
   color: var(--text-tertiary);
   line-height: 1.3;
@@ -1451,6 +1500,19 @@ textarea::placeholder {
   padding: var(--space-1) 0;
 }
 
+.politics-authority-group-label {
+  padding: var(--space-2) 0 0;
+}
+
+.politics-authority-group-label:first-child {
+  padding-top: 0;
+}
+
+.politics-authority-group-gap {
+  margin-top: var(--space-2);
+  border-top: 1px solid var(--border-subtle);
+}
+
 .politics-list-pick {
   background: none;
   border: none;
@@ -1463,6 +1525,15 @@ textarea::placeholder {
 
 .politics-list-pick:hover {
   background: var(--bg-surface-hover);
+}
+
+.politics-list-pick.selected {
+  background: var(--teal-900);
+  color: var(--teal-300);
+}
+
+.politics-list-pick.selected:hover {
+  background: var(--teal-900);
 }
 
 /* ---------- Politics management page ---------- */
@@ -1483,6 +1554,12 @@ textarea::placeholder {
   flex-wrap: wrap;
 }
 
+.politics-filter-row {
+  display: flex;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+}
+
 .politics-columns {
   display: grid;
   grid-template-columns: 280px 1fr;
@@ -1497,10 +1574,130 @@ textarea::placeholder {
 }
 
 .politics-detail {
+  position: relative;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
   padding: var(--space-4);
+  /* Room for the portrait/crest square pinned in the top-right corner
+     (see .politics-portrait) so it never overlaps the name/description. */
+  padding-right: calc(var(--space-4) + 168px + var(--space-3));
+  /* The portrait is absolutely positioned (space-3 from the top, 168px
+     tall) — without a matching min-height, a card whose text content is
+     short (e.g. just a name, quote, and buttons) ends before the portrait
+     does, so the square pokes out past the card's own border/background. */
+  min-height: calc(var(--space-3) * 2 + 168px);
+  /* Reserve room at the bottom for .politics-detail-actions, which is
+     pinned there absolutely — otherwise a long description could grow
+     into the same space the buttons occupy. */
+  padding-bottom: calc(var(--space-4) + 40px);
   background: var(--bg-surface);
+}
+
+.politics-detail-actions {
+  position: absolute;
+  left: var(--space-4);
+  bottom: var(--space-4);
+}
+
+.politics-portrait {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  width: 168px;
+  height: 168px;
+  flex-shrink: 0;
+}
+
+.politics-portrait-frame {
+  width: 100%;
+  height: 100%;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  cursor: pointer;
+  position: relative;
+  background: var(--bg-inset);
+}
+
+.politics-portrait-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.politics-portrait-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 1px dashed var(--border-default);
+  color: var(--text-tertiary);
+  text-align: center;
+  padding: 4px;
+}
+
+.politics-portrait-placeholder span {
+  font-size: 0.75rem;
+  line-height: 1.2;
+}
+
+.politics-portrait-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.politics-portrait-remove:hover {
+  background: rgba(0, 0, 0, 0.85);
+}
+
+.affiliated-markers-controls {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.affiliated-markers-controls input[type="text"] {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Tighter than the generic .politics-list — that one's gap + its rows'
+   button-sized click padding was meant for spaced-out action rows, not a
+   dense name list. */
+.affiliated-markers-list {
+  gap: 0;
+}
+
+.affiliated-markers-list .politics-list-row {
+  padding: 0;
+}
+
+.affiliated-markers-list .politics-list-pick {
+  padding: 3px var(--space-2);
+}
+
+.affiliated-markers-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-3);
+  padding-top: var(--space-1);
 }
 
 .politics-form {
@@ -1529,6 +1726,76 @@ textarea::placeholder {
 
 .politics-levels-table input[type="text"] {
   width: 100%;
+}
+
+.politics-collapsible {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.politics-collapsible-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-surface-raised);
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.politics-collapsible-header:hover {
+  color: var(--text-primary);
+}
+
+.politics-collapsible-header .marker-section-title {
+  /* .marker-section-title is normally a standalone divider between
+     sections (padding-top + border-top) — inside this button it's just
+     inline label text next to the chevron, so both need resetting or
+     they render as a stray horizontal line and push the label off-center
+     from the chevron. */
+  margin: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+.politics-collapsible-chevron {
+  flex-shrink: 0;
+  transition: transform var(--transition-fast);
+}
+
+.politics-collapsible-chevron.open {
+  transform: rotate(90deg);
+}
+
+.politics-collapsible-body {
+  padding: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.allowed-parents-list {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-1) var(--space-3);
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.allowed-parents-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: var(--text-sm);
+}
+
+.allowed-parents-option:hover {
+  background: var(--bg-surface-hover);
 }
 
 .politics-tree-row {
@@ -1806,6 +2073,13 @@ input[type="range"]::-moz-range-track {
   color: var(--text-primary);
 }
 
+.rich-editor-loading {
+  background: var(--bg-inset);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+}
+
 .rich-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -1846,10 +2120,19 @@ input[type="range"]::-moz-range-track {
   margin: 0 var(--space-1);
 }
 
+.rich-content-wrap {
+  position: relative;
+}
+
 .rich-save-state {
-  margin-left: auto;
+  position: absolute;
+  right: var(--space-3);
+  bottom: var(--space-2);
   font-size: var(--text-xs);
   color: var(--text-tertiary);
+  background: var(--bg-inset);
+  padding: 0 2px;
+  pointer-events: none;
 }
 
 .rich-content,
@@ -1858,7 +2141,9 @@ input[type="range"]::-moz-range-track {
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   padding: var(--space-3) var(--space-4);
-  min-height: 120px;
+  /* No fixed min-height — the box sizes to however many lines the
+     description actually has (down to a single empty line while editing
+     with nothing typed yet), instead of always reserving a tall block. */
   font-size: var(--text-base);
   line-height: 1.6;
 }
@@ -1866,10 +2151,6 @@ input[type="range"]::-moz-range-track {
 .rich-content {
   resize: vertical;
   overflow: auto;
-}
-
-.rich-content .ProseMirror {
-  min-height: 100%;
 }
 
 .rich-toolbar-select {

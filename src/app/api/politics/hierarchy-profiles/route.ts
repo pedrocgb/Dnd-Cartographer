@@ -48,7 +48,6 @@ export async function POST(request: Request) {
     .values({
       worldId,
       name,
-      description: typeof body?.description === "string" ? body.description : "",
       levels: encodeHierarchyLevels(body.levels),
     })
     .returning();

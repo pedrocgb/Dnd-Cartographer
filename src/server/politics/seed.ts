@@ -1,7 +1,11 @@
 import { eq, and } from "drizzle-orm";
 import { db } from "../db/client";
-import { hierarchyProfiles } from "../db/schema";
+import { hierarchyProfiles, richDocuments } from "../db/schema";
 import { DEFAULT_HIERARCHY_LEVELS, DEFAULT_PROFILE_NAME, encodeHierarchyLevels } from "./hierarchy-config";
+import { SCHEMA_VERSION } from "../documents/schema";
+
+const DEFAULT_PROFILE_DESCRIPTION =
+  "Empire (optional) → Kingdom → Duchy → County → Barony (optional). Duchy and County are required.";
 
 /** Ensures the world has at least the seeded "Default" hierarchy profile, returning its id. */
 export async function ensureDefaultHierarchyProfile(worldId: string): Promise<string> {
@@ -10,12 +14,25 @@ export async function ensureDefaultHierarchyProfile(worldId: string): Promise<st
   });
   if (existing) return existing.id;
 
+  const [doc] = await db
+    .insert(richDocuments)
+    .values({
+      worldId,
+      jsonText: JSON.stringify({
+        type: "doc",
+        content: [{ type: "paragraph", content: [{ type: "text", text: DEFAULT_PROFILE_DESCRIPTION }] }],
+      }),
+      plainText: DEFAULT_PROFILE_DESCRIPTION,
+      schemaVersion: SCHEMA_VERSION,
+    })
+    .returning({ id: richDocuments.id });
+
   const [created] = await db
     .insert(hierarchyProfiles)
     .values({
       worldId,
       name: DEFAULT_PROFILE_NAME,
-      description: "Empire (optional) → Kingdom → Duchy → County → Barony (optional). Duchy and County are required.",
+      descriptionDocumentId: doc.id,
       levels: encodeHierarchyLevels(DEFAULT_HIERARCHY_LEVELS),
     })
     .returning({ id: hierarchyProfiles.id });

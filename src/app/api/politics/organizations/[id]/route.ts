@@ -14,7 +14,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const patch: Partial<typeof organizations.$inferInsert> = { updatedAt: new Date() };
   if (typeof body.name === "string" && body.name.trim()) patch.name = body.name.trim();
-  if (typeof body.description === "string") patch.description = body.description;
+  if ("descriptionDocumentId" in body) {
+    patch.descriptionDocumentId = body.descriptionDocumentId === null ? null : String(body.descriptionDocumentId);
+  }
   if (typeof body.kind === "string" && (ORGANIZATION_KINDS as readonly string[]).includes(body.kind)) patch.kind = body.kind;
 
   const [updated] = await db.update(organizations).set(patch).where(eq(organizations.id, id)).returning();

@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, MapPlus } from "lucide-react";
+import { ChevronDown, ChevronRight, MapPlus, Trash2 } from "lucide-react";
+import Modal from "@/components/Modal";
 
 interface MapSummary {
   id: string;
@@ -42,7 +43,7 @@ function Thumbnail({ node }: { node: MapSummary }) {
   return <div className="map-thumb map-thumb-empty" />;
 }
 
-function TreeItem({ node }: { node: TreeNode }) {
+function TreeItem({ node, onRequestDelete }: { node: TreeNode; onRequestDelete: (node: MapSummary) => void }) {
   const [expanded, setExpanded] = useState(true);
   return (
     <li>
@@ -59,6 +60,15 @@ function TreeItem({ node }: { node: TreeNode }) {
         ) : (
           <span className="map-tree-toggle-spacer" />
         )}
+        <button
+          type="button"
+          className="btn btn-ghost btn-icon map-tree-delete"
+          onClick={() => onRequestDelete(node)}
+          aria-label={`Delete ${node.name}`}
+          title={`Delete ${node.name}`}
+        >
+          <Trash2 size={14} strokeWidth={2.25} />
+        </button>
         <Thumbnail node={node} />
         <Link href={`/maps/${node.id}`} className="map-tree-link">
           {node.name}
@@ -70,7 +80,7 @@ function TreeItem({ node }: { node: TreeNode }) {
       {expanded && node.children.length > 0 && (
         <ul className="map-tree-children">
           {node.children.map((child) => (
-            <TreeItem key={child.id} node={child} />
+            <TreeItem key={child.id} node={child} onRequestDelete={onRequestDelete} />
           ))}
         </ul>
       )}
@@ -78,15 +88,85 @@ function TreeItem({ node }: { node: TreeNode }) {
   );
 }
 
+function DeleteMapModal({
+  map,
+  onClose,
+  onDeleted,
+}: {
+  map: MapSummary;
+  onClose: () => void;
+  onDeleted: () => void;
+}) {
+  const [confirmText, setConfirmText] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const matches = confirmText === map.name;
+
+  async function removeMap(strategy?: "cascade" | "orphan") {
+    setDeleting(true);
+    setError(null);
+    const res = await fetch(`/api/maps/${map.id}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(strategy ? { strategy } : {}),
+    });
+    if (res.status === 409) {
+      const data = await res.json();
+      const choice = window.confirm(
+        `"${map.name}" has ${data.childCount} child map(s). OK to move them to the root (Cancel to delete the whole subtree instead).`
+      );
+      await removeMap(choice ? "orphan" : "cascade");
+      return;
+    }
+    setDeleting(false);
+    if (!res.ok) {
+      setError("Failed to delete map.");
+      return;
+    }
+    onDeleted();
+  }
+
+  return (
+    <Modal open onClose={onClose} title={`Delete "${map.name}"`}>
+      <p className="form-error">
+        This permanently removes the map and every marker on it. This cannot be undone from here — type the map&rsquo;s
+        name below to confirm.
+      </p>
+      <label className="field-label">
+        Type <strong>{map.name}</strong> to confirm
+      </label>
+      <input
+        type="text"
+        value={confirmText}
+        onChange={(e) => setConfirmText(e.target.value)}
+        autoFocus
+        placeholder={map.name}
+      />
+      {error && <p className="form-error">{error}</p>}
+      <div className="marker-panel-actions">
+        <button type="button" className="btn btn-sm btn-danger" disabled={!matches || deleting} onClick={() => removeMap()}>
+          <Trash2 size={13} strokeWidth={2.25} />
+          {deleting ? "Deleting…" : "Delete map"}
+        </button>
+        <button type="button" className="btn btn-sm" onClick={onClose}>
+          Cancel
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
 export default function MapManager() {
   const [maps, setMaps] = useState<MapSummary[] | null>(null);
   const [search, setSearch] = useState("");
+  const [deletingMap, setDeletingMap] = useState<MapSummary | null>(null);
 
-  useEffect(() => {
+  function refresh() {
     fetch("/api/maps")
       .then((r) => r.json())
       .then((d) => setMaps(d.maps));
-  }, []);
+  }
+  useEffect(refresh, []);
 
   const filtered = useMemo(() => {
     if (!maps) return [];
@@ -123,9 +203,19 @@ export default function MapManager() {
       />
       <ul className="map-tree-children map-tree-root">
         {tree.map((node) => (
-          <TreeItem key={node.id} node={node} />
+          <TreeItem key={node.id} node={node} onRequestDelete={setDeletingMap} />
         ))}
       </ul>
+      {deletingMap && (
+        <DeleteMapModal
+          map={deletingMap}
+          onClose={() => setDeletingMap(null)}
+          onDeleted={() => {
+            setDeletingMap(null);
+            refresh();
+          }}
+        />
+      )}
     </div>
   );
 }
