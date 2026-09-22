@@ -94,7 +94,7 @@ function AddLinkForm({ markerId, onAdded }: { markerId: string; onAdded: () => v
   );
 }
 
-export default function MarkerLinksPanel({ markerId, active }: { markerId: string; active: boolean }) {
+export default function MarkerLinksPanel({ markerId }: { markerId: string }) {
   const [links, setLinks] = useState<ConsolidatedLink[] | null>(null);
 
   function refresh() {
@@ -103,10 +103,14 @@ export default function MarkerLinksPanel({ markerId, active }: { markerId: strin
       .then((d) => setLinks(d.links));
   }
 
+  // Always mounted (hidden via CSS when another section is active — see
+  // MarkerPanel), so a mount-time fetch already has data ready before the
+  // user switches to this tab; re-fetching on every tab switch was a
+  // redundant round trip.
   useEffect(() => {
     refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [markerId, active]);
+  }, [markerId]);
 
   async function removeLink(linkId: string) {
     await fetch(`/api/politics/links/${linkId}`, { method: "DELETE" });

@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import type OpenSeadragonType from "openseadragon";
 import MarkerIcon from "./MarkerIcon";
+import { setOsdNavEnabled } from "./osd-nav";
 
 export interface Marker {
   id: string;
@@ -39,6 +40,11 @@ interface Props {
   onOverlapChoice: (markerIds: string[], screenPoint: { x: number; y: number }) => void;
   onMoveMarker: (markerId: string, u: number, v: number) => void;
   selectedMarkerId: string | null;
+  /** False while another tool (e.g. zone drawing) needs unobstructed clicks
+   * on the map — marker overlays stop intercepting the pointer entirely
+   * rather than merely being unclickable, since they'd otherwise sit above
+   * that tool's own hit layer and swallow its gestures. */
+  interactive?: boolean;
 }
 
 interface DragState {
@@ -62,6 +68,7 @@ export default function MarkerLayer({
   onOverlapChoice,
   onMoveMarker,
   selectedMarkerId,
+  interactive = true,
 }: Props) {
   const overlaysRef = useRef<Map<string, { el: HTMLDivElement; root: Root }>>(new Map());
   const dragRef = useRef<DragState | null>(null);
@@ -149,9 +156,11 @@ export default function MarkerLayer({
       // doesn't reliably stop it (OSD's tracker isn't guaranteed to be reached
       // via bubbling of the same event type). The robust fix is to disable
       // OSD's own mouse navigation entirely while the pointer is over a
-      // marker, so our handlers are the only thing responding to the drag.
+      // marker, so our handlers are the only thing responding to the drag
+      // (see osd-nav.ts for why this has to be the full switch, not just
+      // drag-to-pan, and how scroll-zoom stays available anyway).
       el.addEventListener("mouseenter", () => {
-        viewer!.setMouseNavEnabled(false);
+        setOsdNavEnabled(viewer, false);
         // Each marker overlay lives in its own OSD-created wrapper div (a
         // sibling of every other marker's wrapper), stacked in whatever
         // order they were created — not by screen position. That means the
@@ -163,7 +172,7 @@ export default function MarkerLayer({
         if (el.parentElement) el.parentElement.style.zIndex = "1000";
       });
       el.addEventListener("mouseleave", () => {
-        if (!dragRef.current) viewer!.setMouseNavEnabled(true);
+        if (!dragRef.current) setOsdNavEnabled(viewer, true);
         if (el.parentElement) el.parentElement.style.zIndex = "";
       });
 
@@ -175,6 +184,7 @@ export default function MarkerLayer({
       });
 
       el.addEventListener("mousedown", (e: MouseEvent) => {
+        if (e.button !== 0) return; // left button only — middle stays free for panning
         const { markers: currentMarkers, selectedMarkerId: currentSelected } = latestRef.current;
         const current = currentMarkers.find((m) => m.id === markerId);
         if (!current) return;
@@ -226,7 +236,7 @@ export default function MarkerLayer({
           window.removeEventListener("mouseup", onUp);
           dragRef.current = null;
           el.classList.remove("marker-overlay-dragging");
-          viewer!.setMouseNavEnabled(true);
+          setOsdNavEnabled(viewer, true);
 
           if (!drag.dragging) {
             selectOrChoose(markerId);
@@ -277,6 +287,14 @@ export default function MarkerLayer({
       }
 
       entry.el.classList.toggle("marker-overlay-selected", marker.id === selectedMarkerId);
+      entry.el.classList.toggle("marker-overlay-noninteractive", !interactive);
+      // `pointer-events: none` on our own element doesn't remove OSD's own
+      // wrapper div (a sibling-of-content parent OSD creates around every
+      // overlay for positioning) from hit-testing — that wrapper has no
+      // class unique to this one marker, so it's targeted directly here
+      // rather than through a shared CSS rule that would also disable
+      // unrelated overlays (Grid, Zones) using the same OSD wrapper class.
+      if (entry.el.parentElement) entry.el.parentElement.style.pointerEvents = interactive ? "" : "none";
       entry.root.render(
         <>
           <MarkerIcon
@@ -303,7 +321,7 @@ export default function MarkerLayer({
         overlaysRef.current.delete(id);
       }
     }
-  }, [viewer, osd, markers, selectedMarkerId, onSelectMarker, onEditMarker, onOverlapChoice, onMoveMarker]);
+  }, [viewer, osd, markers, selectedMarkerId, interactive, onSelectMarker, onEditMarker, onOverlapChoice, onMoveMarker]);
 
   // Unmount all overlay roots when the layer itself goes away (map change).
   useEffect(() => {

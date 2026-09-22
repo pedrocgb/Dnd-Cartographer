@@ -10,6 +10,7 @@ import MapSettingsModal from "./MapSettingsModal";
 import MarkersListModal from "./MarkersListModal";
 import type { Marker } from "./MarkerLayer";
 import type { MapGrid } from "./GridLayer";
+import type { ZoneData, ZoneRegionData } from "./ZoneLayer";
 
 interface MapAsset {
   id: string;
@@ -106,6 +107,10 @@ export default function MapViewer({ mapId }: { mapId: string }) {
   const [grid, setGrid] = useState<MapGrid | null>(null);
   const [gridPanelOpen, setGridPanelOpen] = useState(false);
   const gridPatchTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const [zoneRegions, setZoneRegions] = useState<ZoneRegionData[]>([]);
+  const [zones, setZones] = useState<ZoneData[]>([]);
+  const [zonesPanelOpen, setZonesPanelOpen] = useState(false);
+  const [iconFilterPanelOpen, setIconFilterPanelOpen] = useState(false);
 
   // A ref, not a plain closure variable: `uploadImage`/`retry` need to
   // (re)start this same polling loop after the asset lifecycle restarts
@@ -149,6 +154,12 @@ export default function MapViewer({ mapId }: { mapId: string }) {
     fetch(`/api/maps/${mapId}/grid`)
       .then((r) => r.json())
       .then((d) => setGrid(d.grid));
+    fetch(`/api/maps/${mapId}/zone-regions`)
+      .then((r) => r.json())
+      .then((d) => setZoneRegions(d.regions));
+    fetch(`/api/maps/${mapId}/zones`)
+      .then((r) => r.json())
+      .then((d) => setZones(d.zones));
   }, [mapId]);
 
   async function retry() {
@@ -207,12 +218,26 @@ export default function MapViewer({ mapId }: { mapId: string }) {
   }
 
   async function onOpenGrid() {
+    setZonesPanelOpen(false);
+    setIconFilterPanelOpen(false);
     if (!grid) {
       const res = await fetch(`/api/maps/${mapId}/grid`, { method: "POST" });
       const data = await res.json();
       setGrid(data.grid);
     }
     setGridPanelOpen(true);
+  }
+
+  function onOpenZones() {
+    setGridPanelOpen(false);
+    setIconFilterPanelOpen(false);
+    setZonesPanelOpen(true);
+  }
+
+  function onOpenIconFilter() {
+    setGridPanelOpen(false);
+    setZonesPanelOpen(false);
+    setIconFilterPanelOpen(true);
   }
 
   function updateGrid(patch: Partial<MapGrid>) {
@@ -263,9 +288,13 @@ export default function MapViewer({ mapId }: { mapId: string }) {
           uploading={uploading}
           markersDisabled={!asset || asset.state !== "ready"}
           gridDisabled={!asset || asset.state !== "ready"}
+          zonesDisabled={!asset || asset.state !== "ready"}
+          iconFilterDisabled={!asset || asset.state !== "ready"}
           onOpenSettings={() => setSettingsOpen(true)}
           onOpenMarkers={() => setMarkersListOpen(true)}
           onOpenGrid={onOpenGrid}
+          onOpenZones={onOpenZones}
+          onOpenIconFilter={onOpenIconFilter}
           onUploadImage={uploadImage}
           onDeleteMap={onDeleteMap}
         />
@@ -290,6 +319,14 @@ export default function MapViewer({ mapId }: { mapId: string }) {
               onCloseGridPanel={() => setGridPanelOpen(false)}
               onUpdateGrid={updateGrid}
               onDeleteGrid={deleteGrid}
+              zoneRegions={zoneRegions}
+              setZoneRegions={setZoneRegions}
+              zones={zones}
+              setZones={setZones}
+              zonesPanelOpen={zonesPanelOpen}
+              onCloseZonesPanel={() => setZonesPanelOpen(false)}
+              iconFilterPanelOpen={iconFilterPanelOpen}
+              onCloseIconFilterPanel={() => setIconFilterPanelOpen(false)}
               imageWidth={asset.width ?? 1}
               imageHeight={asset.height ?? 1}
             />

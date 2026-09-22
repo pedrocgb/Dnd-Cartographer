@@ -177,6 +177,67 @@ export const mapGrids = sqliteTable(
   (table) => [uniqueIndex("map_grids_map_idx").on(table.mapId)]
 );
 
+/**
+ * A map-local folder/layer grouping zones (e.g. "Duchies", "Forests",
+ * "Danger Areas") — organizational only, with no automatic political
+ * meaning even when named after a territory type.
+ */
+export const zoneRegions = sqliteTable(
+  "zone_regions",
+  {
+    id: id(),
+    mapId: text("map_id")
+      .notNull()
+      .references(() => maps.id),
+    name: text("name").notNull(),
+    visible: integer("visible", { mode: "boolean" }).notNull().default(true),
+    locked: integer("locked", { mode: "boolean" }).notNull().default(false),
+    sortOrder: integer("sort_order").notNull().default(0),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+    ...timestamps,
+  },
+  (table) => [index("zone_regions_map_idx").on(table.mapId)]
+);
+
+/**
+ * One drawn shape inside a Zone Region. `geometry` is JSON-encoded and
+ * shape-dependent (rectangle: {x,y,width,height}; circle: {x,y,radius};
+ * polygon: {points:[{x,y},...]}), always in the source image's own pixel
+ * coordinate space — following the same "JSON as plain text" convention as
+ * markers.statusTags rather than a typed column, since the shape varies by
+ * shapeType. `territoryId` is an optional, descriptive-only reference to an
+ * existing political territory (no DB FK, same convention as
+ * markers.linkedMapId) — it never affects political hierarchy or marker
+ * affiliation.
+ */
+export const zones = sqliteTable(
+  "zones",
+  {
+    id: id(),
+    regionId: text("region_id")
+      .notNull()
+      .references(() => zoneRegions.id),
+    mapId: text("map_id")
+      .notNull()
+      .references(() => maps.id),
+    name: text("name").notNull(),
+    shapeType: text("shape_type", { enum: ["rectangle", "circle", "polygon"] }).notNull(),
+    geometry: text("geometry").notNull(),
+    fillColor: text("fill_color").notNull().default("#FFFFFF"),
+    fillOpacity: real("fill_opacity").notNull().default(0.25),
+    strokeColor: text("stroke_color").notNull().default("#FFFFFF"),
+    strokeOpacity: real("stroke_opacity").notNull().default(1),
+    strokeWidth: real("stroke_width").notNull().default(0.15),
+    visible: integer("visible", { mode: "boolean" }).notNull().default(true),
+    locked: integer("locked", { mode: "boolean" }).notNull().default(false),
+    sortOrder: integer("sort_order").notNull().default(0),
+    territoryId: text("territory_id"),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+    ...timestamps,
+  },
+  (table) => [index("zones_region_idx").on(table.regionId), index("zones_map_idx").on(table.mapId)]
+);
+
 // ---------- Politics ----------
 
 /**

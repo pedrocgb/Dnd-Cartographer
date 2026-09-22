@@ -6,6 +6,7 @@ import Modal from "./Modal";
 import { RawIcon } from "./MarkerIcon";
 import { ICONS, MARKER_CATEGORIES, DEFAULT_MARKER_CATEGORY } from "@/server/markers/icon-registry";
 import { STATUS_TAGS, ENVIRONMENT_TAGS, OWNERSHIP_TAGS } from "@/server/markers/tag-registry";
+import { useToggleSet } from "./useToggleSet";
 import type { Marker } from "./MarkerLayer";
 
 const NONE_VALUE = "__none__";
@@ -22,32 +23,6 @@ function iconLabel(key: string) {
 
 function markerCategory(m: Marker): string {
   return m.category ?? DEFAULT_MARKER_CATEGORY;
-}
-
-/** A Set-of-selected-values with "All" semantics: selecting every value in
- * the universe is indistinguishable from "no filter applied" for that facet. */
-function useToggleSet(universe: string[]) {
-  const [selected, setSelected] = useState<Set<string>>(() => new Set(universe));
-  const allOn = selected.size === universe.length;
-
-  function toggle(value: string) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(value)) next.delete(value);
-      else next.add(value);
-      return next;
-    });
-  }
-
-  function selectAll() {
-    setSelected(new Set(universe));
-  }
-
-  function clearAll() {
-    setSelected(new Set());
-  }
-
-  return { selected, allOn, toggle, selectAll, clearAll };
 }
 
 function FilterSection({

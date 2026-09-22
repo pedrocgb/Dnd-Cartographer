@@ -134,6 +134,12 @@ export default function MarkerPanel({
   const category = marker.category ?? DEFAULT_MARKER_CATEGORY;
   const linkedMap = marker.linkedMapId ? maps.find((m) => m.id === marker.linkedMapId) : null;
 
+  // View-mode summary only shows the accepted (not draft) chain, root-first
+  // (Empire -> Kingdom -> ... ). Fed by PoliticalReferencesPanel's own fetch
+  // (it's always mounted, just hidden, so that data is already being loaded)
+  // rather than issuing a second, duplicate /affiliation request here.
+  const [affiliationChain, setAffiliationChain] = useState<{ id: string; name: string }[] | null>(null);
+
   function toggleStatus(tag: string) {
     const next = marker.statusTags.includes(tag)
       ? marker.statusTags.filter((t) => t !== tag)
@@ -176,10 +182,22 @@ export default function MarkerPanel({
           and would refetch Politics/Links from scratch on every switch. */}
       <div className={section === "basic" ? "marker-section-body" : "marker-section-body marker-section-body-hidden"}>
       <div className="marker-tag-summary">
-        <span>Category: {category}</span>
-        {marker.environment && <span>Environment: {marker.environment}</span>}
-        {marker.ownership && <span>Ownership: {marker.ownership}</span>}
-        {marker.statusTags.length > 0 && <span>Status: {marker.statusTags.join(", ")}</span>}
+        <div className="marker-tag-summary-left">
+          <span>Category: {category}</span>
+          {marker.environment && <span>Environment: {marker.environment}</span>}
+          {marker.ownership && <span>Ownership: {marker.ownership}</span>}
+          {marker.statusTags.length > 0 && <span>Status: {marker.statusTags.join(", ")}</span>}
+        </div>
+        {affiliationChain && affiliationChain.length > 0 && (
+          <>
+            <div className="marker-tag-summary-divider" />
+            <div className="marker-tag-summary-right">
+              {affiliationChain.map((t) => (
+                <span key={t.id}>{t.name}</span>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       <CollapsibleSection title="Description" forceOpen={editing ? undefined : true}>
@@ -389,11 +407,14 @@ export default function MarkerPanel({
       </div>
 
       <div className={section === "politics" ? "marker-section-body" : "marker-section-body marker-section-body-hidden"}>
-        <PoliticalReferencesPanel markerId={marker.id} active={section === "politics"} />
+        <PoliticalReferencesPanel
+          markerId={marker.id}
+          onAcceptedChainChange={(chain) => setAffiliationChain(chain)}
+        />
       </div>
 
       <div className={section === "links" ? "marker-section-body" : "marker-section-body marker-section-body-hidden"}>
-        <MarkerLinksPanel markerId={marker.id} active={section === "links"} />
+        <MarkerLinksPanel markerId={marker.id} />
       </div>
     </div>
   );

@@ -1,15 +1,19 @@
 "use client";
 
-import { Settings, MapPinned, Grid3x3, ImageUp, Trash2 } from "lucide-react";
+import { Settings, MapPinned, Grid3x3, Shapes, Filter, ImageUp, Trash2 } from "lucide-react";
 
 export default function MapSidebar({
   hasImage,
   uploading,
   markersDisabled,
   gridDisabled,
+  zonesDisabled,
+  iconFilterDisabled,
   onOpenSettings,
   onOpenMarkers,
   onOpenGrid,
+  onOpenZones,
+  onOpenIconFilter,
   onUploadImage,
   onDeleteMap,
 }: {
@@ -17,9 +21,13 @@ export default function MapSidebar({
   uploading: boolean;
   markersDisabled: boolean;
   gridDisabled: boolean;
+  zonesDisabled: boolean;
+  iconFilterDisabled: boolean;
   onOpenSettings: () => void;
   onOpenMarkers: () => void;
   onOpenGrid: () => void;
+  onOpenZones: () => void;
+  onOpenIconFilter: () => void;
   onUploadImage: (file: File) => void;
   onDeleteMap: () => void;
 }) {
@@ -52,6 +60,26 @@ export default function MapSidebar({
         aria-label="Grid overlay"
       >
         <Grid3x3 size={19} strokeWidth={2.25} />
+      </button>
+
+      <button
+        className="map-sidebar-btn"
+        onClick={onOpenZones}
+        disabled={zonesDisabled}
+        title={zonesDisabled ? "Upload an image first" : "Zones"}
+        aria-label="Zones"
+      >
+        <Shapes size={19} strokeWidth={2.25} />
+      </button>
+
+      <button
+        className="map-sidebar-btn"
+        onClick={onOpenIconFilter}
+        disabled={iconFilterDisabled}
+        title={iconFilterDisabled ? "Upload an image first" : "Filter markers by icon"}
+        aria-label="Filter markers by icon"
+      >
+        <Filter size={19} strokeWidth={2.25} />
       </button>
 
       <label

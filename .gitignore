@@ -40,9 +40,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# spike-only local data & generated tiles (not the real app data dir,
-# which lives outside the repo at ~/.world-wiki-maps by default)
-/data
+# generated tiles from spike-only local runs
 /public/tiles
 /public/osd-images
 *.log

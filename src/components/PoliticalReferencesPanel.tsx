@@ -146,7 +146,16 @@ function TerritoryPicker({ onPick }: { onPick: (territoryId: string) => void }) 
   );
 }
 
-export default function PoliticalReferencesPanel({ markerId, active }: { markerId: string; active: boolean }) {
+export default function PoliticalReferencesPanel({
+  markerId,
+  onAcceptedChainChange,
+}: {
+  markerId: string;
+  /** Reports the accepted chain (or null) after every load/refresh, so the
+   * Basic Information summary can show it without a second, duplicate
+   * /affiliation fetch of its own. */
+  onAcceptedChainChange?: (chain: { id: string; name: string }[] | null) => void;
+}) {
   const [accepted, setAccepted] = useState<AffiliationDetail | null>(null);
   const [draft, setDraft] = useState<AffiliationDetail | null>(null);
   const [references, setReferences] = useState<PoliticalReference[]>([]);
@@ -160,16 +169,22 @@ export default function PoliticalReferencesPanel({ markerId, active }: { markerI
         setAccepted(d.accepted);
         setDraft(d.draft);
         setLoaded(true);
+        onAcceptedChainChange?.(d.accepted?.chain ?? null);
       });
     fetch(`/api/markers/${markerId}/political-references`)
       .then((r) => json<{ references: PoliticalReference[] }>(r))
       .then((d) => setReferences(d.references));
   }
 
+  // This panel is always mounted (just hidden via CSS when another section
+  // is active — see MarkerPanel), so a mount-time fetch already has the
+  // data ready before the user ever switches to this tab. Re-running on
+  // every `active` flip was a second, redundant round trip on every section
+  // switch; mutations below already call refresh() themselves when needed.
   useEffect(() => {
     refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [markerId, active]);
+  }, [markerId]);
 
   async function putAffiliation(territoryId: string, status: "accepted" | "draft") {
     const res = await fetch(`/api/markers/${markerId}/affiliation`, {

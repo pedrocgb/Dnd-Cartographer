@@ -12,6 +12,7 @@ import {
   ORGANIZATION_KINDS,
   AUTHORITY_ROLES,
   isAttachableType,
+  isValidParentType,
   type HierarchyLevel,
 } from "@/server/politics/hierarchy-config";
 import { buildTerritoryTree, TerritoryTreeRow } from "@/components/TerritoryTree";
@@ -265,6 +266,21 @@ function TerritoryForm({
   const [powerHolders, setPowerHolders] = useState(initial?.powerHolders ?? "");
   const [error, setError] = useState<string | null>(null);
 
+  // "Can P be C's parent?" is governed by C's own selected profile (not P's) —
+  // see isValidParentType's contract — so re-filter whenever either the
+  // chosen type or the chosen profile changes. A type outside the profile's
+  // ladder (e.g. a custom type) is left unconstrained, matching the same
+  // fallback the server itself uses.
+  const childLevels = profiles.find((p) => p.id === hierarchyProfileId)?.levels ?? [];
+  const validParents = territories.filter((t) => t.id !== initial?.id && isValidParentType(t.type, type, childLevels));
+
+  // Render-time adjustment (not an effect): if the currently selected parent
+  // is no longer a valid choice after a type/profile change, drop back to
+  // "None" rather than silently submitting a stale, now-invalid parent.
+  if (parentId && !validParents.some((t) => t.id === parentId)) {
+    setParentId("");
+  }
+
   async function submit() {
     setError(null);
     const body = {
@@ -304,14 +320,15 @@ function TerritoryForm({
       <label className="field-label">Parent territory</label>
       <select value={parentId} onChange={(e) => setParentId(e.target.value)}>
         <option value="">None (root)</option>
-        {territories
-          .filter((t) => t.id !== initial?.id)
-          .map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name} ({t.type})
-            </option>
-          ))}
+        {validParents.map((t) => (
+          <option key={t.id} value={t.id}>
+            {t.name} ({t.type})
+          </option>
+        ))}
       </select>
+      {type && validParents.length === 0 && (
+        <p className="field-label">No territory of a valid parent type exists yet for &ldquo;{type}&rdquo; under this profile.</p>
+      )}
 
       <label className="field-label">Hierarchy profile</label>
       <select value={hierarchyProfileId} onChange={(e) => setHierarchyProfileId(e.target.value)}>
