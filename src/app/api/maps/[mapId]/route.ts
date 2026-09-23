@@ -17,10 +17,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ map
     ? await db.query.mapCategories.findFirst({ where: eq(mapCategories.id, map.categoryId) })
     : null;
 
-  // Report the most recently uploaded asset (not just the last *ready* one)
-  // so a client polling mid-processing/mid-replacement sees live progress.
+  // The frame asset (first processed image) once there is one; before that,
+  // the most recent upload so the empty-map prompt can poll its progress.
+  // Per-layer image progress is reported by /layers instead.
   const assetRows = await db.select().from(mapAssets).where(eq(mapAssets.mapId, mapId)).orderBy(mapAssets.createdAt);
-  const asset = assetRows.at(-1) ?? null;
+  const asset = (map.currentAssetId ? assetRows.find((a) => a.id === map.currentAssetId) : undefined) ?? assetRows.at(-1) ?? null;
 
   let job = null;
   if (asset) {

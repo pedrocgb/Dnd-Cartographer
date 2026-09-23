@@ -390,23 +390,62 @@ textarea::placeholder {
   display: flex;
 }
 
+/* Map fullscreen (MapWorkspace toggleFullscreen): the whole page body. */
+.map-page-body:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  background: var(--bg-surface);
+}
+
+/* The sidebar's slot in the page; the rail inside it is what expands. While
+   only peeking (hover), the rail widens over the map so nothing reflows;
+   pinned open, the slot widens too. */
 .map-sidebar {
+  --sidebar-collapsed: 57px; /* 40px buttons + padding + border */
+  --sidebar-expanded: 164px;
+  position: relative;
+  z-index: 30;
   flex: 0 0 auto;
+  width: var(--sidebar-collapsed);
+  transition: width var(--transition-fast);
+}
+
+.map-sidebar.pinned {
+  width: var(--sidebar-expanded);
+}
+
+.map-sidebar-rail {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--sidebar-collapsed);
   display: flex;
   flex-direction: column;
-  align-items: center;
   gap: var(--space-2);
   padding: var(--space-3) var(--space-2);
   background: var(--bg-surface);
   border-right: 1px solid var(--border-subtle);
+  transition: width 150ms ease, box-shadow 150ms ease;
+}
+
+.map-sidebar-rail.expanded {
+  width: var(--sidebar-expanded);
+}
+
+.map-sidebar:not(.pinned) .map-sidebar-rail.expanded {
+  box-shadow: var(--shadow-md);
 }
 
 .map-sidebar-btn {
-  width: 40px;
+  width: 100%;
   height: 40px;
-  display: inline-flex;
+  flex: 0 0 auto;
+  display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 10px;
+  padding: 0 0 0 9px; /* keeps the icon centered while collapsed */
+  overflow: hidden;
   border-radius: var(--radius-md);
   border: 1px solid transparent;
   background: transparent;
@@ -429,6 +468,95 @@ textarea::placeholder {
 .map-sidebar-btn:disabled {
   opacity: 0.4;
   cursor: default;
+}
+
+.map-sidebar-btn > svg {
+  flex: 0 0 auto;
+}
+
+.map-sidebar-label {
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.map-sidebar-rail.expanded .map-sidebar-label {
+  opacity: 1;
+}
+
+/* Keep the bar expanded / collapsed (MapSidebar, saved per browser). */
+.map-sidebar-pin {
+  margin-top: auto;
+  flex: 0 0 auto;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.map-sidebar-pin:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+/* Markers button flyout: its tools, beside the sidebar. */
+.map-sidebar-menu-root {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.map-sidebar-menu {
+  position: absolute;
+  top: 0;
+  left: calc(100% + var(--space-2) * 2);
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  padding: var(--space-1);
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+
+.map-sidebar-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  text-align: left;
+  white-space: nowrap;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.map-sidebar-menu-item:hover:not(:disabled),
+.map-sidebar-menu-item:focus-visible {
+  background: var(--bg-surface-hover);
+}
+
+.map-sidebar-menu-item:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* A tool without a side panel (Select) shows it's on here instead. */
+.map-sidebar-btn.active {
+  background: var(--teal-900);
+  color: var(--teal-300);
+  border-color: var(--teal-600);
 }
 
 .map-sidebar-btn.danger:hover:not(:disabled) {
@@ -982,6 +1110,12 @@ textarea::placeholder {
   }
 }
 
+/* Full-map SVG layers (addFullMapOverlay): GPU-scaled only while OSD
+   animates, then re-rasterized crisp once the motion stops. */
+.osd-animating .full-map-overlay {
+  will-change: transform;
+}
+
 .marker-overlay {
   cursor: grab;
   /* OSD anchors this element at its own TOP_LEFT (the anchor point is our
@@ -1504,13 +1638,31 @@ textarea::placeholder {
   padding: var(--space-2) 0 0;
 }
 
+/* Pull a territory's first authority row up tight under its heading — the
+   list's flex gap plus the row's own top padding otherwise leave the
+   heading floating well above the people it labels. */
+.politics-authority-group-label + .politics-list-row {
+  margin-top: calc(-1 * var(--space-1));
+  padding-top: 0;
+}
+
 .politics-authority-group-label:first-child {
   padding-top: 0;
 }
 
-.politics-authority-group-gap {
-  margin-top: var(--space-2);
-  border-top: 1px solid var(--border-subtle);
+.politics-link-button {
+  padding: 0;
+  background: none;
+  border: none;
+  font: inherit;
+  color: var(--teal-300);
+  cursor: pointer;
+}
+
+.politics-link-button:hover,
+.politics-link-button:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .politics-list-pick {
@@ -1574,18 +1726,19 @@ textarea::placeholder {
 }
 
 .politics-detail {
+  --portrait-size: 168px;
   position: relative;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
   padding: var(--space-4);
   /* Room for the portrait/crest square pinned in the top-right corner
      (see .politics-portrait) so it never overlaps the name/description. */
-  padding-right: calc(var(--space-4) + 168px + var(--space-3));
-  /* The portrait is absolutely positioned (space-3 from the top, 168px
-     tall) — without a matching min-height, a card whose text content is
+  padding-right: calc(var(--space-4) + var(--portrait-size) + var(--space-3));
+  /* The portrait is absolutely positioned (space-3 from the top,
+     --portrait-size tall) — without a matching min-height, a card whose text content is
      short (e.g. just a name, quote, and buttons) ends before the portrait
      does, so the square pokes out past the card's own border/background. */
-  min-height: calc(var(--space-3) * 2 + 168px);
+  min-height: calc(var(--space-3) * 2 + var(--portrait-size));
   /* Reserve room at the bottom for .politics-detail-actions, which is
      pinned there absolutely — otherwise a long description could grow
      into the same space the buttons occupy. */
@@ -1603,9 +1756,13 @@ textarea::placeholder {
   position: absolute;
   top: var(--space-3);
   right: var(--space-3);
-  width: 168px;
-  height: 168px;
+  width: var(--portrait-size);
+  height: var(--portrait-size);
   flex-shrink: 0;
+}
+
+.politics-portrait .form-error {
+  font-size: 0.625rem;
 }
 
 .politics-portrait-frame {
@@ -2011,6 +2168,12 @@ input[type="range"]::-moz-range-track {
   background: var(--bg-surface-raised);
 }
 
+.undo-toast.save-error-toast {
+  border-color: var(--danger-500);
+  color: var(--danger-300);
+  bottom: calc(var(--space-4) + 48px);
+}
+
 .undo-toast {
   position: absolute;
   bottom: var(--space-4);
@@ -2257,19 +2420,62 @@ input[type="range"]::-moz-range-track {
   background: var(--bg-surface);
   color: var(--text-primary);
   border-right: 1px solid var(--border-subtle);
+  display: flex;
+  box-shadow: var(--shadow-lg);
+  animation: slideInLeft 180ms ease;
+  transition: left 180ms ease, width 180ms ease;
+}
+
+/* Editing a zone widens the panel into two columns, so the Region/zone
+   tree stays fully visible next to the editor instead of being squeezed. */
+.zones-panel-editing {
+  width: min(640px, 100%);
+}
+
+.zones-panel-main,
+.zones-panel-editor {
   padding: var(--space-4);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  box-shadow: var(--shadow-lg);
-  animation: slideInLeft 180ms ease;
-  transition: left 180ms ease;
+  min-width: 0;
+}
+
+.zones-panel-main {
+  flex: 0 0 320px;
+  max-width: 100%;
+}
+
+.zones-panel-editor {
+  flex: 1 1 auto;
+  border-left: 1px solid var(--border-subtle);
+}
+
+.zones-panel-editor .zone-editor {
+  padding-top: 0;
+  border-top: none;
+}
+
+@media (max-width: 700px) {
+  .zones-panel-editing {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+  .zones-panel-editing .zones-panel-main,
+  .zones-panel-editing .zones-panel-editor {
+    flex: 0 0 auto;
+    overflow-y: visible;
+  }
+  .zones-panel-editing .zones-panel-editor {
+    border-left: none;
+    border-top: 1px solid var(--border-subtle);
+  }
 }
 
 .zone-tool-row {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: var(--space-2);
 }
 
@@ -2304,6 +2510,12 @@ input[type="range"]::-moz-range-track {
 
 .zone-tool-hint {
   margin: 0;
+}
+
+.zone-brush-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
 .zone-region-list {
@@ -2494,6 +2706,518 @@ input[type="range"]::-moz-range-track {
   flex-direction: column;
   gap: var(--space-2);
   font-size: var(--text-xs);
+}
+
+/* ---------- Layers ---------- */
+
+/* Overlay stacking and click-through are set on OSD's per-overlay wrapper
+   divs in src/components/osd-overlay-stack.ts — z-index/pointer-events on
+   the inner overlay elements would stay trapped inside those wrappers. */
+
+.text-panel-textarea {
+  width: 100%;
+  resize: vertical;
+  font: inherit;
+}
+
+.text-panel-font-row {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.font-picker {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.font-picker-button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 36px;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-base);
+  color: var(--text-primary);
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color var(--transition-fast);
+}
+
+.font-picker-button:hover,
+.font-picker-button[aria-expanded="true"] {
+  border-color: var(--border-strong);
+}
+
+.font-picker-button > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.font-picker-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  max-height: 320px;
+  overflow-y: auto;
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+}
+
+.font-picker-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  font-size: 1.05rem;
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.font-picker-option.active {
+  background: var(--bg-surface-hover);
+}
+
+.font-picker-option[aria-selected="true"] {
+  color: var(--teal-300);
+}
+
+.text-panel-align {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-1);
+}
+
+.line-panel-segmented {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.text-panel-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.layers-panel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 15;
+  width: 320px;
+  height: 100%;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border-right: 1px solid var(--border-subtle);
+  padding: var(--space-4);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  box-shadow: var(--shadow-lg);
+  animation: slideInLeft 180ms ease;
+}
+
+.layer-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.layer-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface-raised);
+}
+
+.layer-row.active {
+  border-color: var(--teal-500);
+}
+
+.layer-row.drag-over {
+  border-style: dashed;
+  border-color: var(--teal-300);
+}
+
+.layer-row.hidden-layer .layer-name {
+  color: var(--text-tertiary);
+}
+
+.layer-row-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.layer-drag-handle {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 24px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-tertiary);
+  cursor: grab;
+}
+
+.layer-drag-handle:active {
+  cursor: grabbing;
+}
+
+.layer-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  padding: 2px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.layer-row.active .layer-name {
+  color: var(--teal-300);
+}
+
+.layer-name-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.layer-image {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.layer-thumb {
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-default);
+  background: var(--bg-inset);
+}
+
+.layer-thumb-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+
+.layer-image-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.layer-image-actions label.btn {
+  cursor: pointer;
+}
+
+.layer-image-actions label.btn.disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.layer-checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+
+/* Selection tool: faint dashed box around the item under the pointer. */
+.selection-hover-box-dark,
+.selection-hover-box-light {
+  stroke-width: 1.5;
+  stroke-dasharray: 5 5;
+}
+
+.selection-hover-box-dark {
+  fill: rgba(255, 255, 255, 0.05);
+  stroke: #000;
+}
+
+.selection-hover-box-light {
+  fill: none;
+  stroke: #fff;
+  stroke-dashoffset: 5;
+}
+
+/* "Also show on" layer dropdown in the item panels. */
+.layer-multi {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.layer-multi-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 34px;
+  padding: var(--space-2) var(--space-3);
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  text-align: left;
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color var(--transition-fast);
+}
+
+.layer-multi-trigger:hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+
+.layer-multi-trigger[aria-expanded="true"] {
+  border-color: var(--teal-500);
+}
+
+.layer-multi-trigger:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.layer-multi-summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.layer-multi-summary.muted {
+  color: var(--text-tertiary);
+}
+
+/* In the flow (not floating), so the panel card it sits in grows to show it
+   instead of clipping it (collapsible cards hide their overflow). */
+.layer-multi-popup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+.layer-multi-filter {
+  width: 100%;
+}
+
+.layer-multi-actions {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.layer-multi-action {
+  padding: 0;
+  font: inherit;
+  font-size: var(--text-xs);
+  color: var(--teal-300);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.layer-multi-action:hover {
+  text-decoration: underline;
+}
+
+.layer-multi-options {
+  display: flex;
+  flex-direction: column;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.layer-multi-option {
+  padding: var(--space-1) var(--space-1);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+}
+
+.layer-multi-option:hover {
+  background: var(--bg-surface-hover);
+}
+
+.layer-multi-empty,
+.layer-multi-home {
+  margin: 0;
+}
+
+.layer-multi-home {
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.zone-region-shared {
+  font-style: italic;
+}
+
+/* "Layer: …" line under a tool panel's title. */
+.panel-layer-label {
+  margin: calc(var(--space-2) * -1) 0 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.scene-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.scene-section-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2);
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+
+.scene-section-title {
+  flex: 1;
+}
+
+.scene-count {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.scene-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 var(--space-3);
+  display: flex;
+  flex-direction: column;
+}
+
+.scene-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: var(--space-1);
+}
+
+.scene-group-title {
+  padding-left: var(--space-2);
+}
+
+.scene-item {
+  width: 100%;
+  padding: 4px var(--space-2);
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  font-size: var(--text-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scene-item:hover,
+.scene-item:focus-visible {
+  background: var(--bg-surface-raised);
+}
+
+.scene-item.muted {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.scene-empty {
+  padding-left: var(--space-3);
+}
+
+/* Brief emphasis on the item picked in the Scene panel. */
+@keyframes sceneFocusPulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  25%,
+  75% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.scene-focus-pulse {
+  animation: sceneFocusPulse 1.2s ease-in-out;
+}
+
+/* Markers own their element's transform/animation; pulse the icon inside. */
+.scene-focus-pulse-marker > * {
+  animation: sceneFocusPulse 1.2s ease-in-out;
+}
+
+.layer-error {
+  margin: 0;
+  font-size: var(--text-xs);
+}
+
+.layer-select {
+  max-width: 180px;
+  min-height: 34px;
+}
+
+.marker-list-layer {
+  margin-left: auto;
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
 }
 
 /* ---------- Color wheel ---------- */

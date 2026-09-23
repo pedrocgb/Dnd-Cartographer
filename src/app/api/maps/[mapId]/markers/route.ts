@@ -14,6 +14,7 @@ import {
   DEFAULT_MARKER_CATEGORY,
 } from "@/server/markers/icon-registry";
 import { toClientMarker } from "@/server/markers/tag-registry";
+import { isLayerOfMap } from "@/server/layers/layers";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ mapId: string }> }) {
   const { mapId } = await params;
@@ -60,6 +61,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ map
   const linkedMapId = typeof body?.linkedMapId === "string" ? body.linkedMapId : null;
   const category = DEFAULT_MARKER_CATEGORY;
 
+  if (!(await isLayerOfMap(body?.layerId, mapId))) {
+    return NextResponse.json({ error: "A layer of this map is required." }, { status: 400 });
+  }
+  const layerId: string = body.layerId;
+
   if (linkedMapId) {
     const linked = await db.query.maps.findFirst({ where: eq(maps.id, linkedMapId) });
     if (!linked || linked.worldId !== map.worldId) {
@@ -69,7 +75,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ map
 
   const [marker] = await db
     .insert(markers)
-    .values({ mapId, name, u, v, iconKey, color, backgroundColor, outlineColor, backgroundShape, category, linkedMapId })
+    .values({ mapId, layerId, name, u, v, iconKey, color, backgroundColor, outlineColor, backgroundShape, category, linkedMapId })
     .returning();
   return NextResponse.json({ marker: toClientMarker(marker) }, { status: 201 });
 }

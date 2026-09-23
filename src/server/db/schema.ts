@@ -70,6 +70,11 @@ export const maps = sqliteTable(
       () => richDocuments.id
     ),
     currentAssetId: text("current_asset_id"),
+    // The map's canonical coordinate frame (source pixels), fixed by the
+    // first image ever uploaded. Every layer image is stretched to it, so
+    // marker u/v, zone geometry and grids line up on every layer.
+    frameWidth: integer("frame_width"),
+    frameHeight: integer("frame_height"),
     revision: integer("revision").notNull().default(0),
     deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
     ...timestamps,
@@ -80,11 +85,42 @@ export const maps = sqliteTable(
   ]
 );
 
+/**
+ * A map-local layer owning markers, zone regions (and their zones), one
+ * grid and an optional image. Lower sortOrder = higher in the list = drawn
+ * on top. `assetId` has no FK, same convention as maps.currentAssetId.
+ */
+export const mapLayers = sqliteTable(
+  "map_layers",
+  {
+    id: id(),
+    mapId: text("map_id")
+      .notNull()
+      .references(() => maps.id),
+    name: text("name").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    visible: integer("visible", { mode: "boolean" }).notNull().default(true),
+    assetId: text("asset_id"),
+    imageOpacity: real("image_opacity").notNull().default(1),
+    imageAlwaysVisible: integer("image_always_visible", { mode: "boolean" }).notNull().default(false),
+    // "Always draw" this layer's items even while another layer is active.
+    zonesAlwaysVisible: integer("zones_always_visible", { mode: "boolean" }).notNull().default(false),
+    markersAlwaysVisible: integer("markers_always_visible", { mode: "boolean" }).notNull().default(false),
+    textsAlwaysVisible: integer("texts_always_visible", { mode: "boolean" }).notNull().default(false),
+    linesAlwaysVisible: integer("lines_always_visible", { mode: "boolean" }).notNull().default(false),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+    ...timestamps,
+  },
+  (table) => [index("map_layers_map_idx").on(table.mapId)]
+);
+
 export const mapAssets = sqliteTable("map_assets", {
   id: id(),
   mapId: text("map_id")
     .notNull()
     .references(() => maps.id),
+  // The layer this upload targets (set on that layer once processed).
+  layerId: text("layer_id"),
   originalKey: text("original_key").notNull(),
   manifestKey: text("manifest_key"),
   thumbnailKey: text("thumbnail_key"),
@@ -125,6 +161,10 @@ export const markers = sqliteTable(
     mapId: text("map_id")
       .notNull()
       .references(() => maps.id),
+    // Nullable at DB level (added by ALTER); the API always sets it.
+    layerId: text("layer_id"),
+    // JSON string[] of other layers this item is also shown (and editable) on.
+    extraLayerIds: text("extra_layer_ids").notNull().default("[]"),
     name: text("name").notNull(),
     u: real("u").notNull(),
     v: real("v").notNull(),
@@ -163,6 +203,7 @@ export const mapGrids = sqliteTable(
     mapId: text("map_id")
       .notNull()
       .references(() => maps.id),
+    layerId: text("layer_id"),
     shape: text("shape").notNull().default("square"),
     columns: integer("columns").notNull().default(100),
     rows: integer("rows").notNull().default(100),
@@ -174,7 +215,7 @@ export const mapGrids = sqliteTable(
     color: text("color").notNull().default("#FFFFFF"),
     ...timestamps,
   },
-  (table) => [uniqueIndex("map_grids_map_idx").on(table.mapId)]
+  (table) => [index("map_grids_map_idx").on(table.mapId), uniqueIndex("map_grids_layer_idx").on(table.layerId)]
 );
 
 /**
@@ -189,6 +230,7 @@ export const zoneRegions = sqliteTable(
     mapId: text("map_id")
       .notNull()
       .references(() => maps.id),
+    layerId: text("layer_id"),
     name: text("name").notNull(),
     visible: integer("visible", { mode: "boolean" }).notNull().default(true),
     locked: integer("locked", { mode: "boolean" }).notNull().default(false),
@@ -202,7 +244,8 @@ export const zoneRegions = sqliteTable(
 /**
  * One drawn shape inside a Zone Region. `geometry` is JSON-encoded and
  * shape-dependent (rectangle: {x,y,width,height}; circle: {x,y,radius};
- * polygon: {points:[{x,y},...]}), always in the source image's own pixel
+ * polygon: {points:[{x,y},...]}; area: {polygons: MultiPolygon} — painted
+ * with the brush/eraser, may have holes and separate parts), always in the source image's own pixel
  * coordinate space — following the same "JSON as plain text" convention as
  * markers.statusTags rather than a typed column, since the shape varies by
  * shapeType. `territoryId` is an optional, descriptive-only reference to an
@@ -217,11 +260,13 @@ export const zones = sqliteTable(
     regionId: text("region_id")
       .notNull()
       .references(() => zoneRegions.id),
+    // JSON string[] of other layers this item is also shown (and editable) on.
+    extraLayerIds: text("extra_layer_ids").notNull().default("[]"),
     mapId: text("map_id")
       .notNull()
       .references(() => maps.id),
     name: text("name").notNull(),
-    shapeType: text("shape_type", { enum: ["rectangle", "circle", "polygon"] }).notNull(),
+    shapeType: text("shape_type", { enum: ["rectangle", "circle", "polygon", "area"] }).notNull(),
     geometry: text("geometry").notNull(),
     fillColor: text("fill_color").notNull().default("#FFFFFF"),
     fillOpacity: real("fill_opacity").notNull().default(0.25),
@@ -236,6 +281,85 @@ export const zones = sqliteTable(
     ...timestamps,
   },
   (table) => [index("zones_region_idx").on(table.regionId), index("zones_map_idx").on(table.mapId)]
+);
+
+/**
+ * A styled map label placed on one layer. Position (`x`,`y` = center) and
+ * `fontSize` are in the map frame's pixel space; spacing/outline/shadow
+ * sizes are in em so they scale with the font. Validated by
+ * src/server/texts/text-config.ts.
+ */
+export const mapTexts = sqliteTable(
+  "map_texts",
+  {
+    id: id(),
+    mapId: text("map_id")
+      .notNull()
+      .references(() => maps.id),
+    layerId: text("layer_id"),
+    // JSON string[] of other layers this item is also shown (and editable) on.
+    extraLayerIds: text("extra_layer_ids").notNull().default("[]"),
+    text: text("text").notNull(),
+    x: real("x").notNull(),
+    y: real("y").notNull(),
+    rotation: real("rotation").notNull().default(0),
+    fontSize: real("font_size").notNull(),
+    fontKey: text("font_key").notNull(),
+    bold: integer("bold", { mode: "boolean" }).notNull().default(false),
+    color: text("color").notNull().default("#FFFFFF"),
+    letterSpacing: real("letter_spacing").notNull().default(0),
+    align: text("align", { enum: ["left", "center", "right"] }).notNull().default("center"),
+    curve: real("curve").notNull().default(0),
+    outlineEnabled: integer("outline_enabled", { mode: "boolean" }).notNull().default(false),
+    outlineColor: text("outline_color").notNull().default("#000000"),
+    outlineOpacity: real("outline_opacity").notNull().default(1),
+    outlineWidth: real("outline_width").notNull().default(0.08),
+    shadowEnabled: integer("shadow_enabled", { mode: "boolean" }).notNull().default(false),
+    shadowAngle: real("shadow_angle").notNull().default(45),
+    shadowDistance: real("shadow_distance").notNull().default(0.08),
+    shadowColor: text("shadow_color").notNull().default("#000000"),
+    shadowOpacity: real("shadow_opacity").notNull().default(0.6),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+    ...timestamps,
+  },
+  (table) => [index("map_texts_map_idx").on(table.mapId), index("map_texts_layer_idx").on(table.layerId)]
+);
+
+/**
+ * A drawn map line on one layer. `points` is JSON text in frame pixels —
+ * pen lines: [{x,y,cin?,cout?}] with absolute Bézier handles; free-drawn:
+ * [{x,y}]. Dash/gap/shadow sizes are multiples of `width`. Validated by
+ * src/server/lines/line-config.ts.
+ */
+export const mapLines = sqliteTable(
+  "map_lines",
+  {
+    id: id(),
+    mapId: text("map_id")
+      .notNull()
+      .references(() => maps.id),
+    layerId: text("layer_id"),
+    // JSON string[] of other layers this item is also shown (and editable) on.
+    extraLayerIds: text("extra_layer_ids").notNull().default("[]"),
+    kind: text("kind", { enum: ["free", "pen"] }).notNull(),
+    points: text("points").notNull(),
+    color: text("color").notNull().default("#E11D48"),
+    width: real("width").notNull(),
+    style: text("style", { enum: ["solid", "dot", "dashed"] }).notNull().default("solid"),
+    dashLength: real("dash_length").notNull().default(3),
+    gapLength: real("gap_length").notNull().default(2),
+    cap: text("cap", { enum: ["round", "square"] }).notNull().default("round"),
+    opacity: real("opacity").notNull().default(1),
+    shadowEnabled: integer("shadow_enabled", { mode: "boolean" }).notNull().default(false),
+    shadowColor: text("shadow_color").notNull().default("#000000"),
+    shadowOpacity: real("shadow_opacity").notNull().default(0.5),
+    shadowBlur: real("shadow_blur").notNull().default(0.5),
+    shadowDistance: real("shadow_distance").notNull().default(0.5),
+    shadowAngle: real("shadow_angle").notNull().default(45),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+    ...timestamps,
+  },
+  (table) => [index("map_lines_map_idx").on(table.mapId), index("map_lines_layer_idx").on(table.layerId)]
 );
 
 // ---------- Politics ----------

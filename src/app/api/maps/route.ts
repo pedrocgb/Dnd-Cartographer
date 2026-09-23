@@ -3,6 +3,7 @@ import { db } from "@/server/db/client";
 import { maps } from "@/server/db/schema";
 import { ensureDefaultWorld } from "@/server/world/default-world";
 import { listMapSummaries } from "@/server/maps/tree";
+import { createDefaultLayer } from "@/server/layers/layers";
 import type { MapNode } from "@/server/maps/hierarchy";
 
 export async function GET(request: Request) {
@@ -37,5 +38,6 @@ export async function POST(request: Request) {
   }
 
   const [map] = await db.insert(maps).values({ worldId, name, categoryId, parentId }).returning();
+  await createDefaultLayer(map.id);
   return NextResponse.json({ map }, { status: 201 });
 }

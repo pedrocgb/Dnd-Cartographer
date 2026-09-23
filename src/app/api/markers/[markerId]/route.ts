@@ -12,6 +12,8 @@ import {
   DEFAULT_OUTLINE_COLOR,
 } from "@/server/markers/icon-registry";
 import { isValidEnvironmentTag, isValidOwnershipTag, encodeStatusTags, toClientMarker } from "@/server/markers/tag-registry";
+import { isLayerOfMap, sanitizeExtraLayerIds } from "@/server/layers/layers";
+import { parseLayerIds } from "@/server/layers/layer-ids";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ markerId: string }> }) {
   const { markerId } = await params;
@@ -62,6 +64,20 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ma
     }
     patch.u = u;
     patch.v = v;
+  }
+
+  if ("layerId" in body) {
+    if (!(await isLayerOfMap(body.layerId, marker.mapId))) {
+      return NextResponse.json({ error: "Layer must belong to the marker's map." }, { status: 400 });
+    }
+    patch.layerId = body.layerId;
+  }
+
+  // "Also show on" layers; re-checked when the home layer changes so it never lists the home itself.
+  if ("extraLayerIds" in body || patch.layerId !== undefined) {
+    const raw = "extraLayerIds" in body ? body.extraLayerIds : parseLayerIds(marker.extraLayerIds);
+    const encoded = await sanitizeExtraLayerIds(raw, marker.mapId, patch.layerId ?? marker.layerId);
+    if (encoded !== null) patch.extraLayerIds = encoded;
   }
 
   if ("linkedMapId" in body) {

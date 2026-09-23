@@ -7,6 +7,8 @@ import {
   Square,
   Circle,
   Hexagon,
+  Brush,
+  Eraser,
   MousePointer2,
   Plus,
   Check,
@@ -22,16 +24,18 @@ import {
   Crown,
 } from "lucide-react";
 import ColorWheel from "./ColorWheel";
+import LayerChecklist from "./LayerChecklist";
+import type { MapLayerData } from "./layer-images";
 import { buildTerritoryTree, TerritoryTreeRow } from "./TerritoryTree";
 import { COLOR_PRESETS, normalizeColor } from "@/server/markers/icon-registry";
-import type { ZoneData, ZoneRegionData, ZoneTool } from "./ZoneLayer";
+import { BRUSH_SIZE_MAX, BRUSH_SIZE_MIN, isPaintTool, type ZoneData, type ZoneRegionData, type ZoneTool } from "./ZoneLayer";
 
 async function json<T>(res: Response): Promise<T> {
   return res.json();
 }
 
-const SHAPE_ICON = { rectangle: Square, circle: Circle, polygon: Hexagon } as const;
-const SHAPE_LABEL = { rectangle: "Rectangle", circle: "Circle", polygon: "Polygon" } as const;
+const SHAPE_ICON = { rectangle: Square, circle: Circle, polygon: Hexagon, area: Brush } as const;
+const SHAPE_LABEL = { rectangle: "Rectangle", circle: "Circle", polygon: "Polygon", area: "Painted area" } as const;
 
 interface Territory {
   id: string;
@@ -167,11 +171,16 @@ function ZoneTerritoryLink({ zone, onUpdate }: { zone: ZoneData; onUpdate: (patc
 
 function ZoneEditor({
   zone,
+  layers,
+  homeLayerId,
   onUpdate,
   onDelete,
   onDone,
 }: {
   zone: ZoneData;
+  layers: MapLayerData[];
+  /** The zone's home layer: its region's. */
+  homeLayerId: string | null;
   onUpdate: (patch: Partial<ZoneData>) => void;
   onDelete: () => void;
   onDone: () => void;
@@ -249,6 +258,14 @@ function ZoneEditor({
 
       <ZoneTerritoryLink zone={zone} onUpdate={onUpdate} />
 
+      <LayerChecklist
+        layers={layers}
+        homeLayerId={homeLayerId}
+        value={zone.extraLayerIds ?? []}
+        alwaysDrawFlag="zonesAlwaysVisible"
+        onChange={(extraLayerIds) => onUpdate({ extraLayerIds })}
+      />
+
       <button className="btn btn-danger" onClick={onDelete} disabled={zone.locked}>
         <Trash2 size={14} strokeWidth={2.25} />
         Delete zone
@@ -276,6 +293,7 @@ function RegionRow({
   onStopAddZone,
   canMoveUp,
   canMoveDown,
+  sharedFrom,
 }: {
   region: ZoneRegionData;
   zones: ZoneData[];
@@ -295,6 +313,8 @@ function RegionRow({
   onStopAddZone: () => void;
   canMoveUp: boolean;
   canMoveDown: boolean;
+  /** Set when this region lives on another layer and only some of its zones are shown here. */
+  sharedFrom?: string;
 }) {
   const isAddingZone = isActive && activeTool !== "select";
   const addZoneDisabled = region.locked || !region.visible;
@@ -304,9 +324,11 @@ function RegionRow({
         <button className="zone-tree-toggle" onClick={onToggleExpand} aria-label={isExpanded ? "Collapse" : "Expand"}>
           {isExpanded ? <ChevronDown size={13} strokeWidth={2.25} /> : <ChevronRight size={13} strokeWidth={2.25} />}
         </button>
-        <button className="zone-region-name" onClick={onSelectRegion}>
+        <button className="zone-region-name" onClick={sharedFrom ? onToggleExpand : onSelectRegion}>
           {region.name} <span className="field-label">({zones.length})</span>
+          {sharedFrom && <span className="field-label zone-region-shared"> · from {sharedFrom}</span>}
         </button>
+        {!sharedFrom && (
         <div className="zone-row-actions">
           <button className="btn btn-ghost btn-icon-xs" onClick={() => onMoveRegion("up")} disabled={!canMoveUp} aria-label="Move Region up" title="Move up">
             <ArrowUp size={12} strokeWidth={2.25} />
@@ -334,10 +356,12 @@ function RegionRow({
             <Trash2 size={12} strokeWidth={2.25} />
           </button>
         </div>
+        )}
       </div>
 
       {isExpanded && (
         <ul className="zone-list">
+          {!sharedFrom && (
           <li>
             {isAddingZone ? (
               <button type="button" className="zone-add-row zone-add-row-done" onClick={onStopAddZone}>
@@ -357,6 +381,7 @@ function RegionRow({
               </button>
             )}
           </li>
+          )}
           {zones.length === 0 && <li className="field-label zone-empty-hint">No zones yet.</li>}
           {zones.map((zone) => {
             const ShapeIcon = SHAPE_ICON[zone.shapeType];
@@ -404,6 +429,7 @@ function RegionRow({
 }
 
 export default function ZonesPanel({
+  layerName,
   regions,
   zones,
   activeRegionId,
@@ -411,6 +437,8 @@ export default function ZonesPanel({
   activeTool,
   onSetActiveRegion,
   onSetActiveTool,
+  brushSize,
+  onBrushSizeChange,
   onSelectZone,
   onCreateRegion,
   onUpdateRegion,
@@ -418,7 +446,11 @@ export default function ZonesPanel({
   onUpdateZone,
   onDeleteZone,
   onClose,
+  layers,
+  sharedRegionIds,
 }: {
+  /** Name of the active layer this tool edits. */
+  layerName: string;
   regions: ZoneRegionData[];
   zones: ZoneData[];
   activeRegionId: string | null;
@@ -426,6 +458,8 @@ export default function ZonesPanel({
   activeTool: ZoneTool;
   onSetActiveRegion: (id: string) => void;
   onSetActiveTool: (tool: ZoneTool) => void;
+  brushSize: number;
+  onBrushSizeChange: (size: number) => void;
   onSelectZone: (id: string | null) => void;
   onCreateRegion: (name: string) => void;
   onUpdateRegion: (id: string, patch: Partial<ZoneRegionData>) => void;
@@ -433,6 +467,9 @@ export default function ZonesPanel({
   onUpdateZone: (id: string, patch: Partial<ZoneData>) => void;
   onDeleteZone: (id: string) => void;
   onClose: () => void;
+  layers: MapLayerData[];
+  /** Regions of other layers, listed only for their zones shared onto this layer. */
+  sharedRegionIds: Set<string>;
 }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [creatingRegion, setCreatingRegion] = useState(false);
@@ -447,7 +484,12 @@ export default function ZonesPanel({
     setExpanded((prev) => new Set(prev).add(activeRegionId));
   }
 
-  const sortedRegions = [...regions].sort((a, b) => a.sortOrder - b.sortOrder);
+  // The layer's own regions (reorderable) first, then groups shared from other layers.
+  const sortedRegions = [...regions].sort(
+    (a, b) => Number(sharedRegionIds.has(a.id)) - Number(sharedRegionIds.has(b.id)) || a.sortOrder - b.sortOrder
+  );
+  const ownRegionCount = sortedRegions.filter((r) => !sharedRegionIds.has(r.id)).length;
+  const layerNameOf = (id: string | null) => layers.find((l) => l.id === id)?.name ?? "another layer";
   const zonesByRegion = new Map<string, ZoneData[]>();
   for (const region of sortedRegions) {
     zonesByRegion.set(
@@ -459,6 +501,8 @@ export default function ZonesPanel({
   const activeRegion = regions.find((r) => r.id === activeRegionId) ?? null;
   const drawingDisabled = !activeRegion || activeRegion.locked || !activeRegion.visible;
   const selectedZone = zones.find((z) => z.id === selectedZoneId) ?? null;
+  const selectedZoneRegion = selectedZone ? regions.find((r) => r.id === selectedZone.regionId) : undefined;
+  const selectedZonePaintable = Boolean(selectedZone && !selectedZone.locked && selectedZoneRegion && !selectedZoneRegion.locked);
 
   function submitNewRegion() {
     if (!newRegionName.trim()) return;
@@ -488,7 +532,8 @@ export default function ZonesPanel({
   }
 
   return (
-    <div className="zones-panel">
+    <div className={selectedZone ? "zones-panel zones-panel-editing" : "zones-panel"}>
+      <div className="zones-panel-main">
       <div className="marker-side-panel-header">
         <h2>
           <Shapes size={16} strokeWidth={2.25} style={{ verticalAlign: "-2px", marginRight: "6px" }} />
@@ -498,6 +543,7 @@ export default function ZonesPanel({
           <X size={16} strokeWidth={2.25} />
         </button>
       </div>
+      <p className="panel-layer-label">Layer: {layerName}</p>
 
       <div className="zone-tool-row">
         <button className={activeTool === "select" ? "active" : ""} title="Select / edit" onClick={() => onSetActiveTool("select")}>
@@ -527,12 +573,60 @@ export default function ZonesPanel({
         >
           <Hexagon size={15} strokeWidth={2.25} />
         </button>
+        <button
+          className={activeTool === "brush" ? "active" : ""}
+          title="Brush — paint a new zone, or paint onto the selected zone to grow it. [ and ] or Shift + mouse wheel change the size."
+          disabled={drawingDisabled && !selectedZonePaintable}
+          onClick={() => onSetActiveTool("brush")}
+        >
+          <Brush size={15} strokeWidth={2.25} />
+        </button>
+        <button
+          className={activeTool === "eraser" ? "active" : ""}
+          title="Eraser — erase part of the selected zone. [ and ] or Shift + mouse wheel change the size."
+          disabled={!selectedZonePaintable}
+          onClick={() => onSetActiveTool("eraser")}
+        >
+          <Eraser size={15} strokeWidth={2.25} />
+        </button>
       </div>
-      <p className="field-label zone-tool-hint">
-        {activeRegion ? `Drawing in: ${activeRegion.name}` : "Create or select a Region to draw."}
-        {activeRegion?.locked && " (locked — unlock to draw)"}
-        {activeRegion && !activeRegion.visible && " (hidden — show to draw)"}
-      </p>
+      {isPaintTool(activeTool) ? (
+        <div className="zone-brush-settings">
+          <label className="grid-field">
+            <span className="field-label">Brush size: {brushSize}px</span>
+            <input
+              type="range"
+              min={BRUSH_SIZE_MIN}
+              max={BRUSH_SIZE_MAX}
+              value={brushSize}
+              onChange={(e) => onBrushSizeChange(Number(e.target.value))}
+            />
+          </label>
+          <p className="field-label zone-tool-hint">
+            {activeTool === "eraser"
+              ? selectedZone
+                ? `Erasing from: ${selectedZone.name}${selectedZonePaintable ? "" : " (locked)"}`
+                : "Select a zone to erase from."
+              : selectedZone
+                ? `Painting into: ${selectedZone.name}${selectedZonePaintable ? "" : " (locked)"}`
+                : activeRegion && !drawingDisabled
+                  ? `Painting a new zone in: ${activeRegion.name}`
+                  : "Create or select an unlocked, visible Region to paint."}
+          </p>
+          {activeTool === "brush" && selectedZone && (
+            <button type="button" className="btn btn-sm" onClick={() => onSelectZone(null)} title="Deselect so the next stroke starts a new zone (Esc)">
+              <Plus size={13} strokeWidth={2.25} />
+              Paint a new zone
+            </button>
+          )}
+        </div>
+      ) : (
+        <p className="field-label zone-tool-hint">
+          {activeRegion ? `Drawing in: ${activeRegion.name}` : "Create or select a Region to draw."}
+          {activeRegion?.locked && " (locked — unlock to draw)"}
+          {activeRegion && !activeRegion.visible && " (hidden — show to draw)"}
+        </p>
+      )}
 
       <ul className="zone-region-list">
         {sortedRegions.map((region, i) => (
@@ -569,7 +663,8 @@ export default function ZonesPanel({
             }}
             onStopAddZone={() => onSetActiveTool("select")}
             canMoveUp={i > 0}
-            canMoveDown={i < sortedRegions.length - 1}
+            canMoveDown={i < ownRegionCount - 1}
+            sharedFrom={sharedRegionIds.has(region.id) ? layerNameOf(region.layerId) : undefined}
           />
         ))}
       </ul>
@@ -601,13 +696,19 @@ export default function ZonesPanel({
         </button>
       )}
 
+      </div>
+
       {selectedZone && (
-        <ZoneEditor
-          zone={selectedZone}
-          onUpdate={(patch) => onUpdateZone(selectedZone.id, patch)}
-          onDelete={() => onDeleteZone(selectedZone.id)}
-          onDone={() => onSelectZone(null)}
-        />
+        <div className="zones-panel-editor">
+          <ZoneEditor
+            zone={selectedZone}
+            layers={layers}
+            homeLayerId={selectedZoneRegion?.layerId ?? null}
+            onUpdate={(patch) => onUpdateZone(selectedZone.id, patch)}
+            onDelete={() => onDeleteZone(selectedZone.id)}
+            onDone={() => onSelectZone(null)}
+          />
+        </div>
       )}
     </div>
   );

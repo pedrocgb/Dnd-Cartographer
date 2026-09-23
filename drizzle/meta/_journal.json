@@ -99,6 +99,41 @@
       "when": 1790089942773,
       "tag": "0013_sad_microbe",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1790170804517,
+      "tag": "0014_map_layers",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "6",
+      "when": 1790174358798,
+      "tag": "0015_map_texts",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1790176287582,
+      "tag": "0016_map_lines",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1790186424084,
+      "tag": "0017_layer_always_draw",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1790190115275,
+      "tag": "0018_item_extra_layers",
+      "breakpoints": true
     }
   ]
 }

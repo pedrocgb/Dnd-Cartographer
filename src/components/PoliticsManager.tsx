@@ -16,7 +16,7 @@ import {
   isValidParentType,
   type HierarchyLevel,
 } from "@/server/politics/hierarchy-config";
-import { buildTerritoryTree, TerritoryTreeRow, type TerritoryNode } from "@/components/TerritoryTree";
+import { ancestorsOf, buildTerritoryTree, TerritoryTreeRow, type TerritoryNode } from "@/components/TerritoryTree";
 import PortraitUploader from "@/components/PortraitUploader";
 import DescriptionSection from "@/components/DescriptionSection";
 import Modal from "@/components/Modal";
@@ -68,6 +68,7 @@ interface AffiliatedMarker {
   name: string;
   mapId: string;
   mapName: string;
+  viaTerritoryId: string;
   viaTerritoryName: string;
 }
 
@@ -86,6 +87,8 @@ interface Authority {
   role: string;
   title: string;
   notes: string;
+  /** Resolved server-side; rows arrive sorted root → leaf, then by holder name. */
+  holderName: string;
 }
 
 async function json<T>(res: Response): Promise<T> {
@@ -145,6 +148,12 @@ export default function PoliticsManager() {
   const [tab, setTab] = useState<Tab>((searchParams.get("type") as Tab) ?? "territory");
   const [selectedId, setSelectedId] = useState<string | null>(searchParams.get("id"));
 
+  // In-page jump to another entity (e.g. an authority holder's profile).
+  function openEntity(type: Tab, id: string) {
+    setTab(type);
+    setSelectedId(id);
+  }
+
   return (
     <div className="politics-manager">
       <nav className="map-breadcrumbs">
@@ -165,7 +174,7 @@ export default function PoliticsManager() {
         ))}
       </div>
 
-      {tab === "territory" && <TerritoriesTab selectedId={selectedId} onSelect={setSelectedId} />}
+      {tab === "territory" && <TerritoriesTab selectedId={selectedId} onSelect={setSelectedId} onOpenEntity={openEntity} />}
       {tab === "person" && <PeopleTab selectedId={selectedId} onSelect={setSelectedId} />}
       {tab === "organization" && <OrganizationsTab selectedId={selectedId} onSelect={setSelectedId} />}
       {tab === "profile" && <ProfilesTab selectedId={selectedId} onSelect={setSelectedId} />}
@@ -173,7 +182,15 @@ export default function PoliticsManager() {
   );
 }
 
-function TerritoriesTab({ selectedId, onSelect }: { selectedId: string | null; onSelect: (id: string | null) => void }) {
+function TerritoriesTab({
+  selectedId,
+  onSelect,
+  onOpenEntity,
+}: {
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
+  onOpenEntity: (type: Tab, id: string) => void;
+}) {
   const [territories, setTerritories] = useState<Territory[]>([]);
   const [profiles, setProfiles] = useState<HierarchyProfile[]>([]);
   const [q, setQ] = useState("");
@@ -217,14 +234,7 @@ function TerritoriesTab({ selectedId, onSelect }: { selectedId: string | null; o
   // to it (their own ancestors' expanded-ness doesn't matter here, only
   // theirs), then drop back to the tree view by clearing the search.
   function pickSearchResult(t: Territory) {
-    const ancestorIds: string[] = [];
-    let currentParentId = t.parentId;
-    const seen = new Set<string>();
-    while (currentParentId && !seen.has(currentParentId)) {
-      seen.add(currentParentId);
-      ancestorIds.push(currentParentId);
-      currentParentId = territories.find((x) => x.id === currentParentId)?.parentId ?? null;
-    }
+    const ancestorIds = ancestorsOf(t, territories).map((a) => a.id);
     setExpanded((prev) => new Set([...prev, ...ancestorIds]));
     setQ("");
     onSelect(t.id);
@@ -286,6 +296,7 @@ function TerritoriesTab({ selectedId, onSelect }: { selectedId: string | null; o
             territories={territories}
             onChanged={refreshAll}
             onSelectTerritory={onSelect}
+            onOpenEntity={onOpenEntity}
             onDeleted={() => {
               onSelect(null);
               refreshAll();
@@ -461,6 +472,46 @@ function CollapsibleBlock({ title, children }: { title: string; children: React.
   );
 }
 
+/** Points a record's `descriptionDocumentId` at a freshly created document. */
+async function linkDescriptionDocument(recordUrl: string, documentId: string) {
+  await fetch(recordUrl, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ descriptionDocumentId: documentId }),
+  });
+}
+
+/** Confirms, DELETEs, and alerts the server's error on failure. Resolves true once deleted. */
+async function confirmAndDelete(url: string, confirmMessage: string, fallbackError = "Could not delete.") {
+  if (!window.confirm(confirmMessage)) return false;
+  const res = await fetch(url, { method: "DELETE" });
+  if (!res.ok) window.alert((await res.json()).error ?? fallbackError);
+  return res.ok;
+}
+
+/**
+ * Edit/view toggle for a detail component that stays mounted (same tree
+ * position) when the user selects a different record in the list — required
+ * so DescriptionSection/RichEditor never remount. Without the reset,
+ * switching selection while `editing` was true silently kept the edit FORM
+ * open, now pointed at the newly-selected record; combined with a form whose
+ * local state was seeded from the PREVIOUS record, that let a save persist
+ * stale fields onto the wrong record. Selecting anything new always lands on
+ * its read view, never inheriting another record's in-progress edit.
+ * `pickCount` (bumped on every list click) also resets when the click
+ * re-picks the record already being edited.
+ */
+function useEditingResetOnSelect(id: string, pickCount = 0) {
+  const [editing, setEditing] = useState(false);
+  const selectionKey = `${id}#${pickCount}`;
+  const [trackedKey, setTrackedKey] = useState(selectionKey);
+  if (selectionKey !== trackedKey) {
+    setTrackedKey(selectionKey);
+    if (editing) setEditing(false);
+  }
+  return [editing, setEditing] as const;
+}
+
 function TerritoryDetail({
   territory,
   profiles,
@@ -468,6 +519,7 @@ function TerritoryDetail({
   onChanged,
   onDeleted,
   onSelectTerritory,
+  onOpenEntity,
 }: {
   territory: Territory;
   profiles: HierarchyProfile[];
@@ -475,25 +527,13 @@ function TerritoryDetail({
   onChanged: () => void;
   onDeleted: () => void;
   onSelectTerritory: (id: string) => void;
+  onOpenEntity: (type: Tab, id: string) => void;
 }) {
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useEditingResetOnSelect(territory.id);
   const [chain, setChain] = useState<Territory[]>([]);
   const [authorities, setAuthorities] = useState<Authority[]>([]);
   const [missing, setMissing] = useState<string[]>([]);
   const [affiliatedMarkers, setAffiliatedMarkers] = useState<AffiliatedMarker[]>([]);
-  // This component stays mounted (same tree position) when the user selects
-  // a different territory in the list — required so DescriptionSection/
-  // RichEditor never remount. Without this reset, switching selection while
-  // `editing` was true silently kept the edit FORM open, now pointed at the
-  // newly-selected territory; combined with a form whose local state was
-  // seeded from the PREVIOUS territory, that let a save persist stale
-  // fields onto the wrong record. Selecting anything new should always land
-  // on its read view, never inherit another territory's in-progress edit.
-  const [trackedId, setTrackedId] = useState(territory.id);
-  if (territory.id !== trackedId) {
-    setTrackedId(territory.id);
-    if (editing) setEditing(false);
-  }
 
   function refreshDetail() {
     fetch(`/api/politics/territories/${territory.id}?withChain=true`)
@@ -508,14 +548,7 @@ function TerritoryDetail({
   useEffect(refreshDetail, [territory.id]);
 
   async function del() {
-    if (!window.confirm(`Delete "${territory.name}"? This cannot be undone.`)) return;
-    const res = await fetch(`/api/politics/territories/${territory.id}`, { method: "DELETE" });
-    if (!res.ok) {
-      const data = await res.json();
-      window.alert(data.error ?? "Could not delete territory.");
-      return;
-    }
-    onDeleted();
+    if (await confirmAndDelete(`/api/politics/territories/${territory.id}`, `Delete "${territory.name}"? This cannot be undone.`, "Could not delete territory.")) onDeleted();
   }
 
   // "Required types" describe what a *marker's* attachment chain must
@@ -534,18 +567,7 @@ function TerritoryDetail({
   // itself — its own name is already shown in the heading below. Walks the
   // already-loaded sibling `territories` list rather than fetching a chain,
   // since that full list is already available to every TerritoryDetail.
-  const ancestorChain: Territory[] = [];
-  {
-    let currentParentId = territory.parentId;
-    const seen = new Set<string>();
-    while (currentParentId && !seen.has(currentParentId)) {
-      seen.add(currentParentId);
-      const parent = territories.find((t) => t.id === currentParentId);
-      if (!parent) break;
-      ancestorChain.unshift(parent);
-      currentParentId = parent.parentId;
-    }
-  }
+  const ancestorChain = useMemo(() => ancestorsOf(territory, territories), [territory, territories]);
 
   return (
     <div className="politics-form">
@@ -591,14 +613,7 @@ function TerritoryDetail({
       <DescriptionSection
         documentId={territory.descriptionDocumentId}
         editable={editing}
-        onDocumentCreated={async (id) => {
-          await fetch(`/api/politics/territories/${territory.id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ descriptionDocumentId: id }),
-          });
-          onChanged();
-        }}
+        onDocumentCreated={(id) => linkDescriptionDocument(`/api/politics/territories/${territory.id}`, id).then(onChanged)}
       />
 
       {editing ? (
@@ -616,11 +631,17 @@ function TerritoryDetail({
       ) : (
         <>
           <CollapsibleBlock title="Authorities">
-            <AuthorityManager territoryId={territory.id} authorities={authorities} chain={chain} onChanged={refreshDetail} />
+            <AuthorityManager
+              territoryId={territory.id}
+              authorities={authorities}
+              chain={chain}
+              onChanged={refreshDetail}
+              onOpenHolder={onOpenEntity}
+            />
           </CollapsibleBlock>
 
           <CollapsibleBlock title="Affiliated markers">
-            <AffiliatedMarkersSection markers={affiliatedMarkers} territoryName={territory.name} />
+            <AffiliatedMarkersSection markers={affiliatedMarkers} territoryId={territory.id} />
           </CollapsibleBlock>
 
           <div className="marker-panel-actions politics-detail-actions">
@@ -650,7 +671,7 @@ function loadStoredPageSize(): number {
   return AFFILIATED_MARKERS_PAGE_SIZES.includes(parsed) ? parsed : 10;
 }
 
-function AffiliatedMarkersSection({ markers, territoryName }: { markers: AffiliatedMarker[]; territoryName: string }) {
+function AffiliatedMarkersSection({ markers, territoryId }: { markers: AffiliatedMarker[]; territoryId: string }) {
   const [query, setQuery] = useState("");
   const [pageSize, setPageSize] = useState(loadStoredPageSize);
   const [page, setPage] = useState(0);
@@ -712,7 +733,7 @@ function AffiliatedMarkersSection({ markers, territoryName }: { markers: Affilia
               {m.name}{" "}
               <span className="field-label">
                 ({m.mapName}
-                {m.viaTerritoryName !== territoryName ? ` — via ${m.viaTerritoryName}` : ""})
+                {m.viaTerritoryId !== territoryId ? ` — via ${m.viaTerritoryName}` : ""})
               </span>
             </a>
           </li>
@@ -741,11 +762,13 @@ function AuthorityManager({
   authorities,
   chain,
   onChanged,
+  onOpenHolder,
 }: {
   territoryId: string;
   authorities: Authority[];
   chain: Territory[];
   onChanged: () => void;
+  onOpenHolder: (type: Tab, id: string) => void;
 }) {
   const [adding, setAdding] = useState(false);
   const [holderType, setHolderType] = useState<"person" | "organization">("person");
@@ -753,27 +776,8 @@ function AuthorityManager({
   const [role, setRole] = useState<string>(AUTHORITY_ROLES[0]);
   const [title, setTitle] = useState("");
   const [candidates, setCandidates] = useState<{ id: string; name: string }[]>([]);
-  const [names, setNames] = useState<Record<string, string>>({});
 
-  // `chain` is root → leaf (see resolveChain), so a territory's index within
-  // it doubles as its hierarchy rank — Empire before Kingdom before Duchy,
-  // and so on. `authorities` spans the whole chain (every ancestor plus
-  // this territory), not just this territory's own, so without this the
-  // list came back in arbitrary DB order with no visible relationship
-  // between entries at all.
-  const territoryIndexById = useMemo(() => new Map(chain.map((t, i) => [t.id, i])), [chain]);
   const territoryById = useMemo(() => new Map(chain.map((t) => [t.id, t])), [chain]);
-
-  const sortedAuthorities = useMemo(() => {
-    return [...authorities].sort((a, b) => {
-      const rankA = territoryIndexById.get(a.territoryId) ?? Number.POSITIVE_INFINITY;
-      const rankB = territoryIndexById.get(b.territoryId) ?? Number.POSITIVE_INFINITY;
-      if (rankA !== rankB) return rankA - rankB;
-      // Same territory (or both unranked) — nothing hierarchical separates
-      // them, so fall back to alphabetical by holder name.
-      return (names[a.holderId] ?? "").localeCompare(names[b.holderId] ?? "");
-    });
-  }, [authorities, territoryIndexById, names]);
 
   useEffect(() => {
     if (!adding) return;
@@ -781,16 +785,6 @@ function AuthorityManager({
       .then((r) => json<{ people?: { id: string; name: string }[]; organizations?: { id: string; name: string }[] }>(r))
       .then((d) => setCandidates(d.people ?? d.organizations ?? []));
   }, [adding, holderType]);
-
-  useEffect(() => {
-    Promise.all(
-      authorities.map((a) =>
-        fetch(`/api/politics/${a.holderType === "person" ? "people" : "organizations"}`)
-          .then((r) => json<{ people?: { id: string; name: string }[]; organizations?: { id: string; name: string }[] }>(r))
-          .then((d) => ({ id: a.holderId, name: (d.people ?? d.organizations ?? []).find((x) => x.id === a.holderId)?.name ?? a.holderId }))
-      )
-    ).then((results) => setNames(Object.fromEntries(results.map((r) => [r.id, r.name]))));
-  }, [authorities]);
 
   async function submit() {
     const res = await fetch("/api/politics/authorities", {
@@ -814,29 +808,29 @@ function AuthorityManager({
   return (
     <div>
       <ul className="politics-list">
-        {sortedAuthorities.map((a, i) => {
-          const prev = sortedAuthorities[i - 1];
+        {authorities.map((a, i) => {
+          const prev = authorities[i - 1];
           const isNewGroup = !prev || prev.territoryId !== a.territoryId;
-          const isRanked = territoryIndexById.has(a.territoryId);
-          const prevWasRanked = prev ? territoryIndexById.has(prev.territoryId) : true;
           const territory = territoryById.get(a.territoryId);
           return (
             <Fragment key={a.id}>
               {isNewGroup && (
-                <li
-                  className={
-                    !isRanked && prevWasRanked
-                      ? "politics-authority-group-label politics-authority-group-gap"
-                      : "politics-authority-group-label"
-                  }
-                >
+                <li className="politics-authority-group-label">
                   <span className="field-label">{territory ? `${territory.name} (${territory.type})` : "Other"}</span>
                 </li>
               )}
               <li className="politics-list-row">
                 <span>
                   <strong>{a.role}</strong>
-                  {a.title ? ` (${a.title})` : ""} — {names[a.holderId] ?? "…"}
+                  {a.title ? ` (${a.title})` : ""} —{" "}
+                  <button
+                    type="button"
+                    className="politics-link-button"
+                    onClick={() => onOpenHolder(a.holderType, a.holderId)}
+                    title={a.holderType === "person" ? "Open in People" : "Open in Houses & Councils"}
+                  >
+                    {a.holderName}
+                  </button>
                 </span>
                 <button className="btn btn-ghost btn-icon" onClick={() => remove(a.id)} aria-label="Remove authority">
                   <Trash2 size={13} strokeWidth={2.25} />
@@ -904,7 +898,7 @@ function PeopleTab({ selectedId, onSelect }: { selectedId: string | null; onSele
   const [people, setPeople] = useState<Person[]>([]);
   const [houses, setHouses] = useState<Organization[]>([]);
   const [territories, setTerritories] = useState<Territory[]>([]);
-  const [personAuthorities, setPersonAuthorities] = useState<Authority[]>([]);
+  const [personAuthorities, setPersonAuthorities] = useState<Omit<Authority, "holderName">[]>([]);
   const [q, setQ] = useState("");
   const [creating, setCreating] = useState(false);
   const [filterMode, setFilterMode] = useState<PeopleFilterMode>("all");
@@ -921,14 +915,17 @@ function PeopleTab({ selectedId, onSelect }: { selectedId: string | null; onSele
       .then((r) => json<{ organizations: Organization[] }>(r))
       .then((d) => setHouses(d.organizations));
   }, []);
+  // Only the Authority view needs the territory tree and every person-held
+  // authority — load them when it's picked rather than on every visit.
   useEffect(() => {
+    if (filterMode !== "authority") return;
     fetch("/api/politics/territories")
       .then((r) => json<{ territories: Territory[] }>(r))
       .then((d) => setTerritories(d.territories));
     fetch("/api/politics/authorities?holderType=person")
-      .then((r) => json<{ authorities: Authority[] }>(r))
+      .then((r) => json<{ authorities: Omit<Authority, "holderName">[] }>(r))
       .then((d) => setPersonAuthorities(d.authorities));
-  }, []);
+  }, [filterMode]);
 
   function toggleExpand(id: string) {
     setExpanded((prev) => {
@@ -943,10 +940,11 @@ function PeopleTab({ selectedId, onSelect }: { selectedId: string | null; onSele
   const alphabetical = useMemo(() => sortByName(people), [people]);
 
   const houseGroups = useMemo(() => {
+    const houseById = new Map(houses.map((h) => [h.id, h]));
     const byHouseId = new Map<string, Person[]>();
     const unhoused: Person[] = [];
     for (const p of people) {
-      if (p.houseId && houses.some((h) => h.id === p.houseId)) {
+      if (p.houseId && houseById.has(p.houseId)) {
         const list = byHouseId.get(p.houseId) ?? [];
         list.push(p);
         byHouseId.set(p.houseId, list);
@@ -955,7 +953,7 @@ function PeopleTab({ selectedId, onSelect }: { selectedId: string | null; onSele
       }
     }
     const groups = Array.from(byHouseId.entries())
-      .map(([houseId, members]) => ({ house: houses.find((h) => h.id === houseId)!, members: sortByName(members) }))
+      .map(([houseId, members]) => ({ house: houseById.get(houseId)!, members: sortByName(members) }))
       .sort((a, b) => a.house.name.localeCompare(b.house.name));
     return { groups, unhoused: sortByName(unhoused) };
   }, [people, houses]);
@@ -976,8 +974,9 @@ function PeopleTab({ selectedId, onSelect }: { selectedId: string | null; onSele
   const authorityView = useMemo(() => {
     const assignmentsByTerritory = new Map<string, { personId: string; personName: string; role: string; title: string }[]>();
     const peopleWithAuthorityIds = new Set<string>();
+    const personById = new Map(people.map((p) => [p.id, p]));
     for (const a of personAuthorities) {
-      const person = people.find((p) => p.id === a.holderId);
+      const person = personById.get(a.holderId);
       if (!person) continue;
       peopleWithAuthorityIds.add(person.id);
       const list = assignmentsByTerritory.get(a.territoryId) ?? [];
@@ -1001,7 +1000,16 @@ function PeopleTab({ selectedId, onSelect }: { selectedId: string | null; onSele
     return { tree, assignmentsByTerritory, peopleWithoutAuthority };
   }, [personAuthorities, people, territories]);
 
-  const searching = q.trim().length > 0;
+  // Searching always falls back to a flat alphabetical list; otherwise each
+  // grouped view renders its groups followed by the people outside them.
+  const grouped = q.trim().length === 0 && filterMode !== "all";
+  const ungroupedPeople = !grouped
+    ? alphabetical
+    : filterMode === "house"
+      ? houseGroups.unhoused
+      : filterMode === "status"
+        ? statusGroups.noStatus
+        : authorityView.peopleWithoutAuthority;
 
   return (
     <div className="politics-columns">
@@ -1020,93 +1028,51 @@ function PeopleTab({ selectedId, onSelect }: { selectedId: string | null; onSele
           ))}
         </div>
         <ul className="politics-list politics-tree">
-          {searching || filterMode === "all" ? (
-            alphabetical.map((p) => (
-              <li key={p.id} className="politics-list-row">
-                <button
-                  className={p.id === selectedId ? "politics-list-pick selected" : "politics-list-pick"}
-                  onClick={() => onSelect(p.id)}
-                >
-                  {p.name}
-                </button>
-              </li>
-            ))
-          ) : filterMode === "house" ? (
-            <>
-              {houseGroups.groups.map((g) => (
-                <PeopleGroupRow
-                  key={g.house.id}
-                  groupId={`house:${g.house.id}`}
-                  label={`${g.house.name} (${g.members.length})`}
-                  members={g.members}
-                  expanded={expanded}
-                  onToggleExpand={toggleExpand}
-                  onSelect={onSelect}
-                  selectedId={selectedId}
-                />
-              ))}
-              {houseGroups.unhoused.map((p) => (
-                <li key={p.id} className="politics-list-row">
-                  <button
-                    className={p.id === selectedId ? "politics-list-pick selected" : "politics-list-pick"}
-                    onClick={() => onSelect(p.id)}
-                  >
-                    {p.name}
-                  </button>
-                </li>
-              ))}
-            </>
-          ) : filterMode === "status" ? (
-            <>
-              {statusGroups.groups.map((g) => (
-                <PeopleGroupRow
-                  key={g.status}
-                  groupId={`status:${g.status}`}
-                  label={`${g.status} (${g.members.length})`}
-                  members={g.members}
-                  expanded={expanded}
-                  onToggleExpand={toggleExpand}
-                  onSelect={onSelect}
-                  selectedId={selectedId}
-                />
-              ))}
-              {statusGroups.noStatus.map((p) => (
-                <li key={p.id} className="politics-list-row">
-                  <button
-                    className={p.id === selectedId ? "politics-list-pick selected" : "politics-list-pick"}
-                    onClick={() => onSelect(p.id)}
-                  >
-                    {p.name}
-                  </button>
-                </li>
-              ))}
-            </>
-          ) : (
-            <>
-              {authorityView.tree.map((root) => (
-                <PeopleAuthorityTreeRow
-                  key={root.id}
-                  node={root}
-                  depth={0}
-                  assignmentsByTerritory={authorityView.assignmentsByTerritory}
-                  expanded={expanded}
-                  onToggleExpand={toggleExpand}
-                  onSelectPerson={onSelect}
-                  selectedId={selectedId}
-                />
-              ))}
-              {authorityView.peopleWithoutAuthority.map((p) => (
-                <li key={p.id} className="politics-list-row">
-                  <button
-                    className={p.id === selectedId ? "politics-list-pick selected" : "politics-list-pick"}
-                    onClick={() => onSelect(p.id)}
-                  >
-                    {p.name}
-                  </button>
-                </li>
-              ))}
-            </>
-          )}
+          {grouped &&
+            filterMode === "house" &&
+            houseGroups.groups.map((g) => (
+              <PickGroupRow
+                key={g.house.id}
+                groupId={`house:${g.house.id}`}
+                label={`${g.house.name} (${g.members.length})`}
+                members={g.members}
+                expanded={expanded}
+                onToggleExpand={toggleExpand}
+                onSelect={onSelect}
+                selectedId={selectedId}
+              />
+            ))}
+          {grouped &&
+            filterMode === "status" &&
+            statusGroups.groups.map((g) => (
+              <PickGroupRow
+                key={g.status}
+                groupId={`status:${g.status}`}
+                label={`${g.status} (${g.members.length})`}
+                members={g.members}
+                expanded={expanded}
+                onToggleExpand={toggleExpand}
+                onSelect={onSelect}
+                selectedId={selectedId}
+              />
+            ))}
+          {grouped &&
+            filterMode === "authority" &&
+            authorityView.tree.map((root) => (
+              <PeopleAuthorityTreeRow
+                key={root.id}
+                node={root}
+                depth={0}
+                assignmentsByTerritory={authorityView.assignmentsByTerritory}
+                expanded={expanded}
+                onToggleExpand={toggleExpand}
+                onSelectPerson={onSelect}
+                selectedId={selectedId}
+              />
+            ))}
+          {ungroupedPeople.map((p) => (
+            <PickRow key={p.id} item={p} selectedId={selectedId} onSelect={onSelect} />
+          ))}
         </ul>
         <button className="btn btn-sm btn-primary" onClick={() => setCreating(true)}>
           <Plus size={14} strokeWidth={2.25} />
@@ -1142,9 +1108,39 @@ function PeopleTab({ selectedId, onSelect }: { selectedId: string | null; onSele
   );
 }
 
-/** A collapsed-by-default group of people (used by the People tab's House/
- * Status filters) — same arrow-toggle convention as the territory tree. */
-function PeopleGroupRow({
+function PickRow({
+  item,
+  selectedId,
+  onSelect,
+  indented = false,
+  children,
+}: {
+  item: { id: string; name: string };
+  selectedId?: string | null;
+  onSelect: (id: string) => void;
+  /** One level under a PickGroupRow header. */
+  indented?: boolean;
+  /** Extra label content after the name. */
+  children?: React.ReactNode;
+}) {
+  return (
+    <li className={indented ? "politics-list-row politics-tree-row" : "politics-list-row"} style={indented ? { paddingLeft: 18 } : undefined}>
+      {indented && <span className="politics-tree-spacer" />}
+      <button
+        className={item.id === selectedId ? "politics-list-pick selected" : "politics-list-pick"}
+        onClick={() => onSelect(item.id)}
+      >
+        {item.name}
+        {children}
+      </button>
+    </li>
+  );
+}
+
+/** A collapsed-by-default group of list entries (the People tab's House/
+ * Status filters, the Houses & Councils kinds) — same arrow-toggle
+ * convention as the territory tree. */
+function PickGroupRow({
   groupId,
   label,
   members,
@@ -1155,7 +1151,7 @@ function PeopleGroupRow({
 }: {
   groupId: string;
   label: string;
-  members: Person[];
+  members: { id: string; name: string }[];
   expanded: Set<string>;
   onToggleExpand: (id: string) => void;
   onSelect: (id: string) => void;
@@ -1179,17 +1175,7 @@ function PeopleGroupRow({
         </button>
       </li>
       {isExpanded &&
-        members.map((p) => (
-          <li key={p.id} className="politics-list-row politics-tree-row" style={{ paddingLeft: 18 }}>
-            <span className="politics-tree-spacer" />
-            <button
-              className={p.id === selectedId ? "politics-list-pick selected" : "politics-list-pick"}
-              onClick={() => onSelect(p.id)}
-            >
-              {p.name}
-            </button>
-          </li>
-        ))}
+        members.map((p) => <PickRow key={p.id} item={p} selectedId={selectedId} onSelect={onSelect} indented />)}
     </>
   );
 }
@@ -1282,18 +1268,8 @@ function PersonDetail({
   onChanged: () => void;
   onDeleted: () => void;
 }) {
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useEditingResetOnSelect(person.id);
   const [authorities, setAuthorities] = useState<PersonAuthority[]>([]);
-  // See the identical reset in TerritoryDetail — this component stays
-  // mounted across selection changes (required for DescriptionSection), so
-  // without this, switching to another person while `editing` was true kept
-  // the edit form open and pointed at the new person while still holding
-  // the previous person's stale field values.
-  const [trackedId, setTrackedId] = useState(person.id);
-  if (person.id !== trackedId) {
-    setTrackedId(person.id);
-    if (editing) setEditing(false);
-  }
 
   useEffect(() => {
     fetch(`/api/politics/people/${person.id}`)
@@ -1303,10 +1279,7 @@ function PersonDetail({
   }, [person.id]);
 
   async function del() {
-    if (!window.confirm(`Delete "${person.name}"?`)) return;
-    const res = await fetch(`/api/politics/people/${person.id}`, { method: "DELETE" });
-    if (res.ok) onDeleted();
-    else window.alert((await res.json()).error ?? "Could not delete.");
+    if (await confirmAndDelete(`/api/politics/people/${person.id}`, `Delete "${person.name}"?`)) onDeleted();
   }
 
   const house = houses.find((h) => h.id === person.houseId);
@@ -1338,14 +1311,7 @@ function PersonDetail({
       <DescriptionSection
         documentId={person.descriptionDocumentId}
         editable={editing}
-        onDocumentCreated={async (id) => {
-          await fetch(`/api/politics/people/${person.id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ descriptionDocumentId: id }),
-          });
-          onChanged();
-        }}
+        onDocumentCreated={(id) => linkDescriptionDocument(`/api/politics/people/${person.id}`, id).then(onChanged)}
       />
 
       {editing ? (
@@ -1403,10 +1369,7 @@ function PersonForm({
 
   async function del() {
     if (!initial || !onDeleted) return;
-    if (!window.confirm(`Delete "${initial.name}"?`)) return;
-    const res = await fetch(`/api/politics/people/${initial.id}`, { method: "DELETE" });
-    if (res.ok) onDeleted();
-    else window.alert((await res.json()).error ?? "Could not delete.");
+    if (await confirmAndDelete(`/api/politics/people/${initial.id}`, `Delete "${initial.name}"?`)) onDeleted();
   }
 
   return (
@@ -1449,10 +1412,15 @@ function PersonForm({
   );
 }
 
+/** Display order of the Houses & Councils groups (differs from the form's ORGANIZATION_KINDS order). */
+const ORGANIZATION_KIND_GROUPS = ["House", "Clan", "Council", "Religious Institution", "Custom"] as const;
+
 function OrganizationsTab({ selectedId, onSelect }: { selectedId: string | null; onSelect: (id: string | null) => void }) {
   const [orgs, setOrgs] = useState<Organization[]>([]);
   const [q, setQ] = useState("");
   const [creating, setCreating] = useState(false);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [pickCount, setPickCount] = useState(0);
 
   function refresh() {
     fetch(`/api/politics/organizations?q=${encodeURIComponent(q)}`)
@@ -1462,22 +1430,57 @@ function OrganizationsTab({ selectedId, onSelect }: { selectedId: string | null;
   useEffect(refresh, [q]);
 
   const selected = orgs.find((o) => o.id === selectedId) ?? null;
+  const searching = q.trim().length > 0;
+
+  const kindGroups = useMemo(() => {
+    const byKind = new Map<string, Organization[]>(ORGANIZATION_KIND_GROUPS.map((k) => [k, []]));
+    // A kind outside the known list can't come from the form, but would
+    // otherwise vanish from the grouped view — file it under Custom.
+    for (const o of orgs) (byKind.get(o.kind) ?? byKind.get("Custom")!).push(o);
+    return ORGANIZATION_KIND_GROUPS.map((kind) => ({ kind, members: sortByName(byKind.get(kind)!) }));
+  }, [orgs]);
+
+  function toggleExpand(id: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  // Clicking any entry — including the one already open — drops an
+  // in-progress create or edit without saving it.
+  function pick(id: string) {
+    setCreating(false);
+    setPickCount((c) => c + 1);
+    onSelect(id);
+  }
 
   return (
     <div className="politics-columns">
       <div className="politics-column">
         <input type="text" placeholder="Search houses & councils…" value={q} onChange={(e) => setQ(e.target.value)} />
-        <ul className="politics-list">
-          {orgs.map((o) => (
-            <li key={o.id} className="politics-list-row">
-              <button
-                className={o.id === selectedId ? "politics-list-pick selected" : "politics-list-pick"}
-                onClick={() => onSelect(o.id)}
-              >
-                {o.name} <span className="field-label">({o.kind})</span>
-              </button>
-            </li>
-          ))}
+        <ul className="politics-list politics-tree">
+          {searching
+            ? sortByName(orgs).map((o) => (
+                <PickRow key={o.id} item={o} selectedId={selectedId} onSelect={pick}>
+                  {" "}
+                  <span className="field-label">({o.kind})</span>
+                </PickRow>
+              ))
+            : kindGroups.map((g) => (
+                <PickGroupRow
+                  key={g.kind}
+                  groupId={`kind:${g.kind}`}
+                  label={`${g.kind} (${g.members.length})`}
+                  members={g.members}
+                  expanded={expanded}
+                  onToggleExpand={toggleExpand}
+                  onSelect={pick}
+                  selectedId={selectedId}
+                />
+              ))}
         </ul>
         <button className="btn btn-sm btn-primary" onClick={() => setCreating(true)}>
           <Plus size={14} strokeWidth={2.25} />
@@ -1498,6 +1501,7 @@ function OrganizationsTab({ selectedId, onSelect }: { selectedId: string | null;
         {!creating && selected && (
           <OrganizationDetail
             organization={selected}
+            pickCount={pickCount}
             onChanged={refresh}
             onDeleted={() => {
               onSelect(null);
@@ -1513,26 +1517,19 @@ function OrganizationsTab({ selectedId, onSelect }: { selectedId: string | null;
 
 function OrganizationDetail({
   organization,
+  pickCount,
   onChanged,
   onDeleted,
 }: {
   organization: Organization;
+  pickCount: number;
   onChanged: () => void;
   onDeleted: () => void;
 }) {
-  const [editing, setEditing] = useState(false);
-  // See the identical reset in TerritoryDetail.
-  const [trackedId, setTrackedId] = useState(organization.id);
-  if (organization.id !== trackedId) {
-    setTrackedId(organization.id);
-    if (editing) setEditing(false);
-  }
+  const [editing, setEditing] = useEditingResetOnSelect(organization.id, pickCount);
 
   async function del() {
-    if (!window.confirm(`Delete "${organization.name}"?`)) return;
-    const res = await fetch(`/api/politics/organizations/${organization.id}`, { method: "DELETE" });
-    if (res.ok) onDeleted();
-    else window.alert((await res.json()).error ?? "Could not delete.");
+    if (await confirmAndDelete(`/api/politics/organizations/${organization.id}`, `Delete "${organization.name}"?`)) onDeleted();
   }
 
   return (
@@ -1553,14 +1550,7 @@ function OrganizationDetail({
       <DescriptionSection
         documentId={organization.descriptionDocumentId}
         editable={editing}
-        onDocumentCreated={async (id) => {
-          await fetch(`/api/politics/organizations/${organization.id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ descriptionDocumentId: id }),
-          });
-          onChanged();
-        }}
+        onDocumentCreated={(id) => linkDescriptionDocument(`/api/politics/organizations/${organization.id}`, id).then(onChanged)}
       />
 
       {editing ? (
@@ -1614,10 +1604,7 @@ function OrganizationForm({
 
   async function del() {
     if (!initial || !onDeleted) return;
-    if (!window.confirm(`Delete "${initial.name}"?`)) return;
-    const res = await fetch(`/api/politics/organizations/${initial.id}`, { method: "DELETE" });
-    if (res.ok) onDeleted();
-    else window.alert((await res.json()).error ?? "Could not delete.");
+    if (await confirmAndDelete(`/api/politics/organizations/${initial.id}`, `Delete "${initial.name}"?`)) onDeleted();
   }
 
   return (
@@ -1702,13 +1689,7 @@ function ProfilesTab({ selectedId, onSelect }: { selectedId: string | null; onSe
 }
 
 function ProfileDetail({ profile, onChanged }: { profile: HierarchyProfile; onChanged: () => void }) {
-  const [editing, setEditing] = useState(false);
-  // See the identical reset in TerritoryDetail.
-  const [trackedId, setTrackedId] = useState(profile.id);
-  if (profile.id !== trackedId) {
-    setTrackedId(profile.id);
-    if (editing) setEditing(false);
-  }
+  const [editing, setEditing] = useEditingResetOnSelect(profile.id);
 
   return (
     <div className="politics-form">
@@ -1718,14 +1699,7 @@ function ProfileDetail({ profile, onChanged }: { profile: HierarchyProfile; onCh
       <DescriptionSection
         documentId={profile.descriptionDocumentId}
         editable={editing}
-        onDocumentCreated={async (id) => {
-          await fetch(`/api/politics/hierarchy-profiles/${profile.id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ descriptionDocumentId: id }),
-          });
-          onChanged();
-        }}
+        onDocumentCreated={(id) => linkDescriptionDocument(`/api/politics/hierarchy-profiles/${profile.id}`, id).then(onChanged)}
       />
 
       {editing ? (

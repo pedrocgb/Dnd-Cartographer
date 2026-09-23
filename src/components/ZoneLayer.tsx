@@ -4,10 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import type OpenSeadragonType from "openseadragon";
 import { setOsdNavEnabled } from "./osd-nav";
+import { OVERLAY_Z, addFullMapOverlay, removeFullMapOverlay } from "./osd-overlay-stack";
+import { clientToImagePoint, frameSize, screenPxPerImagePx as imagePxScale } from "./osd-coords";
+import { applyStroke, multiPolygonPath, toMultiPolygon, translateArea, type AreaGeom } from "./zone-paint";
 
 export interface ZoneRegionData {
   id: string;
   mapId: string;
+  layerId: string | null;
   name: string;
   visible: boolean;
   locked: boolean;
@@ -19,7 +23,7 @@ export interface ZoneData {
   regionId: string;
   mapId: string;
   name: string;
-  shapeType: "rectangle" | "circle" | "polygon";
+  shapeType: "rectangle" | "circle" | "polygon" | "area";
   geometry: string; // JSON — parsed on demand
   fillColor: string;
   fillOpacity: number;
@@ -30,9 +34,20 @@ export interface ZoneData {
   locked: boolean;
   sortOrder: number;
   territoryId: string | null;
+  /** Other layers it is also shown (and editable) on; its home layer is its region's. */
+  extraLayerIds: string[];
 }
 
-export type ZoneTool = "select" | "rectangle" | "circle" | "polygon";
+export type ZoneTool = "select" | "rectangle" | "circle" | "polygon" | "brush" | "eraser";
+
+/** Brush diameter bounds, in screen pixels (so the brush feels the same at any zoom). */
+export const BRUSH_SIZE_MIN = 4;
+export const BRUSH_SIZE_MAX = 400;
+export const DEFAULT_BRUSH_SIZE = 40;
+
+export function isPaintTool(tool: ZoneTool): tool is "brush" | "eraser" {
+  return tool === "brush" || tool === "eraser";
+}
 
 interface Pt {
   x: number;
@@ -42,9 +57,28 @@ interface Pt {
 type RectGeom = { x: number; y: number; width: number; height: number };
 type CircleGeom = { x: number; y: number; radius: number };
 type PolygonGeom = { points: Pt[] };
+type AnyGeom = RectGeom | CircleGeom | PolygonGeom | AreaGeom;
 
-function parseGeom(zone: ZoneData): RectGeom | CircleGeom | PolygonGeom {
+function parseGeom(zone: ZoneData): AnyGeom {
   return JSON.parse(zone.geometry);
+}
+
+/**
+ * Render-only geometry cache keyed by the stored JSON text: re-renders (a
+ * brush hover re-renders the whole layer) stop re-parsing every zone and
+ * rebuilding every painted area's path. Gesture code keeps calling
+ * parseGeom, which returns a fresh object it may freely modify.
+ */
+const renderCache = new Map<string, { geom: AnyGeom; areaPath: string | null }>();
+function renderGeom(zone: ZoneData): { geom: AnyGeom; areaPath: string | null } {
+  let hit = renderCache.get(zone.geometry);
+  if (!hit) {
+    if (renderCache.size > 2000) renderCache.clear();
+    const geom = parseGeom(zone);
+    hit = { geom, areaPath: "polygons" in geom ? multiPolygonPath(geom.polygons) : null };
+    renderCache.set(zone.geometry, hit);
+  }
+  return hit;
 }
 
 const CLICK_THRESHOLD_PX = 5;
@@ -60,17 +94,44 @@ interface Props {
   activeRegionId: string | null;
   selectedZoneId: string | null;
   onSelectZone: (id: string | null) => void;
-  onCreateZone: (regionId: string, shapeType: ZoneTool, geometry: RectGeom | CircleGeom | PolygonGeom) => void;
-  onUpdateZoneGeometry: (zoneId: string, geometry: RectGeom | CircleGeom | PolygonGeom) => void;
+  onCreateZone: (regionId: string, shapeType: ZoneData["shapeType"], geometry: AnyGeom) => void;
+  onUpdateZoneGeometry: (zoneId: string, geometry: AnyGeom) => void;
+  /** Result of a brush/eraser stroke on an existing zone — null when the eraser removed all of it. */
+  onPaintZone: (zoneId: string, geometry: AreaGeom | null) => void;
+  brushSize: number;
+  onBrushSizeChange: (size: number) => void;
+  /** Zones of other layers ("always draw"), display only, in paint order, drawn under/over the active layer's. */
+  underZones?: PaintedZone[];
+  overZones?: PaintedZone[];
+  /** Zone briefly pulsed after being picked in the Scene panel. */
+  pulseId?: string | null;
 }
+
+export type PaintedZone = { zone: ZoneData; region: ZoneRegionData };
+
+/**
+ * Paint order of one layer's zones: bottom of the (region, then zone) list
+ * first, top last, since "items higher in the list render in front".
+ */
+export function zonePaintOrder(regions: ZoneRegionData[], zones: ZoneData[]): PaintedZone[] {
+  const regionById = new Map(regions.map((r) => [r.id, r]));
+  const combined = zones
+    .map((z) => ({ zone: z, region: regionById.get(z.regionId) }))
+    .filter((c): c is PaintedZone => Boolean(c.region));
+  combined.sort((a, b) => a.region.sortOrder - b.region.sortOrder || a.zone.sortOrder - b.zone.sortOrder);
+  return combined.reverse();
+}
+
+const NO_ZONES: PaintedZone[] = [];
 
 type Draft =
   | { kind: "rectangle"; start: Pt; current: Pt; shift: boolean }
   | { kind: "circle"; center: Pt; current: Pt }
-  | { kind: "polygon"; points: Pt[]; hover: Pt | null };
+  | { kind: "polygon"; points: Pt[]; hover: Pt | null }
+  | { kind: "stroke"; mode: "add" | "erase"; points: Pt[]; radius: number; color: string };
 
 type Transform =
-  | { kind: "move"; zoneId: string; original: RectGeom | CircleGeom | PolygonGeom; startImg: Pt; deltaX: number; deltaY: number }
+  | { kind: "move"; zoneId: string; original: AnyGeom; startImg: Pt; deltaX: number; deltaY: number }
   | { kind: "resize-rect"; zoneId: string; original: RectGeom; corner: "nw" | "ne" | "se" | "sw"; current: RectGeom; shift: boolean }
   | { kind: "resize-circle"; zoneId: string; original: CircleGeom; current: CircleGeom }
   | { kind: "vertex"; zoneId: string; original: PolygonGeom; index: number; current: PolygonGeom };
@@ -81,17 +142,24 @@ export default function ZoneLayer({
   authoring,
   regions,
   zones,
+  underZones = NO_ZONES,
+  overZones = NO_ZONES,
+  pulseId = null,
   activeTool,
   activeRegionId,
   selectedZoneId,
   onSelectZone,
   onCreateZone,
   onUpdateZoneGeometry,
+  onPaintZone,
+  brushSize,
+  onBrushSizeChange,
 }: Props) {
   const overlayRef = useRef<{ el: HTMLDivElement; root: Root } | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [transform, setTransform] = useState<Transform | null>(null);
   const [hoveredVertex, setHoveredVertex] = useState<number | null>(null);
+  const [brushHover, setBrushHover] = useState<Pt | null>(null);
 
   const latestRef = useRef({ regions, zones, selectedZoneId, activeTool, activeRegionId });
   useEffect(() => {
@@ -139,6 +207,14 @@ export default function ZoneLayer({
       if (e.key === "Escape") {
         if (transform) setTransform(null);
         else if (draft) setDraft(null);
+        // With the brush, the selected zone is the paint target — Esc lets
+        // the next stroke start a new zone instead.
+        else if (activeTool === "brush" && selectedZoneId) onSelectZone(null);
+        return;
+      }
+      if (isPaintTool(activeTool) && (e.key === "[" || e.key === "]")) {
+        const next = e.key === "]" ? brushSize * 1.2 : brushSize / 1.2;
+        onBrushSizeChange(Math.round(Math.min(BRUSH_SIZE_MAX, Math.max(BRUSH_SIZE_MIN, next))));
         return;
       }
       if (draft?.kind === "polygon") {
@@ -164,7 +240,29 @@ export default function ZoneLayer({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft, transform, hoveredVertex, selectedZoneId]);
+  }, [draft, transform, hoveredVertex, selectedZoneId, activeTool, brushSize]);
+
+  // Shift + wheel resizes the brush instead of zooming. Capture phase on
+  // the viewer container runs before both OSD's own wheel handler and
+  // MapWorkspace's wheel-zoom bypass, so stopping it here blocks the zoom.
+  useEffect(() => {
+    if (!viewer || !authoring || !isPaintTool(activeTool)) return;
+    const container = viewer.container;
+    function onWheel(e: WheelEvent) {
+      if (!e.shiftKey) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      // Browsers turn Shift + vertical wheel into horizontal scroll, so the
+      // tick may arrive on deltaX instead of deltaY.
+      const delta = e.deltaY || e.deltaX;
+      if (!delta) return;
+      const next = delta < 0 ? brushSize * 1.2 : brushSize / 1.2;
+      onBrushSizeChange(Math.round(Math.min(BRUSH_SIZE_MAX, Math.max(BRUSH_SIZE_MIN, next))));
+    }
+    container.addEventListener("wheel", onWheel, { capture: true, passive: false });
+    return () => container.removeEventListener("wheel", onWheel, { capture: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewer, authoring, activeTool, brushSize]);
 
   function commitPolygon(points: Pt[]) {
     const active = latestRef.current.activeRegionId;
@@ -188,7 +286,7 @@ export default function ZoneLayer({
       el.className = "zone-layer-overlay";
       const root = createRoot(el);
       overlayRef.current = { el, root };
-      viewer.addOverlay({ element: el, location: bounds, checkResize: true });
+      addFullMapOverlay(viewer, el, OVERLAY_Z.zones);
     } else {
       viewer.updateOverlay(overlayRef.current.el, bounds);
     }
@@ -198,39 +296,16 @@ export default function ZoneLayer({
     return () => {
       const entry = overlayRef.current;
       if (entry) {
-        viewer?.removeOverlay(entry.el);
+        removeFullMapOverlay(viewer, entry.el);
         queueMicrotask(() => entry.root.unmount());
         overlayRef.current = null;
       }
     };
   }, [viewer]);
 
-  function getImageSize(): { w: number; h: number } | null {
-    const tiledImage = viewer?.world.getItemAt(0);
-    if (!tiledImage) return null;
-    const size = tiledImage.getContentSize();
-    return { w: size.x, h: size.y };
-  }
-
-  function toImagePoint(clientX: number, clientY: number): Pt | null {
-    if (!viewer || !osd) return null;
-    const tiledImage = viewer.world.getItemAt(0);
-    if (!tiledImage) return null;
-    const rect = viewer.container.getBoundingClientRect();
-    const vp = viewer.viewport.pointFromPixel(new osd.Point(clientX - rect.left, clientY - rect.top));
-    const img = tiledImage.viewportToImageCoordinates(vp);
-    return { x: img.x, y: img.y };
-  }
-
-  /** CSS-pixel distance per one image-pixel unit, for screen-space tolerances (handle size, closure snap). */
-  function screenPxPerImagePx(): number {
-    if (!viewer) return 1;
-    const tiledImage = viewer.world.getItemAt(0);
-    if (!tiledImage) return 1;
-    const p0 = viewer.viewport.pixelFromPoint(tiledImage.imageToViewportCoordinates(0, 0), true);
-    const p1 = viewer.viewport.pixelFromPoint(tiledImage.imageToViewportCoordinates(100, 0), true);
-    return Math.hypot(p1.x - p0.x, p1.y - p0.y) / 100;
-  }
+  const getImageSize = () => frameSize(viewer);
+  const toImagePoint = (clientX: number, clientY: number) => clientToImagePoint(viewer, osd, clientX, clientY);
+  const screenPxPerImagePx = () => imagePxScale(viewer);
 
   function setNav(enabled: boolean) {
     setOsdNavEnabled(viewer, enabled);
@@ -324,6 +399,68 @@ export default function ZoneLayer({
     if (draft?.kind !== "polygon") return;
     const pt = toImagePoint(e.clientX, e.clientY);
     if (pt) setDraft({ ...draft, hover: pt });
+  }
+
+  // ---- Painting (brush adds, eraser subtracts) ----
+
+  /**
+   * The brush paints into the selected zone, or starts a new area zone in
+   * the active Region when none is selected; the eraser only ever cuts from
+   * the selected zone. Locked zones/Regions are never painted.
+   */
+  function paintTarget(): ZoneData | null {
+    const { zones: allZones, regions: allRegions, selectedZoneId: selId } = latestRef.current;
+    const zone = allZones.find((z) => z.id === selId);
+    if (!zone) return null;
+    const region = allRegions.find((r) => r.id === zone.regionId);
+    return zone.locked || !region || region.locked ? null : zone;
+  }
+
+  function beginPaint(e: React.MouseEvent) {
+    if (e.button !== 0) return;
+    const mode = activeTool === "eraser" ? "erase" : "add";
+    const target = paintTarget();
+    if (!target && (mode === "erase" || latestRef.current.selectedZoneId || !activeRegionId)) return;
+    const start = toImagePoint(e.clientX, e.clientY);
+    const imageSize = getImageSize();
+    if (!start || !imageSize) return;
+    setNav(false);
+
+    const radius = brushSize / 2 / screenPxPerImagePx();
+    const color = mode === "erase" ? "#EF4444" : target?.fillColor ?? "#22C55E";
+    // Dabs closer than a fraction of the radius add nothing visible but
+    // multiply the boolean work on release.
+    const minSpacing = radius * 0.25;
+    const points: Pt[] = [start];
+    setDraft({ kind: "stroke", mode, points: [...points], radius, color });
+
+    function onMove(ev: MouseEvent) {
+      const cur = toImagePoint(ev.clientX, ev.clientY);
+      if (!cur) return;
+      setBrushHover(cur);
+      const last = points[points.length - 1];
+      if (Math.hypot(cur.x - last.x, cur.y - last.y) < minSpacing) return;
+      points.push(cur);
+      setDraft({ kind: "stroke", mode, points: [...points], radius, color });
+    }
+
+    function onUp() {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      setDraft(null);
+      if (!imageSize) return;
+      const base = target ? toMultiPolygon(parseGeom(target)) : null;
+      const result = applyStroke(base, points, radius, mode, imageSize);
+      if (target) onPaintZone(target.id, result);
+      else if (result && activeRegionId) onCreateZone(activeRegionId, "area", result);
+    }
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }
+
+  function handlePaintHover(e: React.MouseEvent) {
+    setBrushHover(toImagePoint(e.clientX, e.clientY));
   }
 
   // ---- Selection / move / resize (Select mode) ----
@@ -473,6 +610,9 @@ export default function ZoneLayer({
           imageHeight={imageSize.h}
           regions={regions}
           zones={zones}
+          underZones={underZones}
+          overZones={overZones}
+          pulseId={pulseId}
           interactive={false}
         />
       );
@@ -480,12 +620,16 @@ export default function ZoneLayer({
     }
 
     const drawTool = activeTool !== "select";
+    const painting = isPaintTool(activeTool);
     entry.root.render(
       <ZoneSvg
         imageWidth={imageSize.w}
         imageHeight={imageSize.h}
         regions={regions}
         zones={zones}
+        underZones={underZones}
+        overZones={overZones}
+        pulseId={pulseId}
         interactive={!drawTool}
         selectedZoneId={selectedZoneId}
         transform={transform}
@@ -497,14 +641,16 @@ export default function ZoneLayer({
         onVertexHover={setHoveredVertex}
         draft={draft}
         drawTool={drawTool ? activeTool : null}
-        onDrawMouseDown={activeTool === "rectangle" || activeTool === "circle" ? beginRectOrCircleDraw : undefined}
+        onDrawMouseDown={activeTool === "rectangle" || activeTool === "circle" ? beginRectOrCircleDraw : painting ? beginPaint : undefined}
         onDrawClick={activeTool === "polygon" ? handlePolygonClick : undefined}
-        onDrawMouseMove={activeTool === "polygon" ? handlePolygonHover : undefined}
+        onDrawMouseMove={activeTool === "polygon" ? handlePolygonHover : painting ? handlePaintHover : undefined}
+        onDrawMouseLeave={painting ? () => setBrushHover(null) : undefined}
+        brushCursor={painting && brushHover ? { center: brushHover, radius: brushSize / 2 / screenPxPerImagePx() } : null}
         onBackgroundMouseDown={() => onSelectZone(null)}
       />
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewer, osd, authoring, regions, zones, activeTool, activeRegionId, selectedZoneId, draft, transform]);
+  }, [viewer, osd, authoring, regions, zones, underZones, overZones, pulseId, activeTool, activeRegionId, selectedZoneId, draft, transform, brushHover, brushSize]);
 
   return null;
 }
@@ -565,12 +711,8 @@ function resizeRect(original: RectGeom, corner: "nw" | "ne" | "se" | "sw", cur: 
   return { x: x0, y: y0, width: Math.max(1, x1 - x0), height: Math.max(1, y1 - y0) };
 }
 
-function translateGeometry(
-  geom: RectGeom | CircleGeom | PolygonGeom,
-  dx: number,
-  dy: number,
-  size: { w: number; h: number }
-): RectGeom | CircleGeom | PolygonGeom {
+function translateGeometry(geom: AnyGeom, dx: number, dy: number, size: { w: number; h: number }): AnyGeom {
+  if ("polygons" in geom) return translateArea(geom, dx, dy, size);
   if ("width" in geom) {
     const clampedDx = Math.min(size.w - geom.width - geom.x, Math.max(-geom.x, dx));
     const clampedDy = Math.min(size.h - geom.height - geom.y, Math.max(-geom.y, dy));
@@ -603,6 +745,9 @@ interface SvgProps {
   imageHeight: number;
   regions: ZoneRegionData[];
   zones: ZoneData[];
+  underZones: PaintedZone[];
+  overZones: PaintedZone[];
+  pulseId?: string | null;
   interactive: boolean;
   selectedZoneId?: string | null;
   transform?: Transform | null;
@@ -617,20 +762,15 @@ interface SvgProps {
   onDrawMouseDown?: (e: React.MouseEvent) => void;
   onDrawClick?: (e: React.MouseEvent) => void;
   onDrawMouseMove?: (e: React.MouseEvent) => void;
+  onDrawMouseLeave?: () => void;
+  brushCursor?: { center: Pt; radius: number } | null;
   onBackgroundMouseDown?: () => void;
 }
 
 function ZoneSvg(props: SvgProps) {
   const { imageWidth, imageHeight, regions, zones, interactive } = props;
   const regionById = new Map(regions.map((r) => [r.id, r]));
-
-  // Paint order: bottom of the (region, then zone) list first, top last —
-  // "items higher in the list render in front."
-  const combined = zones
-    .map((z) => ({ zone: z, region: regionById.get(z.regionId) }))
-    .filter((c): c is { zone: ZoneData; region: ZoneRegionData } => Boolean(c.region));
-  combined.sort((a, b) => (a.region.sortOrder - b.region.sortOrder) || (a.zone.sortOrder - b.zone.sortOrder));
-  const paintOrder = [...combined].reverse();
+  const paintOrder = zonePaintOrder(regions, zones);
 
   const handleImgSize = Math.max(imageWidth, imageHeight) * 0.006;
   const strokeScale = imageWidth / 100;
@@ -654,34 +794,63 @@ function ZoneSvg(props: SvgProps) {
       }
       onClick={props.onDrawClick}
       onMouseMove={props.onDrawMouseMove}
+      onMouseLeave={props.onDrawMouseLeave}
     >
+      {props.underZones.map(({ zone, region }) => (
+        <ForeignZone key={zone.id} zone={zone} region={region} strokeScale={strokeScale} />
+      ))}
+
       {paintOrder.map(({ zone, region }) => {
         const effectivelyVisible = region.visible && zone.visible;
         if (!effectivelyVisible) return null;
-        const geom =
-          props.transform && props.transform.zoneId === zone.id
-            ? geometryFromTransform(props.transform, imageWidth, imageHeight)
-            : (JSON.parse(zone.geometry) as RectGeom | CircleGeom | PolygonGeom);
+        const transformed = props.transform && props.transform.zoneId === zone.id;
+        const cached = transformed ? null : renderGeom(zone);
+        const geom = cached ? cached.geom : geometryFromTransform(props.transform!, imageWidth, imageHeight);
         const clickable = interactive && !zone.locked && !region.locked;
         return (
           <g
             key={zone.id}
+            className={zone.id === props.pulseId ? "scene-focus-pulse" : undefined}
             style={{ pointerEvents: clickable ? "auto" : "none", cursor: clickable ? "move" : "default" }}
             onMouseDown={clickable ? (e) => props.onZoneMouseDown?.(zone, e) : undefined}
           >
-            <ZoneShapeScaled zone={zone} geom={geom} strokeScale={strokeScale} />
+            <ZoneShapeScaled zone={zone} geom={geom} areaPath={cached?.areaPath ?? null} strokeScale={strokeScale} />
           </g>
         );
       })}
 
+      {props.overZones.map(({ zone, region }) => (
+        <ForeignZone key={zone.id} zone={zone} region={region} strokeScale={strokeScale} />
+      ))}
+
       {interactive && props.selectedZoneId && renderHandles(props, zones, regionById, handleImgSize, imageWidth, imageHeight)}
 
       {props.drawTool && props.draft && renderDraft(props.draft)}
+
+      {props.drawTool && (props.drawTool === "brush" || props.drawTool === "eraser") && renderPaintTarget(props, zones)}
+
+      {props.brushCursor && (
+        <g style={{ pointerEvents: "none" }}>
+          <circle cx={props.brushCursor.center.x} cy={props.brushCursor.center.y} r={props.brushCursor.radius} fill="none" stroke="#111" strokeWidth={3} vectorEffect="non-scaling-stroke" />
+          <circle cx={props.brushCursor.center.x} cy={props.brushCursor.center.y} r={props.brushCursor.radius} fill="none" stroke="#fff" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+        </g>
+      )}
     </svg>
   );
 }
 
-function ZoneShapeScaled({ zone, geom, strokeScale }: { zone: ZoneData; geom: RectGeom | CircleGeom | PolygonGeom; strokeScale: number }) {
+/** A zone of another layer drawn via "always draw": display only. */
+function ForeignZone({ zone, region, strokeScale }: PaintedZone & { strokeScale: number }) {
+  if (!region.visible || !zone.visible) return null;
+  const { geom, areaPath } = renderGeom(zone);
+  return (
+    <g style={{ pointerEvents: "none" }}>
+      <ZoneShapeScaled zone={zone} geom={geom} areaPath={areaPath} strokeScale={strokeScale} />
+    </g>
+  );
+}
+
+function ZoneShapeScaled({ zone, geom, areaPath, strokeScale }: { zone: ZoneData; geom: AnyGeom; areaPath: string | null; strokeScale: number }) {
   const common = {
     fill: zone.fillColor,
     fillOpacity: zone.fillOpacity,
@@ -691,10 +860,28 @@ function ZoneShapeScaled({ zone, geom, strokeScale }: { zone: ZoneData; geom: Re
   };
   if ("width" in geom) return <rect x={geom.x} y={geom.y} width={geom.width} height={geom.height} {...common} />;
   if ("radius" in geom) return <circle cx={geom.x} cy={geom.y} r={geom.radius} {...common} />;
+  if ("polygons" in geom) return <path d={areaPath ?? multiPolygonPath(geom.polygons)} fillRule="evenodd" {...common} />;
   return <polygon points={polygonPointsAttr(geom.points)} {...common} />;
 }
 
-function geometryFromTransform(t: Transform, imageWidth: number, imageHeight: number): RectGeom | CircleGeom | PolygonGeom {
+/** Dashed outline of the zone the brush/eraser will paint into. */
+function renderPaintTarget(props: SvgProps, zones: ZoneData[]) {
+  const zone = zones.find((z) => z.id === props.selectedZoneId);
+  if (!zone) return null;
+  return (
+    <path
+      d={multiPolygonPath(toMultiPolygon(parseGeom(zone)))}
+      fill="none"
+      stroke="#fff"
+      strokeWidth={1.5}
+      strokeDasharray="6 4"
+      vectorEffect="non-scaling-stroke"
+      style={{ pointerEvents: "none" }}
+    />
+  );
+}
+
+function geometryFromTransform(t: Transform, imageWidth: number, imageHeight: number): AnyGeom {
   if (t.kind === "move") return translateGeometry(t.original, t.deltaX, t.deltaY, { w: imageWidth, h: imageHeight });
   return t.current;
 }
@@ -713,9 +900,18 @@ function renderHandles(
   if (!region || zone.locked || region.locked) return null;
 
   const t = props.transform && props.transform.zoneId === zone.id ? props.transform : null;
-  const geom = t ? geometryFromTransform(t, imageWidth, imageHeight) : (JSON.parse(zone.geometry) as RectGeom | CircleGeom | PolygonGeom);
+  const geom = t ? geometryFromTransform(t, imageWidth, imageHeight) : parseGeom(zone);
 
   const half = handleSize / 2;
+  // Painted areas have far too many vertices for handles — they're reshaped
+  // with the brush/eraser instead, and only get a selection outline here.
+  if ("polygons" in geom) {
+    return (
+      <g className="zone-handles">
+        <path d={multiPolygonPath(geom.polygons)} fill="none" stroke="#fff" strokeDasharray={handleSize / 2} strokeWidth={handleSize * 0.15} style={{ pointerEvents: "none" }} />
+      </g>
+    );
+  }
   if ("width" in geom) {
     const corners: Array<["nw" | "ne" | "se" | "sw", Pt]> = [
       ["nw", { x: geom.x, y: geom.y }],
@@ -815,6 +1011,24 @@ function renderHandles(
 }
 
 function renderDraft(draft: Draft) {
+  if (draft.kind === "stroke") {
+    const first = draft.points[0];
+    return (
+      <g style={{ pointerEvents: "none" }} opacity={0.45}>
+        <circle cx={first.x} cy={first.y} r={draft.radius} fill={draft.color} />
+        {draft.points.length > 1 && (
+          <polyline
+            points={polygonPointsAttr(draft.points)}
+            fill="none"
+            stroke={draft.color}
+            strokeWidth={draft.radius * 2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        )}
+      </g>
+    );
+  }
   const style = { fill: "#22C55E", fillOpacity: 0.2, stroke: "#22C55E", strokeOpacity: 0.9, strokeWidth: 2, strokeDasharray: "6 4" };
   if (draft.kind === "rectangle") {
     const x = Math.min(draft.start.x, draft.current.x);

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { RefreshCw } from "lucide-react";
+import { ImageUp, RefreshCw } from "lucide-react";
 import MapWorkspace from "./MapWorkspace";
 import MapSidebar from "./MapSidebar";
 import MapSettingsModal from "./MapSettingsModal";
@@ -11,6 +11,9 @@ import MarkersListModal from "./MarkersListModal";
 import type { Marker } from "./MarkerLayer";
 import type { MapGrid } from "./GridLayer";
 import type { ZoneData, ZoneRegionData } from "./ZoneLayer";
+import type { MapTextData } from "./TextLayer";
+import type { MapLineData } from "./LineLayer";
+import { useMapLayers } from "./use-map-layers";
 
 interface MapAsset {
   id: string;
@@ -42,6 +45,8 @@ interface MapStatus {
     parentId: string | null;
     categoryId: string | null;
     descriptionDocumentId: string | null;
+    frameWidth: number | null;
+    frameHeight: number | null;
   };
   category: Category | null;
   asset: MapAsset | null;
@@ -104,13 +109,27 @@ export default function MapViewer({ mapId }: { mapId: string }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [markersListOpen, setMarkersListOpen] = useState(false);
   const [externalFocusMarkerId, setExternalFocusMarkerId] = useState<string | null>(null);
-  const [grid, setGrid] = useState<MapGrid | null>(null);
+  const [grids, setGrids] = useState<MapGrid[]>([]);
   const [gridPanelOpen, setGridPanelOpen] = useState(false);
   const gridPatchTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [zoneRegions, setZoneRegions] = useState<ZoneRegionData[]>([]);
   const [zones, setZones] = useState<ZoneData[]>([]);
   const [zonesPanelOpen, setZonesPanelOpen] = useState(false);
   const [iconFilterPanelOpen, setIconFilterPanelOpen] = useState(false);
+  const [layersPanelOpen, setLayersPanelOpen] = useState(false);
+  const [textPanelOpen, setTextPanelOpen] = useState(false);
+  const [texts, setTexts] = useState<MapTextData[]>([]);
+  const [linePanelOpen, setLinePanelOpen] = useState(false);
+  const [scenePanelOpen, setScenePanelOpen] = useState(false);
+  const [selectToolOn, setSelectToolOn] = useState(false);
+  /** Bumped by the sidebar's "Add marker"; MapWorkspace toggles placing like its own button. */
+  const [addMarkerRequest, setAddMarkerRequest] = useState(0);
+  /** Placing or editing a marker in MapWorkspace (highlights the sidebar's Markers). */
+  const [markerToolActive, setMarkerToolActive] = useState(false);
+  const [lines, setLines] = useState<MapLineData[]>([]);
+  const layerApi = useMapLayers(mapId);
+  const { activeLayerId, refresh: refreshLayers } = layerApi;
+  const grid = grids.find((g) => g.layerId === activeLayerId) ?? null;
 
   // A ref, not a plain closure variable: `uploadImage`/`retry` need to
   // (re)start this same polling loop after the asset lifecycle restarts
@@ -151,15 +170,21 @@ export default function MapViewer({ mapId }: { mapId: string }) {
     fetch(`/api/maps/${mapId}/markers`)
       .then((r) => r.json())
       .then((d) => setMarkers(d.markers));
-    fetch(`/api/maps/${mapId}/grid`)
+    fetch(`/api/maps/${mapId}/grids`)
       .then((r) => r.json())
-      .then((d) => setGrid(d.grid));
+      .then((d) => setGrids(d.grids));
     fetch(`/api/maps/${mapId}/zone-regions`)
       .then((r) => r.json())
       .then((d) => setZoneRegions(d.regions));
     fetch(`/api/maps/${mapId}/zones`)
       .then((r) => r.json())
       .then((d) => setZones(d.zones));
+    fetch(`/api/maps/${mapId}/texts`)
+      .then((r) => r.json())
+      .then((d) => setTexts(d.texts));
+    fetch(`/api/maps/${mapId}/lines`)
+      .then((r) => r.json())
+      .then((d) => setLines(d.lines));
   }, [mapId]);
 
   async function retry() {
@@ -172,13 +197,15 @@ export default function MapViewer({ mapId }: { mapId: string }) {
     setStatus(await fetchStatus(mapId));
   }
 
+  // The first image upload (empty-map prompt) fixes the frame and becomes
+  // the top layer's image — reload layers once that lands.
+  const hasFrame = Boolean(status?.map.frameWidth && status?.map.frameHeight);
+  useEffect(() => {
+    if (hasFrame) void refreshLayers();
+  }, [hasFrame, refreshLayers]);
+
+  /** First image of an empty map; later images are managed per layer in the Layers panel. */
   async function uploadImage(file: File) {
-    if (status?.asset) {
-      const proceed = window.confirm(
-        "Replacing the image keeps existing markers at their current normalized position — if the new artwork isn't the same geography at the same framing, marker placement may no longer line up. Continue?"
-      );
-      if (!proceed) return;
-    }
     setUploading(true);
     const res = await fetch(`/api/maps/${mapId}/assets`, {
       method: "POST",
@@ -217,37 +244,81 @@ export default function MapViewer({ mapId }: { mapId: string }) {
     if (window.confirm("Delete this map? This can be undone from the Trash page.")) removeMap();
   }
 
-  async function onOpenGrid() {
+  function closeToolPanels() {
+    setGridPanelOpen(false);
     setZonesPanelOpen(false);
     setIconFilterPanelOpen(false);
-    if (!grid) {
-      const res = await fetch(`/api/maps/${mapId}/grid`, { method: "POST" });
-      const data = await res.json();
-      setGrid(data.grid);
+    setLayersPanelOpen(false);
+    setTextPanelOpen(false);
+    setLinePanelOpen(false);
+    setScenePanelOpen(false);
+    setSelectToolOn(false);
+  }
+
+  async function onOpenGrid() {
+    closeToolPanels();
+    if (!grid && activeLayerId) {
+      const res = await fetch(`/api/layers/${activeLayerId}/grid`, { method: "POST" });
+      const data: { grid?: MapGrid } = await res.json();
+      if (data.grid) setGrids((prev) => [...prev.filter((g) => g.layerId !== activeLayerId), data.grid!]);
     }
     setGridPanelOpen(true);
   }
 
   function onOpenZones() {
-    setGridPanelOpen(false);
-    setIconFilterPanelOpen(false);
+    closeToolPanels();
     setZonesPanelOpen(true);
   }
 
   function onOpenIconFilter() {
-    setGridPanelOpen(false);
-    setZonesPanelOpen(false);
+    closeToolPanels();
     setIconFilterPanelOpen(true);
   }
 
+  function onOpenLayers() {
+    closeToolPanels();
+    setLayersPanelOpen(true);
+  }
+
+  function onOpenText() {
+    closeToolPanels();
+    setTextPanelOpen(true);
+  }
+
+  function onOpenLines() {
+    closeToolPanels();
+    setLinePanelOpen(true);
+  }
+
+  function onOpenScene() {
+    closeToolPanels();
+    setScenePanelOpen(true);
+  }
+
+  /** The Selection tool has no side panel; it is exclusive with the tool panels all the same. */
+  function onToggleSelectTool() {
+    const next = !selectToolOn;
+    closeToolPanels();
+    setSelectToolOn(next);
+  }
+
+  // Switching layers swaps the grid (and zones), so a grid panel left open
+  // would edit the wrong layer's grid — close it.
+  function setActiveLayer(id: string) {
+    if (id !== activeLayerId) setGridPanelOpen(false);
+    layerApi.setActiveLayerId(id);
+  }
+
   function updateGrid(patch: Partial<MapGrid>) {
-    setGrid((prev) => (prev ? { ...prev, ...patch } : prev));
+    const layerId = activeLayerId;
+    if (!layerId) return;
+    setGrids((prev) => prev.map((g) => (g.layerId === layerId ? { ...g, ...patch } : g)));
     // Sliders fire on every drag tick — updating local state immediately
     // keeps the on-map preview instant, but debounce the actual save so
     // dragging a slider doesn't fire a PATCH per pixel of movement.
     clearTimeout(gridPatchTimerRef.current);
     gridPatchTimerRef.current = setTimeout(() => {
-      fetch(`/api/maps/${mapId}/grid`, {
+      fetch(`/api/layers/${layerId}/grid`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(patch),
@@ -256,10 +327,45 @@ export default function MapViewer({ mapId }: { mapId: string }) {
   }
 
   function deleteGrid() {
-    setGrid(null);
+    const layerId = activeLayerId;
+    if (!layerId) return;
+    setGrids((prev) => prev.filter((g) => g.layerId !== layerId));
     setGridPanelOpen(false);
     clearTimeout(gridPatchTimerRef.current);
-    fetch(`/api/maps/${mapId}/grid`, { method: "DELETE" });
+    fetch(`/api/layers/${layerId}/grid`, { method: "DELETE" });
+  }
+
+  async function deleteLayer(id: string) {
+    const layer = layerApi.layers.find((l) => l.id === id);
+    if (!layer || !window.confirm(`Delete layer "${layer.name}"?`)) return;
+    let res = await layerApi.deleteLayer(id, false);
+    if (res.status === 409) {
+      const data: { markerCount?: number; regionCount?: number; textCount?: number; lineCount?: number; hasGrid?: boolean; error?: string } = await res.json();
+      if (data.markerCount === undefined) {
+        window.alert(data.error ?? "This layer can't be deleted.");
+        return;
+      }
+      const parts = [
+        data.markerCount ? `${data.markerCount} marker(s)` : null,
+        data.regionCount ? `${data.regionCount} zone region(s)` : null,
+        data.textCount ? `${data.textCount} text(s)` : null,
+        data.lineCount ? `${data.lineCount} line(s)` : null,
+        data.hasGrid ? "a grid" : null,
+      ].filter(Boolean);
+      if (!window.confirm(`"${layer.name}" still has ${parts.join(", ")}. Delete the layer and all of it?`)) return;
+      res = await layerApi.deleteLayer(id, true);
+    }
+    if (!res.ok) {
+      window.alert("Failed to delete layer.");
+      return;
+    }
+    const regionIds = new Set(zoneRegions.filter((r) => r.layerId === id).map((r) => r.id));
+    setMarkers((prev) => prev.filter((m) => m.layerId !== id));
+    setZones((prev) => prev.filter((z) => !regionIds.has(z.regionId)));
+    setZoneRegions((prev) => prev.filter((r) => r.layerId !== id));
+    setGrids((prev) => prev.filter((g) => g.layerId !== id));
+    setTexts((prev) => prev.filter((t) => t.layerId !== id));
+    setLines((prev) => prev.filter((l) => l.layerId !== id));
   }
 
   if (error) return <div className="map-status">Error: {error}</div>;
@@ -284,32 +390,99 @@ export default function MapViewer({ mapId }: { mapId: string }) {
 
       <div className="map-page-body">
         <MapSidebar
-          hasImage={Boolean(asset)}
-          uploading={uploading}
-          markersDisabled={!asset || asset.state !== "ready"}
-          gridDisabled={!asset || asset.state !== "ready"}
-          zonesDisabled={!asset || asset.state !== "ready"}
-          iconFilterDisabled={!asset || asset.state !== "ready"}
+          layersDisabled={!hasFrame}
+          textDisabled={!hasFrame}
+          linesDisabled={!hasFrame}
+          sceneDisabled={!hasFrame}
+          markersDisabled={!hasFrame}
+          gridDisabled={!hasFrame}
+          zonesDisabled={!hasFrame}
+          iconFilterDisabled={!hasFrame}
           onOpenSettings={() => setSettingsOpen(true)}
           onOpenMarkers={() => setMarkersListOpen(true)}
           onOpenGrid={onOpenGrid}
           onOpenZones={onOpenZones}
           onOpenIconFilter={onOpenIconFilter}
-          onUploadImage={uploadImage}
+          onOpenLayers={onOpenLayers}
+          onOpenText={onOpenText}
+          onOpenLines={onOpenLines}
+          onOpenScene={onOpenScene}
+          selectToolOn={selectToolOn}
+          activeTool={
+            selectToolOn
+              ? "select"
+              : scenePanelOpen
+                ? "scene"
+                : layersPanelOpen
+                  ? "layers"
+                  : zonesPanelOpen
+                    ? "zones"
+                    : linePanelOpen
+                      ? "lines"
+                      : textPanelOpen
+                        ? "text"
+                        : gridPanelOpen
+                          ? "grid"
+                          : settingsOpen
+                            ? "settings"
+                            : iconFilterPanelOpen || markersListOpen || markerToolActive
+                              ? "markers"
+                              : null
+          }
+          onToggleSelectTool={onToggleSelectTool}
+          onOpenMarkersMenu={closeToolPanels}
+          onAddMarker={() => setAddMarkerRequest((n) => n + 1)}
           onDeleteMap={onDeleteMap}
         />
 
-        {!asset && (
+        {!asset && !hasFrame && (
           <div className="map-status">
             <p>No image uploaded yet for &ldquo;{status.map.name}&rdquo;.</p>
+            <label className="btn btn-primary" style={{ cursor: uploading ? "default" : "pointer" }}>
+              <ImageUp size={15} strokeWidth={2.25} />
+              {uploading ? "Uploading…" : "Upload image"}
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                style={{ display: "none" }}
+                disabled={uploading}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  if (file) void uploadImage(file);
+                }}
+              />
+            </label>
           </div>
         )}
 
-        {asset && asset.state === "ready" && (
+        {hasFrame && activeLayerId && (
           <div className="spike-root">
             <MapWorkspace
               mapId={mapId}
-              assetId={asset.id}
+              layerApi={layerApi}
+              activeLayerId={activeLayerId}
+              onSetActiveLayer={setActiveLayer}
+              layersPanelOpen={layersPanelOpen}
+              onCloseLayersPanel={() => setLayersPanelOpen(false)}
+              onDeleteLayer={deleteLayer}
+              texts={texts}
+              setTexts={setTexts}
+              textPanelOpen={textPanelOpen}
+              onCloseTextPanel={() => setTextPanelOpen(false)}
+              lines={lines}
+              setLines={setLines}
+              linePanelOpen={linePanelOpen}
+              onCloseLinePanel={() => setLinePanelOpen(false)}
+              scenePanelOpen={scenePanelOpen}
+              onCloseScenePanel={() => setScenePanelOpen(false)}
+              selectToolOn={selectToolOn}
+              onCloseSelectTool={() => setSelectToolOn(false)}
+              addMarkerRequest={addMarkerRequest}
+              onMarkerToolChange={setMarkerToolActive}
+              onOpenZonesPanel={onOpenZones}
+              onOpenTextPanel={onOpenText}
+              onOpenLinePanel={onOpenLines}
               markers={markers}
               setMarkers={setMarkers}
               externalFocusMarkerId={externalFocusMarkerId}
@@ -327,13 +500,13 @@ export default function MapViewer({ mapId }: { mapId: string }) {
               onCloseZonesPanel={() => setZonesPanelOpen(false)}
               iconFilterPanelOpen={iconFilterPanelOpen}
               onCloseIconFilterPanel={() => setIconFilterPanelOpen(false)}
-              imageWidth={asset.width ?? 1}
-              imageHeight={asset.height ?? 1}
+              imageWidth={status.map.frameWidth ?? 1}
+              imageHeight={status.map.frameHeight ?? 1}
             />
           </div>
         )}
 
-        {asset && asset.state === "failed" && (
+        {!hasFrame && asset && asset.state === "failed" && (
           <div className="map-status">
             <p>Processing failed{job?.lastError ? `: ${job.lastError}` : "."}</p>
             <button className="btn btn-primary" onClick={retry}>
@@ -343,7 +516,7 @@ export default function MapViewer({ mapId }: { mapId: string }) {
           </div>
         )}
 
-        {asset && !["ready", "failed"].includes(asset.state) && (
+        {!hasFrame && asset && !["ready", "failed"].includes(asset.state) && (
           <LoadingScreen message={assetLoadingMessage(asset, job)} />
         )}
       </div>
@@ -359,7 +532,12 @@ export default function MapViewer({ mapId }: { mapId: string }) {
         open={markersListOpen}
         onClose={() => setMarkersListOpen(false)}
         markers={markers}
-        onSelect={(id) => setExternalFocusMarkerId(id)}
+        layers={layerApi.layers}
+        onSelect={(id) => {
+          const layerId = markers.find((m) => m.id === id)?.layerId;
+          if (layerId) setActiveLayer(layerId);
+          setExternalFocusMarkerId(id);
+        }}
       />
     </div>
   );

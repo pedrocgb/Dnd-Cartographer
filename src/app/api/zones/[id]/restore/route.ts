@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { zones } from "@/server/db/schema";
+import { withLayerIds } from "@/server/layers/layer-ids";
 
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -11,5 +12,5 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     .where(eq(zones.id, id))
     .returning();
   if (!restored) return NextResponse.json({ error: "Zone not found." }, { status: 404 });
-  return NextResponse.json({ zone: restored });
+  return NextResponse.json({ zone: withLayerIds(restored) });
 }

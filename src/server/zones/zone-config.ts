@@ -1,6 +1,6 @@
 import { normalizeColor, DEFAULT_COLOR } from "../markers/icon-registry";
 
-export const ZONE_SHAPES = ["rectangle", "circle", "polygon"] as const;
+export const ZONE_SHAPES = ["rectangle", "circle", "polygon", "area"] as const;
 export type ZoneShape = (typeof ZONE_SHAPES)[number];
 const ZONE_SHAPE_SET = new Set<string>(ZONE_SHAPES);
 export function isValidZoneShape(key: string): key is ZoneShape {
@@ -145,6 +145,61 @@ export function validatePolygonGeometry(g: unknown, imageWidth: number, imageHei
   }
 
   return { points: pts };
+}
+
+export interface AreaGeometry {
+  /** MultiPolygon: polygons → rings ([outer, ...holes]) → closed [x, y] pairs. */
+  polygons: [number, number][][][];
+}
+
+/** Painted areas grow with every stroke — cap them so one zone can't bloat the map payload. */
+const MAX_AREA_VERTICES = 50_000;
+
+/**
+ * Validates a painted (brush/eraser) area. The client builds these with a
+ * polygon-boolean library, so rings are trusted to be non-self-intersecting;
+ * this checks structure, bounds, and size.
+ */
+export function validateAreaGeometry(g: unknown, imageWidth: number, imageHeight: number): AreaGeometry | null {
+  if (!g || typeof g !== "object") return null;
+  const polygons = (g as Record<string, unknown>).polygons;
+  if (!Array.isArray(polygons) || polygons.length === 0) return null;
+
+  let vertexCount = 0;
+  const out: [number, number][][][] = [];
+  for (const polygon of polygons) {
+    if (!Array.isArray(polygon) || polygon.length === 0) return null;
+    const rings: [number, number][][] = [];
+    for (const ring of polygon) {
+      if (!Array.isArray(ring) || ring.length < 4) return null;
+      const pts: [number, number][] = [];
+      for (const pair of ring) {
+        if (!Array.isArray(pair) || pair.length !== 2) return null;
+        const [x, y] = pair;
+        if (!isFiniteNumber(x) || !isFiniteNumber(y)) return null;
+        if (x < -EPS || y < -EPS || x > imageWidth + EPS || y > imageHeight + EPS) return null;
+        pts.push([x, y]);
+      }
+      vertexCount += pts.length;
+      if (vertexCount > MAX_AREA_VERTICES) return null;
+      rings.push(pts);
+    }
+    out.push(rings);
+  }
+  return { polygons: out };
+}
+
+export function validateZoneGeometry(shapeType: ZoneShape, g: unknown, imageWidth: number, imageHeight: number) {
+  switch (shapeType) {
+    case "rectangle":
+      return validateRectGeometry(g, imageWidth, imageHeight);
+    case "circle":
+      return validateCircleGeometry(g, imageWidth, imageHeight);
+    case "polygon":
+      return validatePolygonGeometry(g, imageWidth, imageHeight);
+    case "area":
+      return validateAreaGeometry(g, imageWidth, imageHeight);
+  }
 }
 
 function hslToHex(h: number, s: number, l: number): string {

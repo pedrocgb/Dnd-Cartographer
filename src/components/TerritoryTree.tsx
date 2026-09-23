@@ -24,6 +24,20 @@ export function buildTerritoryTree<T extends TerritoryTreeItem>(list: T[]): (T &
   return roots;
 }
 
+/** `item`'s ancestors in `list`, root → immediate parent (excluding `item`). Stops at a missing parent or a cycle. */
+export function ancestorsOf<T extends TerritoryTreeItem>(item: Pick<TerritoryTreeItem, "parentId">, list: T[]): T[] {
+  const byId = new Map(list.map((t) => [t.id, t]));
+  const ancestors: T[] = [];
+  const seen = new Set<string>();
+  let parent = item.parentId ? byId.get(item.parentId) : undefined;
+  while (parent && !seen.has(parent.id)) {
+    seen.add(parent.id);
+    ancestors.unshift(parent);
+    parent = parent.parentId ? byId.get(parent.parentId) : undefined;
+  }
+  return ancestors;
+}
+
 export function TerritoryTreeRow({
   node,
   depth,

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import { mapGrids, maps } from "@/server/db/schema";
+import { mapGrids } from "@/server/db/schema";
 import {
   isValidGridShape,
   clampColumns,
@@ -12,36 +12,37 @@ import {
   normalizeColor,
   DEFAULT_GRID,
 } from "@/server/grid/grid-config";
+import { findLayer } from "@/server/layers/layers";
 
-export async function GET(_request: Request, { params }: { params: Promise<{ mapId: string }> }) {
-  const { mapId } = await params;
-  const grid = await db.query.mapGrids.findFirst({ where: eq(mapGrids.mapId, mapId) });
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const grid = await db.query.mapGrids.findFirst({ where: eq(mapGrids.layerId, id) });
   return NextResponse.json({ grid: grid ?? null });
 }
 
-export async function POST(_request: Request, { params }: { params: Promise<{ mapId: string }> }) {
-  const { mapId } = await params;
-  const map = await db.query.maps.findFirst({ where: eq(maps.id, mapId) });
-  if (!map) {
-    return NextResponse.json({ error: "Map not found." }, { status: 404 });
+export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const layer = await findLayer(id);
+  if (!layer) {
+    return NextResponse.json({ error: "Layer not found." }, { status: 404 });
   }
 
-  const existing = await db.query.mapGrids.findFirst({ where: eq(mapGrids.mapId, mapId) });
+  const existing = await db.query.mapGrids.findFirst({ where: eq(mapGrids.layerId, id) });
   if (existing) {
     return NextResponse.json({ grid: existing });
   }
 
   const [grid] = await db
     .insert(mapGrids)
-    .values({ mapId, ...DEFAULT_GRID })
+    .values({ mapId: layer.mapId, layerId: id, ...DEFAULT_GRID })
     .onConflictDoNothing()
     .returning();
-  return NextResponse.json({ grid: grid ?? (await db.query.mapGrids.findFirst({ where: eq(mapGrids.mapId, mapId) })) }, { status: 201 });
+  return NextResponse.json({ grid: grid ?? (await db.query.mapGrids.findFirst({ where: eq(mapGrids.layerId, id) })) }, { status: 201 });
 }
 
-export async function PATCH(request: Request, { params }: { params: Promise<{ mapId: string }> }) {
-  const { mapId } = await params;
-  const grid = await db.query.mapGrids.findFirst({ where: eq(mapGrids.mapId, mapId) });
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const grid = await db.query.mapGrids.findFirst({ where: eq(mapGrids.layerId, id) });
   if (!grid) {
     return NextResponse.json({ error: "Grid not found." }, { status: 404 });
   }
@@ -62,12 +63,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ma
   if (typeof body.color === "string") patch.color = normalizeColor(body.color, DEFAULT_GRID.color);
   if (typeof body.linkedColumnsRows === "boolean") patch.linkedColumnsRows = body.linkedColumnsRows;
 
-  const [updated] = await db.update(mapGrids).set(patch).where(eq(mapGrids.mapId, mapId)).returning();
+  const [updated] = await db.update(mapGrids).set(patch).where(eq(mapGrids.layerId, id)).returning();
   return NextResponse.json({ grid: updated });
 }
 
-export async function DELETE(_request: Request, { params }: { params: Promise<{ mapId: string }> }) {
-  const { mapId } = await params;
-  await db.delete(mapGrids).where(eq(mapGrids.mapId, mapId));
+export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  await db.delete(mapGrids).where(eq(mapGrids.layerId, id));
   return NextResponse.json({ ok: true });
 }

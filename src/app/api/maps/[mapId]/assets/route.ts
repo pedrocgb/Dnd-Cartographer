@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createMapAssetUpload, InvalidImageError } from "@/server/assets/create-upload";
+import { firstLayer } from "@/server/layers/layers";
 
 export const runtime = "nodejs";
 
@@ -11,7 +12,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ map
   }
 
   try {
-    const result = await createMapAssetUpload(mapId, request.body);
+    // Map-level upload (the empty-map prompt) targets the top layer.
+    const layer = await firstLayer(mapId);
+    const result = await createMapAssetUpload(mapId, request.body, layer.id);
     return NextResponse.json(result, { status: 202 });
   } catch (err) {
     if (err instanceof InvalidImageError) {

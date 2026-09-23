@@ -18,6 +18,7 @@ import { isValidMarkerCategory } from "../markers/icon-registry";
 import { originalPath, originalKey, tempUploadPath } from "../assets/paths";
 import { validateImageFile, InvalidImageError } from "../assets/validate";
 import type { ExportBundle } from "./types";
+import { createDefaultLayer } from "../layers/layers";
 
 export class ImportValidationError extends Error {}
 
@@ -130,6 +131,7 @@ export async function importBundle(raw: unknown, worldId: string): Promise<Impor
   for (const map of bundle.maps) {
     mapIdMap.set(map.id, crypto.randomUUID());
   }
+  const layerIdMap = new Map<string, string>(); // new map id -> its default layer id
 
   for (const map of bundle.maps) {
     const newId = mapIdMap.get(map.id)!;
@@ -142,6 +144,9 @@ export async function importBundle(raw: unknown, worldId: string): Promise<Impor
       descriptionDocumentId: map.descriptionDocumentId ? documentIdMap.get(map.descriptionDocumentId) ?? null : null,
       deletedAt: map.deletedAt ? new Date(map.deletedAt) : null,
     });
+    // The export format predates layers: everything lands on one default layer.
+    const layer = await createDefaultLayer(newId);
+    layerIdMap.set(newId, layer.id);
   }
 
   let markersCreated = 0;
@@ -150,6 +155,7 @@ export async function importBundle(raw: unknown, worldId: string): Promise<Impor
     if (!newMapId) continue; // marker referenced a map not present in this bundle
     await db.insert(markers).values({
       mapId: newMapId,
+      layerId: layerIdMap.get(newMapId),
       name: marker.name,
       u: marker.u,
       v: marker.v,
@@ -207,6 +213,7 @@ export async function importBundle(raw: unknown, worldId: string): Promise<Impor
       .values({
         id: assetId,
         mapId: newMapId,
+        layerId: layerIdMap.get(newMapId),
         originalKey: originalKey(assetId, validated.extension),
         width: validated.width,
         height: validated.height,

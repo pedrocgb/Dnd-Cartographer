@@ -23,7 +23,7 @@ export default function PortraitUploader({
   portraitKey: string | null;
   updatedAt: string | Date;
   label: string;
-  onChanged: (portraitKey: string | null) => void;
+  onChanged: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -38,13 +38,12 @@ export default function PortraitUploader({
         headers: { "Content-Type": file.type || "application/octet-stream" },
         body: file,
       });
-      const data = await res.json();
       if (!res.ok) {
+        const data = await res.json();
         setError(data.error ?? "Could not upload image.");
         return;
       }
-      const updated = data.territory ?? data.person ?? data.organization;
-      onChanged(updated.portraitKey);
+      onChanged();
     } finally {
       setUploading(false);
       if (inputRef.current) inputRef.current.value = "";
@@ -57,7 +56,7 @@ export default function PortraitUploader({
     setError(null);
     try {
       const res = await fetch(`/api/politics/${ownerPath}/${ownerId}/portrait`, { method: "DELETE" });
-      if (res.ok) onChanged(null);
+      if (res.ok) onChanged();
     } finally {
       setUploading(false);
     }
@@ -103,7 +102,7 @@ export default function PortraitUploader({
           </button>
         )}
       </div>
-      {error && <p className="form-error" style={{ fontSize: "0.625rem" }}>{error}</p>}
+      {error && <p className="form-error">{error}</p>}
     </div>
   );
 }

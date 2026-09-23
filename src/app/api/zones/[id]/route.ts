@@ -3,13 +3,13 @@ import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { zones, zoneRegions } from "@/server/db/schema";
 import {
-  validateRectGeometry,
-  validateCircleGeometry,
-  validatePolygonGeometry,
+  validateZoneGeometry,
   clampOpacity,
   clampStrokeWidth,
   normalizeColor,
 } from "@/server/zones/zone-config";
+import { sanitizeExtraLayerIds } from "@/server/layers/layers";
+import { parseLayerIds, withLayerIds } from "@/server/layers/layer-ids";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -20,7 +20,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!body) return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
 
   const region = await db.query.zoneRegions.findFirst({ where: eq(zoneRegions.id, zone.regionId) });
-  const structuralKeys = ["name", "geometry", "fillColor", "fillOpacity", "strokeColor", "strokeOpacity", "strokeWidth", "sortOrder", "regionId", "territoryId"];
+  const structuralKeys = ["name", "geometry", "shapeType", "fillColor", "fillOpacity", "strokeColor", "strokeOpacity", "strokeWidth", "sortOrder", "regionId", "territoryId"];
   const wantsStructuralChange = structuralKeys.some((k) => k in body);
 
   // Zone/Region locks protect geometry and structural edits; visibility and
@@ -51,14 +51,23 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (!Number.isFinite(imageWidth) || !Number.isFinite(imageHeight) || imageWidth <= 0 || imageHeight <= 0) {
       return NextResponse.json({ error: "Valid image dimensions are required to validate geometry." }, { status: 400 });
     }
-    const geometry =
-      zone.shapeType === "rectangle"
-        ? validateRectGeometry(body.geometry, imageWidth, imageHeight)
-        : zone.shapeType === "circle"
-          ? validateCircleGeometry(body.geometry, imageWidth, imageHeight)
-          : validatePolygonGeometry(body.geometry, imageWidth, imageHeight);
+    // Painting onto a rectangle/circle/polygon converts it to an area; no
+    // other shape change is possible, since geometry is shape-specific.
+    const shapeType = body.shapeType === "area" ? "area" : zone.shapeType;
+    // Accept the geometry as an object or as the JSON text the zones table
+    // stores (the client long sent the latter, which every edit rejected).
+    let rawGeometry: unknown = body.geometry;
+    if (typeof rawGeometry === "string") {
+      try {
+        rawGeometry = JSON.parse(rawGeometry);
+      } catch {
+        rawGeometry = null;
+      }
+    }
+    const geometry = validateZoneGeometry(shapeType, rawGeometry, imageWidth, imageHeight);
     if (!geometry) return NextResponse.json({ error: "Invalid or out-of-bounds shape geometry." }, { status: 400 });
     patch.geometry = JSON.stringify(geometry);
+    patch.shapeType = shapeType;
   }
 
   if (typeof body.regionId === "string" && body.regionId !== zone.regionId) {
@@ -70,8 +79,19 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     patch.regionId = body.regionId;
   }
 
+  // "Also show on" layers (a display setting, so allowed on locked zones).
+  // A zone's home layer is its region's; re-checked when the region changes.
+  if ("extraLayerIds" in body || patch.regionId !== undefined) {
+    const homeRegion = patch.regionId
+      ? await db.query.zoneRegions.findFirst({ where: eq(zoneRegions.id, patch.regionId) })
+      : region;
+    const raw = "extraLayerIds" in body ? body.extraLayerIds : parseLayerIds(zone.extraLayerIds);
+    const encoded = await sanitizeExtraLayerIds(raw, zone.mapId, homeRegion?.layerId ?? null);
+    if (encoded !== null) patch.extraLayerIds = encoded;
+  }
+
   const [updated] = await db.update(zones).set(patch).where(eq(zones.id, id)).returning();
-  return NextResponse.json({ zone: updated });
+  return NextResponse.json({ zone: withLayerIds(updated) });
 }
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {

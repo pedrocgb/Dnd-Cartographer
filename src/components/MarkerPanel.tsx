@@ -8,6 +8,8 @@ import DescriptionSection from "./DescriptionSection";
 import { ICONS, COLOR_PRESETS, BACKGROUND_SHAPES, MARKER_CATEGORIES, DEFAULT_MARKER_CATEGORY } from "@/server/markers/icon-registry";
 import { STATUS_TAGS, ENVIRONMENT_TAGS, OWNERSHIP_TAGS } from "@/server/markers/tag-registry";
 import type { Marker } from "./MarkerLayer";
+import type { MapLayerData } from "./layer-images";
+import LayerChecklist from "./LayerChecklist";
 import PoliticalReferencesPanel from "./PoliticalReferencesPanel";
 import MarkerLinksPanel from "./MarkerLinksPanel";
 
@@ -76,6 +78,7 @@ function CollapsibleSection({
 export default function MarkerPanel({
   marker,
   maps,
+  layers,
   section,
   autoFocusName,
   startInEdit,
@@ -86,6 +89,7 @@ export default function MarkerPanel({
 }: {
   marker: Marker;
   maps: MapOption[];
+  layers: MapLayerData[];
   section: MarkerSection;
   autoFocusName: boolean;
   startInEdit: boolean;
@@ -102,6 +106,8 @@ export default function MarkerPanel({
         | "category"
         | "locked"
         | "linkedMapId"
+        | "layerId"
+        | "extraLayerIds"
         | "descriptionDocumentId"
         | "statusTags"
         | "environment"
@@ -133,6 +139,7 @@ export default function MarkerPanel({
   }
   const category = marker.category ?? DEFAULT_MARKER_CATEGORY;
   const linkedMap = marker.linkedMapId ? maps.find((m) => m.id === marker.linkedMapId) : null;
+  const layer = layers.find((l) => l.id === marker.layerId) ?? null;
 
   // View-mode summary only shows the accepted (not draft) chain, root-first
   // (Empire -> Kingdom -> ... ). Fed by PoliticalReferencesPanel's own fetch
@@ -183,6 +190,7 @@ export default function MarkerPanel({
       <div className={section === "basic" ? "marker-section-body" : "marker-section-body marker-section-body-hidden"}>
       <div className="marker-tag-summary">
         <div className="marker-tag-summary-left">
+          {layer && <span>Layer: {layer.name}</span>}
           <span>Category: {category}</span>
           {marker.environment && <span>Environment: {marker.environment}</span>}
           {marker.ownership && <span>Ownership: {marker.ownership}</span>}
@@ -363,6 +371,27 @@ export default function MarkerPanel({
                 </option>
               ))}
             </select>
+          </CollapsibleSection>
+
+          <CollapsibleSection title="Layer">
+            <select
+              aria-label="Layer"
+              value={marker.layerId ?? ""}
+              onChange={(e) => e.target.value && onUpdate({ layerId: e.target.value })}
+            >
+              {layers.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name}
+                </option>
+              ))}
+            </select>
+            <LayerChecklist
+              layers={layers}
+              homeLayerId={marker.layerId}
+              value={marker.extraLayerIds ?? []}
+              alwaysDrawFlag="markersAlwaysVisible"
+              onChange={(extraLayerIds) => onUpdate({ extraLayerIds })}
+            />
           </CollapsibleSection>
 
           <h3 className="marker-section-title">Actions</h3>

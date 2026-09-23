@@ -14,11 +14,13 @@ export { InvalidImageError };
 /**
  * Streams the request body straight to a temp file on disk (never buffers
  * the whole upload in memory), validates it, moves it into managed
- * storage, then records the asset + its first processing job.
+ * storage, then records the asset + its first processing job. The asset
+ * becomes `layerId`'s image once the worker has tiled it.
  */
 export async function createMapAssetUpload(
   mapId: string,
-  body: ReadableStream<Uint8Array>
+  body: ReadableStream<Uint8Array>,
+  layerId: string
 ): Promise<{ assetId: string; jobId: string }> {
   const map = await db.query.maps.findFirst({ where: eq(maps.id, mapId) });
   if (!map) {
@@ -55,6 +57,7 @@ export async function createMapAssetUpload(
     .values({
       id: assetId,
       mapId,
+      layerId,
       originalKey: originalKey(assetId, validated.extension),
       width: validated.width,
       height: validated.height,

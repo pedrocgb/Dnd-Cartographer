@@ -4,14 +4,16 @@ import { db } from "@/server/db/client";
 import { zones, zoneRegions, maps } from "@/server/db/schema";
 import {
   isValidZoneShape,
-  validateRectGeometry,
-  validateCircleGeometry,
-  validatePolygonGeometry,
+  validateZoneGeometry,
   randomZoneColor,
+  clampOpacity,
+  clampStrokeWidth,
+  normalizeColor,
   DEFAULT_FILL_OPACITY,
   DEFAULT_STROKE_OPACITY,
   DEFAULT_STROKE_WIDTH,
 } from "@/server/zones/zone-config";
+import { withLayerIds } from "@/server/layers/layer-ids";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ mapId: string }> }) {
   const { mapId } = await params;
@@ -19,7 +21,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ map
     where: and(eq(zones.mapId, mapId), isNull(zones.deletedAt)),
     orderBy: [asc(zones.sortOrder)],
   });
-  return NextResponse.json({ zones: rows });
+  return NextResponse.json({ zones: rows.map(withLayerIds) });
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ mapId: string }> }) {
@@ -47,12 +49,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ map
     return NextResponse.json({ error: "Valid image dimensions are required." }, { status: 400 });
   }
 
-  const geometry =
-    shapeType === "rectangle"
-      ? validateRectGeometry(body.geometry, imageWidth, imageHeight)
-      : shapeType === "circle"
-        ? validateCircleGeometry(body.geometry, imageWidth, imageHeight)
-        : validatePolygonGeometry(body.geometry, imageWidth, imageHeight);
+  const geometry = validateZoneGeometry(shapeType, body.geometry, imageWidth, imageHeight);
   if (!geometry) return NextResponse.json({ error: "Invalid or out-of-bounds shape geometry." }, { status: 400 });
 
   const siblings = await db.query.zones.findMany({ where: and(eq(zones.regionId, regionId), isNull(zones.deletedAt)) });
@@ -64,7 +61,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ map
     name = `Zone ${n}`;
   }
   const sortOrder = siblings.length > 0 ? Math.min(...siblings.map((z) => z.sortOrder)) - 1 : 0;
-  const fillColor = randomZoneColor();
+  // Style is optional (a pasted zone keeps its source's); a new drawing gets a random color.
+  const num = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
+  const fillColor = typeof body.fillColor === "string" ? normalizeColor(body.fillColor, randomZoneColor()) : randomZoneColor();
+  const strokeColor = typeof body.strokeColor === "string" ? normalizeColor(body.strokeColor, fillColor) : fillColor;
 
   const [zone] = await db
     .insert(zones)
@@ -75,12 +75,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ map
       shapeType,
       geometry: JSON.stringify(geometry),
       fillColor,
-      fillOpacity: DEFAULT_FILL_OPACITY,
-      strokeColor: fillColor,
-      strokeOpacity: DEFAULT_STROKE_OPACITY,
-      strokeWidth: DEFAULT_STROKE_WIDTH,
+      fillOpacity: num(body.fillOpacity) ? clampOpacity(body.fillOpacity) : DEFAULT_FILL_OPACITY,
+      strokeColor,
+      strokeOpacity: num(body.strokeOpacity) ? clampOpacity(body.strokeOpacity) : DEFAULT_STROKE_OPACITY,
+      strokeWidth: num(body.strokeWidth) ? clampStrokeWidth(body.strokeWidth) : DEFAULT_STROKE_WIDTH,
+      territoryId: typeof body.territoryId === "string" ? body.territoryId : null,
+      visible: typeof body.visible === "boolean" ? body.visible : true,
+      locked: typeof body.locked === "boolean" ? body.locked : false,
       sortOrder,
     })
     .returning();
-  return NextResponse.json({ zone }, { status: 201 });
+  return NextResponse.json({ zone: withLayerIds(zone) }, { status: 201 });
 }

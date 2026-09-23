@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import AppNav from "@/components/AppNav";
+import { mapFontVariables } from "./map-fonts";
 import "./globals.css";
 
 const inter = Inter({
@@ -15,7 +16,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={inter.variable}>
+    <html lang="en" className={`${inter.variable} ${mapFontVariables}`}>
       <body>
         <AppNav />
         <main className="app-main">{children}</main>

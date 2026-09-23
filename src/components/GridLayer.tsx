@@ -3,10 +3,12 @@
 import { useEffect, useRef } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import type OpenSeadragonType from "openseadragon";
+import { OVERLAY_Z, addFullMapOverlay, removeFullMapOverlay } from "./osd-overlay-stack";
 
 export interface MapGrid {
   id: string;
   mapId: string;
+  layerId: string | null;
   shape: string;
   columns: number;
   rows: number;
@@ -167,7 +169,7 @@ export default function GridLayer({
     if (!grid) {
       if (overlayRef.current) {
         const entry = overlayRef.current;
-        viewer.removeOverlay(entry.el);
+        removeFullMapOverlay(viewer, entry.el);
         queueMicrotask(() => entry.root.unmount());
         overlayRef.current = null;
       }
@@ -182,7 +184,7 @@ export default function GridLayer({
       el.className = "map-grid-overlay";
       const root = createRoot(el);
       overlayRef.current = { el, root };
-      viewer.addOverlay({ element: el, location: bounds, checkResize: true });
+      addFullMapOverlay(viewer, el, OVERLAY_Z.grid);
     } else {
       viewer.updateOverlay(overlayRef.current.el, bounds);
     }
@@ -194,7 +196,7 @@ export default function GridLayer({
     return () => {
       const entry = overlayRef.current;
       if (entry) {
-        viewer?.removeOverlay(entry.el);
+        removeFullMapOverlay(viewer, entry.el);
         queueMicrotask(() => entry.root.unmount());
         overlayRef.current = null;
       }

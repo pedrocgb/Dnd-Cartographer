@@ -1,3 +1,4 @@
+import { parseLayerIds } from "../layers/layer-ids";
 // Marker tag systems: Status (multi-select), Environment (single-select),
 // and Ownership (single-select). None of these have icons — they're plain
 // text labels used for filtering/searching markers.
@@ -118,6 +119,8 @@ export function encodeStatusTags(values: unknown): string {
  * itself — every route that returns a marker to the client runs it through
  * this first.
  */
-export function toClientMarker<T extends { statusTags: string }>(row: T): Omit<T, "statusTags"> & { statusTags: StatusTag[] } {
-  return { ...row, statusTags: parseStatusTags(row.statusTags) };
+export function toClientMarker<T extends { statusTags: string; extraLayerIds?: string }>(
+  row: T
+): Omit<T, "statusTags" | "extraLayerIds"> & { statusTags: StatusTag[]; extraLayerIds: string[] } {
+  return { ...row, statusTags: parseStatusTags(row.statusTags), extraLayerIds: parseLayerIds(row.extraLayerIds) };
 }

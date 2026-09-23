@@ -3,7 +3,7 @@ import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { and, eq, lt, or } from "drizzle-orm";
 import { db } from "../server/db/client";
-import { mapAssets, maps, processingJobs } from "../server/db/schema";
+import { mapAssets, mapLayers, maps, processingJobs } from "../server/db/schema";
 import { originalPath, tilesBasenamePath, tilesDzKey, thumbnailPath, thumbnailKey } from "../server/assets/paths";
 
 const LEASE_MS = 60_000;
@@ -60,7 +60,12 @@ async function markAssetProcessing(assetId: string): Promise<void> {
   await db.update(mapAssets).set({ state: "processing", updatedAt: new Date() }).where(eq(mapAssets.id, assetId));
 }
 
-async function markJobDone(jobId: string, assetId: string, generation: number): Promise<void> {
+async function markJobDone(
+  jobId: string,
+  assetId: string,
+  generation: number,
+  size: { width: number; height: number }
+): Promise<void> {
   await db
     .update(processingJobs)
     .set({ state: "done", updatedAt: new Date() })
@@ -72,13 +77,25 @@ async function markJobDone(jobId: string, assetId: string, generation: number): 
       state: "ready",
       manifestKey: tilesDzKey(assetId, generation),
       thumbnailKey: thumbnailKey(assetId, generation),
+      width: size.width,
+      height: size.height,
       updatedAt: new Date(),
     })
     .where(eq(mapAssets.id, assetId));
 
   const asset = await db.query.mapAssets.findFirst({ where: eq(mapAssets.id, assetId) });
-  if (asset) {
-    await db.update(maps).set({ currentAssetId: assetId, updatedAt: new Date() }).where(eq(maps.id, asset.mapId));
+  if (!asset) return;
+  if (asset.layerId) {
+    await db.update(mapLayers).set({ assetId, updatedAt: new Date() }).where(eq(mapLayers.id, asset.layerId));
+  }
+  // The first image ever processed fixes the map's coordinate frame; it also
+  // stays the map's thumbnail/export asset (maps.currentAssetId).
+  const map = await db.query.maps.findFirst({ where: eq(maps.id, asset.mapId) });
+  if (map && (!map.frameWidth || !map.frameHeight || !map.currentAssetId)) {
+    await db
+      .update(maps)
+      .set({ currentAssetId: assetId, frameWidth: size.width, frameHeight: size.height, updatedAt: new Date() })
+      .where(eq(maps.id, asset.mapId));
   }
 }
 
@@ -118,7 +135,19 @@ async function processJob(job: ClaimedJob): Promise<void> {
   await ensureDir(basenamePath);
   await ensureDir(thumbPath);
 
-  const image = sharp(srcPath, { limitInputPixels: false }).rotate(); // normalize EXIF orientation
+  let image = sharp(srcPath, { limitInputPixels: false }).rotate(); // normalize EXIF orientation
+
+  // Layer images are stretched to the map's frame so marker u/v, zone
+  // geometry and grids line up on every layer.
+  const map = await db.query.maps.findFirst({ where: eq(maps.id, asset.mapId) });
+  const meta = await sharp(srcPath, { limitInputPixels: false }).metadata();
+  // EXIF orientations 5-8 are 90° rotations, which .rotate() above applies.
+  const swap = (meta.orientation ?? 1) >= 5;
+  let size = { width: (swap ? meta.height : meta.width) ?? 0, height: (swap ? meta.width : meta.height) ?? 0 };
+  if (map?.frameWidth && map.frameHeight && (size.width !== map.frameWidth || size.height !== map.frameHeight)) {
+    image = image.resize({ width: map.frameWidth, height: map.frameHeight, fit: "fill" });
+    size = { width: map.frameWidth, height: map.frameHeight };
+  }
 
   await image
     .clone()
@@ -128,7 +157,7 @@ async function processJob(job: ClaimedJob): Promise<void> {
 
   await image.clone().resize({ width: 512, height: 512, fit: "inside" }).webp().toFile(thumbPath);
 
-  await markJobDone(job.jobId, asset.id, job.generation);
+  await markJobDone(job.jobId, asset.id, job.generation, size);
   console.log(`[worker] asset ${asset.id} ready in ${((Date.now() - start) / 1000).toFixed(2)}s`);
 }
 

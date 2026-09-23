@@ -18,9 +18,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const chain = await resolveChain(id);
   const levelsMap = await levelsByProfileId(chain.map((t) => t.hierarchyProfileId));
   const missing = computeMissingRequiredTypes(toTerritoryLike(chain), levelsMap);
-  const authorities = await getAuthoritiesForChain(chain.map((t) => t.id));
-  const children = await db.query.territories.findMany({ where: eq(territories.parentId, id) });
-  const affiliatedMarkers = await getAffiliatedMarkers(id);
+  const [authorities, children, affiliatedMarkers] = await Promise.all([
+    getAuthoritiesForChain(chain.map((t) => t.id)),
+    db.query.territories.findMany({ where: eq(territories.parentId, id) }),
+    getAffiliatedMarkers(territory),
+  ]);
 
   return NextResponse.json({ territory, chain, missingRequiredTypes: missing, authorities, children, affiliatedMarkers });
 }

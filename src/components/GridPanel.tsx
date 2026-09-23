@@ -30,7 +30,7 @@ const SHAPE_ICONS: Record<GridShape, React.ComponentType<{ size?: number; stroke
   "hexagon-vertical": VerticalHexagonIcon,
 };
 
-function SliderField({
+export function SliderField({
   label,
   value,
   min,
@@ -128,6 +128,7 @@ type GridPatch = Partial<
 >;
 
 export default function GridPanel({
+  layerName,
   grid,
   onUpdate,
   onDelete,
@@ -135,6 +136,8 @@ export default function GridPanel({
   imageWidth,
   imageHeight,
 }: {
+  /** Name of the active layer this tool edits. */
+  layerName: string;
   grid: MapGrid;
   onUpdate: (patch: GridPatch) => void;
   onDelete: () => void;
@@ -188,6 +191,7 @@ export default function GridPanel({
           <X size={16} strokeWidth={2.25} />
         </button>
       </div>
+      <p className="panel-layer-label">Layer: {layerName}</p>
 
       <span className="field-label">Shape</span>
       <div className="grid-shape-row">
