@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { X, ListTree, ChevronRight, ChevronDown, MapPin, Shapes, Type, PenTool } from "lucide-react";
+import { X, ListTree, ChevronRight, ChevronDown, MapPin, Shapes, Type, PenTool, Eye, EyeOff } from "lucide-react";
 import type { Marker } from "./MarkerLayer";
 import type { ZoneData, ZoneRegionData } from "./ZoneLayer";
 import type { MapTextData } from "./TextLayer";
@@ -39,6 +39,8 @@ function Section({
   count,
   open,
   onToggle,
+  anyVisible,
+  onToggleVisible,
   children,
 }: {
   title: string;
@@ -46,16 +48,32 @@ function Section({
   count: number;
   open: boolean;
   onToggle: () => void;
+  /** At least one item is shown: the eye hides them all, otherwise it shows them all. */
+  anyVisible: boolean;
+  onToggleVisible: () => void;
   children: React.ReactNode;
 }) {
+  const eyeLabel = `${anyVisible ? "Hide" : "Show"} all ${title.toLowerCase()}`;
   return (
     <section className="scene-section">
-      <button type="button" className="scene-section-header" aria-expanded={open} onClick={onToggle}>
-        {open ? <ChevronDown size={14} strokeWidth={2.25} /> : <ChevronRight size={14} strokeWidth={2.25} />}
-        {icon}
-        <span className="scene-section-title">{title}</span>
-        <span className="scene-count">{count}</span>
-      </button>
+      <div className="scene-section-bar">
+        <button type="button" className="scene-section-header" aria-expanded={open} onClick={onToggle}>
+          {open ? <ChevronDown size={14} strokeWidth={2.25} /> : <ChevronRight size={14} strokeWidth={2.25} />}
+          {icon}
+          <span className="scene-section-title">{title}</span>
+          <span className="scene-count">{count}</span>
+        </button>
+        <button
+          type="button"
+          className="btn btn-ghost btn-icon-xs"
+          onClick={onToggleVisible}
+          disabled={count === 0}
+          aria-label={eyeLabel}
+          title={eyeLabel}
+        >
+          {anyVisible ? <Eye size={12} strokeWidth={2.25} /> : <EyeOff size={12} strokeWidth={2.25} />}
+        </button>
+      </div>
       {open && (count > 0 ? <ul className="scene-list">{children}</ul> : <p className="field-label scene-empty">Nothing here yet.</p>)}
     </section>
   );
@@ -83,6 +101,7 @@ export default function ScenePanel({
   texts,
   lines,
   onPick,
+  onSetVisible,
   onClose,
 }: {
   layerName: string;
@@ -92,6 +111,8 @@ export default function ScenePanel({
   texts: MapTextData[];
   lines: MapLineData[];
   onPick: (kind: SceneKind, id: string) => void;
+  /** Sets each listed item's own visibility (the folder eye). */
+  onSetVisible: (kind: SceneKind, ids: string[], visible: boolean) => void;
   onClose: () => void;
 }) {
   const [open, setOpen] = useState<Set<SceneKind>>(loadOpenSections);
@@ -101,6 +122,12 @@ export default function ScenePanel({
     else next.add(k);
     setOpen(next);
     saveOpenSections(next);
+  };
+
+  /** Props for a folder's eye: hide all while any item is shown, else show all. */
+  const eye = (kind: SceneKind, items: { id: string; visible: boolean }[]) => {
+    const anyVisible = items.some((i) => i.visible);
+    return { anyVisible, onToggleVisible: () => onSetVisible(kind, items.map((i) => i.id), !anyVisible) };
   };
 
   const sortedRegions = [...regions].sort((a, b) => a.sortOrder - b.sortOrder);
@@ -119,13 +146,13 @@ export default function ScenePanel({
       </div>
       <p className="panel-layer-label">Layer: {layerName}</p>
 
-      <Section title="Markers" icon={<MapPin size={14} strokeWidth={2.25} />} count={markers.length} open={open.has("marker")} onToggle={() => toggle("marker")}>
+      <Section title="Markers" icon={<MapPin size={14} strokeWidth={2.25} />} count={markers.length} open={open.has("marker")} onToggle={() => toggle("marker")} {...eye("marker", markers)}>
         {byName(markers, (m) => m.name).map((m) => (
-          <Item key={m.id} label={m.name} onClick={() => onPick("marker", m.id)} />
+          <Item key={m.id} label={m.name} muted={!m.visible} onClick={() => onPick("marker", m.id)} />
         ))}
       </Section>
 
-      <Section title="Zones" icon={<Shapes size={14} strokeWidth={2.25} />} count={zones.length} open={open.has("zone")} onToggle={() => toggle("zone")}>
+      <Section title="Zones" icon={<Shapes size={14} strokeWidth={2.25} />} count={zones.length} open={open.has("zone")} onToggle={() => toggle("zone")} {...eye("zone", zones)}>
         {sortedRegions.map((r) => {
           const regionZones = zones.filter((z) => z.regionId === r.id).sort((a, b) => a.sortOrder - b.sortOrder);
           if (regionZones.length === 0) return null;
@@ -142,15 +169,15 @@ export default function ScenePanel({
         })}
       </Section>
 
-      <Section title="Texts" icon={<Type size={14} strokeWidth={2.25} />} count={texts.length} open={open.has("text")} onToggle={() => toggle("text")}>
+      <Section title="Texts" icon={<Type size={14} strokeWidth={2.25} />} count={texts.length} open={open.has("text")} onToggle={() => toggle("text")} {...eye("text", texts)}>
         {byName(texts, (t) => t.text).map((t) => (
-          <Item key={t.id} label={t.text.split("\n")[0] || "(empty)"} onClick={() => onPick("text", t.id)} />
+          <Item key={t.id} label={t.text.split("\n")[0] || "(empty)"} muted={!t.visible} onClick={() => onPick("text", t.id)} />
         ))}
       </Section>
 
-      <Section title="Lines" icon={<PenTool size={14} strokeWidth={2.25} />} count={lines.length} open={open.has("line")} onToggle={() => toggle("line")}>
+      <Section title="Lines" icon={<PenTool size={14} strokeWidth={2.25} />} count={lines.length} open={open.has("line")} onToggle={() => toggle("line")} {...eye("line", lines)}>
         {lines.map((l, i) => (
-          <Item key={l.id} label={`Line ${i + 1} · ${LINE_STYLE_LABEL[l.style]}`} onClick={() => onPick("line", l.id)} />
+          <Item key={l.id} label={`Line ${i + 1} · ${LINE_STYLE_LABEL[l.style]}`} muted={!l.visible} onClick={() => onPick("line", l.id)} />
         ))}
       </Section>
     </div>

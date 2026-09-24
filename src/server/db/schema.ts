@@ -188,6 +188,7 @@ export const markers = sqliteTable(
     statusTags: text("status_tags").notNull().default("[]"),
     environment: text("environment"),
     ownership: text("ownership"),
+    visible: integer("visible", { mode: "boolean" }).notNull().default(true),
     locked: integer("locked", { mode: "boolean" }).notNull().default(false),
     revision: integer("revision").notNull().default(0),
     deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
@@ -319,6 +320,7 @@ export const mapTexts = sqliteTable(
     shadowDistance: real("shadow_distance").notNull().default(0.08),
     shadowColor: text("shadow_color").notNull().default("#000000"),
     shadowOpacity: real("shadow_opacity").notNull().default(0.6),
+    visible: integer("visible", { mode: "boolean" }).notNull().default(true),
     deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
     ...timestamps,
   },
@@ -356,6 +358,7 @@ export const mapLines = sqliteTable(
     shadowBlur: real("shadow_blur").notNull().default(0.5),
     shadowDistance: real("shadow_distance").notNull().default(0.5),
     shadowAngle: real("shadow_angle").notNull().default(45),
+    visible: integer("visible", { mode: "boolean" }).notNull().default(true),
     deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
     ...timestamps,
   },
@@ -409,6 +412,12 @@ export const territories = sqliteTable(
     // Relative storage key for the uploaded "Coat of arms" image (see
     // src/server/assets/portrait-paths.ts), or null if none uploaded yet.
     portraitKey: text("portrait_key"),
+    // Article layer: manual tags (JSON string[]), the sidebar and optional footer documents.
+    tags: text("tags").notNull().default("[]"),
+    sidebarDocumentId: text("sidebar_document_id").references(() => richDocuments.id),
+    footerDocumentId: text("footer_document_id").references(() => richDocuments.id),
+    // Info Bar values (JSON; see src/server/articles/info-fields.ts).
+    info: text("info").notNull().default("{}"),
     deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
     ...timestamps,
   },
@@ -427,6 +436,13 @@ export const people = sqliteTable(
     // Relative storage key for the uploaded "Image" (portrait), or null.
     portraitKey: text("portrait_key"),
     status: text("status"),
+    // Character article info fields added so far: JSON { [fieldKey]: string | string[] | null }
+    // (see src/server/articles/info-fields.ts). House and status keep their own columns.
+    info: text("info").notNull().default("{}"),
+    // Article layer: manual tags (JSON string[]), the sidebar and optional footer documents.
+    tags: text("tags").notNull().default("[]"),
+    sidebarDocumentId: text("sidebar_document_id").references(() => richDocuments.id),
+    footerDocumentId: text("footer_document_id").references(() => richDocuments.id),
     deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
     ...timestamps,
   },
@@ -444,6 +460,12 @@ export const organizations = sqliteTable(
     descriptionDocumentId: text("description_document_id").references(() => richDocuments.id),
     // Relative storage key for the uploaded "Crest" image, or null.
     portraitKey: text("portrait_key"),
+    // Article layer: manual tags (JSON string[]), the sidebar and optional footer documents.
+    tags: text("tags").notNull().default("[]"),
+    sidebarDocumentId: text("sidebar_document_id").references(() => richDocuments.id),
+    footerDocumentId: text("footer_document_id").references(() => richDocuments.id),
+    // Info Bar values (JSON; see src/server/articles/info-fields.ts).
+    info: text("info").notNull().default("{}"),
     deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
     ...timestamps,
   },
@@ -560,6 +582,57 @@ export const politicalLinks = sqliteTable(
     index("political_links_owner_idx").on(table.ownerType, table.ownerId),
     index("political_links_target_idx").on(table.targetType, table.targetId),
   ]
+);
+
+/**
+ * An article linked to a marker (the marker panel's Articles tab): any
+ * template — `template` says which table `articleId` lives in (see
+ * src/server/articles/templates.ts). Replaces the marker-sourced
+ * political_references rows, which migration 0023 copied here.
+ */
+export const markerArticleLinks = sqliteTable(
+  "marker_article_links",
+  {
+    id: id(),
+    worldId: text("world_id").notNull().references(() => worlds.id),
+    markerId: text("marker_id").notNull(),
+    template: text("template").notNull(),
+    articleId: text("article_id").notNull(),
+    // Optional relationship to the marker (e.g. "Lord of this keep").
+    label: text("label").notNull().default(""),
+    ...timestamps,
+  },
+  (table) => [index("marker_article_links_marker_idx").on(table.markerId)]
+);
+
+// ---------- Articles ----------
+
+/**
+ * A user-written wiki article from one of the generic templates (see
+ * src/server/articles/templates.ts). Territory, character and organization
+ * articles live in their politics tables, which carry the same tags and
+ * sidebar columns. `tags` holds only manual tags — the template tag is
+ * implicit.
+ */
+export const articles = sqliteTable(
+  "articles",
+  {
+    id: id(),
+    worldId: text("world_id").notNull().references(() => worlds.id),
+    template: text("template").notNull(),
+    title: text("title").notNull(),
+    tags: text("tags").notNull().default("[]"),
+    bodyDocumentId: text("body_document_id").references(() => richDocuments.id),
+    sidebarDocumentId: text("sidebar_document_id").references(() => richDocuments.id),
+    footerDocumentId: text("footer_document_id").references(() => richDocuments.id),
+    // Relative storage key for the article's image (see src/server/assets/portrait-paths.ts).
+    portraitKey: text("portrait_key"),
+    // Info Bar values (JSON; see src/server/articles/info-fields.ts).
+    info: text("info").notNull().default("{}"),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+    ...timestamps,
+  },
+  (table) => [index("articles_world_template_idx").on(table.worldId, table.template)]
 );
 
 export const schemaCheck = sql`PRAGMA foreign_keys = ON;`;

@@ -1,11 +1,12 @@
 "use client";
 
-import { Info, Crown, Link as LinkIcon } from "lucide-react";
+import { Book, Info, Crown, Link as LinkIcon } from "lucide-react";
 import type { MarkerSection } from "./MarkerPanel";
 
 const SECTIONS: { key: MarkerSection; label: string; Icon: typeof Info }[] = [
   { key: "basic", label: "Basic Information", Icon: Info },
   { key: "politics", label: "Political References", Icon: Crown },
+  { key: "articles", label: "Articles", Icon: Book },
   { key: "links", label: "Links", Icon: LinkIcon },
 ];
 

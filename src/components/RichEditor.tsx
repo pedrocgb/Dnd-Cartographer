@@ -1,23 +1,11 @@
 "use client";
 
 import { useEditor, EditorContent, type JSONContent } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
-import Placeholder from "@tiptap/extension-placeholder";
 import { useEffect, useRef, useState } from "react";
-import {
-  Bold,
-  Italic,
-  Underline,
-  Strikethrough,
-  List,
-  ListOrdered,
-  Quote,
-  Minus,
-  Link2,
-  Eraser,
-  Undo2,
-  Redo2,
-} from "lucide-react";
+import { ImagePlus } from "lucide-react";
+import { buildExtensions } from "./rich-editor/extensions";
+import { TextBubbleMenu, ImageBubbleMenu } from "./rich-editor/BubbleMenus";
+import { imageFilesOf, insertImageFiles } from "./rich-editor/images";
 
 const AUTOSAVE_IDLE_MS = 1500;
 const INSTANCE_ID_KEY = "world-wiki-instance-id";
@@ -54,14 +42,28 @@ async function fetchDocument(documentId: string): Promise<DocumentRecord> {
   return (await res.json()).document;
 }
 
+/**
+ * The app's rich-text editor (TipTap). Formatting lives in bubble menus
+ * shown over a text or image selection; images come in by drag-and-drop,
+ * paste, or the "Insert image" button (at the caret). Read mode renders the
+ * same editor non-editable, where links and linked images open on click.
+ */
 export default function RichEditor({
   documentId,
   editable,
+  placeholder,
+  footerActions,
 }: {
   documentId: string;
   editable: boolean;
+  /** Shown in read mode when the document is empty (nothing is rendered otherwise). */
+  placeholder?: string;
+  /** Extra buttons after "Insert image" while editing (e.g. an article body's "Add footer"). */
+  footerActions?: React.ReactNode;
 }) {
   const [saveState, setSaveState] = useState<SaveState>("idle");
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [loaded, setLoaded] = useState(false);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savingRef = useRef(false);
@@ -100,13 +102,36 @@ export default function RichEditor({
     // a plain transaction otherwise.
     shouldRerenderOnTransaction: true,
     editable,
-    extensions: [
-      StarterKit.configure({
-        link: { openOnClick: false, protocols: ["http", "https", "mailto"] },
-        heading: { levels: [1, 2, 3] },
-      }),
-      Placeholder.configure({ placeholder: editable ? "Write a description…" : "" }),
-    ],
+    extensions: buildExtensions("Write here… select text to format it, drop an image to add it."),
+    editorProps: {
+      // Image files dropped or pasted into the text upload and land where they were dropped / at the caret.
+      handleDrop: (view, event, _slice, moved) => {
+        const files = imageFilesOf(event.dataTransfer);
+        if (moved || !view.editable || files.length === 0) return false;
+        event.preventDefault();
+        const pos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos ?? view.state.selection.from;
+        void insertImageFiles(view, files, pos).then(setUploadError);
+        return true;
+      },
+      handlePaste: (view, event) => {
+        const files = imageFilesOf(event.clipboardData);
+        if (!view.editable || files.length === 0) return false;
+        void insertImageFiles(view, files, view.state.selection.from).then(setUploadError);
+        return true;
+      },
+      // Reading: links and linked images open in a new tab (editing keeps clicks for the caret).
+      handleClickOn: (view, _pos, node) => {
+        if (view.editable || node.type.name !== "image" || !node.attrs.href) return false;
+        window.open(node.attrs.href, "_blank", "noopener,noreferrer");
+        return true;
+      },
+      handleClick: (view, _pos, event) => {
+        const anchor = event.target instanceof Element ? event.target.closest("a[href]") : null;
+        if (view.editable || !anchor) return false;
+        window.open(anchor.getAttribute("href")!, "_blank", "noopener,noreferrer");
+        return true;
+      },
+    },
     onUpdate: () => {
       if (!editable || !loadedRef.current) return;
       const content = editor?.getJSON();
@@ -229,11 +254,11 @@ export default function RichEditor({
   }, [documentId, editor]);
 
   if (!editable) {
-    // Nothing to show yet (still loading) or genuinely nothing to show
-    // (empty/never-written description) — render nothing at all rather
-    // than an empty styled box, so an unset description doesn't leave a
-    // gap between the title above it and whatever comes next.
-    if (!loaded || editor?.isEmpty) return null;
+    // Nothing to show yet (still loading) or nothing written — render the
+    // placeholder if the caller wants one, else nothing, so an unset
+    // description doesn't leave an empty box.
+    if (!loaded) return null;
+    if (editor?.isEmpty) return placeholder ? <p className="article-card-placeholder">{placeholder}</p> : null;
     return (
       <div className="rich-reader">
         <EditorContent editor={editor} />
@@ -241,7 +266,7 @@ export default function RichEditor({
     );
   }
 
-  if (!loaded) {
+  if (!loaded || !editor) {
     // A fresh editor for a just-switched entity starts out default-empty
     // until its real content arrives — show a placeholder instead of the
     // (momentarily blank-looking) live editor, so it never reads as "the
@@ -251,132 +276,39 @@ export default function RichEditor({
 
   return (
     <div className="rich-editor">
-      <div className="rich-toolbar" role="toolbar" aria-label="Formatting">
+      <EditorContent editor={editor} className="rich-content" />
+      <TextBubbleMenu editor={editor} />
+      <ImageBubbleMenu editor={editor} />
+      <div className="rich-editor-footer">
         <button
           type="button"
-          aria-label="Bold"
-          title="Bold"
-          onClick={() => editor?.chain().focus().toggleBold().run()}
-          className={editor?.isActive("bold") ? "active" : ""}
+          className="btn btn-sm btn-ghost"
+          title="Insert an image at the caret (or drop one into the text)"
+          // Keep the caret where it is: the image goes there.
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => fileInputRef.current?.click()}
         >
-          <Bold size={15} strokeWidth={2.25} />
+          <ImagePlus size={14} strokeWidth={2.25} />
+          Insert image
         </button>
-        <button
-          type="button"
-          aria-label="Italic"
-          title="Italic"
-          onClick={() => editor?.chain().focus().toggleItalic().run()}
-          className={editor?.isActive("italic") ? "active" : ""}
-        >
-          <Italic size={15} strokeWidth={2.25} />
-        </button>
-        <button
-          type="button"
-          aria-label="Underline"
-          title="Underline"
-          onClick={() => editor?.chain().focus().toggleUnderline().run()}
-          className={editor?.isActive("underline") ? "active" : ""}
-        >
-          <Underline size={15} strokeWidth={2.25} />
-        </button>
-        <button
-          type="button"
-          aria-label="Strikethrough"
-          title="Strikethrough"
-          onClick={() => editor?.chain().focus().toggleStrike().run()}
-          className={editor?.isActive("strike") ? "active" : ""}
-        >
-          <Strikethrough size={15} strokeWidth={2.25} />
-        </button>
-        <span className="rich-toolbar-divider" aria-hidden="true" />
-        <select
-          aria-label="Text style"
-          className="rich-toolbar-select"
-          value={
-            editor?.isActive("heading", { level: 1 })
-              ? "1"
-              : editor?.isActive("heading", { level: 2 })
-                ? "2"
-                : editor?.isActive("heading", { level: 3 })
-                  ? "3"
-                  : "0"
-          }
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          multiple
+          hidden
           onChange={(e) => {
-            const level = Number(e.target.value);
-            if (level === 0) editor?.chain().focus().setParagraph().run();
-            else editor?.chain().focus().setHeading({ level: level as 1 | 2 | 3 }).run();
+            const files = Array.from(e.target.files ?? []);
+            e.target.value = "";
+            if (files.length) void insertImageFiles(editor.view, files, editor.state.selection.from).then(setUploadError);
           }}
-        >
-          <option value="0">Paragraph</option>
-          <option value="1">Heading 1</option>
-          <option value="2">Heading 2</option>
-          <option value="3">Heading 3</option>
-        </select>
-        <button
-          type="button"
-          aria-label="Bulleted list"
-          title="Bulleted list"
-          onClick={() => editor?.chain().focus().toggleBulletList().run()}
-          className={editor?.isActive("bulletList") ? "active" : ""}
-        >
-          <List size={15} strokeWidth={2.25} />
-        </button>
-        <button
-          type="button"
-          aria-label="Numbered list"
-          title="Numbered list"
-          onClick={() => editor?.chain().focus().toggleOrderedList().run()}
-          className={editor?.isActive("orderedList") ? "active" : ""}
-        >
-          <ListOrdered size={15} strokeWidth={2.25} />
-        </button>
-        <button
-          type="button"
-          aria-label="Quote"
-          title="Quote"
-          onClick={() => editor?.chain().focus().toggleBlockquote().run()}
-          className={editor?.isActive("blockquote") ? "active" : ""}
-        >
-          <Quote size={15} strokeWidth={2.25} />
-        </button>
-        <button
-          type="button"
-          aria-label="Horizontal rule"
-          title="Horizontal rule"
-          onClick={() => editor?.chain().focus().setHorizontalRule().run()}
-        >
-          <Minus size={15} strokeWidth={2.25} />
-        </button>
-        <button
-          type="button"
-          aria-label="Insert link"
-          title="Insert link"
-          onClick={() => {
-            const url = window.prompt("Link URL");
-            if (url) editor?.chain().focus().setLink({ href: url }).run();
-          }}
-          className={editor?.isActive("link") ? "active" : ""}
-        >
-          <Link2 size={15} strokeWidth={2.25} />
-        </button>
-        <span className="rich-toolbar-divider" aria-hidden="true" />
-        <button
-          type="button"
-          aria-label="Clear formatting"
-          title="Clear formatting"
-          onClick={() => editor?.chain().focus().unsetAllMarks().clearNodes().run()}
-        >
-          <Eraser size={15} strokeWidth={2.25} />
-        </button>
-        <button type="button" aria-label="Undo" title="Undo" onClick={() => editor?.chain().focus().undo().run()}>
-          <Undo2 size={15} strokeWidth={2.25} />
-        </button>
-        <button type="button" aria-label="Redo" title="Redo" onClick={() => editor?.chain().focus().redo().run()}>
-          <Redo2 size={15} strokeWidth={2.25} />
-        </button>
-      </div>
-      <div className="rich-content-wrap">
-        <EditorContent editor={editor} className="rich-content" />
+        />
+        {footerActions}
+        {uploadError && (
+          <span className="form-error" role="alert">
+            {uploadError}
+          </span>
+        )}
         <span className="rich-save-state">
           {saveState === "saving" && "Saving…"}
           {saveState === "saved" && "Saved"}

@@ -1,0 +1,120 @@
+import { defineFieldSet, link } from "../info-fields";
+
+export const TITLE_INFO = defineFieldSet(
+  [
+    { key: "authority", label: "Authority" },
+    { key: "holders", label: "Holders" },
+    { key: "identity", label: "Identity" },
+    { key: "succession", label: "Succession" },
+  ],
+  [
+    // Authority
+    {
+      key: "appointingAuthority",
+      label: "Appointing Authority",
+      group: "authority",
+      kind: "link",
+      link: link(["character", "organization"]),
+      hint: "Who grants this title. Whoever grants it can usually take it away.",
+    },
+    { key: "duties", label: "Duties", group: "authority", kind: "text", hint: "What the holder is expected to do." },
+    {
+      key: "jurisdiction",
+      label: "Jurisdiction",
+      group: "authority",
+      kind: "link",
+      link: link(["territory", "settlement", "organization"], true),
+      hint: "The lands, settlements or organizations where the title's authority applies.",
+    },
+    {
+      key: "legalBasis",
+      label: "Legal Basis",
+      group: "authority",
+      kind: "link",
+      link: link(["law", "document"], true),
+      hint: "The laws or documents that create and define the title.",
+    },
+    { key: "powers", label: "Powers", group: "authority", kind: "text", hint: "What the holder can command, decide or forbid." },
+    { key: "privileges", label: "Privileges", group: "authority", kind: "text", hint: "What the holder enjoys: income, immunity, land, precedence at court?" },
+    // Holders
+    {
+      key: "currentHolders",
+      label: "Current Holders",
+      group: "holders",
+      kind: "link",
+      link: link(["character"], true),
+      hint: "The characters holding the title today.",
+    },
+    {
+      key: "formerHolders",
+      label: "Former Holders",
+      group: "holders",
+      kind: "link",
+      link: link(["character"], true),
+      hint: "Characters who held it before. A lineage of names carries weight.",
+    },
+    {
+      key: "seatOfOffice",
+      label: "Seat of Office",
+      group: "holders",
+      kind: "link",
+      link: link(["building", "settlement"]),
+      hint: "Where the holder rules or works from.",
+    },
+    // Identity
+    { key: "formOfAddress", label: "Form of Address", group: "identity", kind: "text", hint: "How the holder is addressed: Your Grace, My Lord, Honored One?" },
+    {
+      key: "insigniaOrRegalia",
+      label: "Insignia or Regalia",
+      group: "identity",
+      kind: "link",
+      link: link(["item"], true),
+      hint: "The crowns, seals, rings or robes that mark the holder.",
+    },
+    { key: "rank", label: "Rank", group: "identity", kind: "text", hint: "Where the title sits in its hierarchy." },
+    {
+      key: "status",
+      label: "Status",
+      group: "identity",
+      kind: "select",
+      options: ["Active", "Vacant", "Disputed", "Abolished", "Dormant"],
+      hint: "Is the title held, empty, contested or gone?",
+    },
+    {
+      key: "superiorTitle",
+      label: "Superior Title",
+      group: "identity",
+      kind: "link",
+      link: link(["title"]),
+      hint: "The title this one answers to.",
+    },
+    {
+      key: "titleType",
+      label: "Title Type",
+      group: "identity",
+      kind: "select",
+      multiple: true,
+      options: ["Noble", "Political", "Military", "Religious", "Academic", "Professional", "Honorary"],
+      hint: "What kind of title this is. Pick every kind that applies.",
+    },
+    // Succession
+    {
+      key: "eligibilityRequirements",
+      label: "Eligibility Requirements",
+      group: "succession",
+      kind: "text",
+      hint: "Who may hold it: bloodline, faith, age, a test?",
+    },
+    { key: "removalConditions", label: "Removal Conditions", group: "succession", kind: "text", hint: "How a holder can lose the title." },
+    {
+      key: "successionMethod",
+      label: "Succession Method",
+      group: "succession",
+      kind: "select",
+      options: ["Hereditary", "Elected", "Appointed", "Competitive", "Rotating", "Other"],
+      hint: "How the next holder is chosen.",
+    },
+    { key: "successionRules", label: "Succession Rules", group: "succession", kind: "text", hint: "The details of succession — and the loopholes heirs fight over." },
+    { key: "termLength", label: "Term Length", group: "succession", kind: "text", hint: "How long a holder keeps it: for life, seven years, until the next moon?" },
+  ]
+);

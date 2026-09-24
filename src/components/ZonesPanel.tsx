@@ -27,6 +27,7 @@ import ColorWheel from "./ColorWheel";
 import LayerChecklist from "./LayerChecklist";
 import type { MapLayerData } from "./layer-images";
 import { buildTerritoryTree, TerritoryTreeRow } from "./TerritoryTree";
+import { articleHref } from "@/server/articles/templates";
 import { COLOR_PRESETS, normalizeColor } from "@/server/markers/icon-registry";
 import { BRUSH_SIZE_MAX, BRUSH_SIZE_MIN, isPaintTool, type ZoneData, type ZoneRegionData, type ZoneTool } from "./ZoneLayer";
 
@@ -143,7 +144,7 @@ function ZoneTerritoryLink({ zone, onUpdate }: { zone: ZoneData; onUpdate: (patc
             </span>
           )}
           <div className="marker-panel-actions">
-            <a href={`/politics?type=territory&id=${zone.territoryId}`} target="_blank" rel="noopener noreferrer" className="btn btn-sm">
+            <a href={articleHref("territory", zone.territoryId)} target="_blank" rel="noopener noreferrer" className="btn btn-sm">
               Open profile
             </a>
             <button className="btn btn-sm" onClick={() => onUpdate({ territoryId: null })}>

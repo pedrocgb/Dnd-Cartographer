@@ -43,11 +43,32 @@ export const TERRITORY_TYPE_CATALOG: TerritoryTypeCatalogEntry[] = [
   { type: "Custom", suggestedTitle: "Custom", placementGuidance: "Configured labels and relationships." },
 ];
 
-export const GOVERNMENT_FORMS = ["Monarchy", "Republic", "Theocracy", "Chiefdom", "Council Government", "Magocracy", "Druidic Council", "Custom"] as const;
-export const LEADERSHIP_SELECTIONS = ["Hereditary", "Election", "Appointment", "Council/Religious Selection", "Custom"] as const;
-export const SITUATIONS = ["Stable", "Disputed", "Rebellion", "Occupation", "Fragmented"] as const;
+// A territory's government form (older free-form values are kept until edited).
+export const GOVERNMENT_FORMS = [
+  "Monarchy",
+  "Republic",
+  "Oligarchy",
+  "Theocracy",
+  "Tribal Government",
+  "Military Government",
+  "Confederation",
+  "Other",
+] as const;
 
-export const ORGANIZATION_KINDS = ["House", "Council", "Clan", "Religious Institution", "Custom"] as const;
+/** Organization types (the `organizations.kind` column), in Organizations-folder order. */
+export const ORGANIZATION_KINDS = [
+  "Noble House",
+  "Guild",
+  "Council",
+  "Military Order",
+  "Religious Order",
+  "Clan",
+  "Company",
+  "Academy",
+  "Criminal Organization",
+  "Secret Society",
+  "Other",
+] as const;
 export const PERSON_STATUSES = ["Alive", "Deceased", "Missing", "Unknown"] as const;
 export const AUTHORITY_ROLES = [
   "Ruler",

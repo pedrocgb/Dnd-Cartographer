@@ -1,0 +1,145 @@
+import { ORGANIZATION_KINDS } from "../../politics/hierarchy-config";
+import { defineFieldSet, link } from "../info-fields";
+
+/** Organization fields. Organization Type is the `kind` column (it groups the Organizations folder). */
+export const ORGANIZATION_INFO = defineFieldSet(
+  [
+    { key: "identity", label: "Identity" },
+    { key: "membership", label: "Membership" },
+    { key: "politics", label: "Politics" },
+    { key: "resources", label: "Resources" },
+  ],
+  [
+    // Identity
+    { key: "foundedOn", label: "Founded On", group: "identity", kind: "text", hint: "When the organization was founded, in your world's calendar." },
+    {
+      key: "founders",
+      label: "Founders",
+      group: "identity",
+      kind: "link",
+      link: link(["character", "organization"], true),
+      hint: "The characters or organizations that created it. Founders often shape its creed for centuries.",
+    },
+    { key: "motto", label: "Motto", group: "identity", kind: "text", hint: "Its words, creed or battle cry. A motto sums up what it stands for." },
+    {
+      key: "organizationType",
+      label: "Organization Type",
+      group: "identity",
+      kind: "select",
+      options: ORGANIZATION_KINDS,
+      column: "kind",
+      required: true,
+      hint: "What kind of organization this is. Also groups it in the Organizations folder.",
+    },
+    {
+      key: "status",
+      label: "Status",
+      group: "identity",
+      kind: "select",
+      options: ["Active", "Declining", "Disbanded", "Destroyed", "Dormant", "Underground", "Unknown"],
+      hint: "Is it thriving, fading, gone, or hiding? Tells the party whether it can still help or hurt them.",
+    },
+    // Membership
+    {
+      key: "admissionRequirements",
+      label: "Admission Requirements",
+      group: "membership",
+      kind: "text",
+      hint: "What it takes to join: a bloodline, a fee, a deed, an oath?",
+    },
+    { key: "leaders", label: "Leaders", group: "membership", kind: "link", link: link(["character"], true), hint: "The characters who run it today." },
+    {
+      key: "membershipSize",
+      label: "Membership Size",
+      group: "membership",
+      kind: "text",
+      hint: "How many members it has — a number, or a feel like \"a handful\" or \"thousands\".",
+    },
+    {
+      key: "notableMembers",
+      label: "Notable Members",
+      group: "membership",
+      kind: "link",
+      link: link(["character"], true),
+      hint: "Members worth knowing about, even if they don't lead.",
+    },
+    { key: "ranks", label: "Ranks", group: "membership", kind: "link", link: link(["title"], true), hint: "The titles that make up its internal hierarchy." },
+    {
+      key: "recruitmentMethod",
+      label: "Recruitment Method",
+      group: "membership",
+      kind: "select",
+      multiple: true,
+      options: ["Open Application", "Invitation", "Hereditary", "Appointment", "Conscription", "Trial", "Favor", "Other"],
+      hint: "How new members come in. Pick every way that applies.",
+    },
+    // Politics
+    {
+      key: "alliedOrganizations",
+      label: "Allied Organizations",
+      group: "politics",
+      kind: "link",
+      link: link(["organization"], true),
+      hint: "Organizations it cooperates with or can call on.",
+    },
+    { key: "goals", label: "Goals", group: "politics", kind: "text", hint: "What it is trying to achieve. Goals are what put it at odds with others." },
+    {
+      key: "parentOrganization",
+      label: "Parent Organization",
+      group: "politics",
+      kind: "link",
+      link: link(["organization"]),
+      hint: "The larger organization this one belongs to or answers to.",
+    },
+    {
+      key: "rivalOrganizations",
+      label: "Rival Organizations",
+      group: "politics",
+      kind: "link",
+      link: link(["organization"], true),
+      hint: "Organizations competing with it or working against it.",
+    },
+    {
+      key: "subordinateOrganizations",
+      label: "Subordinate Organizations",
+      group: "politics",
+      kind: "link",
+      link: link(["organization"], true),
+      hint: "Branches, chapters or vassal groups under its control.",
+    },
+    // Resources
+    {
+      key: "assets",
+      label: "Assets",
+      group: "resources",
+      kind: "link",
+      link: link(["building", "item"], true),
+      hint: "Buildings and items it owns or guards.",
+    },
+    { key: "fundingSources", label: "Funding Sources", group: "resources", kind: "text", hint: "Where its money comes from: dues, trade, tithes, crime, patrons?" },
+    {
+      key: "headquarters",
+      label: "Headquarters",
+      group: "resources",
+      kind: "link",
+      link: link(["building", "settlement"]),
+      hint: "The building or settlement it operates from.",
+    },
+    {
+      key: "operatingTerritories",
+      label: "Operating Territories",
+      group: "resources",
+      kind: "link",
+      link: link(["territory"], true),
+      hint: "Territories where it is active or holds influence.",
+    },
+    {
+      key: "publicInfluence",
+      label: "Public Influence",
+      group: "resources",
+      kind: "select",
+      options: ["Negligible", "Local", "Regional", "National", "International"],
+      hint: "How much sway it has over ordinary people and rulers.",
+    },
+  ]
+);

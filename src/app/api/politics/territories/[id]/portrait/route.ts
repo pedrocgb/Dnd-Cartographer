@@ -2,4 +2,4 @@ import { portraitRouteHandlers } from "@/server/politics/portrait-routes";
 
 export const runtime = "nodejs";
 
-export const { POST, DELETE } = portraitRouteHandlers("territory");
+export const { GET, POST, PUT, DELETE } = portraitRouteHandlers("territory");

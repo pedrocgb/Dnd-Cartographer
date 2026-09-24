@@ -132,6 +132,46 @@ function LayerRow({
         </div>
       </div>
 
+      {/* Only the active layer shows its options; the others stay collapsed to the header.
+          Kept mounted (inert while collapsed) so the height can animate both ways. */}
+      <div className={isActive ? "layer-options open" : "layer-options"} inert={!isActive}>
+        <div className="layer-options-inner">
+          <LayerOptions
+            layer={layer}
+            processing={Boolean(processing)}
+            uploadError={uploadError}
+            onPickFile={(file) => void pickFile(file)}
+            onUpdate={onUpdate}
+            onRemoveImage={onRemoveImage}
+            onRetry={onRetry}
+          />
+        </div>
+      </div>
+    </li>
+  );
+}
+
+/** The active layer's image, opacity and "Always draw" options. */
+function LayerOptions({
+  layer,
+  processing,
+  uploadError,
+  onPickFile,
+  onUpdate,
+  onRemoveImage,
+  onRetry,
+}: {
+  layer: MapLayerData;
+  processing: boolean;
+  uploadError: string | null;
+  onPickFile: (file: File) => void;
+  onUpdate: (patch: LayerPatch) => void;
+  onRemoveImage: () => void;
+  onRetry: (assetId: string) => void;
+}) {
+  const pending = layer.pendingAsset;
+  return (
+    <>
       <div className="layer-image">
         {layer.asset ? (
           // eslint-disable-next-line @next/next/no-img-element -- small local thumbnail, not worth next/image's remote-optimization machinery
@@ -147,11 +187,11 @@ function LayerRow({
               type="file"
               accept="image/png,image/jpeg,image/webp"
               style={{ display: "none" }}
-              disabled={Boolean(processing)}
+              disabled={processing}
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 e.target.value = "";
-                if (file) void pickFile(file);
+                if (file) onPickFile(file);
               }}
             />
           </label>
@@ -203,7 +243,7 @@ function LayerRow({
           <span className="field-label">Always draw {o.noun}</span>
         </label>
       ))}
-    </li>
+    </>
   );
 }
 

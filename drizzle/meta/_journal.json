@@ -134,6 +134,41 @@
       "when": 1790190115275,
       "tag": "0018_item_extra_layers",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1790250375515,
+      "tag": "0019_item_visibility",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1790256591381,
+      "tag": "0020_articles",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1790261037695,
+      "tag": "0021_article_footer_info",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1790265927616,
+      "tag": "0022_info_all_templates",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1790276912622,
+      "tag": "0023_marker_article_links",
+      "breakpoints": true
     }
   ]
 }

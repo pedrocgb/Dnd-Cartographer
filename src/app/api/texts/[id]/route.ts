@@ -20,6 +20,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     ...sanitizeTextPatch(body, { width: map.frameWidth, height: map.frameHeight }),
     updatedAt: new Date(),
   };
+  if (typeof body.visible === "boolean") patch.visible = body.visible;
   if (patch.text !== undefined && !patch.text.trim()) {
     return NextResponse.json({ error: "Text can't be empty." }, { status: 400 });
   }

@@ -16,6 +16,8 @@ export interface MapTextData extends TextFields {
   layerId: string | null;
   /** Other layers it is also shown (and editable) on. */
   extraLayerIds: string[];
+  /** Hidden items stay in the Scene list but aren't drawn or pickable. */
+  visible: boolean;
 }
 
 /** Geometry the user is dragging, previewed until mouseup commits it. */

@@ -32,6 +32,11 @@
   --brass-500: #ac7a37;
   --brass-900: #362a17;
 
+  /* Accent: faint blue (create actions) */
+  --blue-300: #9cc3f5;
+  --blue-500: #3f6fa8;
+  --blue-900: #17263a;
+
   /* Semantic: destructive */
   --danger-300: #f5a397;
   --danger-400: #e8735f;
@@ -1688,23 +1693,554 @@ textarea::placeholder {
   background: var(--teal-900);
 }
 
-/* ---------- Politics management page ---------- */
+/* ---------- Articles page ---------- */
 
-.politics-manager {
+.articles-page {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+
+.articles-sidebar {
+  flex: 0 0 290px;
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  padding: var(--space-4);
-  max-width: 1100px;
-  margin: 0 auto;
-  width: 100%;
+  gap: var(--space-2);
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-3);
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border-subtle);
 }
 
-.politics-tabs {
+/* Folder groups (ARTICLE_TEMPLATE_GROUPS) are set apart by a gap. */
+.articles-folders {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.articles-folder-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.articles-folder-section {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Folder rows follow the map sidebar buttons: icon first, teal when active. */
+.articles-folder {
+  width: 100%;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.articles-folder > svg {
+  flex: 0 0 auto;
+}
+
+.articles-folder:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+  border-color: var(--border-default);
+}
+
+.articles-folder.active {
+  background: var(--teal-900);
+  color: var(--teal-300);
+  border-color: var(--teal-600);
+}
+
+.articles-folder-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.articles-folder-count {
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+}
+
+.articles-create {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* Create actions: a faint blue tint (the sidebar button on hover, "Add new X" always). */
+.articles-folder.articles-create:hover,
+.btn.btn-create {
+  background: var(--blue-900);
+  border-color: var(--blue-500);
+  color: var(--blue-300);
+}
+
+.btn.btn-create:hover {
+  background: #1d3049;
+  color: #b6d3f8;
+}
+
+.articles-profiles {
+  margin-top: auto;
+  flex: 0 0 auto;
+  border-top-color: var(--border-subtle);
+}
+
+.articles-folder-list {
+  padding: 2px 0 var(--space-2) var(--space-4);
+}
+
+.articles-folder-empty {
+  padding: 4px var(--space-2);
+}
+
+.articles-folder-modes {
+  padding: 2px 0 var(--space-1);
+}
+
+.articles-folder-modes label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.articles-folder-modes select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.articles-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-y: auto;
+  padding: var(--space-5, 20px) var(--space-6);
+}
+
+.articles-landing {
+  max-width: 520px;
+  margin: 12vh auto 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.articles-landing > svg {
+  color: var(--teal-400);
+}
+
+.articles-landing h1 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--text-xl);
+}
+
+.articles-landing p {
+  margin: 0 0 var(--space-2);
+}
+
+.articles-create-record {
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.articles-create-record h1 {
+  margin: 0;
+  font-size: var(--text-xl);
+}
+
+/* An article: header, tags, structured fields, then the body + sidebar cards. */
+.article-view {
+  max-width: 1280px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.article-header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.article-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 700;
+}
+
+.article-title > svg {
+  flex: 0 0 auto;
+  color: var(--teal-400);
+}
+
+.article-title-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+button.article-title-text {
+  padding: 0 var(--space-1);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: text;
+}
+
+button.article-title-text:hover {
+  border-color: var(--border-default);
+}
+
+.article-title-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: inherit;
+}
+
+.article-subtitle {
+  font-size: var(--text-sm);
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.article-actions {
   display: flex;
   gap: var(--space-2);
-  flex-wrap: wrap;
+  flex: 0 0 auto;
 }
+
+.article-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.article-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+  background: var(--bg-surface-raised);
+  color: var(--text-primary);
+  font-size: var(--text-xs);
+}
+
+.article-tag.fixed {
+  border-color: var(--teal-600);
+  background: var(--teal-900);
+  color: var(--teal-300);
+}
+
+.article-tag button {
+  display: inline-flex;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+.article-tag button:hover {
+  color: var(--danger-300);
+}
+
+.article-tag-input {
+  position: relative;
+}
+
+.article-tag-input input {
+  width: 140px;
+  height: 24px;
+  font-size: var(--text-xs);
+}
+
+.article-tag-suggestions {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 20;
+  min-width: 180px;
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+}
+
+.article-tag-suggestions button {
+  width: 100%;
+  padding: 4px var(--space-2);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.article-tag-suggestions button:hover {
+  background: var(--bg-surface-hover);
+}
+
+/* Image card + Info Bar above the text cards. */
+.article-top {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: stretch;
+}
+
+.article-image-card {
+  cursor: default;
+  padding: var(--space-3);
+  /* Fixed size: never stretched to the Info Bar's height. */
+  align-self: start;
+}
+
+.article-image-card .politics-portrait {
+  position: static;
+  width: 100%;
+  height: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.article-image-card .politics-portrait-frame {
+  height: auto;
+  aspect-ratio: 1;
+}
+
+.article-info-card {
+  cursor: default;
+}
+
+/* Body (+ footer) on the left, the sidebar on the right; rows stretch, so
+   the sidebar always matches the left column and both grow with content. */
+.article-cards {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-areas: "body sidebar";
+  gap: var(--space-4);
+  align-items: stretch;
+}
+
+.article-cards.has-footer {
+  grid-template-areas:
+    "body sidebar"
+    "footer sidebar";
+}
+
+.article-cards .article-card-body {
+  grid-area: body;
+}
+
+.article-cards .article-card-sidebar {
+  grid-area: sidebar;
+}
+
+.article-cards .article-card-footer {
+  grid-area: footer;
+}
+
+/* The editor fills its card, so a stretched card isn't half empty inset box. */
+.article-cards .article-card > .rich-editor,
+.article-cards .article-card > .rich-reader {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.article-cards .article-card > .rich-editor > .rich-content {
+  flex: 1 1 auto;
+}
+
+@media (max-width: 1000px) {
+  .article-top,
+  .article-cards,
+  .article-cards.has-footer {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "body" "footer" "sidebar";
+  }
+
+  .article-top {
+    grid-template-columns: 208px minmax(0, 1fr);
+  }
+}
+
+.article-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.article-card-body {
+  min-height: 280px;
+}
+
+.article-card:hover:not(.editing) {
+  border-color: var(--border-strong);
+}
+
+.article-card:focus-visible {
+  outline: 2px solid var(--teal-400);
+  outline-offset: 2px;
+}
+
+.article-card.editing {
+  cursor: auto;
+  border-color: var(--teal-600);
+  box-shadow: 0 0 0 1px var(--teal-600);
+}
+
+.article-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.article-card-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+}
+
+.article-card-header-end {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.article-card-remove:hover {
+  color: var(--danger-300);
+}
+
+.article-card-hint {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.article-card:hover .article-card-hint,
+.article-card.editing .article-card-hint {
+  opacity: 1;
+}
+
+.article-card-placeholder {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+
+/* "Create new article": template tiles */
+.modal-card-wide {
+  width: min(880px, 100%);
+}
+
+.template-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: var(--space-2);
+}
+
+.template-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.template-tile > svg {
+  color: var(--teal-400);
+}
+
+.template-tile:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-surface-hover);
+}
+
+.template-tile.selected {
+  border-color: var(--teal-500);
+  background: var(--teal-900);
+}
+
+.template-tile-name {
+  font-weight: 600;
+}
+
+.template-tile-description {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.template-footer {
+  position: sticky;
+  bottom: calc(-1 * var(--space-5));
+  padding-bottom: var(--space-5);
+  margin-bottom: calc(-1 * var(--space-5));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  background: var(--bg-surface-raised);
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* ---------- Politics records (territory / character / organization article fields) ---------- */
 
 .politics-filter-row {
   display: flex;
@@ -1802,25 +2338,117 @@ textarea::placeholder {
   line-height: 1.2;
 }
 
-.politics-portrait-remove {
+.politics-portrait-frame:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.politics-portrait-frame.dragging {
+  border-color: var(--teal-400);
+}
+
+.politics-portrait-placeholder .politics-portrait-drop-hint {
+  font-size: 0.625rem;
+  color: var(--text-disabled);
+}
+
+.politics-portrait-drop {
   position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 24px;
-  height: 24px;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.65);
-  color: #fff;
-  border: none;
-  cursor: pointer;
-  padding: 0;
+  background: rgba(20, 47, 42, 0.8);
+  border: 2px dashed var(--teal-400);
+  border-radius: inherit;
+  color: var(--teal-300);
+  font-size: var(--text-xs);
+  pointer-events: none;
 }
 
-.politics-portrait-remove:hover {
-  background: rgba(0, 0, 0, 0.85);
+/* Adjust + remove, under the image. */
+.politics-portrait-actions {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
+.politics-portrait-actions .politics-portrait-remove:hover:not(:disabled) {
+  color: var(--danger-300);
+}
+
+.politics-portrait-frame.has-image {
+  cursor: zoom-in;
+}
+
+.portrait-viewer-image {
+  display: block;
+  max-width: 100%;
+  max-height: 72vh;
+  margin: 0 auto;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+}
+
+/* ---------- Image crop dialog ---------- */
+.image-crop-stage {
+  position: relative;
+  height: min(60vh, 420px);
+  background: var(--bg-inset);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.image-crop-area {
+  border-color: rgba(122, 217, 200, 0.7) !important;
+}
+
+.image-crop-hint {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.image-crop-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.image-crop-zoom {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1 1 240px;
+}
+
+.image-crop-zoom input[type="range"] {
+  flex: 1;
+  background: var(--text-primary);
+}
+
+.image-crop-zoom input[type="range"]::-moz-range-track {
+  background: var(--text-primary);
+}
+
+.image-crop-zoom .btn-icon {
+  color: var(--text-primary);
+}
+
+/* The cropper measures the image when it loads; the modal's scale-in
+   animation would make it measure a smaller image, leaving a strip at
+   the edges the crop can't reach. So this dialog opens without it. */
+.modal-card:has(.image-crop-stage) {
+  animation: none;
+}
+
+.image-crop-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
 }
 
 .affiliated-markers-controls {
@@ -2229,11 +2857,17 @@ input[type="range"]::-moz-range-track {
   background: var(--bg-surface-hover);
 }
 
-/* ---------- Rich text (descriptions) ---------- */
+/* ---------- Rich text (descriptions, article cards) ---------- */
 
 .rich-editor,
 .rich-reader {
   color: var(--text-primary);
+}
+
+.rich-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
 .rich-editor-loading {
@@ -2243,37 +2877,17 @@ input[type="range"]::-moz-range-track {
   padding: var(--space-3) var(--space-4);
 }
 
-.rich-toolbar {
+.rich-editor-footer {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
-  gap: var(--space-1);
-  align-items: center;
-  margin-bottom: var(--space-2);
+  gap: var(--space-2);
 }
 
-.rich-toolbar button {
-  width: 32px;
-  height: 32px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-default);
-  background: var(--bg-surface-raised);
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: border-color var(--transition-fast), background var(--transition-fast), color var(--transition-fast);
-}
-
-.rich-toolbar button:hover {
-  color: var(--text-primary);
-  border-color: var(--border-strong);
-}
-
-.rich-toolbar button.active {
-  background: var(--teal-900);
-  border-color: var(--teal-500);
-  color: var(--teal-300);
+.rich-save-state {
+  margin-left: auto;
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
 }
 
 .rich-toolbar-divider {
@@ -2281,21 +2895,7 @@ input[type="range"]::-moz-range-track {
   height: 22px;
   background: var(--border-subtle);
   margin: 0 var(--space-1);
-}
-
-.rich-content-wrap {
-  position: relative;
-}
-
-.rich-save-state {
-  position: absolute;
-  right: var(--space-3);
-  bottom: var(--space-2);
-  font-size: var(--text-xs);
-  color: var(--text-tertiary);
-  background: var(--bg-inset);
-  padding: 0 2px;
-  pointer-events: none;
+  flex: 0 0 auto;
 }
 
 .rich-content,
@@ -2304,32 +2904,16 @@ input[type="range"]::-moz-range-track {
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   padding: var(--space-3) var(--space-4);
-  /* No fixed min-height — the box sizes to however many lines the
-     description actually has (down to a single empty line while editing
-     with nothing typed yet), instead of always reserving a tall block. */
+  /* No fixed min-height — the box sizes to its content. */
   font-size: var(--text-base);
   line-height: 1.6;
 }
 
-.rich-content {
-  resize: vertical;
-  overflow: auto;
-}
-
-.rich-toolbar-select {
-  height: 32px;
-  padding: 0 var(--space-2);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-default);
-  background: var(--bg-surface-raised);
-  color: var(--text-secondary);
-  font-size: var(--text-xs);
-  cursor: pointer;
-}
-
-.rich-toolbar-select:hover {
-  color: var(--text-primary);
-  border-color: var(--border-strong);
+/* flow-root: floated images stay inside the box. */
+.rich-content .ProseMirror,
+.rich-reader .ProseMirror {
+  outline: none;
+  display: flow-root;
 }
 
 .rich-reader .ProseMirror {
@@ -2338,13 +2922,7 @@ input[type="range"]::-moz-range-track {
   padding: 0;
 }
 
-.rich-content .ProseMirror,
-.rich-reader .ProseMirror {
-  outline: none;
-}
-
-.rich-content .ProseMirror p.is-editor-empty:first-child::before,
-.rich-reader .ProseMirror p.is-editor-empty:first-child::before {
+.rich-content .ProseMirror p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   color: var(--text-tertiary);
   float: left;
@@ -2352,8 +2930,16 @@ input[type="range"]::-moz-range-track {
   pointer-events: none;
 }
 
-.rich-content .ProseMirror h1,
-.rich-reader .ProseMirror h1 {
+.rich-content .ProseMirror .rich-title,
+.rich-reader .ProseMirror .rich-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.25;
+  margin: var(--space-4) 0 var(--space-3);
+}
+
+.rich-content .ProseMirror h1:not(.rich-title),
+.rich-reader .ProseMirror h1:not(.rich-title) {
   font-size: var(--text-xl);
   font-weight: 700;
   margin: var(--space-4) 0 var(--space-2);
@@ -2370,6 +2956,23 @@ input[type="range"]::-moz-range-track {
 .rich-reader .ProseMirror h3 {
   font-size: var(--text-md);
   font-weight: 700;
+  margin: var(--space-2) 0 var(--space-1);
+}
+
+.rich-content .ProseMirror h4,
+.rich-reader .ProseMirror h4 {
+  font-size: var(--text-base);
+  font-weight: 700;
+  margin: var(--space-2) 0 var(--space-1);
+}
+
+.rich-content .ProseMirror h5,
+.rich-reader .ProseMirror h5 {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
   margin: var(--space-2) 0 var(--space-1);
 }
 
@@ -2406,6 +3009,218 @@ input[type="range"]::-moz-range-track {
   color: var(--teal-300);
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+
+.rich-reader .ProseMirror a {
+  cursor: pointer;
+}
+
+/* Images: TipTap's ResizableNodeView container is aligned around the <img>,
+   which carries data-align / data-href. */
+.ProseMirror [data-resize-container][data-node="image"] {
+  margin: var(--space-3) 0;
+  justify-content: center;
+  max-width: 100%;
+}
+
+.ProseMirror [data-resize-container]:has(> [data-resize-wrapper] > img[data-align="left"]) {
+  float: left;
+  justify-content: flex-start;
+  margin: var(--space-1) var(--space-4) var(--space-2) 0;
+  max-width: 60%;
+}
+
+.ProseMirror [data-resize-container]:has(> [data-resize-wrapper] > img[data-align="right"]) {
+  float: right;
+  justify-content: flex-end;
+  margin: var(--space-1) 0 var(--space-2) var(--space-4);
+  max-width: 60%;
+}
+
+.ProseMirror [data-resize-container]:has(> [data-resize-wrapper] > img[data-align="full"]) > [data-resize-wrapper],
+.ProseMirror img[data-align="full"] {
+  width: 100% !important;
+}
+
+.ProseMirror [data-resize-wrapper] {
+  max-width: 100%;
+}
+
+.ProseMirror img {
+  display: block;
+  max-width: 100%;
+  /* Width comes from the resize handles; height follows the aspect ratio. */
+  height: auto !important;
+  border-radius: var(--radius-sm);
+}
+
+.rich-reader .ProseMirror img[data-href] {
+  cursor: pointer;
+}
+
+.ProseMirror .ProseMirror-selectednode img {
+  outline: 2px solid var(--teal-400);
+  outline-offset: 2px;
+}
+
+.ProseMirror [data-resize-handle] {
+  width: 12px;
+  height: 12px;
+  background: var(--teal-400);
+  border: 2px solid var(--bg-inset);
+  border-radius: 50%;
+  opacity: 0;
+  z-index: 1;
+  transition: opacity var(--transition-fast);
+}
+
+.ProseMirror [data-resize-handle^="top"] {
+  margin-top: -6px;
+}
+
+.ProseMirror [data-resize-handle^="bottom"] {
+  margin-bottom: -6px;
+}
+
+.ProseMirror [data-resize-handle$="left"] {
+  margin-left: -6px;
+}
+
+.ProseMirror [data-resize-handle$="right"] {
+  margin-right: -6px;
+}
+
+.ProseMirror [data-resize-handle="top-left"],
+.ProseMirror [data-resize-handle="bottom-right"] {
+  cursor: nwse-resize;
+}
+
+.ProseMirror [data-resize-handle="top-right"],
+.ProseMirror [data-resize-handle="bottom-left"] {
+  cursor: nesw-resize;
+}
+
+.rich-content .ProseMirror [data-resize-container]:hover [data-resize-handle],
+.rich-content .ProseMirror .ProseMirror-selectednode [data-resize-handle],
+.rich-content .ProseMirror [data-resize-state="true"] [data-resize-handle] {
+  opacity: 1;
+}
+
+.rich-reader [data-resize-handle] {
+  display: none;
+}
+
+/* Bubble menus (over a text or image selection) */
+.rich-bubble {
+  z-index: 60;
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-1);
+}
+
+.rich-bubble-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-wrap: nowrap;
+}
+
+.rich-bubble-row > button,
+.rich-dropdown > button {
+  min-width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 0 4px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.rich-bubble-row > button:hover,
+.rich-dropdown > button:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+.rich-bubble-row > button.active,
+.rich-dropdown > button.active {
+  background: var(--teal-900);
+  border-color: var(--teal-600);
+  color: var(--teal-300);
+}
+
+.rich-bubble .font-picker {
+  width: 150px;
+}
+
+.rich-dropdown {
+  position: relative;
+}
+
+.rich-dropdown-list {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 2;
+  min-width: 170px;
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+}
+
+.rich-dropdown-list button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px var(--space-2);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.rich-dropdown-list button:hover,
+.rich-dropdown-list button.active {
+  background: var(--bg-surface-hover);
+}
+
+.rich-dropdown-list button.active {
+  color: var(--teal-300);
+}
+
+.rich-color-popover {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2);
+}
+
+.rich-bubble-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+  max-width: 360px;
+}
+
+.rich-bubble-field input {
+  width: 240px;
 }
 
 /* ---------- Zones ---------- */
@@ -2840,7 +3655,6 @@ input[type="range"]::-moz-range-track {
 .layer-row {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
   padding: var(--space-2);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
@@ -2864,6 +3678,34 @@ input[type="range"]::-moz-range-track {
   display: flex;
   align-items: center;
   gap: var(--space-1);
+}
+
+/* Expand/collapse of a layer's options: grid rows 0fr -> 1fr animates to the content's height. */
+.layer-options {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows 200ms ease,
+    opacity 200ms ease;
+}
+
+.layer-options.open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.layer-options-inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Spacing below the header lives inside the collapsing part, so it animates too. */
+.layer-options-inner::before {
+  content: "";
 }
 
 .layer-drag-handle {
@@ -3107,14 +3949,26 @@ input[type="range"]::-moz-range-track {
   gap: var(--space-1);
 }
 
-.scene-section-header {
+/* Folder header row: the expand button plus the folder's visibility eye. */
+.scene-section-bar {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  width: 100%;
-  padding: var(--space-2);
+  gap: var(--space-1);
+  padding-right: var(--space-2);
   background: var(--bg-surface-raised);
   border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.scene-section-header {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  background: none;
+  border: none;
   border-radius: var(--radius-md);
   color: var(--text-primary);
   font-weight: 600;
@@ -3340,4 +4194,740 @@ input[type="range"]::-moz-range-track {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ---------- Article Info Bar ---------- */
+
+/* Equal tiles: every info gets the same width, and tiles on a line share a height. */
+.info-list {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-2);
+  align-items: stretch;
+}
+
+.info-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-inset);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.info-row dt {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  /* A long title stays on one line so it can't make its tile taller. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Territory: Authorities / Affiliated markers sit apart from the info tiles. */
+.info-bar-sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.info-row dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.info-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px var(--space-2);
+}
+
+/*
+ * Info Bar edit form: one grid shared by every row (rows are subgrids), so
+ * all labels share one column — as wide as the longest label, capped — and
+ * every editor starts and ends at the same place.
+ * Columns: grip | label | editor | hint | remove.
+ */
+.info-form {
+  --info-control-height: 36px;
+  display: grid;
+  grid-template-columns: auto fit-content(min(200px, 32%)) minmax(0, 1fr) auto auto;
+  column-gap: 6px;
+  row-gap: var(--space-2);
+  align-items: start;
+}
+
+/* Buttons, errors and actions span the whole form. */
+.info-form > :not(.info-edit-row, .info-edit-added) {
+  grid-column: 1 / -1;
+}
+
+.info-form > .info-add {
+  grid-column: 2 / -1;
+  justify-self: start;
+}
+
+.info-edit-row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: start;
+}
+
+/* Each part in its column; the editor follows the label. */
+.info-edit-row > .info-drag-handle {
+  grid-column: 1;
+}
+
+.info-edit-row > .info-edit-label {
+  grid-column: 2;
+}
+
+.info-edit-row > .info-edit-label + * {
+  grid-column: 3;
+  min-width: 0;
+}
+
+/* Label, grip, hint and remove line up with the first line of the editor. */
+/* Right-aligned against the editor column, so every label ends right where its field starts. */
+.info-edit-label {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  text-align: right;
+  gap: 6px;
+  min-height: var(--info-control-height);
+  font-size: var(--text-sm);
+  line-height: 1.3;
+  color: var(--text-secondary);
+}
+
+/* The kind icon sits after the title, right next to the field. */
+.info-edit-label > svg {
+  flex: 0 0 auto;
+  order: 1;
+}
+
+.info-edit-row > .info-hint,
+.info-edit-row > .btn-icon,
+.info-edit-row > .info-drag-handle {
+  height: var(--info-control-height);
+}
+
+/* Multi-value fields: one field-looking box, chips inside, the add control filling the rest. */
+.info-multi {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-height: var(--info-control-height);
+  padding: 3px 4px 3px 6px;
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  transition: border-color var(--transition-fast);
+}
+
+.info-multi:hover {
+  border-color: var(--border-strong);
+}
+
+.info-multi:focus-within {
+  border-color: var(--teal-500);
+}
+
+.info-multi > .article-tag {
+  margin: 0;
+}
+
+.info-multi > select,
+.info-multi > .info-picker {
+  flex: 1 1 120px;
+  min-width: 120px;
+}
+
+.info-multi > select,
+.info-multi .info-picker-trigger {
+  min-height: 26px;
+  padding: 2px var(--space-2);
+  background: transparent;
+  border-color: transparent;
+}
+
+.info-multi > select:focus-visible,
+.info-multi .info-picker-trigger:focus-visible,
+.info-multi .info-picker-trigger[aria-expanded="true"] {
+  border-color: transparent;
+  outline: none;
+}
+
+/* A note under a fixed row's editor (e.g. no valid parent). */
+.info-edit-note {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+
+.info-add {
+  position: relative;
+  align-self: flex-start;
+}
+
+.info-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 30;
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  animation: modalIn 140ms ease;
+}
+
+.info-menu-search {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-tertiary);
+}
+
+.info-menu-search input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  padding: 2px 0;
+}
+
+.info-menu-search input:focus {
+  outline: none;
+}
+
+.info-menu-list {
+  max-height: 320px;
+  overflow-y: auto;
+  padding: var(--space-1);
+}
+
+.info-menu-empty {
+  padding: var(--space-2);
+}
+
+.info-menu-group + .info-menu-group {
+  margin-top: 2px;
+}
+
+.info-menu-group-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px var(--space-2);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.info-menu-group-header:hover:not(:disabled) {
+  background: var(--bg-surface-hover);
+}
+
+.info-menu-group-header:disabled {
+  cursor: default;
+}
+
+.info-menu-count {
+  margin-left: auto;
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--bg-inset);
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+  font-weight: 400;
+  text-align: center;
+}
+
+.info-menu-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px var(--space-2) 6px 28px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.info-menu-option.active {
+  background: var(--teal-900);
+  color: var(--teal-300);
+}
+
+.info-menu-option-label {
+  flex: 1 1 auto;
+  color: var(--text-primary);
+}
+
+.info-menu-option.active .info-menu-option-label {
+  color: var(--teal-300);
+}
+
+.info-menu-option-kind {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+
+/* A fixed row's editor with a note or second control under it. */
+.info-edit-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+/* Added fields, set apart from what every article has by a larger gap; still on the form's columns. */
+.info-edit-added {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  row-gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.info-edit-movable {
+  position: relative;
+  border-radius: var(--radius-sm);
+  transition: opacity var(--transition-fast);
+}
+
+.info-edit-movable.dragging {
+  opacity: 0.45;
+}
+
+/* Where a dragged row will land: a line above or below the hovered row. */
+.info-edit-movable.drop-above::before,
+.info-edit-movable.drop-below::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--teal-300);
+  pointer-events: none;
+}
+
+.info-edit-movable.drop-above::before {
+  top: -5px;
+}
+
+.info-edit-movable.drop-below::after {
+  bottom: -5px;
+}
+
+.info-drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 24px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-tertiary);
+  cursor: grab;
+  opacity: 0.6;
+  transition: opacity var(--transition-fast), color var(--transition-fast);
+}
+
+.info-edit-movable:hover .info-drag-handle,
+.info-drag-handle:focus-visible {
+  opacity: 1;
+}
+
+.info-drag-handle:hover,
+.info-drag-handle:focus-visible {
+  color: var(--text-secondary);
+}
+
+.info-drag-handle:active {
+  cursor: grabbing;
+}
+
+/* The ? and ✕ buttons read as one pair. */
+.info-edit-row > .info-hint + .btn {
+  margin-left: -4px;
+}
+
+.info-edit-row > .info-hint + .btn:hover,
+.info-edit-row > .info-hint + .btn:focus-visible {
+  color: var(--danger-300);
+}
+
+/* Hover/focus hint bubble of a field's ? button. */
+.info-hint {
+  position: relative;
+  display: inline-flex;
+}
+
+.info-hint > .btn {
+  color: var(--text-tertiary);
+  cursor: help;
+}
+
+.info-hint > .btn:hover,
+.info-hint > .btn:focus-visible {
+  color: var(--teal-300);
+}
+
+.info-hint-bubble {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  z-index: 40;
+  width: 260px;
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(2px);
+  transition: opacity var(--transition-fast), transform var(--transition-fast), visibility var(--transition-fast);
+}
+
+.info-hint:hover .info-hint-bubble,
+.info-hint > .btn:focus-visible + .info-hint-bubble {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+}
+
+/* Searchable dropdown: a select-looking trigger plus an .info-menu list. */
+.info-picker {
+  position: relative;
+  min-width: 0;
+}
+
+.info-picker-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--transition-fast);
+}
+
+.info-picker-trigger:hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+
+.info-picker-trigger:focus-visible,
+.info-picker-trigger[aria-expanded="true"] {
+  outline: none;
+  border-color: var(--teal-500);
+}
+
+.info-picker-trigger:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.info-picker-trigger > svg {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+}
+
+.info-picker-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.info-picker-value.placeholder {
+  color: var(--text-tertiary);
+}
+
+.info-picker-menu {
+  width: 100%;
+  min-width: 240px;
+}
+
+.info-picker-heading {
+  padding: 6px var(--space-2) 2px;
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.info-picker-option {
+  padding-left: var(--space-2);
+}
+
+.info-picker-option[aria-selected="true"] .info-menu-option-label {
+  font-weight: 600;
+}
+
+/* Read-mode values that collapse: long text (3 lines) and long link lists (3 items). */
+/* The toggle sits on its own line, under the value's start. */
+.info-value {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+
+.info-value > .info-links,
+.info-text {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.info-text.clamped {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+
+.info-more {
+  color: var(--text-tertiary);
+}
+
+.info-expand {
+  flex: 0 0 auto;
+  margin-left: -4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity var(--transition-fast), color var(--transition-fast), background var(--transition-fast);
+}
+
+.info-row:hover .info-expand,
+.info-expand:focus-visible {
+  opacity: 1;
+}
+
+.info-expand:hover,
+.info-expand:focus-visible {
+  color: var(--teal-300);
+  background: var(--bg-surface-hover);
+}
+
+/* Territory Authorities: the add button / form on top, then the list. */
+.authority-manager {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+}
+
+.authority-manager > .authority-add {
+  align-self: flex-start;
+}
+
+/* ---------- Confirm dialog (ConfirmDialog) ---------- */
+
+.confirm-dialog {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.confirm-dialog-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: var(--bg-inset);
+  color: var(--teal-300);
+}
+
+.confirm-dialog.danger .confirm-dialog-icon {
+  background: color-mix(in srgb, var(--danger-300) 14%, transparent);
+  color: var(--danger-300);
+}
+
+.confirm-dialog-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.confirm-dialog-text p {
+  margin: 0;
+}
+
+.confirm-dialog-text strong {
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.confirm-dialog-text ul {
+  margin: 0;
+  padding-left: var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+}
+
+.confirm-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* ---------- Marker panel: Articles tab ---------- */
+
+.marker-articles-panel,
+.marker-articles-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.marker-articles-add {
+  align-self: flex-start;
+}
+
+.marker-articles-form {
+  padding: var(--space-2);
+  background: var(--bg-inset);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.marker-articles-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.marker-article-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 4px 4px 4px var(--space-2);
+  border-radius: var(--radius-sm);
+}
+
+.marker-article-row:hover {
+  background: var(--bg-surface-hover);
+}
+
+.marker-article-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  color: var(--text-tertiary);
+}
+
+.marker-article-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.marker-article-name {
+  color: var(--teal-300);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.marker-article-name:hover {
+  text-decoration: underline;
+}
+
+.marker-article-name.removed {
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+
+.marker-article-name.removed:hover {
+  text-decoration: none;
+}
+
+.marker-article-label {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* InfoPicker folder mode: options indented under their folder header. */
+.info-picker-option.in-folder {
+  padding-left: 28px;
+}
+
+/* Native dropdown lists: never inherit a transparent background (Windows draws those white). */
+select option,
+select optgroup {
+  background-color: var(--bg-surface-raised);
+  color: var(--text-primary);
+}
+
+/* A list without a search box takes focus itself; no focus ring on the popover. */
+.info-menu-list:focus {
+  outline: none;
 }

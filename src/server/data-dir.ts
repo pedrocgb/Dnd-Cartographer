@@ -25,6 +25,9 @@ export const SUBDIRS = {
   // portraits, organization crests) — stored directly, no tiling/dzi
   // pipeline, unlike map originals.
   portraits: path.join(DATA_DIR, "portraits"),
+  // Images placed in rich-text documents (article bodies, descriptions),
+  // one immutable webp per upload.
+  articleImages: path.join(DATA_DIR, "article-images"),
 } as const;
 
 export const DB_FILE = path.join(DATA_DIR, "world-wiki.db");

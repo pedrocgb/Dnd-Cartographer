@@ -3,6 +3,7 @@ import { db } from "../db/client";
 import { markers, maps, richDocuments, territories, people, organizations, politicalLinks, territorySeats } from "../db/schema";
 import { resolveChain, getAcceptedAffiliation, getAuthoritiesForChain } from "./queries";
 import { extractLinksFromJson, classifyHref } from "./rich-text-links";
+import { articleHref } from "../articles/templates";
 
 export interface ConsolidatedLink {
   key: string;
@@ -30,19 +31,19 @@ async function resolveInternalName(targetType: string, targetId: string): Promis
     case "territory": {
       const row = await db.query.territories.findFirst({ where: eq(territories.id, targetId) });
       return row
-        ? { name: row.name, href: `/politics?type=territory&id=${targetId}`, unavailable: Boolean(row.deletedAt) }
+        ? { name: row.name, href: articleHref("territory", targetId), unavailable: Boolean(row.deletedAt) }
         : { name: "(deleted territory)", href: "#", unavailable: true };
     }
     case "person": {
       const row = await db.query.people.findFirst({ where: eq(people.id, targetId) });
       return row
-        ? { name: row.name, href: `/politics?type=person&id=${targetId}`, unavailable: Boolean(row.deletedAt) }
+        ? { name: row.name, href: articleHref("person", targetId), unavailable: Boolean(row.deletedAt) }
         : { name: "(deleted person)", href: "#", unavailable: true };
     }
     case "organization": {
       const row = await db.query.organizations.findFirst({ where: eq(organizations.id, targetId) });
       return row
-        ? { name: row.name, href: `/politics?type=organization&id=${targetId}`, unavailable: Boolean(row.deletedAt) }
+        ? { name: row.name, href: articleHref("organization", targetId), unavailable: Boolean(row.deletedAt) }
         : { name: "(deleted organization)", href: "#", unavailable: true };
     }
     default:
@@ -131,7 +132,7 @@ export async function buildMarkerLinks(markerId: string): Promise<ConsolidatedLi
         targetType: "territory",
         targetId: t.id,
         targetName: `${t.name} (${t.type})`,
-        href: `/politics?type=territory&id=${t.id}`,
+        href: articleHref("territory", t.id),
         removableLinkId: null,
         unavailable: Boolean(t.deletedAt),
       });
@@ -165,7 +166,7 @@ export async function buildMarkerLinks(markerId: string): Promise<ConsolidatedLi
       targetType: "territory",
       targetId: territory.id,
       targetName: `${territory.name} (${territory.type})`,
-      href: `/politics?type=territory&id=${territory.id}`,
+      href: articleHref("territory", territory.id),
       removableLinkId: null,
       unavailable: Boolean(territory.deletedAt),
     });

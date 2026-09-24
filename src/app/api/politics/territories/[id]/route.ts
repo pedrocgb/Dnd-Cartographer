@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { eq, and, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
+import { encodeTags, sanitizeTags } from "@/server/articles/tags";
+import { TEMPLATE_LABELS } from "@/server/articles/templates";
 import { territories, hierarchyProfiles, markerAffiliations } from "@/server/db/schema";
 import { resolveChain, levelsByProfileId, toTerritoryLike, getAuthoritiesForChain, getAffiliatedMarkers } from "@/server/politics/queries";
 import { validateChain, computeMissingRequiredTypes } from "@/server/politics/hierarchy-config";
+import { sanitizeInfo } from "@/server/articles/info-fields";
+import { TERRITORY_INFO } from "@/server/articles/info-sets";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -41,11 +45,21 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if ("descriptionDocumentId" in body) {
     patch.descriptionDocumentId = body.descriptionDocumentId === null ? null : String(body.descriptionDocumentId);
   }
+  if ("sidebarDocumentId" in body) {
+    patch.sidebarDocumentId = body.sidebarDocumentId === null ? null : String(body.sidebarDocumentId);
+  }
+  if ("footerDocumentId" in body) {
+    patch.footerDocumentId = body.footerDocumentId === null ? null : String(body.footerDocumentId);
+  }
+  const tags = sanitizeTags(body.tags, TEMPLATE_LABELS.territory);
+  if (tags) patch.tags = encodeTags(tags);
   if ("governmentForm" in body) patch.governmentForm = body.governmentForm === null ? null : String(body.governmentForm);
   if ("powerHolders" in body) patch.powerHolders = body.powerHolders === null ? null : String(body.powerHolders);
   if ("leadershipSelection" in body) patch.leadershipSelection = body.leadershipSelection === null ? null : String(body.leadershipSelection);
   if ("autonomy" in body) patch.autonomy = body.autonomy === null ? null : String(body.autonomy);
   if ("situation" in body) patch.situation = body.situation === null ? null : String(body.situation);
+  const info = sanitizeInfo(TERRITORY_INFO, body.info);
+  if (info) patch.info = JSON.stringify(info);
 
   const reparenting = "parentId" in body;
   const changingType = patch.type !== undefined && patch.type !== territory.type;

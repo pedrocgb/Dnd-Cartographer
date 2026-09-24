@@ -8,11 +8,14 @@ export default function Modal({
   open,
   onClose,
   title,
+  size = "normal",
   children,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
+  /** "wide" for content grids (e.g. the article template chooser). */
+  size?: "normal" | "wide";
   children: React.ReactNode;
 }) {
   useEffect(() => {
@@ -33,7 +36,7 @@ export default function Modal({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="modal-card" role="dialog" aria-modal="true" aria-label={title}>
+      <div className={size === "wide" ? "modal-card modal-card-wide" : "modal-card"} role="dialog" aria-modal="true" aria-label={title}>
         <div className="modal-header">
           <h2>{title}</h2>
           <button className="btn btn-ghost btn-icon" onClick={onClose} aria-label="Close dialog">

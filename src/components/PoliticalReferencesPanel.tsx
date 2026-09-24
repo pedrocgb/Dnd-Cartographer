@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { X, Trash2, Search } from "lucide-react";
+import { Trash2, Search } from "lucide-react";
 import { buildTerritoryTree, TerritoryTreeRow } from "@/components/TerritoryTree";
+import { articleHref } from "@/server/articles/templates";
 
 interface Territory {
   id: string;
@@ -32,38 +33,8 @@ interface AffiliationDetail {
   authorities: Authority[];
 }
 
-interface PersonOrOrg {
-  id: string;
-  name: string;
-}
-
-interface PoliticalReference {
-  id: string;
-  targetType: "person" | "organization";
-  targetId: string;
-  label: string;
-}
-
 async function json<T>(res: Response): Promise<T> {
   return res.json();
-}
-
-function useHolderName(holderType: "person" | "organization", holderId: string) {
-  const [name, setName] = useState<string | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    fetch(`/api/politics/${holderType === "person" ? "people" : "organizations"}?q=`)
-      .then((r) => json<{ people?: PersonOrOrg[]; organizations?: PersonOrOrg[] }>(r))
-      .then((d) => {
-        if (cancelled) return;
-        const list = d.people ?? d.organizations ?? [];
-        setName(list.find((p) => p.id === holderId)?.name ?? null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [holderType, holderId]);
-  return name;
 }
 
 function AuthorityRow({ authority, territoryName }: { authority: Authority; territoryName: string }) {
@@ -75,7 +46,7 @@ function AuthorityRow({ authority, territoryName }: { authority: Authority; terr
         {" — "}
         {authority.holderName}
       </span>
-      <a href={`/politics?type=${authority.holderType}&id=${authority.holderId}`} target="_blank" rel="noopener noreferrer" className="btn btn-sm">
+      <a href={articleHref(authority.holderType, authority.holderId)} target="_blank" rel="noopener noreferrer" className="btn btn-sm">
         View
       </a>
     </li>
@@ -140,7 +111,7 @@ function TerritoryPicker({ onPick }: { onPick: (territoryId: string) => void }) 
             ))}
         {searching && searchResults.length === 0 && <li className="field-label">No matches.</li>}
       </ul>
-      <a href="/politics" target="_blank" rel="noopener noreferrer" className="btn btn-sm">
+      <a href={articleHref("territory")} target="_blank" rel="noopener noreferrer" className="btn btn-sm">
         Create a new territory
       </a>
     </div>
@@ -159,7 +130,6 @@ export default function PoliticalReferencesPanel({
 }) {
   const [accepted, setAccepted] = useState<AffiliationDetail | null>(null);
   const [draft, setDraft] = useState<AffiliationDetail | null>(null);
-  const [references, setReferences] = useState<PoliticalReference[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
@@ -172,9 +142,6 @@ export default function PoliticalReferencesPanel({
         setLoaded(true);
         onAcceptedChainChange?.(d.accepted?.chain ?? null);
       });
-    fetch(`/api/markers/${markerId}/political-references`)
-      .then((r) => json<{ references: PoliticalReference[] }>(r))
-      .then((d) => setReferences(d.references));
   }
 
   // This panel is always mounted (just hidden via CSS when another section
@@ -222,11 +189,6 @@ export default function PoliticalReferencesPanel({
     refresh();
   }
 
-  async function removeReference(refId: string) {
-    await fetch(`/api/markers/${markerId}/political-references/${refId}`, { method: "DELETE" });
-    setReferences((prev) => prev.filter((r) => r.id !== refId));
-  }
-
   if (!loaded) return <p className="field-label">Loading…</p>;
 
   return (
@@ -237,7 +199,7 @@ export default function PoliticalReferencesPanel({
           {accepted.chain.map((t, i) => (
             <span key={t.id}>
               {i > 0 && " › "}
-              <a href={`/politics?type=territory&id=${t.id}`} target="_blank" rel="noopener noreferrer">
+              <a href={articleHref("territory", t.id)} target="_blank" rel="noopener noreferrer">
                 {t.name} <span className="field-label">({t.type})</span>
               </a>
             </span>
@@ -298,108 +260,6 @@ export default function PoliticalReferencesPanel({
           </ul>
         </>
       )}
-
-      <h3 className="marker-section-title">Marker-specific references</h3>
-      {references.length === 0 && <p className="field-label">No related people or organizations linked yet.</p>}
-      <ul className="politics-list">
-        {references.map((ref) => (
-          <PoliticalReferenceRow key={ref.id} reference={ref} onRemove={() => removeReference(ref.id)} />
-        ))}
-      </ul>
-      <PoliticalReferenceAdder
-        markerId={markerId}
-        onAdded={(ref) => setReferences((prev) => [...prev, ref])}
-      />
-    </div>
-  );
-}
-
-function PoliticalReferenceRow({ reference, onRemove }: { reference: PoliticalReference; onRemove: () => void }) {
-  const name = useHolderName(reference.targetType, reference.targetId);
-  return (
-    <li className="politics-list-row">
-      <span>
-        {reference.label ? `${reference.label}: ` : ""}
-        {name ?? "…"}
-      </span>
-      <div style={{ display: "flex", gap: "4px" }}>
-        <a href={`/politics?type=${reference.targetType}&id=${reference.targetId}`} target="_blank" rel="noopener noreferrer" className="btn btn-sm">
-          View
-        </a>
-        <button type="button" className="btn btn-ghost btn-icon" onClick={onRemove} aria-label="Remove reference">
-          <X size={14} strokeWidth={2.25} />
-        </button>
-      </div>
-    </li>
-  );
-}
-
-function PoliticalReferenceAdder({ markerId, onAdded }: { markerId: string; onAdded: (ref: PoliticalReference) => void }) {
-  const [open, setOpen] = useState(false);
-  const [targetType, setTargetType] = useState<"person" | "organization">("person");
-  const [q, setQ] = useState("");
-  const [label, setLabel] = useState("");
-  const [results, setResults] = useState<PersonOrOrg[]>([]);
-
-  useEffect(() => {
-    if (!open) return;
-    const timer = setTimeout(() => {
-      fetch(`/api/politics/${targetType === "person" ? "people" : "organizations"}?q=${encodeURIComponent(q)}`)
-        .then((r) => json<{ people?: PersonOrOrg[]; organizations?: PersonOrOrg[] }>(r))
-        .then((d) => setResults(d.people ?? d.organizations ?? []));
-    }, 200);
-    return () => clearTimeout(timer);
-  }, [open, targetType, q]);
-
-  async function pick(targetId: string) {
-    const res = await fetch(`/api/markers/${markerId}/political-references`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ targetType, targetId, label }),
-    });
-    const data = await res.json();
-    if (res.ok) {
-      onAdded(data.reference);
-      setOpen(false);
-      setQ("");
-      setLabel("");
-    }
-  }
-
-  if (!open) {
-    return (
-      <button type="button" className="btn btn-sm" onClick={() => setOpen(true)}>
-        Add reference
-      </button>
-    );
-  }
-
-  return (
-    <div className="politics-picker">
-      <select value={targetType} onChange={(e) => setTargetType(e.target.value as "person" | "organization")}>
-        <option value="person">Person</option>
-        <option value="organization">Organization / House / Council</option>
-      </select>
-      <input type="text" placeholder="Relationship label (e.g. Claimant, Advisor)" value={label} onChange={(e) => setLabel(e.target.value)} />
-      <div className="politics-picker-search">
-        <Search size={14} strokeWidth={2.25} />
-        <input type="text" placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} />
-      </div>
-      <ul className="politics-list">
-        {results.map((r) => (
-          <li key={r.id} className="politics-list-row">
-            <button type="button" className="politics-list-pick" onClick={() => pick(r.id)}>
-              {r.name}
-            </button>
-          </li>
-        ))}
-      </ul>
-      <a href="/politics" target="_blank" rel="noopener noreferrer" className="btn btn-sm">
-        Create a new person/organization
-      </a>
-      <button type="button" className="btn btn-sm" onClick={() => setOpen(false)}>
-        Cancel
-      </button>
     </div>
   );
 }

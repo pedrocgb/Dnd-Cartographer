@@ -12,8 +12,9 @@ import type { MapLayerData } from "./layer-images";
 import LayerChecklist from "./LayerChecklist";
 import PoliticalReferencesPanel from "./PoliticalReferencesPanel";
 import MarkerLinksPanel from "./MarkerLinksPanel";
+import MarkerArticlesPanel from "./MarkerArticlesPanel";
 
-export type MarkerSection = "basic" | "politics" | "links";
+export type MarkerSection = "basic" | "politics" | "articles" | "links";
 
 interface MapOption {
   id: string;
@@ -442,6 +443,9 @@ export default function MarkerPanel({
         />
       </div>
 
+      <div className={section === "articles" ? "marker-section-body" : "marker-section-body marker-section-body-hidden"}>
+        <MarkerArticlesPanel markerId={marker.id} />
+      </div>
       <div className={section === "links" ? "marker-section-body" : "marker-section-body marker-section-body-hidden"}>
         <MarkerLinksPanel markerId={marker.id} />
       </div>

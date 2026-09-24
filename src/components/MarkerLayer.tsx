@@ -24,6 +24,8 @@ export interface Marker {
   linkedMapId: string | null;
   descriptionDocumentId: string | null;
   locked: boolean;
+  /** Hidden markers stay in the Scene list but aren't drawn or pickable. */
+  visible: boolean;
   revision: number;
   statusTags: string[];
   environment: string | null;

@@ -1,10 +1,11 @@
-import { Suspense } from "react";
-import PoliticsManager from "@/components/PoliticsManager";
+import { redirect } from "next/navigation";
 
-export default function PoliticsPage() {
-  return (
-    <Suspense fallback={null}>
-      <PoliticsManager />
-    </Suspense>
-  );
+/** The Politics tab became Articles; old `/politics?type=&id=` links keep working. */
+export default async function PoliticsPage({ searchParams }: PageProps<"/politics">) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(await searchParams)) {
+    if (typeof value === "string") params.set(key, value);
+  }
+  const qs = params.toString();
+  redirect(qs ? `/articles?${qs}` : "/articles");
 }

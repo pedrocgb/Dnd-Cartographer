@@ -19,6 +19,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!body || typeof body !== "object") return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
 
   const patch: Partial<typeof mapLines.$inferInsert> = { ...sanitizeLinePatch(body, frame), updatedAt: new Date() };
+  if (typeof body.visible === "boolean") patch.visible = body.visible;
   if ("layerId" in body) {
     if (!(await isLayerOfMap(body.layerId, existing.mapId))) {
       return NextResponse.json({ error: "Layer must belong to the line's map." }, { status: 400 });

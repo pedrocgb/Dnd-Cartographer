@@ -1,0 +1,127 @@
+import { defineFieldSet, link } from "../info-fields";
+
+export const SETTLEMENT_INFO = defineFieldSet(
+  [
+    { key: "administration", label: "Administration" },
+    { key: "infrastructure", label: "Infrastructure" },
+    { key: "population", label: "Population" },
+    { key: "trade", label: "Trade" },
+  ],
+  [
+    // Administration
+    {
+      key: "governingOrganization",
+      label: "Governing Organization",
+      group: "administration",
+      kind: "link",
+      link: link(["organization"]),
+      hint: "The council, guild or house that runs the settlement.",
+    },
+    { key: "leaders", label: "Leaders", group: "administration", kind: "link", link: link(["character"], true), hint: "Mayors, lords, elders — whoever is in charge." },
+    {
+      key: "localLaws",
+      label: "Local Laws",
+      group: "administration",
+      kind: "link",
+      link: link(["law"], true),
+      hint: "Laws that apply here in particular. Strangers tend to break these first.",
+    },
+    {
+      key: "parentTerritory",
+      label: "Parent Territory",
+      group: "administration",
+      kind: "link",
+      link: link(["territory"]),
+      hint: "The territory this settlement belongs to.",
+    },
+    {
+      key: "settlementType",
+      label: "Settlement Type",
+      group: "administration",
+      kind: "select",
+      options: ["Homestead", "Hamlet", "Village", "Town", "City", "Metropolis", "Encampment", "Other"],
+      hint: "How big and permanent it is, from a lone farm to a sprawling metropolis.",
+    },
+    {
+      key: "status",
+      label: "Status",
+      group: "administration",
+      kind: "select",
+      options: ["Growing", "Stable", "Declining", "Abandoned", "Destroyed", "Rebuilding"],
+      hint: "Is it on the rise, holding steady, fading, or in ruins?",
+    },
+    // Infrastructure
+    { key: "defenses", label: "Defenses", group: "infrastructure", kind: "text", hint: "Walls, watch, garrison, wards? How well can it hold off a threat?" },
+    {
+      key: "notableBuildings",
+      label: "Notable Buildings",
+      group: "infrastructure",
+      kind: "link",
+      link: link(["building"], true),
+      hint: "Buildings worth a visit: temples, taverns, keeps, markets.",
+    },
+    {
+      key: "publicServices",
+      label: "Public Services",
+      group: "infrastructure",
+      kind: "text",
+      hint: "What the settlement provides: roads, healers, schools, sewers, a postal service?",
+    },
+    {
+      key: "waterSupply",
+      label: "Water Supply",
+      group: "infrastructure",
+      kind: "link",
+      link: link(["geography", "building"], true),
+      hint: "The rivers, lakes, wells or aqueducts it drinks from. Cut the water and the town falls.",
+    },
+    // Population
+    { key: "cultures", label: "Cultures", group: "population", kind: "link", link: link(["culture"], true), hint: "The cultures of the people living there." },
+    {
+      key: "languages",
+      label: "Languages",
+      group: "population",
+      kind: "link",
+      link: link(["language"], true),
+      hint: "The languages spoken in its streets.",
+    },
+    {
+      key: "notableResidents",
+      label: "Notable Residents",
+      group: "population",
+      kind: "link",
+      link: link(["character"], true),
+      hint: "Characters who live there and are worth knowing.",
+    },
+    { key: "population", label: "Population", group: "population", kind: "text", hint: "How many people live there — a number, or a feel like \"a few dozen\"." },
+    { key: "religions", label: "Religions", group: "population", kind: "link", link: link(["religion"], true), hint: "The faiths practiced there." },
+    {
+      key: "speciesPresent",
+      label: "Species Present",
+      group: "population",
+      kind: "link",
+      link: link(["species"], true),
+      hint: "The peoples that live there in numbers.",
+    },
+    // Trade
+    { key: "exports", label: "Exports", group: "trade", kind: "text", hint: "What it sells to the world." },
+    { key: "imports", label: "Imports", group: "trade", kind: "text", hint: "What it has to buy from elsewhere. Dependencies make leverage." },
+    { key: "industries", label: "Industries", group: "trade", kind: "text", hint: "What people there do for work: fishing, mining, weaving, smuggling?" },
+    {
+      key: "tradePartners",
+      label: "Trade Partners",
+      group: "trade",
+      kind: "link",
+      link: link(["settlement", "organization"], true),
+      hint: "Settlements and organizations it trades with regularly.",
+    },
+    {
+      key: "wealthLevel",
+      label: "Wealth Level",
+      group: "trade",
+      kind: "select",
+      options: ["Impoverished", "Struggling", "Modest", "Prosperous", "Wealthy"],
+      hint: "How well-off the settlement is overall. Sets prices, crime and what's for sale.",
+    },
+  ]
+);

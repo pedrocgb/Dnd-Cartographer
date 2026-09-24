@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import { markerAffiliations, markers, politicalLinks, politicalReferences, richDocuments } from "@/server/db/schema";
+import { markerAffiliations, markerArticleLinks, markers, politicalLinks, richDocuments } from "@/server/db/schema";
 import { toClientMarker } from "@/server/markers/tag-registry";
 import { isLayerOfMap } from "@/server/layers/layers";
 
@@ -95,18 +95,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ mar
           }))
         );
       }
-      const refs = await tx.query.politicalReferences.findMany({
-        where: and(eq(politicalReferences.sourceType, "marker"), eq(politicalReferences.sourceId, source.id)),
-      });
-      if (refs.length) {
-        await tx.insert(politicalReferences).values(
-          refs.map((r) => ({
-            worldId: r.worldId,
-            sourceType: r.sourceType,
-            sourceId: row.id,
-            targetType: r.targetType,
-            targetId: r.targetId,
-            label: r.label,
+      const articleLinks = await tx.query.markerArticleLinks.findMany({ where: eq(markerArticleLinks.markerId, source.id) });
+      if (articleLinks.length) {
+        await tx.insert(markerArticleLinks).values(
+          articleLinks.map((l) => ({
+            worldId: l.worldId,
+            markerId: row.id,
+            template: l.template,
+            articleId: l.articleId,
+            label: l.label,
           }))
         );
       }

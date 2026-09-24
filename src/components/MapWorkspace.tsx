@@ -238,6 +238,7 @@ export default function MapWorkspace({
     texts: MapTextData[];
     lines: MapLineData[];
     apply: (kind: SceneKind, id: string, patch: Record<string, unknown>) => void;
+    applyVisible: (kind: SceneKind, ids: string[], visible: boolean) => Promise<unknown>;
     moveLine: (id: string, dx: number, dy: number) => void;
   } | null>(null);
   /** Ctrl+C copy: a snapshot of the item (and a zone's region name, for pasting onto a layer without regions). */
@@ -591,8 +592,43 @@ export default function MapWorkspace({
   }
 
   useEffect(() => {
-    latestRef.current = { markers, zones, texts, lines, apply: applyPatch, moveLine };
+    latestRef.current = { markers, zones, texts, lines, apply: applyPatch, applyVisible, moveLine };
   });
+
+  /**
+   * Scene folder eye: shows or hides every listed item of one kind through
+   * each item's own `visible` flag, as a single undo step.
+   */
+  function setItemsVisible(kind: SceneKind, ids: string[], visible: boolean) {
+    const changed = ids.filter((id) => findItem(kind, id)?.visible !== visible);
+    if (changed.length === 0) return;
+    history.record({
+      label: `${visible ? "Show" : "Hide"} ${kind}s`,
+      undo: () => latestRef.current?.applyVisible(kind, changed, !visible),
+      redo: () => latestRef.current?.applyVisible(kind, changed, visible),
+    });
+    void applyVisible(kind, changed, visible);
+  }
+
+  /** Sets `visible` on the items locally and saves each right away (records nothing). */
+  function applyVisible(kind: SceneKind, ids: string[], visible: boolean) {
+    const targets = new Set(ids);
+    const set = <T extends { id: string; visible: boolean }>(prev: T[]) =>
+      prev.map((x) => (targets.has(x.id) ? { ...x, visible } : x));
+    if (kind === "marker") setMarkers(set);
+    else if (kind === "zone") setZones(set);
+    else if (kind === "text") setTexts(set);
+    else setLines(set);
+    return Promise.all(
+      ids.map((id) =>
+        fetch(`${ITEM_API[kind]}/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ visible }),
+        })
+      )
+    );
+  }
 
   function placeMarker(u: number, v: number) {
     setAddingMarker(false);
@@ -782,15 +818,15 @@ export default function MapWorkspace({
     return { under, over };
   }, [zoneLayerIds, activeLayerId, zoneRegions, zones, layerZones]);
   const drawnMarkers = useMemo(
-    () => itemsInLayers(markers, (m) => m.layerId, markerLayerIds, { extrasOf: (m) => m.extraLayerIds, activeLayerId }),
+    () => itemsInLayers(markers, (m) => m.layerId, markerLayerIds, { extrasOf: (m) => m.extraLayerIds, activeLayerId }).filter((m) => m.visible),
     [markers, markerLayerIds, activeLayerId]
   );
   const drawnTexts = useMemo(
-    () => itemsInLayers(texts, (t) => t.layerId, textLayerIds, { extrasOf: (t) => t.extraLayerIds, activeLayerId }),
+    () => itemsInLayers(texts, (t) => t.layerId, textLayerIds, { extrasOf: (t) => t.extraLayerIds, activeLayerId }).filter((t) => t.visible),
     [texts, textLayerIds, activeLayerId]
   );
   const drawnLines = useMemo(
-    () => itemsInLayers(lines, (l) => l.layerId, lineLayerIds, { extrasOf: (l) => l.extraLayerIds, activeLayerId }),
+    () => itemsInLayers(lines, (l) => l.layerId, lineLayerIds, { extrasOf: (l) => l.extraLayerIds, activeLayerId }).filter((l) => l.visible),
     [lines, lineLayerIds, activeLayerId]
   );
   const editableMarkerIds = useMemo(() => new Set(layerVisible ? layerMarkers.map((m) => m.id) : []), [layerMarkers, layerVisible]);
@@ -1406,10 +1442,10 @@ export default function MapWorkspace({
     if (!selectToolOn || !layerVisible) return null;
     return {
       markers: layerMarkers
-        .filter((m) => iconFilter.allOn || iconFilter.selected.has(m.iconKey))
+        .filter((m) => m.visible && (iconFilter.allOn || iconFilter.selected.has(m.iconKey)))
         .map((m) => ({ id: m.id, x: m.u * imageWidth, y: m.v * imageHeight })),
-      texts: layerTexts,
-      lines: layerLines.map((l) => ({ id: l.id, points: l.points, width: l.width })),
+      texts: layerTexts.filter((t) => t.visible),
+      lines: layerLines.filter((l) => l.visible).map((l) => ({ id: l.id, points: l.points, width: l.width })),
       zones: zonePaintOrder(layerRegions, layerZones)
         .filter(({ zone, region }) => zone.visible && region.visible)
         .flatMap(({ zone }) => {
@@ -1780,6 +1816,7 @@ export default function MapWorkspace({
             texts={layerTexts}
             lines={layerLines}
             onPick={focusSceneItem}
+            onSetVisible={setItemsVisible}
             onClose={onCloseScenePanel}
           />
         )}

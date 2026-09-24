@@ -21,7 +21,7 @@ export async function POST(request: Request) {
   if (!name) return NextResponse.json({ error: "A name is required." }, { status: 400 });
 
   const worldId = await ensureDefaultWorld();
-  const kind = typeof body?.kind === "string" && (ORGANIZATION_KINDS as readonly string[]).includes(body.kind) ? body.kind : "House";
+  const kind = typeof body?.kind === "string" && (ORGANIZATION_KINDS as readonly string[]).includes(body.kind) ? body.kind : "Noble House";
   const [created] = await db
     .insert(organizations)
     .values({ worldId, name, kind })

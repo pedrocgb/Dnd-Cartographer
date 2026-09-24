@@ -40,6 +40,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ma
     patch.backgroundShape = body.backgroundShape;
   if (typeof body.category === "string" && isValidMarkerCategory(body.category)) patch.category = body.category;
   if (typeof body.locked === "boolean") patch.locked = body.locked;
+  if (typeof body.visible === "boolean") patch.visible = body.visible;
   if ("descriptionDocumentId" in body) {
     patch.descriptionDocumentId = body.descriptionDocumentId === null ? null : String(body.descriptionDocumentId);
   }
