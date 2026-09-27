@@ -33,7 +33,7 @@ export default function MarkerSectionStrip({
           role="tab"
           aria-selected={section === key}
           aria-label={label}
-          title={label}
+          data-tooltip={label}
           className={section === key ? "marker-section-strip-btn active" : "marker-section-strip-btn"}
           onClick={() => onChange(key)}
         >

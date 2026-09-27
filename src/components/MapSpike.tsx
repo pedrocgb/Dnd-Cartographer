@@ -107,7 +107,7 @@ export default function MapSpike() {
       const el = document.createElement("div");
       el.className = "spike-marker";
       el.style.background = marker.color;
-      el.title = `Marker ${marker.id}`;
+      el.dataset.tooltip = `Marker ${marker.id}`;
 
       const viewportPoint = tiledImage.imageToViewportCoordinates(
         marker.u * imageSize.x,

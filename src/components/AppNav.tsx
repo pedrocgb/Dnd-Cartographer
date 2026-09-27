@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Compass, MapPlus, Trash2, Download, Upload, Book } from "lucide-react";
+import { Compass, Trash2, Download, Upload, Book, CalendarDays, ScrollText } from "lucide-react";
 import SearchBox from "./SearchBox";
 
 const LINKS = [
   { href: "/maps", label: "Maps", icon: Compass },
-  { href: "/maps/new", label: "Create map", icon: MapPlus },
   { href: "/articles", label: "Articles", icon: Book },
+  { href: "/calendars", label: "Calendars", icon: CalendarDays },
+  { href: "/sessions", label: "Sessions", icon: ScrollText },
   { href: "/maps/trash", label: "Trash", icon: Trash2 },
   { href: "/import", label: "Import", icon: Upload },
 ];

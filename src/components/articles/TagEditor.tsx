@@ -35,14 +35,14 @@ export default function TagEditor({
 
   return (
     <div className="article-tags">
-      <span className="article-tag fixed" title="Template tag — always present">
+      <span className="article-tag fixed" data-tooltip="Template tag — always present">
         <Lock size={10} strokeWidth={2.5} aria-hidden />
         {templateTag}
       </span>
       {tags.map((t) => (
         <span key={t} className="article-tag">
           {t}
-          <button type="button" onClick={() => onChange(tags.filter((x) => x !== t))} aria-label={`Remove tag ${t}`} title="Remove tag">
+          <button type="button" onClick={() => onChange(tags.filter((x) => x !== t))} aria-label={`Remove tag ${t}`} data-tooltip="Remove tag">
             <X size={11} strokeWidth={2.5} />
           </button>
         </span>

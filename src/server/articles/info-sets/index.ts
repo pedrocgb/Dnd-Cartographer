@@ -13,6 +13,7 @@ import { LAW_INFO } from "./law";
 import { MAGIC_INFO } from "./magic";
 import { MILITARY_INFO } from "./military";
 import { ORGANIZATION_INFO } from "./organization";
+import { PLAYER_CHARACTER_INFO } from "./player-character";
 import { RELIGION_INFO } from "./religion";
 import { SETTLEMENT_INFO } from "./settlement";
 import { SPECIES_INFO } from "./species";
@@ -21,10 +22,14 @@ import { TERRITORY_INFO } from "./territory";
 import { TITLE_INFO } from "./title";
 import { TRADITION_INFO } from "./tradition";
 
+/** The Info Bar fields of a `people` row, by its kind. */
+export const personInfoSet = (kind: string | null | undefined) => (kind === "player" ? PLAYER_CHARACTER_INFO : CHARACTER_INFO);
+
 /** Each template's Info Bar fields. A template missing here has no addable information yet. */
 export const INFO_FIELD_SETS: Partial<Record<ArticleTemplateKey, InfoFieldSet>> = {
   generic: GENERIC_INFO,
   character: CHARACTER_INFO,
+  playerCharacter: PLAYER_CHARACTER_INFO,
   organization: ORGANIZATION_INFO,
   territory: TERRITORY_INFO,
   settlement: SETTLEMENT_INFO,
@@ -59,6 +64,7 @@ export {
   MAGIC_INFO,
   MILITARY_INFO,
   ORGANIZATION_INFO,
+  PLAYER_CHARACTER_INFO,
   RELIGION_INFO,
   SETTLEMENT_INFO,
   SPECIES_INFO,

@@ -92,5 +92,7 @@ export const DOCUMENT_INFO = defineFieldSet(
     },
     { key: "signatories", label: "Signatories", group: "provenance", kind: "link", link: PEOPLE_LIST(), hint: "Who signed it." },
     { key: "translations", label: "Translations", group: "provenance", kind: "link", link: link(["document"], true), hint: "Translated copies of this document." },
-  ]
+  ],
+  // Required, in this order.
+  ["documentType", "medium", "accessLevel"]
 );

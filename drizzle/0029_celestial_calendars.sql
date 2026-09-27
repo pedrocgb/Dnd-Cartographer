@@ -1,0 +1,1 @@
+ALTER TABLE `celestial_objects` ADD `calendar_ids` text;

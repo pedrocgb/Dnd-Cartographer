@@ -1,0 +1,1 @@
+ALTER TABLE `fronts` ADD `clock_per_portent` integer DEFAULT false NOT NULL;

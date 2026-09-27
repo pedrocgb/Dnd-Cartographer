@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
+  ArrowLeft,
   ArrowDownWideNarrow,
   ChevronDown,
   ChevronRight,
@@ -25,13 +27,16 @@ import {
   type InfoLinkTarget,
   type InfoValue,
   type InfoValues,
+  requiredFields,
 } from "@/server/articles/info-fields";
 import { TEMPLATE_LABELS } from "@/server/articles/templates";
 import InfoPicker, { type PickerOption } from "./InfoPicker";
 import type { OpenArticle } from "./types";
 
-/** Articles a link field can point at, by template. */
-export type InfoLookups = Partial<Record<InfoLinkTarget, { id: string; name: string }[]>>;
+/** Articles a link field can point at, by template (season profiles carry their current season as `detail`). */
+export type InfoLookups = Partial<Record<InfoLinkTarget, { id: string; name: string; detail?: string }[]>>;
+
+const targetLabel = (target: InfoLinkTarget) => (target === "seasonProfile" ? "Season Profiles" : TEMPLATE_LABELS[target]);
 
 /** Native selects get a search box once they reach this many options. */
 const SEARCHABLE_SELECT_MIN = 10;
@@ -61,7 +66,7 @@ function linkOptions(targets: readonly InfoLinkTarget[], lookups: InfoLookups): 
   return targets.flatMap((target) =>
     [...(lookups[target] ?? [])]
       .sort((a, b) => a.name.localeCompare(b.name))
-      .map((x) => ({ value: x.id, label: x.name, group: TEMPLATE_LABELS[target] }))
+      .map((x) => ({ value: x.id, label: x.name, group: targetLabel(target) }))
   );
 }
 
@@ -82,7 +87,7 @@ function moveKey(order: string[], key: string, target: string): string[] {
 export function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="info-row">
-      <dt title={label}>{label}</dt>
+      <dt data-tooltip={label}>{label}</dt>
       <dd>{children}</dd>
     </div>
   );
@@ -92,7 +97,7 @@ export function InfoRow({ label, children }: { label: string; children: React.Re
 function ExpandToggle({ expanded, onToggle }: { expanded: boolean; onToggle: () => void }) {
   const label = expanded ? "Show less" : "Show more";
   return (
-    <button type="button" className="info-expand" onClick={onToggle} aria-expanded={expanded} aria-label={label} title={label}>
+    <button type="button" className="info-expand" onClick={onToggle} aria-expanded={expanded} aria-label={label} data-tooltip={label}>
       {expanded ? <EyeOff size={12} strokeWidth={2.25} /> : <Maximize2 size={12} strokeWidth={2.25} />}
     </button>
   );
@@ -178,8 +183,19 @@ export function InfoView({
         </span>
       );
     }
+    const target = found.target;
+    if (target === "seasonProfile") {
+      return (
+        <span key={id} className="info-season-profile">
+          <Link className="politics-link-button" href={`/calendars?profile=${encodeURIComponent(id)}`}>
+            {found.item.name}
+          </Link>
+          {found.item.detail && <span className="field-label">{found.item.detail}</span>}
+        </span>
+      );
+    }
     return (
-      <button key={id} type="button" className="politics-link-button" onClick={() => onOpenArticle(found.target, id)}>
+      <button key={id} type="button" className="politics-link-button" onClick={() => onOpenArticle(target, id)}>
         {found.item.name}
       </button>
     );
@@ -343,7 +359,7 @@ function Chips({ items, onRemove }: { items: { value: string; label: string }[];
       {items.map((item) => (
         <span key={item.value} className="article-tag">
           {item.label}
-          <button type="button" onClick={() => onRemove(item.value)} aria-label={`Remove ${item.label}`} title="Remove">
+          <button type="button" onClick={() => onRemove(item.value)} aria-label={`Remove ${item.label}`} data-tooltip="Remove">
             <X size={11} strokeWidth={2.5} />
           </button>
         </span>
@@ -490,11 +506,11 @@ export function InfoEditLabel({ Icon, label, htmlFor, title }: { Icon: LucideIco
     </>
   );
   return htmlFor ? (
-    <label className="info-edit-label" htmlFor={htmlFor} title={title}>
+    <label className="info-edit-label" htmlFor={htmlFor} data-tooltip={title}>
       {content}
     </label>
   ) : (
-    <span className="info-edit-label" title={title}>
+    <span className="info-edit-label" data-tooltip={title}>
       {content}
     </span>
   );
@@ -502,7 +518,7 @@ export function InfoEditLabel({ Icon, label, htmlFor, title }: { Icon: LucideIco
 
 /**
  * Edit mode of an Info Bar: the record's name, any template `fixedRows`,
- * then every added field with an editor for its kind (removable unless
+ * the required fields, any `fixedRowsAfter`, then every added field with an editor for its kind (removable unless
  * required), and "Add more information" (hidden once every field is added).
  * `onSave` builds and sends the PATCH, so each template controls its body.
  */
@@ -512,6 +528,12 @@ export function InfoForm({
   initialValues,
   lookups,
   fixedRows,
+  fixedRowsAfter,
+  editorFor,
+  saveLabel = "Save",
+  savingLabel = "Saving…",
+  allowAdding = true,
+  onBack,
   onSave,
   onSaved,
   onCancel,
@@ -522,8 +544,19 @@ export function InfoForm({
   lookups: InfoLookups;
   /** Template-specific rows after the name (use `.info-edit-row`). */
   fixedRows?: React.ReactNode;
+  /** Template-specific rows after the required fields (still above the gap). */
+  fixedRowsAfter?: React.ReactNode;
+  /** A template's own editor for a field (e.g. Parent Territory's hierarchy-filtered picker); undefined uses the default. */
+  editorFor?: (field: InfoField) => React.ReactNode | undefined;
+  saveLabel?: string;
+  savingLabel?: string;
+  /** False hides "Add more information" (a create form shows the required fields only). */
+  allowAdding?: boolean;
+  /** Adds a Back button before Save (the create modal's step back to the template chooser). */
+  onBack?: () => void;
   onSave: (name: string, values: InfoValues) => Promise<Response>;
-  onSaved: () => void;
+  /** Gets the successful response (a create form reads the new id from it). */
+  onSaved: (res: Response) => void;
   onCancel: () => void;
 }) {
   const nameId = useId();
@@ -545,11 +578,13 @@ export function InfoForm({
   // `values`' key order is the display order: new fields append, reordering rebuilds it.
   const order = Object.keys(values);
   const added = fieldsInOrder(set, values);
-  const required = added.filter((f) => f.required);
+  const required = requiredFields(set);
   const optional = added.filter((f) => !f.required);
   const available = useMemo(() => set.fields.filter((f) => !f.required && !(f.key in values)), [set, values]);
 
   const setValue = (key: string, value: InfoValue) => setValues((prev) => ({ ...prev, [key]: value }));
+  const editor = (field: InfoField) =>
+    editorFor?.(field) ?? <FieldEditor field={field} value={values[field.key]} lookups={lookups} onChange={(value) => setValue(field.key, value)} />;
 
   function reorder(nextOrder: string[]) {
     setValues((prev) => Object.fromEntries(nextOrder.filter((k) => k in prev).map((k) => [k, prev[k]])));
@@ -599,7 +634,7 @@ export function InfoForm({
     setError(null);
     const res = await onSave(name, values);
     setSaving(false);
-    if (res.ok) onSaved();
+    if (res.ok) onSaved(res);
     else setError((await res.json().catch(() => ({}))).error ?? "Could not save.");
   }
 
@@ -607,7 +642,7 @@ export function InfoForm({
     <div className="politics-form info-form" ref={formRef}>
       <div className="info-edit-row info-edit-name">
         <InfoEditLabel Icon={Type} label="Name" htmlFor={nameId} />
-        <input id={nameId} type="text" value={name} onChange={(e) => setName(e.target.value)} />
+        <input id={nameId} type="text" value={name} autoFocus={!initialName} onChange={(e) => setName(e.target.value)} />
       </div>
 
       {fixedRows}
@@ -617,11 +652,13 @@ export function InfoForm({
         return (
           <div key={field.key} className="info-edit-row info-edit-required">
             <InfoEditLabel Icon={Icon} label={field.label} title={hint} />
-            <FieldEditor field={field} value={values[field.key]} lookups={lookups} onChange={(value) => setValue(field.key, value)} />
+            {editor(field)}
             <FieldHint field={field} />
           </div>
         );
       })}
+
+      {fixedRowsAfter}
 
       {optional.length > 0 && (
         // The gap between this group and the rows above separates what every article has from what was added.
@@ -660,7 +697,7 @@ export function InfoForm({
                 <button
                   type="button"
                   className="info-drag-handle"
-                  title="Drag to reorder (or focus and use ↑/↓)"
+                  data-tooltip="Drag to reorder (or focus and use ↑/↓)"
                   aria-label={`Reorder ${field.label}`}
                   onMouseDown={() => setArmedKey(field.key)}
                   onMouseUp={() => setArmedKey(null)}
@@ -674,9 +711,9 @@ export function InfoForm({
                   <GripVertical size={14} strokeWidth={2.25} />
                 </button>
                 <InfoEditLabel Icon={Icon} label={field.label} title={hint} />
-                <FieldEditor field={field} value={values[field.key]} lookups={lookups} onChange={(value) => setValue(field.key, value)} />
+                {editor(field)}
                 <FieldHint field={field} />
-                <button type="button" className="btn btn-ghost btn-icon" onClick={() => removeField(field.key)} aria-label={`Remove ${field.label}`} title={`Remove ${field.label}`}>
+                <button type="button" className="btn btn-ghost btn-icon" onClick={() => removeField(field.key)} aria-label={`Remove ${field.label}`} data-tooltip={`Remove ${field.label}`}>
                   <X size={13} strokeWidth={2.25} />
                 </button>
               </div>
@@ -685,7 +722,7 @@ export function InfoForm({
         </div>
       )}
 
-      {available.length > 0 && (
+      {allowAdding && available.length > 0 && (
         <div className="info-add" ref={addRef}>
           <button type="button" className="btn btn-sm" aria-expanded={menuOpen} aria-haspopup="dialog" onClick={() => setMenuOpen((o) => !o)}>
             <Plus size={14} strokeWidth={2.25} />
@@ -697,8 +734,14 @@ export function InfoForm({
 
       {error && <p className="form-error">{error}</p>}
       <div className="marker-panel-actions">
+        {onBack && (
+          <button type="button" className="btn btn-sm btn-ghost" onClick={onBack} disabled={saving}>
+            <ArrowLeft size={13} strokeWidth={2.25} />
+            Back
+          </button>
+        )}
         <button className="btn btn-sm btn-primary" onClick={save} disabled={saving}>
-          {saving ? "Saving…" : "Save"}
+          {saving ? savingLabel : saveLabel}
         </button>
         <button className="btn btn-sm" onClick={onCancel}>
           Cancel

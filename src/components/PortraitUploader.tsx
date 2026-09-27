@@ -45,6 +45,8 @@ export default function PortraitUploader({
   const [dialogError, setDialogError] = useState<string | null>(null);
   /** The full image shown in the viewer, when open. */
   const [viewing, setViewing] = useState<string | null>(null);
+  // The image URL that has finished loading: until it matches, the frame shimmers.
+  const [decodedSrc, setDecodedSrc] = useState<string | null>(null);
   const lower = label.toLowerCase();
 
   // A picked file is shown through an object URL; free it once the dialog closes.
@@ -150,11 +152,11 @@ export default function PortraitUploader({
         }}
       />
       <div
-        className={["politics-portrait-frame", src && "has-image", dragging && "dragging"].filter(Boolean).join(" ")}
+        className={["politics-portrait-frame", src && "has-image", src && decodedSrc !== src && "loading", dragging && "dragging"].filter(Boolean).join(" ")}
         role="button"
         tabIndex={0}
         aria-label={src ? `View the full ${lower}` : `Upload ${lower} (or drop / paste an image)`}
-        title={src ? `View the full ${lower}` : `Upload ${lower} — click, drop or paste an image`}
+        data-tooltip={src ? `View the full ${lower}` : `Upload ${lower} — click, drop or paste an image`}
         onClick={activate}
         onKeyDown={(e) => {
           if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
@@ -185,7 +187,7 @@ export default function PortraitUploader({
       >
         {src ? (
           // eslint-disable-next-line @next/next/no-img-element -- small local portrait, not worth next/image's remote-optimization machinery
-          <img src={src} alt={label} />
+          <img src={src} alt={label} decoding="async" onLoad={() => setDecodedSrc(src)} onError={() => setDecodedSrc(src)} />
         ) : (
           <div className="politics-portrait-placeholder">
             <ImagePlus size={28} strokeWidth={2} />
@@ -202,12 +204,12 @@ export default function PortraitUploader({
             className="btn btn-sm btn-ghost"
             onClick={() => void startAdjusting()}
             disabled={busy}
-            title={`Adjust ${lower} — reposition, zoom or rotate`}
+            data-tooltip={`Adjust ${lower} — reposition, zoom or rotate`}
           >
             <Crop size={13} strokeWidth={2.25} />
             Adjust
           </button>
-          <button type="button" className="btn btn-sm btn-ghost politics-portrait-remove" onClick={remove} disabled={busy} title={`Remove ${lower}`}>
+          <button type="button" className="btn btn-sm btn-ghost politics-portrait-remove" onClick={remove} disabled={busy} data-tooltip={`Remove ${lower}`}>
             <Trash2 size={13} strokeWidth={2.25} />
             Remove
           </button>

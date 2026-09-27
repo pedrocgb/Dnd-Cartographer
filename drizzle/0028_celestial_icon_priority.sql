@@ -1,0 +1,1 @@
+ALTER TABLE `celestial_objects` ADD `prioritize_day_icon` integer DEFAULT false NOT NULL;

@@ -1,17 +1,20 @@
 import { eq } from "drizzle-orm";
 import { db } from "../db/client";
-import { maps, mapCategories, mapAssets } from "../db/schema";
+import { maps, mapCategories, mapAssets, markers, zones } from "../db/schema";
 
 export interface MapSummary {
   id: string;
   name: string;
   parentId: string | null;
+  folderId: string | null;
   categoryId: string | null;
   categoryLabel: string | null;
   currentAssetId: string | null;
   thumbnailKey: string | null;
   assetState: string | null;
   childCount: number;
+  markerCount: number;
+  zoneCount: number;
   deletedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -24,11 +27,20 @@ export interface MapSummary {
  * scale, and keeps cycle/child-count logic in one place with hierarchy.ts.
  */
 export async function listMapSummaries(worldId: string, { includeDeleted = false } = {}): Promise<MapSummary[]> {
-  const [mapRows, categoryRows, assetRows] = await Promise.all([
+  const [mapRows, categoryRows, assetRows, markerRows, zoneRows] = await Promise.all([
     db.select().from(maps).where(eq(maps.worldId, worldId)),
     db.select().from(mapCategories).where(eq(mapCategories.worldId, worldId)),
     db.select().from(mapAssets),
+    db.select({ mapId: markers.mapId }).from(markers),
+    db.select({ mapId: zones.mapId }).from(zones),
   ]);
+  const countBy = (rows: { mapId: string }[]) => {
+    const counts = new Map<string, number>();
+    for (const r of rows) counts.set(r.mapId, (counts.get(r.mapId) ?? 0) + 1);
+    return counts;
+  };
+  const markerCounts = countBy(markerRows);
+  const zoneCounts = countBy(zoneRows);
 
   const categoryById = new Map(categoryRows.map((c) => [c.id, c.label]));
   const assetById = new Map(assetRows.map((a) => [a.id, a]));
@@ -47,12 +59,15 @@ export async function listMapSummaries(worldId: string, { includeDeleted = false
         id: m.id,
         name: m.name,
         parentId: m.parentId,
+        folderId: m.folderId,
         categoryId: m.categoryId,
         categoryLabel: m.categoryId ? categoryById.get(m.categoryId) ?? null : null,
         currentAssetId: m.currentAssetId,
         thumbnailKey: asset?.thumbnailKey ?? null,
         assetState: asset?.state ?? null,
         childCount: childCounts.get(m.id) ?? 0,
+        markerCount: markerCounts.get(m.id) ?? 0,
+        zoneCount: zoneCounts.get(m.id) ?? 0,
         deletedAt: m.deletedAt,
         createdAt: m.createdAt,
         updatedAt: m.updatedAt,

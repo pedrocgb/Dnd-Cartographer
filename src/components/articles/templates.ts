@@ -18,6 +18,7 @@ import {
   Swords,
   UserRound,
   UserRoundGroup,
+  UserStar,
   WandSparkles,
   type LucideIcon,
 } from "lucide-react";
@@ -43,6 +44,11 @@ const DETAILS: Record<ArticleTemplateKey, Omit<ArticleTemplate, "key" | "label">
     plural: "Characters",
     Icon: UserRound,
     description: "Heroes, villains, rulers and wandering bards. Track their house, status and the seats they hold.",
+  },
+  playerCharacter: {
+    plural: "Player Characters",
+    Icon: UserStar,
+    description: "The heroes at your table: who plays them, their class and level, their quests, their party and the legacy they leave.",
   },
   organization: {
     plural: "Organizations",

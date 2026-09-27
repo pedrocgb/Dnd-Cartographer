@@ -106,5 +106,7 @@ export const ITEM_INFO = defineFieldSet(
       link: link(["item"], true),
       hint: "Items needed to craft it — a good quest hook.",
     },
-  ]
+  ],
+  // Required, in this order.
+  ["itemType", "articleScope", "rarity", "status"]
 );

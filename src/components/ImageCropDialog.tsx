@@ -79,7 +79,7 @@ export default function ImageCropDialog({
       </p>
       <div className="image-crop-controls">
         <div className="image-crop-zoom">
-          <button type="button" className="btn btn-ghost btn-icon" onClick={() => zoomBy(-ZOOM_STEP)} disabled={zoom <= MIN_ZOOM} aria-label="Zoom out" title="Zoom out">
+          <button type="button" className="btn btn-ghost btn-icon" onClick={() => zoomBy(-ZOOM_STEP)} disabled={zoom <= MIN_ZOOM} aria-label="Zoom out" data-tooltip="Zoom out">
             <ZoomOut size={15} strokeWidth={2.25} />
           </button>
           <input
@@ -91,18 +91,18 @@ export default function ImageCropDialog({
             aria-label="Zoom"
             onChange={(e) => setZoom(Number(e.target.value))}
           />
-          <button type="button" className="btn btn-ghost btn-icon" onClick={() => zoomBy(ZOOM_STEP)} disabled={zoom >= MAX_ZOOM} aria-label="Zoom in" title="Zoom in">
+          <button type="button" className="btn btn-ghost btn-icon" onClick={() => zoomBy(ZOOM_STEP)} disabled={zoom >= MAX_ZOOM} aria-label="Zoom in" data-tooltip="Zoom in">
             <ZoomIn size={15} strokeWidth={2.25} />
           </button>
         </div>
         <div className="image-crop-tools">
-          <button type="button" className="btn btn-ghost btn-icon" onClick={() => rotate(-90)} aria-label="Rotate left" title="Rotate left">
+          <button type="button" className="btn btn-ghost btn-icon" onClick={() => rotate(-90)} aria-label="Rotate left" data-tooltip="Rotate left">
             <RotateCcw size={15} strokeWidth={2.25} />
           </button>
-          <button type="button" className="btn btn-ghost btn-icon" onClick={() => rotate(90)} aria-label="Rotate right" title="Rotate right">
+          <button type="button" className="btn btn-ghost btn-icon" onClick={() => rotate(90)} aria-label="Rotate right" data-tooltip="Rotate right">
             <RotateCw size={15} strokeWidth={2.25} />
           </button>
-          <button type="button" className="btn btn-sm btn-ghost" onClick={reset} title="Center the image, no zoom or rotation">
+          <button type="button" className="btn btn-sm btn-ghost" onClick={reset} data-tooltip="Center the image, no zoom or rotation">
             <Undo2 size={13} strokeWidth={2.25} />
             Reset
           </button>

@@ -1,25 +1,26 @@
 import { NextResponse } from "next/server";
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { resolveAssetPath } from "@/server/storage/storage-adapter";
 
 export const runtime = "nodejs";
 
-export async function GET(_request: Request, { params }: { params: Promise<{ path: string[] }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ path: string[] }> }) {
   const { path: pathSegments } = await params;
   if (pathSegments.some((segment) => segment === "..")) {
     return NextResponse.json({ error: "Invalid path." }, { status: 400 });
   }
 
   try {
-    const data = await readFile(resolveAssetPath("portraits", pathSegments.join("/")));
-    return new NextResponse(data, {
-      headers: {
-        "Content-Type": "image/webp",
-        // A re-upload overwrites the same key, so this can't be marked
-        // immutable like map tiles — short-lived caching only.
-        "Cache-Control": "public, max-age=300",
-      },
-    });
+    const file = resolveAssetPath("portraits", pathSegments.join("/"));
+    const { mtimeMs, size } = await stat(file);
+    const etag = `"${Math.floor(mtimeMs).toString(36)}-${size.toString(36)}"`;
+    // A re-upload overwrites the same key, so this can't be marked immutable
+    // like map tiles. Instead the browser shows its copy at once and checks
+    // it in the background (a 304 when unchanged); the article pages also
+    // change the ?v= on every re-upload, so they never show a stale image.
+    const headers = { "Content-Type": "image/webp", "Cache-Control": "public, max-age=300, stale-while-revalidate=604800", ETag: etag };
+    if (request.headers.get("if-none-match") === etag) return new NextResponse(null, { status: 304, headers });
+    return new NextResponse(await readFile(file), { headers });
   } catch {
     return NextResponse.json({ error: "Portrait not found." }, { status: 404 });
   }

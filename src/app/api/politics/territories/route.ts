@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { sanitizeInfo } from "@/server/articles/info-fields";
+import { TERRITORY_INFO } from "@/server/articles/info-sets";
 import { eq, and, isNull, like } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { territories, hierarchyProfiles } from "@/server/db/schema";
@@ -73,6 +75,7 @@ export async function POST(request: Request) {
       leadershipSelection: typeof body?.leadershipSelection === "string" ? body.leadershipSelection : null,
       autonomy: typeof body?.autonomy === "string" ? body.autonomy : null,
       situation: typeof body?.situation === "string" ? body.situation : null,
+      info: JSON.stringify(sanitizeInfo(TERRITORY_INFO, body?.info) ?? {}),
     })
     .returning();
   return NextResponse.json({ territory: created }, { status: 201 });

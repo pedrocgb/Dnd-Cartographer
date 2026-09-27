@@ -1,0 +1,1 @@
+ALTER TABLE `celestial_objects` ADD `show_day_icon` integer DEFAULT true NOT NULL;

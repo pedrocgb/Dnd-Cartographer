@@ -91,7 +91,7 @@ function FilterSection({
                 .join(" ")}
               aria-pressed={selected.has(value)}
               aria-label={titleFor ? titleFor(value) : undefined}
-              title={titleFor ? titleFor(value) : undefined}
+              data-tooltip={titleFor ? titleFor(value) : undefined}
               onClick={() => onToggleValue(value)}
             >
               {renderValue ? renderValue(value) : value === NONE_VALUE ? "None" : labelFor ? labelFor(value) : value}
@@ -203,7 +203,7 @@ export default function MarkersListModal({
         <button
           type="button"
           className="btn btn-icon"
-          title={sortOrder === "az" ? "Sorted A–Z" : sortOrder === "za" ? "Sorted Z–A" : "Sort alphabetically"}
+          data-tooltip={sortOrder === "az" ? "Sorted A–Z" : sortOrder === "za" ? "Sorted Z–A" : "Sort alphabetically"}
           aria-label="Toggle alphabetical sort"
           onClick={() => setSortOrder((prev) => (prev === "default" ? "az" : prev === "az" ? "za" : "default"))}
         >

@@ -2,7 +2,7 @@ import { PERSON_STATUSES } from "../../politics/hierarchy-config";
 import { defineFieldSet, link, type InfoField } from "../info-fields";
 
 /** Character fields. House and Status keep their `people` columns (groupings and authorities query them). */
-const GROUPS = [
+export const CHARACTER_GROUPS = [
   { key: "generic", label: "Generic" },
   { key: "appearance", label: "Appearance" },
   { key: "status", label: "Status" },
@@ -91,7 +91,7 @@ export const SOCIAL_BACKGROUNDS = [
   "Zhentarim Mercenary",
 ] as const;
 
-const FIELDS: InfoField[] = [
+export const CHARACTER_FIELDS: InfoField[] = [
   // Generic
   {
     key: "sex",
@@ -270,4 +270,4 @@ const FIELDS: InfoField[] = [
   { key: "titles", label: "Titles", group: "relationships", kind: "link", link: link(["title"], true), hint: "Titles they hold or have held, like knighthoods or offices." },
 ];
 
-export const CHARACTER_INFO = defineFieldSet(GROUPS, FIELDS);
+export const CHARACTER_INFO = defineFieldSet(CHARACTER_GROUPS, CHARACTER_FIELDS, ["status"]);

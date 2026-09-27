@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { encodeTags, sanitizeTags } from "@/server/articles/tags";
-import { TEMPLATE_LABELS } from "@/server/articles/templates";
+import { TEMPLATE_LABELS, personTemplate } from "@/server/articles/templates";
 import { sanitizeInfo } from "@/server/articles/info-fields";
-import { CHARACTER_INFO } from "@/server/articles/info-sets";
+import { personInfoSet } from "@/server/articles/info-sets";
 import { people, authorityAssignments } from "@/server/db/schema";
 import { getAuthoritiesForPerson } from "@/server/politics/queries";
 
@@ -36,11 +36,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if ("footerDocumentId" in body) {
     patch.footerDocumentId = body.footerDocumentId === null ? null : String(body.footerDocumentId);
   }
-  const tags = sanitizeTags(body.tags, TEMPLATE_LABELS.character);
+  const tags = sanitizeTags(body.tags, TEMPLATE_LABELS[personTemplate(person.kind)]);
   if (tags) patch.tags = encodeTags(tags);
   if ("houseId" in body) patch.houseId = body.houseId === null ? null : String(body.houseId);
   if ("status" in body) patch.status = body.status === null ? null : String(body.status);
-  const info = sanitizeInfo(CHARACTER_INFO, body.info);
+  const info = sanitizeInfo(personInfoSet(person.kind), body.info);
   if (info) patch.info = JSON.stringify(info);
 
   const [updated] = await db.update(people).set(patch).where(eq(people.id, id)).returning();

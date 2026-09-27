@@ -3,8 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { articleHref, type ArticleTemplateKey } from "@/server/articles/templates";
-import { ARTICLE_TEMPLATES, templateOf } from "@/components/articles/templates";
+import { templateOf } from "@/components/articles/templates";
 import InfoPicker, { type PickerOption } from "@/components/articles/InfoPicker";
+import { candidateOptions, loadCandidates, type Candidate } from "@/components/articles/candidates";
+import { SkeletonList } from "@/components/Skeleton";
 
 interface ArticleLink {
   id: string;
@@ -13,32 +15,6 @@ interface ArticleLink {
   label: string;
   /** Null once the linked article was deleted. */
   name: string | null;
-}
-
-interface Candidate {
-  template: ArticleTemplateKey;
-  id: string;
-  name: string;
-}
-
-async function json<T>(res: Response): Promise<T> {
-  return res.json();
-}
-
-/** Every live article, for the picker. */
-async function loadCandidates(): Promise<Candidate[]> {
-  const [t, p, o, a] = await Promise.all([
-    fetch("/api/politics/territories").then((r) => json<{ territories: { id: string; name: string }[] }>(r)),
-    fetch("/api/politics/people").then((r) => json<{ people: { id: string; name: string }[] }>(r)),
-    fetch("/api/politics/organizations").then((r) => json<{ organizations: { id: string; name: string }[] }>(r)),
-    fetch("/api/articles").then((r) => json<{ articles: { id: string; title: string; template: ArticleTemplateKey }[] }>(r)),
-  ]);
-  return [
-    ...t.territories.map((x) => ({ template: "territory" as const, id: x.id, name: x.name })),
-    ...p.people.map((x) => ({ template: "character" as const, id: x.id, name: x.name })),
-    ...o.organizations.map((x) => ({ template: "organization" as const, id: x.id, name: x.name })),
-    ...a.articles.map((x) => ({ template: x.template, id: x.id, name: x.title })),
-  ];
 }
 
 function AddArticleLink({ markerId, linkedIds, onAdded }: { markerId: string; linkedIds: Set<string>; onAdded: (link: ArticleLink) => void }) {
@@ -61,16 +37,7 @@ function AddArticleLink({ markerId, linkedIds, onAdded }: { markerId: string; li
   }, [open]);
 
   // Grouped by template in sidebar order, alphabetical within; already-linked ones left out.
-  const options = useMemo<PickerOption[]>(
-    () =>
-      ARTICLE_TEMPLATES.flatMap((t) =>
-        (candidates ?? [])
-          .filter((c) => c.template === t.key && !linkedIds.has(c.id))
-          .sort((x, y) => x.name.localeCompare(y.name))
-          .map((c) => ({ value: c.id, label: c.name, group: t.plural }))
-      ),
-    [candidates, linkedIds]
-  );
+  const options = useMemo<PickerOption[]>(() => candidateOptions(candidates ?? [], linkedIds), [candidates, linkedIds]);
 
   function close() {
     setOpen(false);
@@ -149,7 +116,7 @@ export default function MarkerArticlesPanel({ markerId }: { markerId: string }) 
   useEffect(() => {
     let cancelled = false;
     fetch(`/api/markers/${markerId}/articles`)
-      .then((r) => json<{ links: ArticleLink[] }>(r))
+      .then((r) => r.json() as Promise<{ links: ArticleLink[] }>)
       .then((d) => !cancelled && setLinks(d.links))
       .catch(() => !cancelled && setLinks([]));
     return () => {
@@ -164,7 +131,7 @@ export default function MarkerArticlesPanel({ markerId }: { markerId: string }) 
     setLinks((prev) => (prev ?? []).filter((l) => l.id !== id));
   }
 
-  if (links === null) return <p className="field-label">Loading…</p>;
+  if (links === null) return <SkeletonList rows={3} label="Loading linked articles…" />;
 
   return (
     <div className="marker-articles-panel">
@@ -178,7 +145,7 @@ export default function MarkerArticlesPanel({ markerId }: { markerId: string }) 
             const { Icon, label } = templateOf(link.template);
             return (
               <li key={link.id} className="marker-article-row">
-                <span className="marker-article-icon" title={label}>
+                <span className="marker-article-icon" data-tooltip={label}>
                   <Icon size={15} strokeWidth={2.25} aria-label={label} />
                 </span>
                 <span className="marker-article-text">
@@ -191,7 +158,7 @@ export default function MarkerArticlesPanel({ markerId }: { markerId: string }) 
                   )}
                   {link.label && <span className="marker-article-label">{link.label}</span>}
                 </span>
-                <button type="button" className="btn btn-ghost btn-icon" onClick={() => remove(link.id)} aria-label={`Unlink ${link.name ?? "article"}`} title="Unlink">
+                <button type="button" className="btn btn-ghost btn-icon" onClick={() => remove(link.id)} aria-label={`Unlink ${link.name ?? "article"}`} data-tooltip="Unlink">
                   <X size={14} strokeWidth={2.25} />
                 </button>
               </li>

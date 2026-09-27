@@ -6,6 +6,7 @@ import { ImagePlus } from "lucide-react";
 import { buildExtensions } from "./rich-editor/extensions";
 import { TextBubbleMenu, ImageBubbleMenu } from "./rich-editor/BubbleMenus";
 import { imageFilesOf, insertImageFiles } from "./rich-editor/images";
+import { SkeletonRegion, SkeletonText } from "./Skeleton";
 
 const AUTOSAVE_IDLE_MS = 1500;
 const INSTANCE_ID_KEY = "world-wiki-instance-id";
@@ -36,10 +37,29 @@ interface DocumentRecord {
 
 type SaveState = "idle" | "saving" | "saved" | "failed";
 
+/**
+ * Last known copy of each document this tab has loaded or saved. Read mode
+ * shows it at once while the fresh copy loads (so revisiting an article
+ * doesn't flash empty); editing always waits for the fresh copy and its
+ * revision, so a cached copy is never saved over newer content.
+ */
+const documentCache = new Map<string, DocumentRecord>();
+
 async function fetchDocument(documentId: string): Promise<DocumentRecord> {
   const res = await fetch(`/api/documents/${documentId}`, { cache: "no-store" });
   if (!res.ok) throw new Error("Failed to load document.");
-  return (await res.json()).document;
+  const doc: DocumentRecord = (await res.json()).document;
+  documentCache.set(documentId, doc);
+  return doc;
+}
+
+/** A read-only document still arriving: lines of skeleton instead of a blank that pops in. */
+function DocumentSkeleton() {
+  return (
+    <SkeletonRegion label="Loading the text…" className="rich-skeleton">
+      <SkeletonText lines={3} />
+    </SkeletonRegion>
+  );
 }
 
 /**
@@ -65,6 +85,8 @@ export default function RichEditor({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [loaded, setLoaded] = useState(false);
+  // Something to show in read mode: the confirmed copy, or the cached one while it loads.
+  const [shown, setShown] = useState(false);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savingRef = useRef(false);
   // `save` reads this, never React state — a retry scheduled via
@@ -90,6 +112,7 @@ export default function RichEditor({
   function markLoaded(value: boolean) {
     loadedRef.current = value;
     setLoaded(value);
+    setShown(value);
   }
 
   const editor = useEditor({
@@ -175,6 +198,7 @@ export default function RichEditor({
     if (res.ok) {
       const { document } = await res.json();
       adoptRevision(document.revision);
+      documentCache.set(documentId, { id: documentId, jsonText: JSON.stringify(json), revision: document.revision, updatedAt: document.updatedAt ?? new Date().toISOString() });
       retryCountRef.current = 0;
       localStorage.removeItem(draftKey(documentId));
       setSaveState("saved");
@@ -205,6 +229,13 @@ export default function RichEditor({
     markLoaded(false);
     revisionRef.current = null;
 
+    // Read mode: show the last known copy right away (display only; nothing saves until the fresh copy lands).
+    const cached = documentCache.get(documentId);
+    if (cached && editor && !editable) {
+      editor.commands.setContent(JSON.parse(cached.jsonText), { emitUpdate: false });
+      setShown(true);
+    }
+
     fetchDocument(documentId).then((doc) => {
       if (cancelled || !editor) return;
 
@@ -234,7 +265,9 @@ export default function RichEditor({
         }
       }
 
-      editor.commands.setContent(content, { emitUpdate: false });
+      // Unchanged since the cached copy on screen: skip the re-render.
+      const alreadyShown = cached && !editable && !recoveredNewerDraft && cached.jsonText === doc.jsonText && cached.revision === doc.revision;
+      if (!alreadyShown) editor.commands.setContent(content, { emitUpdate: false });
       adoptRevision(doc.revision);
       markLoaded(true);
 
@@ -257,7 +290,7 @@ export default function RichEditor({
     // Nothing to show yet (still loading) or nothing written — render the
     // placeholder if the caller wants one, else nothing, so an unset
     // description doesn't leave an empty box.
-    if (!loaded) return null;
+    if (!shown) return <DocumentSkeleton />;
     if (editor?.isEmpty) return placeholder ? <p className="article-card-placeholder">{placeholder}</p> : null;
     return (
       <div className="rich-reader">
@@ -271,7 +304,11 @@ export default function RichEditor({
     // until its real content arrives — show a placeholder instead of the
     // (momentarily blank-looking) live editor, so it never reads as "the
     // description got erased" while the fetch is still in flight.
-    return <div className="rich-editor-loading field-label">Loading…</div>;
+    return (
+      <div className="rich-editor-loading">
+        <DocumentSkeleton />
+      </div>
+    );
   }
 
   return (
@@ -283,7 +320,7 @@ export default function RichEditor({
         <button
           type="button"
           className="btn btn-sm btn-ghost"
-          title="Insert an image at the caret (or drop one into the text)"
+          data-tooltip="Insert an image at the caret (or drop one into the text)"
           // Keep the caret where it is: the image goes there.
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => fileInputRef.current?.click()}

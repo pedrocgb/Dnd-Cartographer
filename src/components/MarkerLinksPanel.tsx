@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ExternalLink, X, Plus } from "lucide-react";
+import { SkeletonList } from "@/components/Skeleton";
 
 interface ConsolidatedLink {
   key: string;
@@ -117,7 +118,7 @@ export default function MarkerLinksPanel({ markerId }: { markerId: string }) {
     refresh();
   }
 
-  if (!links) return <p className="field-label">Loading…</p>;
+  if (!links) return <SkeletonList rows={3} label="Loading links…" />;
 
   const outgoing = links.filter((l) => l.direction === "outgoing");
   const incoming = links.filter((l) => l.direction === "incoming");

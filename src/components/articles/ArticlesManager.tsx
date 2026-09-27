@@ -7,10 +7,13 @@ import { ancestorsOf } from "@/components/TerritoryTree";
 import {
   ARTICLE_TEMPLATE_KEYS,
   isArticleTemplate,
+  isPersonTemplate,
+  personTemplate,
   type ArticleTemplateKey,
   type GenericTemplateKey,
-  type RecordTemplateKey,
 } from "@/server/articles/templates";
+import { emptyRequiredInfo } from "@/server/articles/info-fields";
+import { INFO_FIELD_SETS } from "@/server/articles/info-sets";
 import { templateOf } from "./templates";
 import { json, toggleInSet } from "./shared";
 import ArticlesSidebar, { type ArticleLists } from "./ArticlesSidebar";
@@ -19,16 +22,17 @@ import GenericArticle from "./GenericArticle";
 import HierarchyProfiles from "./HierarchyProfiles";
 import { TerritoryArticle, TerritoryForm } from "./TerritoryArticle";
 import { CharacterArticle, PersonForm } from "./CharacterArticle";
-import type { InfoLookups } from "./InfoBar";
+import { InfoForm, type InfoLookups } from "./InfoBar";
 import { CreateArticleContext } from "./create-context";
 import { OrganizationArticle, OrganizationForm } from "./OrganizationArticle";
+import { loadSeasonProfileLookup } from "@/components/calendars/profile-lookup";
+import { ArticleSkeleton } from "@/components/Skeleton";
 import type { GenericArticle as GenericArticleData, HierarchyProfile, Organization, Person, Territory } from "./types";
 
 /** What the middle pane shows. */
 type View =
   | { kind: "template"; template: ArticleTemplateKey }
   | { kind: "article"; template: ArticleTemplateKey; id: string }
-  | { kind: "create-record"; template: RecordTemplateKey }
   | { kind: "profiles"; id: string | null };
 
 /** `?type=&id=`; also accepts the old /politics keys (person, profile). */
@@ -97,11 +101,13 @@ const EMPTY_LISTS: ArticleLists = { territories: [], people: [], organizations: 
 export default function ArticlesManager() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [view, setView] = useState<View>(() => viewFromParams(searchParams));
+  const [requestedView, setView] = useState<View>(() => viewFromParams(searchParams));
   const [lists, setLists] = useState<ArticleLists>(EMPTY_LISTS);
   const [loaded, setLoaded] = useState(false);
   const [profiles, setProfiles] = useState<HierarchyProfile[]>([]);
   const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
+  // Calendars season profiles, for the Season Profile info field (with each one's current season).
+  const [seasonProfiles, setSeasonProfiles] = useState<{ id: string; name: string; detail: string }[]>([]);
   const [query, setQuery] = useState("");
   const storedOpenFolders = useSyncExternalStore(subscribeToStorage, readStoredOpenFolders, () => null);
   // Null until the user (or a deep link) changes which folders are open.
@@ -109,6 +115,13 @@ export default function ArticlesManager() {
   const openFolders = useMemo(() => changedOpenFolders ?? parseOpenFolders(storedOpenFolders), [changedOpenFolders, storedOpenFolders]);
   const [territoryExpanded, setTerritoryExpanded] = useState<Set<string>>(new Set());
   const [creating, setCreating] = useState<{ template: ArticleTemplateKey | null } | null>(null);
+  // Characters and player characters share one table: an older link (or one saved before a
+  // character became a player character) opens under the template its record has now.
+  const view = useMemo<View>(() => {
+    if (requestedView.kind !== "article" || !isPersonTemplate(requestedView.template)) return requestedView;
+    const person = lists.people.find((p) => p.id === requestedView.id);
+    return person ? { ...requestedView, template: personTemplate(person.kind) } : requestedView;
+  }, [requestedView, lists.people]);
 
   const refreshLists = useCallback(() => {
     return Promise.all([
@@ -117,8 +130,10 @@ export default function ArticlesManager() {
       fetch("/api/politics/organizations").then((r) => json<{ organizations: Organization[] }>(r)),
       fetch("/api/articles").then((r) => json<{ articles: GenericArticleData[] }>(r)),
       fetch("/api/articles/tags").then((r) => json<{ tags: string[] }>(r)),
-    ]).then(([t, p, o, a, tags]) => {
+      loadSeasonProfileLookup().catch(() => []),
+    ]).then(([t, p, o, a, tags, seasonProfiles]) => {
       setLists({ territories: t.territories, people: p.people, organizations: o.organizations, articles: a.articles });
+      setSeasonProfiles(seasonProfiles);
       setTagSuggestions(tags.tags);
       setLoaded(true);
     });
@@ -178,7 +193,9 @@ export default function ArticlesManager() {
     saveOpenFolders(next);
   }
 
-  function openArticle(template: ArticleTemplateKey, id: string) {
+  function openArticle(requested: ArticleTemplateKey, id: string) {
+    const person = isPersonTemplate(requested) ? lists.people.find((p) => p.id === id) : undefined;
+    const template = person ? personTemplate(person.kind) : requested;
     reveal(template, id);
     go({ kind: "article", template, id });
   }
@@ -201,17 +218,21 @@ export default function ArticlesManager() {
     return null;
   }
 
-  /** A record article was just saved from its create form. */
-  function recordCreated(template: RecordTemplateKey, id: string) {
+  /** An article was just saved from its create form (in the create modal). */
+  function recordCreated(template: ArticleTemplateKey, id: string) {
+    setCreating(null);
     void refreshLists().then(() => openArticle(template, id));
   }
 
   // What a character's link info fields can point at.
   const infoLookups = useMemo<InfoLookups>(() => {
-    const lookups: InfoLookups = { character: lists.people, organization: lists.organizations, territory: lists.territories };
+    const lookups: InfoLookups = {
+      character: lists.people.filter((p) => p.kind !== "player"),
+      playerCharacter: lists.people.filter((p) => p.kind === "player"),
+      organization: lists.organizations, territory: lists.territories, seasonProfile: seasonProfiles };
     for (const a of lists.articles) (lookups[a.template] ??= []).push({ id: a.id, name: a.title });
     return lookups;
-  }, [lists]);
+  }, [lists, seasonProfiles]);
 
   const activeTemplate = view.kind === "profiles" ? null : view.template;
   const refresh = () => void refreshLists();
@@ -239,7 +260,7 @@ export default function ArticlesManager() {
         )
       );
     }
-    if (template === "character") {
+    if (isPersonTemplate(template)) {
       const person = lists.people.find((p) => p.id === id);
       return person && <CharacterArticle key={id} person={person} {...common} />;
     }
@@ -251,30 +272,53 @@ export default function ArticlesManager() {
     return article && <GenericArticle key={id} article={article} {...common} />;
   }
 
+  /** A template's create form, shown in the create modal: name plus its required fields. */
+  function renderCreateForm(template: ArticleTemplateKey, onBack: () => void) {
+    const close = () => setCreating(null);
+    if (template === "territory") {
+      return <TerritoryForm profiles={profiles} territories={lists.territories} onSaved={(t) => recordCreated("territory", t.id)} onCancel={close} onBack={onBack} />;
+    }
+    if (isPersonTemplate(template)) {
+      return <PersonForm kind={template === "playerCharacter" ? "player" : "npc"} onSaved={(p) => recordCreated(template, p.id)} onCancel={close} onBack={onBack} />;
+    }
+    if (template === "organization") return <OrganizationForm onSaved={(o) => recordCreated("organization", o.id)} onCancel={close} onBack={onBack} />;
+    return renderGenericCreateForm(template, close, onBack);
+  }
+
+  /** Title plus the template's required info fields (in their set order); nothing else until created. */
+  function renderGenericCreateForm(template: GenericTemplateKey, cancel: () => void, onBack: () => void) {
+    const set = INFO_FIELD_SETS[template];
+    if (!set) return null;
+    return (
+      <InfoForm
+        key={template}
+        set={set}
+        name=""
+        initialValues={emptyRequiredInfo(set)}
+        lookups={infoLookups}
+        allowAdding={false}
+        saveLabel="Create"
+        savingLabel="Creating…"
+        onSave={(title, info) =>
+          fetch("/api/articles", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ template, title, info }) })
+        }
+        onSaved={async (res) => recordCreated(template, (await res.json()).article.id)}
+        onCancel={cancel}
+        onBack={onBack}
+      />
+    );
+  }
+
   function renderMiddle() {
     if (view.kind === "profiles") {
       return (
         <HierarchyProfiles selectedId={view.id} onSelect={(id) => go({ kind: "profiles", id })} onChanged={refreshProfiles} />
       );
     }
-    if (view.kind === "create-record") {
-      const { label } = templateOf(view.template);
-      const cancel = () => go({ kind: "template", template: view.template });
-      return (
-        <div className="articles-create-record">
-          <h1>New {label.toLowerCase()}</h1>
-          {view.template === "territory" && (
-            <TerritoryForm profiles={profiles} territories={lists.territories} onSaved={(t) => recordCreated("territory", t.id)} onCancel={cancel} />
-          )}
-          {view.template === "character" && <PersonForm onSaved={(p) => recordCreated("character", p.id)} onCancel={cancel} />}
-          {view.template === "organization" && <OrganizationForm onSaved={(o) => recordCreated("organization", o.id)} onCancel={cancel} />}
-        </div>
-      );
-    }
     if (view.kind === "article") {
       const content = renderArticle(view.template, view.id);
       if (content) return content;
-      if (!loaded) return <p className="field-label">Loading…</p>;
+      if (!loaded) return <ArticleSkeleton />;
       return <p className="field-label">This article doesn&rsquo;t exist anymore.</p>;
     }
     const { Icon, label, plural, description } = templateOf(view.template);
@@ -307,6 +351,7 @@ export default function ArticlesManager() {
         onOpenProfiles={() => go({ kind: "profiles", id: null })}
         territoryExpanded={territoryExpanded}
         onToggleTerritory={toggleTerritory}
+        loading={!loaded}
       />
       <div className="articles-main">
         <CreateArticleContext.Provider value={openCreate}>{renderMiddle()}</CreateArticleContext.Provider>
@@ -316,11 +361,7 @@ export default function ArticlesManager() {
           initialTemplate={creating.template}
           onClose={() => setCreating(null)}
           onCreate={createGeneric}
-          onStartRecord={(template) => {
-            setCreating(null);
-            openFolder(template);
-            go({ kind: "create-record", template });
-          }}
+          renderForm={renderCreateForm}
         />
       )}
     </div>

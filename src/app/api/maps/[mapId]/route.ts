@@ -5,6 +5,7 @@ import { maps, mapAssets, processingJobs, mapCategories } from "@/server/db/sche
 import { getBreadcrumbs, listMapSummaries } from "@/server/maps/tree";
 import { reparentMap } from "@/server/maps/reparent";
 import { InvalidReparentError } from "@/server/maps/hierarchy";
+import { validFolderId } from "@/server/maps/folder-lookup";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ mapId: string }> }) {
   const { mapId } = await params;
@@ -54,6 +55,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ma
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
 
+  // Validated before anything is written, so a bad folder doesn't leave a half-applied patch.
+  const folderId = "folderId" in body ? await validFolderId(map.worldId, body.folderId) : null;
+  if (folderId === undefined) return NextResponse.json({ error: "Unknown folder." }, { status: 400 });
+
   if ("parentId" in body) {
     try {
       await reparentMap(mapId, body.parentId === null ? null : String(body.parentId));
@@ -68,6 +73,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ma
   const patch: Partial<typeof maps.$inferInsert> = { updatedAt: new Date() };
   if (typeof body.name === "string" && body.name.trim()) patch.name = body.name.trim();
   if ("categoryId" in body) patch.categoryId = body.categoryId === null ? null : String(body.categoryId);
+  if ("folderId" in body) patch.folderId = folderId;
   if ("descriptionDocumentId" in body) {
     patch.descriptionDocumentId = body.descriptionDocumentId === null ? null : String(body.descriptionDocumentId);
   }

@@ -212,5 +212,7 @@ export const BUILDING_INFO = defineFieldSet(
       link: link(["character", "organization"], true),
       hint: "Who owned it before. Some may want it back.",
     },
-  ]
+  ],
+  // Required, in this order.
+  ["buildingType", "publicAccess", "structuralCondition"]
 );

@@ -12,8 +12,14 @@ import type { ArticleTemplateKey } from "./templates";
  */
 
 export type InfoFieldKind = "text" | "select" | "link";
-/** A link points at articles of these templates (ids are unique across all of them). */
-export type InfoLinkTarget = ArticleTemplateKey;
+/**
+ * A link points at articles of these templates (ids are unique across all
+ * of them), or at a Calendars season profile ("seasonProfile") — the
+ * article owns which profile it follows.
+ */
+export type InfoLinkTarget = ArticleTemplateKey | "seasonProfile";
+
+export const SEASON_PROFILE_TARGET = "seasonProfile" as const;
 
 export interface InfoGroup {
   key: string;
@@ -37,7 +43,7 @@ export interface InfoField {
   link?: { targets: readonly InfoLinkTarget[]; multiple?: boolean };
   /** Stored in this record column rather than in `info`. */
   column?: string;
-  /** Always present: not in the add menu and not removable. */
+  /** Always present (may stay empty): not in the add menu and not removable. Set through defineFieldSet's `required`. */
   required?: boolean;
 }
 
@@ -45,6 +51,8 @@ export interface InfoFieldSet {
   groups: readonly InfoGroup[];
   /** Alphabetical within each group, groups in `groups` order. */
   fields: readonly InfoField[];
+  /** Keys of the required fields, in display order (also the create form's order). */
+  required: readonly string[];
 }
 
 export type InfoValue = string | string[] | null;
@@ -53,12 +61,29 @@ export type InfoValues = Record<string, InfoValue>;
 export const MAX_INFO_TEXT_LENGTH = 200;
 const MAX_LIST_ITEMS = 50;
 
-/** A field set with its fields sorted alphabetically within each group. */
-export function defineFieldSet(groups: readonly InfoGroup[], fields: InfoField[]): InfoFieldSet {
+/**
+ * A field set with its fields sorted alphabetically within each group.
+ * `required` lists the always-present fields in the order they're shown;
+ * a field already flagged `required` joins after them.
+ */
+export function defineFieldSet(groups: readonly InfoGroup[], fields: InfoField[], required: readonly string[] = []): InfoFieldSet {
+  const unknown = required.filter((key) => !fields.some((f) => f.key === key));
+  if (unknown.length) throw new Error(`Unknown required info field(s): ${unknown.join(", ")}`);
+  const order = [...required, ...fields.filter((f) => f.required && !required.includes(f.key)).map((f) => f.key)];
+  const marked = fields.map((f) => (order.includes(f.key) ? { ...f, required: true } : f));
   return {
     groups,
-    fields: groups.flatMap((g) => fields.filter((f) => f.group === g.key).sort((a, b) => a.label.localeCompare(b.label))),
+    fields: groups.flatMap((g) => marked.filter((f) => f.group === g.key).sort((a, b) => a.label.localeCompare(b.label))),
+    required: order,
   };
+}
+
+/** The set's required fields, in display order. */
+export const requiredFields = (set: InfoFieldSet): InfoField[] => set.required.flatMap((key) => set.fields.find((f) => f.key === key) ?? []);
+
+/** Every required field, empty — a new record's starting `info`. */
+export function emptyRequiredInfo(set: InfoFieldSet): InfoValues {
+  return Object.fromEntries(requiredFields(set).map((f) => [f.key, isListField(f) ? [] : null]));
 }
 
 export const link = (targets: InfoLinkTarget[], multiple = false) => ({ targets, multiple });
@@ -124,7 +149,7 @@ export function addedInfo<T extends { info?: string }>(set: InfoFieldSet, record
   const valueOf = (field: InfoField): InfoValue => (field.column ? columnValue(field) : (info[field.key] ?? (isListField(field) ? [] : null)));
 
   const out: InfoValues = {};
-  for (const field of set.fields) if (field.required) out[field.key] = valueOf(field);
+  for (const field of requiredFields(set)) out[field.key] = valueOf(field);
   for (const key of Object.keys(info)) {
     const field = set.fields.find((f) => f.key === key);
     if (field && !field.required) out[key] = valueOf(field);

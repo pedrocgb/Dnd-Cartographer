@@ -9,8 +9,9 @@ import PortraitUploader from "@/components/PortraitUploader";
 import ArticleView from "./ArticleView";
 import DeleteArticleButton from "./DeleteArticleButton";
 import { PickGroupRow, PickRow, json, patchRecord, sortByName, useEditingResetOnSelect, useExpandedSet } from "./shared";
-import { addedInfo, columnPatch } from "@/server/articles/info-fields";
-import { CHARACTER_INFO } from "@/server/articles/info-sets";
+import { addedInfo, columnPatch, emptyRequiredInfo } from "@/server/articles/info-fields";
+import { personInfoSet } from "@/server/articles/info-sets";
+import { personTemplate, type PersonKind } from "@/server/articles/templates";
 import { InfoForm, InfoView, type InfoLookups } from "./InfoBar";
 import type { Authority, OpenArticle, Organization, Person, PersonAuthority, Territory } from "./types";
 
@@ -26,8 +27,8 @@ const GROUP_MODES: { key: GroupMode; label: string }[] = [
 ];
 
 /**
- * The Characters sidebar folder: all characters, or grouped by house,
- * status, or the territories they hold authority over.
+ * The Characters (or Player Characters) sidebar folder: all of them, or
+ * grouped by house, status, or the territories they hold authority over.
  */
 export function CharacterFolder({
   people,
@@ -270,16 +271,18 @@ export function CharacterArticle({
   }, [person.id]);
 
   const update = (body: Record<string, unknown>) => patchRecord(recordUrl(person.id), body).then(onChanged);
+  const template = personTemplate(person.kind);
+  const set = personInfoSet(person.kind);
 
   return (
     <ArticleView
-      template="character"
+      template={template}
       title={person.name}
       tags={parseTags(person.tags)}
       tagSuggestions={tagSuggestions}
       onChangeTags={(tags) => void update({ tags })}
       actions={
-        <DeleteArticleButton url={recordUrl(person.id)} name={person.name} template="character" onDeleted={onDeleted} />
+        <DeleteArticleButton url={recordUrl(person.id)} name={person.name} template={template} onDeleted={onDeleted} />
       }
       image={<PortraitUploader endpoint={`${recordUrl(person.id)}/portrait`} portraitKey={person.portraitKey} updatedAt={person.updatedAt} label="Image" onChanged={onChanged} />}
       infoActions={
@@ -294,11 +297,11 @@ export function CharacterArticle({
         editing ? (
           <InfoForm
             key={person.id}
-            set={CHARACTER_INFO}
+            set={set}
             name={person.name}
-            initialValues={addedInfo(CHARACTER_INFO, person)}
+            initialValues={addedInfo(set, person)}
             lookups={lookups}
-            onSave={(name, values) => patchRecord(recordUrl(person.id), { name, ...columnPatch(CHARACTER_INFO, values), info: values })}
+            onSave={(name, values) => patchRecord(recordUrl(person.id), { name, ...columnPatch(set, values), info: values })}
             onSaved={() => {
               setEditing(false);
               onChanged();
@@ -307,8 +310,8 @@ export function CharacterArticle({
           />
         ) : (
           <InfoView
-            set={CHARACTER_INFO}
-            values={addedInfo(CHARACTER_INFO, person)}
+            set={set}
+            values={addedInfo(set, person)}
             lookups={lookups}
             onOpenArticle={onOpenArticle}
             extra={
@@ -343,37 +346,28 @@ export function CharacterArticle({
   );
 }
 
-/** Creating a character asks only for its name; everything else is added from its Info Bar. */
-export function PersonForm({ onSaved, onCancel }: { onSaved: (p: Person) => void; onCancel: () => void }) {
-  const [name, setName] = useState("");
-  const [error, setError] = useState<string | null>(null);
-
-  async function submit() {
-    setError(null);
-    const res = await fetch("/api/politics/people", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name }),
-    });
-    const data = await res.json();
-    if (res.ok) onSaved(data.person);
-    else setError(data.error ?? "Could not save character.");
-  }
-
+/** Creating a character (or player character) asks for its name and required fields; everything else is added from its Info Bar. */
+export function PersonForm({ kind, onSaved, onCancel, onBack }: { kind: PersonKind; onSaved: (p: Person) => void; onCancel: () => void; onBack?: () => void }) {
+  const set = personInfoSet(kind);
   return (
-    <div className="politics-form">
-      <label className="field-label">Name</label>
-      <input type="text" value={name} autoFocus onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && void submit()} />
-      <p className="field-label">House, status, appearance and more can be added from the character&rsquo;s Informations card.</p>
-      {error && <p className="form-error">{error}</p>}
-      <div className="marker-panel-actions">
-        <button className="btn btn-sm btn-primary" onClick={submit}>
-          Create
-        </button>
-        <button className="btn btn-sm" onClick={onCancel}>
-          Cancel
-        </button>
-      </div>
-    </div>
+    <InfoForm
+      set={set}
+      name=""
+      initialValues={emptyRequiredInfo(set)}
+      lookups={{}}
+      allowAdding={false}
+      saveLabel="Create"
+      savingLabel="Creating…"
+      onSave={(name, values) =>
+        fetch("/api/politics/people", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, kind, ...columnPatch(set, values), info: values }),
+        })
+      }
+      onSaved={async (res) => onSaved((await res.json()).person)}
+      onCancel={onCancel}
+      onBack={onBack}
+    />
   );
 }

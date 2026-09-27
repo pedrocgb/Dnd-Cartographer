@@ -225,7 +225,7 @@ export default function MarkerPanel({
                 <button
                   key={icon.key}
                   className={icon.key === marker.iconKey ? "active" : ""}
-                  title={icon.label}
+                  data-tooltip={icon.label}
                   aria-label={icon.label}
                   aria-pressed={icon.key === marker.iconKey}
                   onClick={() => onUpdate({ iconKey: icon.key })}

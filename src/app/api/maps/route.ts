@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/server/db/client";
 import { maps } from "@/server/db/schema";
+import { validFolderId } from "@/server/maps/folder-lookup";
 import { ensureDefaultWorld } from "@/server/world/default-world";
 import { listMapSummaries } from "@/server/maps/tree";
 import { createDefaultLayer } from "@/server/layers/layers";
@@ -37,7 +38,10 @@ export async function POST(request: Request) {
     }
   }
 
-  const [map] = await db.insert(maps).values({ worldId, name, categoryId, parentId }).returning();
+  const folderId = await validFolderId(worldId, body?.folderId);
+  if (folderId === undefined) return NextResponse.json({ error: "Unknown folder." }, { status: 400 });
+
+  const [map] = await db.insert(maps).values({ worldId, name, categoryId, parentId, folderId }).returning();
   await createDefaultLayer(map.id);
   return NextResponse.json({ map }, { status: 201 });
 }

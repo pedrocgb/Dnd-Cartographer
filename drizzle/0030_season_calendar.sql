@@ -1,0 +1,1 @@
+ALTER TABLE `seasons` ADD `calendar_id` text;

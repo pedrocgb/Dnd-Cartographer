@@ -64,7 +64,7 @@ function SidebarButton({
   buttonRef?: React.Ref<HTMLButtonElement>;
 } & Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "title" | "className">) {
   return (
-    <button ref={buttonRef} className={className} title={title ?? label} aria-label={label} {...hover} {...rest}>
+    <button ref={buttonRef} className={className} data-tooltip={title ?? label} aria-label={label} {...hover} {...rest}>
       {icon}
       <span className="map-sidebar-label" aria-hidden>
         {label}
@@ -364,7 +364,7 @@ export default function MapSidebar({
           onClick={togglePinned}
           aria-pressed={pinned}
           aria-label={pinned ? "Collapse the tool bar" : "Keep the tool bar expanded"}
-          title={pinned ? "Collapse the tool bar" : "Keep the tool bar expanded"}
+          data-tooltip={pinned ? "Collapse the tool bar" : "Keep the tool bar expanded"}
         >
           {pinned ? <ChevronsLeft size={16} strokeWidth={2.25} /> : <ChevronsRight size={16} strokeWidth={2.25} />}
         </button>

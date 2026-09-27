@@ -1,7 +1,14 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { autoUpdate, computePosition, flip, offset, shift, size } from "@floating-ui/dom";
 import { ChevronDown, ChevronRight, Search } from "lucide-react";
+
+/** Gap kept between the menu and the window edges. */
+const VIEWPORT_PADDING = 8;
+const MENU_MIN_WIDTH = 240;
+const MENU_MAX_HEIGHT = 380;
 
 export interface PickerOption {
   value: string;
@@ -43,6 +50,11 @@ function PickerRow({
  * row that picks null. `collapsibleGroups` turns the group headings into
  * folders (collapsed until clicked; a search opens every match).
  * `searchable` false drops the search box (short lists) — keys then go to the list.
+ *
+ * The menu floats in a portal (position: fixed) instead of inside the form,
+ * so a modal or card never grows a scrollbar for it: it opens below the
+ * trigger, flips above when there's more room there, and caps its height
+ * to the visible space (its own list scrolls).
  */
 export default function InfoPicker({
   options,
@@ -73,6 +85,7 @@ export default function InfoPicker({
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
   const rootRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const listId = useId();
   const triggerId = useId();
 
@@ -95,11 +108,39 @@ export default function InfoPicker({
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (e: PointerEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (!rootRef.current?.contains(target) && !menuRef.current?.contains(target)) setOpen(false);
     };
     window.addEventListener("pointerdown", onPointerDown);
     return () => window.removeEventListener("pointerdown", onPointerDown);
   }, [open]);
+
+  // Keep the floating menu attached to its trigger (scroll, resize, layout shifts).
+  useEffect(() => {
+    const trigger = document.getElementById(triggerId);
+    const menu = menuRef.current;
+    if (!open || !trigger || !menu) return;
+    return autoUpdate(trigger, menu, () => {
+      void computePosition(trigger, menu, {
+        strategy: "fixed",
+        placement: "bottom-start",
+        middleware: [
+          offset(6),
+          flip({ padding: VIEWPORT_PADDING }),
+          shift({ padding: VIEWPORT_PADDING }),
+          size({
+            padding: VIEWPORT_PADDING,
+            apply({ availableHeight, rects, elements }) {
+              Object.assign(elements.floating.style, {
+                width: `${Math.max(rects.reference.width, MENU_MIN_WIDTH)}px`,
+                maxHeight: `${Math.min(MENU_MAX_HEIGHT, Math.max(120, availableHeight))}px`,
+              });
+            },
+          }),
+        ],
+      }).then(({ x, y }) => Object.assign(menu.style, { left: `${x}px`, top: `${y}px`, visibility: "visible" }));
+    });
+  }, [open, triggerId]);
 
   // Without a search box, the list itself takes focus so ↑/↓/Enter/Esc still work.
   useEffect(() => {
@@ -190,8 +231,10 @@ export default function InfoPicker({
         <span className={selected ? "info-picker-value" : "info-picker-value placeholder"}>{selected?.label ?? placeholder}</span>
         <ChevronDown size={14} strokeWidth={2.25} aria-hidden />
       </button>
-      {open && (
-        <div className="info-menu info-picker-menu">
+      {open &&
+        createPortal(
+          // Hidden until positioned, so it never flashes at the corner.
+          <div className="info-menu info-picker-menu" ref={menuRef} style={{ visibility: "hidden" }}>
           {searchable && (
           <label className="info-menu-search">
             <Search size={14} strokeWidth={2.25} aria-hidden />
@@ -257,8 +300,9 @@ export default function InfoPicker({
               })
             )}
           </div>
-        </div>
-      )}
+        </div>,
+          document.body
+        )}
     </div>
   );
 }

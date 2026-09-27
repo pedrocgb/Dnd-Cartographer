@@ -46,6 +46,27 @@ export const mapCategories = sqliteTable(
   (table) => [uniqueIndex("map_categories_world_label_idx").on(table.worldId, table.label)]
 );
 
+/**
+ * Folders organizing the maps list (purely organizational — a map's parent
+ * map is separate). Folders nest through `parentId`; deleting one removes
+ * its subfolders and sends their maps back to the root, never deleting a map.
+ */
+export const mapFolders = sqliteTable(
+  "map_folders",
+  {
+    id: id(),
+    worldId: text("world_id")
+      .notNull()
+      .references(() => worlds.id),
+    parentId: text("parent_id"),
+    name: text("name").notNull(),
+    /** Icon tint (#RRGGBB); null uses the default folder color. */
+    color: text("color"),
+    ...timestamps,
+  },
+  (table) => [index("map_folders_world_idx").on(table.worldId)]
+);
+
 export const markerCategories = sqliteTable("marker_categories", {
   id: id(),
   worldId: text("world_id")
@@ -64,6 +85,8 @@ export const maps = sqliteTable(
       .notNull()
       .references(() => worlds.id),
     parentId: text("parent_id"),
+    /** The maps-list folder it's filed in (null: not in a folder). */
+    folderId: text("folder_id"),
     categoryId: text("category_id").references(() => mapCategories.id),
     name: text("name").notNull(),
     descriptionDocumentId: text("description_document_id").references(
@@ -431,6 +454,8 @@ export const people = sqliteTable(
     id: id(),
     worldId: text("world_id").notNull().references(() => worlds.id),
     name: text("name").notNull(),
+    // Which article this person is: a Character ("npc") or a Player Character ("player").
+    kind: text("kind", { enum: ["npc", "player"] }).notNull().default("npc"),
     descriptionDocumentId: text("description_document_id").references(() => richDocuments.id),
     houseId: text("house_id"),
     // Relative storage key for the uploaded "Image" (portrait), or null.
@@ -636,3 +661,329 @@ export const articles = sqliteTable(
 );
 
 export const schemaCheck = sql`PRAGMA foreign_keys = ON;`;
+
+// ---------- Calendars (fantasy dates: years, months, days only) ----------
+// One shared chronology per world: `currentDay` is a signed physical-day
+// offset from an arbitrary epoch ("worldDay"). Calendars only label it.
+
+/** The world's shared current day and default calendar; `revision` rejects stale writes. */
+export const worldChronology = sqliteTable("world_chronology", {
+  worldId: text("world_id")
+    .primaryKey()
+    .references(() => worlds.id),
+  currentDay: integer("current_day").notNull().default(0),
+  defaultCalendarId: text("default_calendar_id"),
+  revision: integer("revision").notNull().default(0),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+/** A cultural calendar. `definition` is the engine's CalendarDefinition JSON; `version` rejects stale edits. */
+export const calendars = sqliteTable(
+  "calendars",
+  {
+    id: id(),
+    worldId: text("world_id")
+      .notNull()
+      .references(() => worlds.id),
+    name: text("name").notNull(),
+    description: text("description").notNull().default(""),
+    definition: text("definition").notNull(),
+    /** JSON [{ template, articleId }]. */
+    articleLinks: text("article_links").notNull().default("[]"),
+    version: integer("version").notNull().default(1),
+    sortOrder: integer("sort_order").notNull().default(0),
+    archivedAt: integer("archived_at", { mode: "timestamp_ms" }),
+    ...timestamps,
+  },
+  (table) => [index("calendars_world_idx").on(table.worldId)]
+);
+
+/** World-scope sun / moons / stars / … shared by every calendar. `config` is the celestial evaluator's CelestialConfig JSON. */
+export const celestialObjects = sqliteTable(
+  "celestial_objects",
+  {
+    id: id(),
+    worldId: text("world_id")
+      .notNull()
+      .references(() => worlds.id),
+    type: text("type").notNull(),
+    name: text("name").notNull(),
+    color: text("color").notNull().default("#E8E3D5"),
+    icon: text("icon").notNull().default(""),
+    description: text("description").notNull().default(""),
+    articleLinks: text("article_links").notNull().default("[]"),
+    config: text("config").notNull().default("{}"),
+    /** Draw its small symbol on calendar days (off for an always-there sun, say). Day details list it either way. */
+    showDayIcon: integer("show_day_icon", { mode: "boolean" }).notNull().default(true),
+    /** Drawn before the others on calendar days (prioritized ones among themselves by name). */
+    prioritizeDayIcon: integer("prioritize_day_icon", { mode: "boolean" }).notNull().default(false),
+    /** JSON list of the calendar ids it shows in; NULL = every calendar, new ones included. */
+    calendarIds: text("calendar_ids"),
+    version: integer("version").notNull().default(1),
+    archivedAt: integer("archived_at", { mode: "timestamp_ms" }),
+    ...timestamps,
+  },
+  (table) => [index("celestial_objects_world_idx").on(table.worldId)]
+);
+
+/** A reusable named season (its timing lives on each profile's membership). */
+export const seasons = sqliteTable(
+  "seasons",
+  {
+    id: id(),
+    worldId: text("world_id")
+      .notNull()
+      .references(() => worlds.id),
+    name: text("name").notNull(),
+    description: text("description").notNull().default(""),
+    color: text("color").notNull().default("#47BFAB"),
+    icon: text("icon").notNull().default(""),
+    articleLinks: text("article_links").notNull().default("[]"),
+    /** The calendar whose profiles can use it; NULL = shared by every calendar. */
+    calendarId: text("calendar_id"),
+    archivedAt: integer("archived_at", { mode: "timestamp_ms" }),
+    ...timestamps,
+  },
+  (table) => [index("seasons_world_idx").on(table.worldId)]
+);
+
+/** A named season schedule read in `calendarId`. `data` is SeasonProfileData minus calendarId. Articles reference it by id. */
+export const seasonProfiles = sqliteTable(
+  "season_profiles",
+  {
+    id: id(),
+    worldId: text("world_id")
+      .notNull()
+      .references(() => worlds.id),
+    name: text("name").notNull(),
+    description: text("description").notNull().default(""),
+    calendarId: text("calendar_id").notNull(),
+    data: text("data").notNull(),
+    /** The generic profile Calendars previews by default (not a geographic assignment). */
+    isDefault: integer("is_default", { mode: "boolean" }).notNull().default(false),
+    version: integer("version").notNull().default(1),
+    archivedAt: integer("archived_at", { mode: "timestamp_ms" }),
+    ...timestamps,
+  },
+  (table) => [index("season_profiles_world_idx").on(table.worldId)]
+);
+
+/**
+ * A dated note, event or direct article link, bound to the absolute
+ * `worldDay` (its start). Events may recur (rule + exceptions stored once;
+ * occurrences are evaluated per requested range). `source` keeps the
+ * calendar/date it was entered in (provenance; worldDay stays authoritative).
+ */
+export const calendarEntries = sqliteTable(
+  "calendar_entries",
+  {
+    id: id(),
+    worldId: text("world_id")
+      .notNull()
+      .references(() => worlds.id),
+    kind: text("kind", { enum: ["note", "event", "link"] }).notNull(),
+    worldDay: integer("world_day").notNull(),
+    durationDays: integer("duration_days").notNull().default(1),
+    title: text("title").notNull().default(""),
+    description: text("description").notNull().default(""),
+    documentId: text("document_id").references(() => richDocuments.id),
+    category: text("category").notNull().default(""),
+    color: text("color").notNull().default(""),
+    /** Direct link: the article. */
+    articleTemplate: text("article_template"),
+    articleId: text("article_id"),
+    /** Events: JSON [{ template, articleId }]. */
+    articleLinks: text("article_links").notNull().default("[]"),
+    recurrence: text("recurrence").notNull().default('{"kind":"none"}'),
+    untilDay: integer("until_day"),
+    exceptions: text("exceptions").notNull().default("{}"),
+    source: text("source"),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+    ...timestamps,
+  },
+  (table) => [index("calendar_entries_world_day_idx").on(table.worldId, table.worldDay), index("calendar_entries_article_idx").on(table.articleId)]
+);
+
+/** Restorable snapshots taken before a definition changes (calendars, celestial objects, season profiles). */
+export const definitionRevisions = sqliteTable(
+  "definition_revisions",
+  {
+    id: id(),
+    worldId: text("world_id")
+      .notNull()
+      .references(() => worlds.id),
+    subjectType: text("subject_type", { enum: ["calendar", "celestial", "profile"] }).notNull(),
+    subjectId: text("subject_id").notNull(),
+    version: integer("version").notNull(),
+    /** JSON: the subject's previous definition, plus any entry days a migration changed. */
+    snapshot: text("snapshot").notNull(),
+    reason: text("reason").notNull().default(""),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [index("definition_revisions_subject_idx").on(table.subjectType, table.subjectId)]
+);
+
+/** A campaign: a party playing sessions in this world. In-world dates are entered and shown in `calendarId`. */
+export const campaigns = sqliteTable(
+  "campaigns",
+  {
+    id: id(),
+    worldId: text("world_id")
+      .notNull()
+      .references(() => worlds.id),
+    name: text("name").notNull(),
+    description: text("description").notNull().default(""),
+    calendarId: text("calendar_id").notNull(),
+    /** JSON [{ id, name, short, value }]: value in the smallest unit. */
+    currencies: text("currencies").notNull().default("[]"),
+    status: text("status", { enum: ["active", "finished"] }).notNull().default("active"),
+    /** JSON { [nodeId]: { x, y } }: where the DM dragged the quest map's nodes. */
+    questMap: text("quest_map").notNull().default("{}"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    archivedAt: integer("archived_at", { mode: "timestamp_ms" }),
+    ...timestamps,
+  },
+  (table) => [index("campaigns_world_idx").on(table.worldId)]
+);
+
+/** The party roster: player characters (Character articles, the `people` table) in a campaign. */
+export const campaignCharacters = sqliteTable(
+  "campaign_characters",
+  {
+    id: id(),
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => campaigns.id),
+    personId: text("person_id")
+      .notNull()
+      .references(() => people.id),
+    // Unused: the player is read from the Player Character article's Controlling Player.
+    playerName: text("player_name").notNull().default(""),
+    status: text("status", { enum: ["active", "retired", "dead"] }).notNull().default("active"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex("campaign_characters_unique").on(table.campaignId, table.personId)]
+);
+
+/** One game session of a campaign: recap, notes, who/where was involved, attendance, XP, loot and coins. */
+export const sessions = sqliteTable(
+  "sessions",
+  {
+    id: id(),
+    worldId: text("world_id")
+      .notNull()
+      .references(() => worlds.id),
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => campaigns.id),
+    number: integer("number").notNull(),
+    title: text("title").notNull().default(""),
+    /** Real-life play date, ISO YYYY-MM-DD. */
+    playedOn: text("played_on"),
+    /** In-world span (worldDay, inclusive). */
+    startDay: integer("start_day"),
+    endDay: integer("end_day"),
+    recapDocumentId: text("recap_document_id").references(() => richDocuments.id),
+    /** JSON { events, decisions, nextSession } (open threads moved to quests). */
+    notes: text("notes").notNull().default("{}"),
+    /** JSON [{ template, articleId }]: NPCs, places, organizations, items involved. */
+    articleLinks: text("article_links").notNull().default("[]"),
+    /** JSON personId[] of the PCs who played. */
+    attendance: text("attendance").notNull().default("[]"),
+    xpTotal: integer("xp_total"),
+    /** JSON { [personId]: xp } replacing the even split. */
+    xpOverrides: text("xp_overrides").notNull().default("{}"),
+    /** JSON [{ id, name, template?, articleId?, quantity, value?, recipient }]; recipient = personId or "party". */
+    loot: text("loot").notNull().default("[]"),
+    /** JSON [{ id, currencyId, amount, recipient }]; negative = spent. */
+    coins: text("coins").notNull().default("[]"),
+    /** JSON [{ questId, action, note, objectiveIds, clueIds, clockTicks, rewardsAdded }]: what happened to the campaign's quests (their history). */
+    questLog: text("quest_log").notNull().default("[]"),
+    version: integer("version").notNull().default(1),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+    ...timestamps,
+  },
+  (table) => [index("sessions_campaign_idx").on(table.campaignId, table.number), index("sessions_world_day_idx").on(table.worldId, table.startDay)]
+);
+
+/** A campaign's quest or plot thread: objectives, involved articles, sub-quests (see src/server/quests). */
+export const quests = sqliteTable(
+  "quests",
+  {
+    id: id(),
+    worldId: text("world_id")
+      .notNull()
+      .references(() => worlds.id),
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => campaigns.id),
+    /** Parent quest (a sub-quest); never a cycle. */
+    parentId: text("parent_id"),
+    title: text("title").notNull(),
+    kind: text("kind", { enum: ["main", "side", "personal", "faction", "rumor"] }).notNull().default("side"),
+    status: text("status", { enum: ["hook", "active", "onHold", "completed", "failed", "abandoned"] }).notNull().default("hook"),
+    priority: integer("priority").notNull().default(1),
+    summary: text("summary").notNull().default(""),
+    bodyDocumentId: text("body_document_id").references(() => richDocuments.id),
+    /** JSON { template, articleId } or null: who gave the quest. */
+    giver: text("giver"),
+    /** JSON [{ template, articleId, role }]. */
+    articleLinks: text("article_links").notNull().default("[]"),
+    /** JSON [{ id, text, state, optional }]. */
+    objectives: text("objectives").notNull().default("[]"),
+    /** The front (threat) it belongs to, or null. */
+    frontId: text("front_id"),
+    /** JSON [{ id, text, placedIn: [{ template, articleId }], revealed, revealedSessionId }]: secrets & clues. */
+    clues: text("clues").notNull().default("[]"),
+    /** JSON { segments, filled, label } or null: its progress clock. */
+    clock: text("clock"),
+    /** JSON { xp, coins: [{ currencyId, amount }], items: [{ id, name, template, articleId, quantity }] } or null. */
+    rewards: text("rewards"),
+    /** In-world days (the shared day count): when it started, when it's due, when it ended; each optional. */
+    startDay: integer("start_day"),
+    deadlineDay: integer("deadline_day"),
+    endDay: integer("end_day"),
+    /** Order within its board column. */
+    sortOrder: integer("sort_order").notNull().default(0),
+    version: integer("version").notNull().default(1),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+    ...timestamps,
+  },
+  (table) => [index("quests_campaign_status_idx").on(table.campaignId, table.status), index("quests_world_deadline_idx").on(table.worldId, table.deadlineDay)]
+);
+
+/** A campaign's front (Dungeon World): a threat with grim portents and an impending doom; quests can sit under it. */
+export const fronts = sqliteTable(
+  "fronts",
+  {
+    id: id(),
+    worldId: text("world_id")
+      .notNull()
+      .references(() => worlds.id),
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => campaigns.id),
+    name: text("name").notNull(),
+    kind: text("kind", { enum: ["campaign", "adventure"] }).notNull().default("adventure"),
+    status: text("status", { enum: ["active", "averted", "doom"] }).notNull().default("active"),
+    threat: text("threat").notNull().default(""),
+    doom: text("doom").notNull().default(""),
+    /** JSON [{ id, text, happened }], in the order they come. */
+    portents: text("portents").notNull().default("[]"),
+    /** JSON { segments, filled, label } or null. */
+    clock: text("clock"),
+    /** The clock fills once per grim portent: full marks the next portent, then it starts over. */
+    clockPerPortent: integer("clock_per_portent", { mode: "boolean" }).notNull().default(false),
+    color: text("color"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    version: integer("version").notNull().default(1),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+    ...timestamps,
+  },
+  (table) => [index("fronts_campaign_idx").on(table.campaignId)]
+);

@@ -1,5 +1,5 @@
 import type { HierarchyLevel } from "@/server/politics/hierarchy-config";
-import type { ArticleTemplateKey, GenericTemplateKey } from "@/server/articles/templates";
+import type { ArticleTemplateKey, GenericTemplateKey, PersonKind } from "@/server/articles/templates";
 
 /**
  * Record articles (territory / character / organization) as the politics
@@ -32,6 +32,8 @@ export interface Territory extends RecordArticleFields {
 export interface Person extends RecordArticleFields {
   id: string;
   name: string;
+  /** "npc": a Character article; "player": a Player Character article. */
+  kind: PersonKind;
   descriptionDocumentId: string | null;
   houseId: string | null;
   portraitKey: string | null;

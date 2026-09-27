@@ -1,9 +1,10 @@
 "use client";
 
 import { ChevronDown, ChevronRight, CirclePlus, Network } from "lucide-react";
-import { ARTICLE_TEMPLATE_GROUPS, type ArticleTemplateKey } from "@/server/articles/templates";
+import { ARTICLE_TEMPLATE_GROUPS, personTemplate, type ArticleTemplateKey } from "@/server/articles/templates";
 import { ARTICLE_TEMPLATES, templateOf, type ArticleTemplate } from "./templates";
 import { PickRow, sortByName } from "./shared";
+import { SkeletonList } from "@/components/Skeleton";
 import { TerritoryFolder } from "./TerritoryArticle";
 import { CharacterFolder } from "./CharacterArticle";
 import { OrganizationFolder } from "./OrganizationArticle";
@@ -19,7 +20,7 @@ export interface ArticleLists {
 /** Every article of one template as `{ id, name, detail? }`, for counts and search. */
 function itemsOf(key: ArticleTemplateKey, lists: ArticleLists): { id: string; name: string; detail?: string }[] {
   if (key === "territory") return lists.territories.map((t) => ({ id: t.id, name: t.name, detail: t.type }));
-  if (key === "character") return lists.people;
+  if (key === "character" || key === "playerCharacter") return lists.people.filter((p) => personTemplate(p.kind) === key);
   if (key === "organization") return lists.organizations.map((o) => ({ id: o.id, name: o.name, detail: o.kind }));
   return lists.articles.filter((a) => a.template === key).map((a) => ({ id: a.id, name: a.title }));
 }
@@ -50,9 +51,10 @@ function FolderContents({
       />
     );
   }
+  // Player characters are few: a plain list, no Group by.
   if (template === "character") {
     return (
-      <CharacterFolder people={lists.people} houses={lists.organizations} territories={lists.territories} selectedId={selectedId} onSelect={onSelect} />
+      <CharacterFolder people={lists.people.filter((p) => personTemplate(p.kind) === template)} houses={lists.organizations} territories={lists.territories} selectedId={selectedId} onSelect={onSelect} />
     );
   }
   if (template === "organization") {
@@ -99,7 +101,10 @@ export default function ArticlesSidebar({
   onOpenProfiles,
   territoryExpanded,
   onToggleTerritory,
+  loading = false,
 }: {
+  /** The lists haven't arrived yet: folders show as skeleton rows. */
+  loading?: boolean;
   lists: ArticleLists;
   query: string;
   onQueryChange: (q: string) => void;
@@ -119,6 +124,8 @@ export default function ArticlesSidebar({
 
   function renderFolder(template: ArticleTemplate) {
     const items = itemsOf(template.key, lists);
+    // Only folders with articles are listed (plus the one being viewed, e.g. its "Create a new X" page).
+    if (items.length === 0 && activeTemplate !== template.key) return null;
     const matches = needle ? sortByName(items.filter((i) => i.name.toLowerCase().includes(needle))) : null;
     if (matches && matches.length === 0) return null;
     const open = matches !== null || openFolders.has(template.key);
@@ -167,7 +174,8 @@ export default function ArticlesSidebar({
       <input type="search" placeholder="Search articles…" aria-label="Search articles" value={query} onChange={(e) => onQueryChange(e.target.value)} />
 
       <nav className="articles-folders">
-        {ARTICLE_TEMPLATE_GROUPS.map((group) => {
+        {loading && <SkeletonList rows={8} label="Loading articles…" />}
+        {!loading && ARTICLE_TEMPLATE_GROUPS.map((group) => {
           // A group with no folder left to show (search) collapses away with its gap.
           const sections = group.map((key) => renderFolder(templateOf(key))).filter(Boolean);
           return (

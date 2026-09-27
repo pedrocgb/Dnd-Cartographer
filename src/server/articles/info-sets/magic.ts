@@ -256,5 +256,7 @@ export const MAGIC_INFO = defineFieldSet(
       options: ["Common Knowledge", "Specialist Knowledge", "Restricted", "Secret", "Forgotten"],
       hint: "How widely known it is.",
     },
-  ]
+  ],
+  // Required, in this order.
+  ["castingMethod", "school", "spellLevelOrRank", "concentration", "components", "status"]
 );

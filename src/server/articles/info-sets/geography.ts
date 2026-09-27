@@ -89,6 +89,14 @@ export const GEOGRAPHY_INFO = defineFieldSet(
       ],
       hint: "The main kind of landscape and ecosystem found there.",
     },
+    {
+      key: "seasonProfile",
+      label: "Season Profile",
+      group: "environment",
+      kind: "link",
+      link: link(["seasonProfile"]),
+      hint: "Which season schedule (from Calendars) this place follows, so its current season shows here. The region picks it; Calendars never assigns one.",
+    },
     { key: "seasonalChanges", label: "Seasonal Changes", group: "environment", kind: "text", hint: "How it changes through the year: floods, frozen rivers, migrations?" },
     // Features
     {
@@ -196,5 +204,7 @@ export const GEOGRAPHY_INFO = defineFieldSet(
       link: link(["geography"]),
       hint: "The larger feature this one is part of.",
     },
-  ]
+  ],
+  // Required, in this order.
+  ["primaryBiome", "climate"]
 );

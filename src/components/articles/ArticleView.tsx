@@ -1,9 +1,13 @@
 "use client";
 
 import { useContext, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { CirclePlus, Footprints, Info, PanelRightClose, TextAlignStart, Trash2, type LucideIcon } from "lucide-react";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import RichEditor from "@/components/RichEditor";
+import CalendarBacklinks from "@/components/calendars/CalendarBacklinks";
+import SessionBacklinks from "@/components/sessions/SessionBacklinks";
+import QuestBacklinks from "@/components/quests/QuestBacklinks";
 import type { ArticleTemplateKey } from "@/server/articles/templates";
 import { templateOf } from "./templates";
 import TagEditor from "./TagEditor";
@@ -140,7 +144,7 @@ function EditableTitle({ title, onRename }: { title: string; onRename?: (title: 
       <button
         type="button"
         className="article-title-text editable"
-        title="Click to rename"
+        data-tooltip="Click to rename"
         onClick={() => {
           setDraft(title);
           setEditing(true);
@@ -225,6 +229,8 @@ export default function ArticleView({
   const [confirmingFooterRemoval, setConfirmingFooterRemoval] = useState(false);
   const [removingFooter, setRemovingFooter] = useState(false);
   const hasFooter = Boolean(footer.documentId);
+  // The open article's id is in the URL (?type=&id=): its calendar backlinks follow it.
+  const articleId = useSearchParams().get("id");
 
   async function addFooter() {
     setAddingFooter(true);
@@ -291,7 +297,7 @@ export default function ArticleView({
                 type="button"
                 className="btn btn-sm btn-ghost"
                 disabled={addingFooter}
-                title="Add a footer section below the body"
+                data-tooltip="Add a footer section below the body"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => void addFooter()}
               >
@@ -313,7 +319,7 @@ export default function ArticleView({
                   e.stopPropagation(); // don't also start editing the card
                   setConfirmingFooterRemoval(true);
                 }}
-                title="Remove the footer"
+                data-tooltip="Remove the footer"
               >
                 <Trash2 size={13} strokeWidth={2.25} />
                 Remove footer
@@ -322,6 +328,9 @@ export default function ArticleView({
           />
         )}
       </div>
+      {articleId && <CalendarBacklinks key={articleId} articleId={articleId} />}
+      {articleId && <SessionBacklinks key={`sessions:${articleId}`} articleId={articleId} />}
+      {articleId && <QuestBacklinks key={`quests:${articleId}`} articleId={articleId} />}
       <ConfirmDialog
         open={confirmingFooterRemoval}
         title="Remove the footer?"

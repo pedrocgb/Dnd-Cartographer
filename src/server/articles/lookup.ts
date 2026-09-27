@@ -17,7 +17,8 @@ export async function resolveArticleNames(refs: { template: string; articleId: s
   const byTable = { character: [] as string[], organization: [] as string[], territory: [] as string[], generic: [] as string[] };
   for (const { template, articleId } of refs) {
     if (!isArticleTemplate(template)) continue;
-    if (template === "character" || template === "organization" || template === "territory") byTable[template].push(articleId);
+    if (template === "character" || template === "playerCharacter") byTable.character.push(articleId);
+    else if (template === "organization" || template === "territory") byTable[template].push(articleId);
     else byTable.generic.push(articleId);
   }
 

@@ -206,5 +206,7 @@ export const TECHNOLOGY_INFO = defineFieldSet(
     },
     { key: "safetyHazards", label: "Safety Hazards", group: "risksAndLimitations", kind: "text", hint: "The dangers to whoever uses it." },
     { key: "vulnerabilities", label: "Vulnerabilities", group: "risksAndLimitations", kind: "text", hint: "How an enemy could sabotage or exploit it." },
-  ]
+  ],
+  // Required, in this order.
+  ["technologyType", "accessibility", "distribution", "developmentStatus"]
 );

@@ -291,5 +291,7 @@ export const CONFLICT_INFO = defineFieldSet(
     { key: "lastingGrievances", label: "Lasting Grievances", group: "worldbuilding", kind: "text", hint: "Wounds that never healed." },
     { key: "memorials", label: "Memorials", group: "worldbuilding", kind: "link", link: link(["building", "geography"], true), hint: "Monuments and sites honoring it." },
     { key: "unansweredQuestions", label: "Unanswered Questions", group: "worldbuilding", kind: "text", hint: "Mysteries it left behind — great hooks for a campaign." },
-  ]
+  ],
+  // Required, in this order.
+  ["conflictType", "scale", "publicAwareness", "status"]
 );

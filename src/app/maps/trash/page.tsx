@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { RotateCcw } from "lucide-react";
+import { SkeletonList } from "@/components/Skeleton";
 
 interface TrashedMap {
   id: string;
@@ -28,7 +29,7 @@ export default function TrashPage() {
       .then(setMaps);
   }
 
-  if (!maps) return <div className="map-status">Loading…</div>;
+  if (!maps) return <SkeletonList rows={4} label="Loading the trash…" />;
 
   return (
     <div className="map-manager">

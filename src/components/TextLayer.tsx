@@ -566,9 +566,8 @@ function TextHandles({
         vectorEffect="non-scaling-stroke"
         style={{ pointerEvents: "all", cursor: "grab" }}
         onMouseDown={onRotateMouseDown}
-      >
-        <title>Drag to rotate (Shift snaps to 15°)</title>
-      </circle>
+        data-tooltip="Drag to rotate (Shift snaps to 15°)"
+      />
       {corners.map((c, i) => (
         <rect
           key={i}

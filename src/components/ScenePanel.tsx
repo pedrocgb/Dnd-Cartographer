@@ -69,7 +69,7 @@ function Section({
           onClick={onToggleVisible}
           disabled={count === 0}
           aria-label={eyeLabel}
-          title={eyeLabel}
+          data-tooltip={eyeLabel}
         >
           {anyVisible ? <Eye size={12} strokeWidth={2.25} /> : <EyeOff size={12} strokeWidth={2.25} />}
         </button>
@@ -79,10 +79,19 @@ function Section({
   );
 }
 
-function Item({ label, muted, onClick }: { label: string; muted?: boolean; onClick: () => void }) {
+function Item({ label, muted, onClick, onHover }: { label: string; muted?: boolean; onClick: () => void; onHover: (on: boolean) => void }) {
   return (
     <li>
-      <button type="button" className={muted ? "scene-item muted" : "scene-item"} onClick={onClick} title="Show on the map and edit">
+      <button
+        type="button"
+        className={muted ? "scene-item muted" : "scene-item"}
+        onClick={onClick}
+        onMouseEnter={() => onHover(true)}
+        onMouseLeave={() => onHover(false)}
+        onFocus={() => onHover(true)}
+        onBlur={() => onHover(false)}
+        data-tooltip="Show on the map and edit"
+      >
         {label}
       </button>
     </li>
@@ -91,7 +100,8 @@ function Item({ label, muted, onClick }: { label: string; muted?: boolean; onCli
 
 /**
  * Everything on the active layer, grouped by type. Picking an item zooms the
- * map to it, selects it and switches to its tool (handled by `onPick`).
+ * map to it, selects it and switches to its tool (handled by `onPick`);
+ * hovering one outlines it on the map (`onHover`).
  */
 export default function ScenePanel({
   layerName,
@@ -101,6 +111,7 @@ export default function ScenePanel({
   texts,
   lines,
   onPick,
+  onHover,
   onSetVisible,
   onClose,
 }: {
@@ -111,6 +122,8 @@ export default function ScenePanel({
   texts: MapTextData[];
   lines: MapLineData[];
   onPick: (kind: SceneKind, id: string) => void;
+  /** The item under the pointer (or focused) in the list; null when none. */
+  onHover: (item: { kind: SceneKind; id: string } | null) => void;
   /** Sets each listed item's own visibility (the folder eye). */
   onSetVisible: (kind: SceneKind, ids: string[], visible: boolean) => void;
   onClose: () => void;
@@ -148,7 +161,7 @@ export default function ScenePanel({
 
       <Section title="Markers" icon={<MapPin size={14} strokeWidth={2.25} />} count={markers.length} open={open.has("marker")} onToggle={() => toggle("marker")} {...eye("marker", markers)}>
         {byName(markers, (m) => m.name).map((m) => (
-          <Item key={m.id} label={m.name} muted={!m.visible} onClick={() => onPick("marker", m.id)} />
+          <Item key={m.id} label={m.name} muted={!m.visible} onClick={() => onPick("marker", m.id)} onHover={(on) => onHover(on ? { kind: "marker", id: m.id } : null)} />
         ))}
       </Section>
 
@@ -161,7 +174,7 @@ export default function ScenePanel({
               <span className="field-label scene-group-title">{r.name}</span>
               <ul className="scene-list">
                 {regionZones.map((z) => (
-                  <Item key={z.id} label={z.name} muted={!z.visible || !r.visible} onClick={() => onPick("zone", z.id)} />
+                  <Item key={z.id} label={z.name} muted={!z.visible || !r.visible} onClick={() => onPick("zone", z.id)} onHover={(on) => onHover(on ? { kind: "zone", id: z.id } : null)} />
                 ))}
               </ul>
             </li>
@@ -171,13 +184,13 @@ export default function ScenePanel({
 
       <Section title="Texts" icon={<Type size={14} strokeWidth={2.25} />} count={texts.length} open={open.has("text")} onToggle={() => toggle("text")} {...eye("text", texts)}>
         {byName(texts, (t) => t.text).map((t) => (
-          <Item key={t.id} label={t.text.split("\n")[0] || "(empty)"} muted={!t.visible} onClick={() => onPick("text", t.id)} />
+          <Item key={t.id} label={t.text.split("\n")[0] || "(empty)"} muted={!t.visible} onClick={() => onPick("text", t.id)} onHover={(on) => onHover(on ? { kind: "text", id: t.id } : null)} />
         ))}
       </Section>
 
       <Section title="Lines" icon={<PenTool size={14} strokeWidth={2.25} />} count={lines.length} open={open.has("line")} onToggle={() => toggle("line")} {...eye("line", lines)}>
         {lines.map((l, i) => (
-          <Item key={l.id} label={`Line ${i + 1} · ${LINE_STYLE_LABEL[l.style]}`} muted={!l.visible} onClick={() => onPick("line", l.id)} />
+          <Item key={l.id} label={`Line ${i + 1} · ${LINE_STYLE_LABEL[l.style]}`} muted={!l.visible} onClick={() => onPick("line", l.id)} onHover={(on) => onHover(on ? { kind: "line", id: l.id } : null)} />
         ))}
       </Section>
     </div>

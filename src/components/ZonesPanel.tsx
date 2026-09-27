@@ -331,17 +331,17 @@ function RegionRow({
         </button>
         {!sharedFrom && (
         <div className="zone-row-actions">
-          <button className="btn btn-ghost btn-icon-xs" onClick={() => onMoveRegion("up")} disabled={!canMoveUp} aria-label="Move Region up" title="Move up">
+          <button className="btn btn-ghost btn-icon-xs" onClick={() => onMoveRegion("up")} disabled={!canMoveUp} aria-label="Move Region up" data-tooltip="Move up">
             <ArrowUp size={12} strokeWidth={2.25} />
           </button>
-          <button className="btn btn-ghost btn-icon-xs" onClick={() => onMoveRegion("down")} disabled={!canMoveDown} aria-label="Move Region down" title="Move down">
+          <button className="btn btn-ghost btn-icon-xs" onClick={() => onMoveRegion("down")} disabled={!canMoveDown} aria-label="Move Region down" data-tooltip="Move down">
             <ArrowDown size={12} strokeWidth={2.25} />
           </button>
           <button
             className="btn btn-ghost btn-icon-xs"
             onClick={() => onUpdateRegion({ visible: !region.visible })}
             aria-label={region.visible ? "Hide Region" : "Show Region"}
-            title={region.visible ? "Hide Region" : "Show Region"}
+            data-tooltip={region.visible ? "Hide Region" : "Show Region"}
           >
             {region.visible ? <Eye size={12} strokeWidth={2.25} /> : <EyeOff size={12} strokeWidth={2.25} />}
           </button>
@@ -349,11 +349,11 @@ function RegionRow({
             className="btn btn-ghost btn-icon-xs"
             onClick={() => onUpdateRegion({ locked: !region.locked })}
             aria-label={region.locked ? "Unlock Region" : "Lock Region"}
-            title={region.locked ? "Unlock Region" : "Lock Region"}
+            data-tooltip={region.locked ? "Unlock Region" : "Lock Region"}
           >
             {region.locked ? <Lock size={12} strokeWidth={2.25} /> : <LockOpen size={12} strokeWidth={2.25} />}
           </button>
-          <button className="btn btn-ghost btn-icon-xs" onClick={onDeleteRegion} aria-label="Delete Region" title="Delete Region">
+          <button className="btn btn-ghost btn-icon-xs" onClick={onDeleteRegion} aria-label="Delete Region" data-tooltip="Delete Region">
             <Trash2 size={12} strokeWidth={2.25} />
           </button>
         </div>
@@ -375,7 +375,7 @@ function RegionRow({
                 className="zone-add-row"
                 onClick={onStartAddZone}
                 disabled={addZoneDisabled}
-                title={addZoneDisabled ? "Region is hidden or locked" : "Start drawing a new zone in this Region"}
+                data-tooltip={addZoneDisabled ? "Region is hidden or locked" : "Start drawing a new zone in this Region"}
               >
                 <Plus size={13} strokeWidth={2.25} />
                 Add zone
@@ -398,7 +398,7 @@ function RegionRow({
                     className="btn btn-ghost btn-icon-xs"
                     onClick={() => onUpdateZone(zone.id, { visible: !zone.visible })}
                     aria-label={zone.visible ? "Hide zone" : "Show zone"}
-                    title={zone.visible ? "Hide zone" : "Show zone"}
+                    data-tooltip={zone.visible ? "Hide zone" : "Show zone"}
                   >
                     {zone.visible ? <Eye size={12} strokeWidth={2.25} /> : <EyeOff size={12} strokeWidth={2.25} />}
                   </button>
@@ -406,7 +406,7 @@ function RegionRow({
                     className="btn btn-ghost btn-icon-xs"
                     onClick={() => onUpdateZone(zone.id, { locked: !zone.locked })}
                     aria-label={zone.locked ? "Unlock zone" : "Lock zone"}
-                    title={zone.locked ? "Unlock zone" : "Lock zone"}
+                    data-tooltip={zone.locked ? "Unlock zone" : "Lock zone"}
                   >
                     {zone.locked ? <Lock size={12} strokeWidth={2.25} /> : <LockOpen size={12} strokeWidth={2.25} />}
                   </button>
@@ -415,7 +415,7 @@ function RegionRow({
                     onClick={() => onDeleteZone(zone.id)}
                     disabled={zone.locked}
                     aria-label="Delete zone"
-                    title="Delete zone"
+                    data-tooltip="Delete zone"
                   >
                     <Trash2 size={12} strokeWidth={2.25} />
                   </button>
@@ -547,44 +547,44 @@ export default function ZonesPanel({
       <p className="panel-layer-label">Layer: {layerName}</p>
 
       <div className="zone-tool-row">
-        <button className={activeTool === "select" ? "active" : ""} title="Select / edit" onClick={() => onSetActiveTool("select")}>
+        <button className={activeTool === "select" ? "active" : ""} aria-label="Select / edit" data-tooltip="Select / edit" onClick={() => onSetActiveTool("select")}>
           <MousePointer2 size={15} strokeWidth={2.25} />
         </button>
         <button
-          className={activeTool === "rectangle" ? "active" : ""}
-          title="Rectangle / Square — hold Shift for an equal-sided square"
+          className={activeTool === "rectangle" ? "active" : ""} aria-label="Rectangle"
+          data-tooltip="Rectangle / Square — hold Shift for an equal-sided square"
           disabled={drawingDisabled}
           onClick={() => onSetActiveTool("rectangle")}
         >
           <Square size={15} strokeWidth={2.25} />
         </button>
         <button
-          className={activeTool === "circle" ? "active" : ""}
-          title="Circle — press at the center and drag out the radius"
+          className={activeTool === "circle" ? "active" : ""} aria-label="Circle"
+          data-tooltip="Circle — press at the center and drag out the radius"
           disabled={drawingDisabled}
           onClick={() => onSetActiveTool("circle")}
         >
           <Circle size={15} strokeWidth={2.25} />
         </button>
         <button
-          className={activeTool === "polygon" ? "active" : ""}
-          title="Polygon — click each vertex, click the first point (or press Enter) to close"
+          className={activeTool === "polygon" ? "active" : ""} aria-label="Polygon"
+          data-tooltip="Polygon — click each vertex, click the first point (or press Enter) to close"
           disabled={drawingDisabled}
           onClick={() => onSetActiveTool("polygon")}
         >
           <Hexagon size={15} strokeWidth={2.25} />
         </button>
         <button
-          className={activeTool === "brush" ? "active" : ""}
-          title="Brush — paint a new zone, or paint onto the selected zone to grow it. [ and ] or Shift + mouse wheel change the size."
+          className={activeTool === "brush" ? "active" : ""} aria-label="Brush"
+          data-tooltip="Brush — paint a new zone, or paint onto the selected zone to grow it. [ and ] or Shift + mouse wheel change the size."
           disabled={drawingDisabled && !selectedZonePaintable}
           onClick={() => onSetActiveTool("brush")}
         >
           <Brush size={15} strokeWidth={2.25} />
         </button>
         <button
-          className={activeTool === "eraser" ? "active" : ""}
-          title="Eraser — erase part of the selected zone. [ and ] or Shift + mouse wheel change the size."
+          className={activeTool === "eraser" ? "active" : ""} aria-label="Eraser"
+          data-tooltip="Eraser — erase part of the selected zone. [ and ] or Shift + mouse wheel change the size."
           disabled={!selectedZonePaintable}
           onClick={() => onSetActiveTool("eraser")}
         >
@@ -615,7 +615,7 @@ export default function ZonesPanel({
                   : "Create or select an unlocked, visible Region to paint."}
           </p>
           {activeTool === "brush" && selectedZone && (
-            <button type="button" className="btn btn-sm" onClick={() => onSelectZone(null)} title="Deselect so the next stroke starts a new zone (Esc)">
+            <button type="button" className="btn btn-sm" onClick={() => onSelectZone(null)} data-tooltip="Deselect so the next stroke starts a new zone (Esc)">
               <Plus size={13} strokeWidth={2.25} />
               Paint a new zone
             </button>

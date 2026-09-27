@@ -169,6 +169,97 @@
       "when": 1790276912622,
       "tag": "0023_marker_article_links",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1790347113278,
+      "tag": "0024_map_folders",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1790348732654,
+      "tag": "0025_map_folder_color",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1790352621166,
+      "tag": "0026_calendars",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "6",
+      "when": 1790364273172,
+      "tag": "0027_celestial_day_icon",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "6",
+      "when": 1790367144482,
+      "tag": "0028_celestial_icon_priority",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "6",
+      "when": 1790368836211,
+      "tag": "0029_celestial_calendars",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1790370049924,
+      "tag": "0030_season_calendar",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1790532388863,
+      "tag": "0031_session_log",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1790538330206,
+      "tag": "0032_person_kind",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1790542843437,
+      "tag": "0033_quests",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "6",
+      "when": 1790544092405,
+      "tag": "0034_quest_depth",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "6",
+      "when": 1790545241848,
+      "tag": "0035_quest_dates",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1790546561819,
+      "tag": "0036_front_clock_per_portent",
+      "breakpoints": true
     }
   ]
 }

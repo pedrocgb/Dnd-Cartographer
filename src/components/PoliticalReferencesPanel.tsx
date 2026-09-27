@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Trash2, Search } from "lucide-react";
 import { buildTerritoryTree, TerritoryTreeRow } from "@/components/TerritoryTree";
 import { articleHref } from "@/server/articles/templates";
+import { SkeletonList } from "@/components/Skeleton";
 
 interface Territory {
   id: string;
@@ -189,7 +190,7 @@ export default function PoliticalReferencesPanel({
     refresh();
   }
 
-  if (!loaded) return <p className="field-label">Loading…</p>;
+  if (!loaded) return <SkeletonList rows={3} label="Loading…" />;
 
   return (
     <div className="politics-panel">

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import AppNav from "@/components/AppNav";
+import TooltipLayer from "@/components/TooltipLayer";
 import { mapFontVariables } from "./map-fonts";
 import "./globals.css";
 
@@ -20,6 +21,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body>
         <AppNav />
         <main className="app-main">{children}</main>
+        <TooltipLayer />
       </body>
     </html>
   );

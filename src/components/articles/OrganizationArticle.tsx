@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Pencil } from "lucide-react";
 import { ORGANIZATION_KINDS } from "@/server/politics/hierarchy-config";
 import { parseTags } from "@/server/articles/tags";
-import { addedInfo, columnPatch } from "@/server/articles/info-fields";
+import { addedInfo, columnPatch, emptyRequiredInfo } from "@/server/articles/info-fields";
 import { ORGANIZATION_INFO } from "@/server/articles/info-sets";
 import PortraitUploader from "@/components/PortraitUploader";
 import ArticleView from "./ArticleView";
@@ -132,44 +132,27 @@ export function OrganizationArticle({
 }
 
 /** Creating an organization asks for its name and type; everything else is added from its Info Bar. */
-export function OrganizationForm({ onSaved, onCancel }: { onSaved: (o: Organization) => void; onCancel: () => void }) {
-  const [name, setName] = useState("");
-  const [kind, setKind] = useState<string>(ORGANIZATION_KINDS[0]);
-  const [error, setError] = useState<string | null>(null);
-
-  async function submit() {
-    setError(null);
-    const res = await fetch("/api/politics/organizations", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, kind }),
-    });
-    const data = await res.json();
-    if (res.ok) onSaved(data.organization);
-    else setError(data.error ?? "Could not save organization.");
-  }
-
+/** Creating an organization asks for its name and required fields (type preset to the first); everything else is added from its Info Bar. */
+export function OrganizationForm({ onSaved, onCancel, onBack }: { onSaved: (o: Organization) => void; onCancel: () => void; onBack?: () => void }) {
   return (
-    <div className="politics-form">
-      <label className="field-label">Name</label>
-      <input type="text" value={name} onChange={(e) => setName(e.target.value)} />
-      <label className="field-label">Organization type</label>
-      <select value={kind} onChange={(e) => setKind(e.target.value)}>
-        {ORGANIZATION_KINDS.map((k) => (
-          <option key={k} value={k}>
-            {k}
-          </option>
-        ))}
-      </select>
-      {error && <p className="form-error">{error}</p>}
-      <div className="marker-panel-actions">
-        <button className="btn btn-sm btn-primary" onClick={submit}>
-          Save
-        </button>
-        <button className="btn btn-sm" onClick={onCancel}>
-          Cancel
-        </button>
-      </div>
-    </div>
+    <InfoForm
+      set={ORGANIZATION_INFO}
+      name=""
+      initialValues={{ ...emptyRequiredInfo(ORGANIZATION_INFO), organizationType: ORGANIZATION_KINDS[0] }}
+      lookups={{}}
+      allowAdding={false}
+      saveLabel="Create"
+      savingLabel="Creating…"
+      onSave={(name, values) =>
+        fetch("/api/politics/organizations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, ...columnPatch(ORGANIZATION_INFO, values), info: values }),
+        })
+      }
+      onSaved={async (res) => onSaved((await res.json()).organization)}
+      onCancel={onCancel}
+      onBack={onBack}
+    />
   );
 }

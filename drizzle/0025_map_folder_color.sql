@@ -1,0 +1,1 @@
+ALTER TABLE `map_folders` ADD `color` text;

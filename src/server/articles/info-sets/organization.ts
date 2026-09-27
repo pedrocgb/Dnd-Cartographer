@@ -28,7 +28,6 @@ export const ORGANIZATION_INFO = defineFieldSet(
       kind: "select",
       options: ORGANIZATION_KINDS,
       column: "kind",
-      required: true,
       hint: "What kind of organization this is. Also groups it in the Organizations folder.",
     },
     {
@@ -141,5 +140,7 @@ export const ORGANIZATION_INFO = defineFieldSet(
       options: ["Negligible", "Local", "Regional", "National", "International"],
       hint: "How much sway it has over ordinary people and rulers.",
     },
-  ]
+  ],
+  // Required, in this order.
+  ["organizationType", "status"]
 );

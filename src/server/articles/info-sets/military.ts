@@ -340,5 +340,7 @@ export const MILITARY_INFO = defineFieldSet(
       options: REPUTATIONS,
       hint: "How friends and foes see it.",
     },
-  ]
+  ],
+  // Required, in this order.
+  ["serviceType", "reputation", "status"]
 );

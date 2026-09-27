@@ -116,5 +116,7 @@ export const TITLE_INFO = defineFieldSet(
     },
     { key: "successionRules", label: "Succession Rules", group: "succession", kind: "text", hint: "The details of succession — and the loopholes heirs fight over." },
     { key: "termLength", label: "Term Length", group: "succession", kind: "text", hint: "How long a holder keeps it: for life, seven years, until the next moon?" },
-  ]
+  ],
+  // Required, in this order.
+  ["titleType", "status"]
 );

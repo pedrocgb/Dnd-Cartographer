@@ -91,7 +91,7 @@ export default function LayerChecklist({
         aria-expanded={open}
         aria-controls={popupId}
         aria-labelledby={`${labelId} ${popupId}-summary`}
-        title={homeAlwaysDraws ? "Its layer has “Always draw” on, so it already shows on every layer." : chosen.map((l) => l.name).join(", ") || undefined}
+        data-tooltip={homeAlwaysDraws ? "Its layer has “Always draw” on, so it already shows on every layer." : chosen.map((l) => l.name).join(", ") || undefined}
         onClick={() => (open ? close() : setOpen(true))}
       >
         <span id={`${popupId}-summary`} className={chosen.length ? "layer-multi-summary" : "layer-multi-summary muted"}>

@@ -123,5 +123,7 @@ export const SETTLEMENT_INFO = defineFieldSet(
       options: ["Impoverished", "Struggling", "Modest", "Prosperous", "Wealthy"],
       hint: "How well-off the settlement is overall. Sets prices, crime and what's for sale.",
     },
-  ]
+  ],
+  // Required, in this order.
+  ["settlementType", "wealthLevel", "status"]
 );

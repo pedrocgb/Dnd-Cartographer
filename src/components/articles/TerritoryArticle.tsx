@@ -1,14 +1,14 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { ArrowDownWideNarrow, ExternalLink, Pencil, Plus, Trash2, Type } from "lucide-react";
+import { ArrowDownWideNarrow, Pencil, Plus, Trash2 } from "lucide-react";
 import {
   AUTHORITY_ROLES,
   isAttachableType,
   isValidParentType,
 } from "@/server/politics/hierarchy-config";
 import { parseTags } from "@/server/articles/tags";
-import { addedInfo, columnPatch } from "@/server/articles/info-fields";
+import { addedInfo, columnPatch, emptyRequiredInfo, type InfoValues } from "@/server/articles/info-fields";
 import { TERRITORY_INFO } from "@/server/articles/info-sets";
 import { ancestorsOf, buildTerritoryTree, TerritoryTreeRow } from "@/components/TerritoryTree";
 import PortraitUploader from "@/components/PortraitUploader";
@@ -79,94 +79,101 @@ function useHierarchy(profiles: HierarchyProfile[], territories: Territory[], in
   return { type, setType, parentId, setParentId, hierarchyProfileId, setHierarchyProfileId, validParents, body };
 }
 
-/** The hierarchy rows of a territory form (type, profile, then the parent they allow), in the Info Bar's edit-row layout. */
-function HierarchyRows({ h, profiles }: { h: ReturnType<typeof useHierarchy>; profiles: HierarchyProfile[] }) {
+/** Territory Type, first under the name (a fixed row). */
+function TypeRow({ h }: { h: ReturnType<typeof useHierarchy> }) {
   return (
-    <>
-      <div className="info-edit-row info-edit-fixed">
-        <InfoEditLabel Icon={ArrowDownWideNarrow} label="Territory Type" />
-        <div className="info-edit-stack">
-          <TypeSelect value={h.type} onChange={h.setType} />
-        </div>
+    <div className="info-edit-row info-edit-fixed">
+      <InfoEditLabel Icon={ArrowDownWideNarrow} label="Territory Type" />
+      <div className="info-edit-stack">
+        <TypeSelect value={h.type} onChange={h.setType} />
       </div>
-      <div className="info-edit-row info-edit-fixed">
-        <InfoEditLabel Icon={ArrowDownWideNarrow} label="Hierarchy Profile" />
-        <select aria-label="Hierarchy Profile" value={h.hierarchyProfileId} onChange={(e) => h.setHierarchyProfileId(e.target.value)}>
-          {profiles.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="info-edit-row info-edit-fixed">
-        <InfoEditLabel Icon={ExternalLink} label="Parent Territory" />
-        <div className="info-edit-stack">
-          <InfoPicker
-            options={h.validParents.map((t) => ({ value: t.id, label: `${t.name} (${t.type})` }))}
-            value={h.parentId || null}
-            placeholder="None (root)"
-            clearLabel="None (root)"
-            ariaLabel="Parent Territory"
-            onChange={(id) => h.setParentId(id ?? "")}
-          />
-          {h.type && h.validParents.length === 0 && (
-            <p className="info-edit-note">No territory of a valid parent type exists yet for &ldquo;{h.type}&rdquo; under this profile.</p>
-          )}
-        </div>
-      </div>
-    </>
+    </div>
   );
 }
 
-/** Creating a territory asks for its name and place in the hierarchy; everything else is added from its Info Bar. */
+/** Hierarchy Profile, after the required Government Form (a fixed row). */
+function ProfileRow({ h, profiles }: { h: ReturnType<typeof useHierarchy>; profiles: HierarchyProfile[] }) {
+  return (
+    <div className="info-edit-row info-edit-fixed">
+      <InfoEditLabel Icon={ArrowDownWideNarrow} label="Hierarchy Profile" />
+      <select aria-label="Hierarchy Profile" value={h.hierarchyProfileId} onChange={(e) => h.setHierarchyProfileId(e.target.value)}>
+        {profiles.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+/** Parent Territory's editor: only the territories the type and profile allow. Its value lives in `h`, not the info values. */
+function ParentPicker({ h }: { h: ReturnType<typeof useHierarchy> }) {
+  return (
+    <div className="info-edit-stack">
+      <InfoPicker
+        options={h.validParents.map((t) => ({ value: t.id, label: `${t.name} (${t.type})` }))}
+        value={h.parentId || null}
+        placeholder="None (root)"
+        clearLabel="None (root)"
+        ariaLabel="Parent Territory"
+        dataField="parentTerritory"
+        onChange={(id) => h.setParentId(id ?? "")}
+      />
+      {h.type && h.validParents.length === 0 && (
+        <p className="info-edit-note">No territory of a valid parent type exists yet for &ldquo;{h.type}&rdquo; under this profile.</p>
+      )}
+    </div>
+  );
+}
+
+/** The hierarchy part of a territory PATCH/POST: the parent only while its field is added. */
+function hierarchyBody(h: ReturnType<typeof useHierarchy>, values: InfoValues) {
+  return {
+    type: h.type,
+    hierarchyProfileId: h.hierarchyProfileId || undefined,
+    ...columnPatch(TERRITORY_INFO, values),
+    parentId: "parentTerritory" in values ? h.parentId || null : null,
+  };
+}
+
+/** Creating a territory asks for its name, type, government form and profile; everything else (a parent too) is added from its Info Bar. */
 export function TerritoryForm({
   profiles,
   territories,
   onSaved,
   onCancel,
+  onBack,
 }: {
   profiles: HierarchyProfile[];
   territories: Territory[];
   onSaved: (t: Territory) => void;
   onCancel: () => void;
+  onBack?: () => void;
 }) {
-  const [name, setName] = useState("");
   const h = useHierarchy(profiles, territories);
-  const [error, setError] = useState<string | null>(null);
-
-  async function submit() {
-    setError(null);
-    const res = await fetch("/api/politics/territories", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, ...h.body }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      setError(data.error ?? "Could not save territory.");
-      return;
-    }
-    onSaved(data.territory);
-  }
-
   return (
-    <div className="politics-form info-form">
-      <div className="info-edit-row info-edit-fixed">
-        <InfoEditLabel Icon={Type} label="Name" />
-        <input type="text" aria-label="Name" value={name} autoFocus onChange={(e) => setName(e.target.value)} />
-      </div>
-      <HierarchyRows h={h} profiles={profiles} />
-      {error && <p className="form-error">{error}</p>}
-      <div className="marker-panel-actions">
-        <button className="btn btn-sm btn-primary" onClick={submit}>
-          Create
-        </button>
-        <button className="btn btn-sm" onClick={onCancel}>
-          Cancel
-        </button>
-      </div>
-    </div>
+    <InfoForm
+      set={TERRITORY_INFO}
+      name=""
+      initialValues={emptyRequiredInfo(TERRITORY_INFO)}
+      lookups={{}}
+      fixedRows={<TypeRow h={h} />}
+      fixedRowsAfter={<ProfileRow h={h} profiles={profiles} />}
+      allowAdding={false}
+      saveLabel="Create"
+      savingLabel="Creating…"
+      onSave={(name, values) =>
+        fetch("/api/politics/territories", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, ...hierarchyBody(h, values), info: values }),
+        })
+      }
+      onSaved={async (res) => onSaved((await res.json()).territory)}
+      onCancel={onCancel}
+      onBack={onBack}
+    />
   );
 }
 
@@ -193,8 +200,10 @@ function TerritoryInfoForm({
       name={territory.name}
       initialValues={addedInfo(TERRITORY_INFO, territory)}
       lookups={lookups}
-      fixedRows={<HierarchyRows h={h} profiles={profiles} />}
-      onSave={(name, values) => patchRecord(recordUrl(territory.id), { name, ...h.body, ...columnPatch(TERRITORY_INFO, values), info: values })}
+      fixedRows={<TypeRow h={h} />}
+      fixedRowsAfter={<ProfileRow h={h} profiles={profiles} />}
+      editorFor={(field) => (field.key === "parentTerritory" ? <ParentPicker h={h} /> : undefined)}
+      onSave={(name, values) => patchRecord(recordUrl(territory.id), { name, ...hierarchyBody(h, values), info: values })}
       onSaved={onSaved}
       onCancel={onCancel}
     />
@@ -245,7 +254,6 @@ export function TerritoryArticle({
   const isAttachmentPoint = ownProfile ? isAttachableType(territory.type, ownProfile.levels) : false;
   // Ancestors only (root → immediate parent); the name is the article title.
   const ancestorChain = useMemo(() => ancestorsOf(territory, territories), [territory, territories]);
-  const parent = ancestorChain.at(-1);
 
   const update = (body: Record<string, unknown>) => patchRecord(recordUrl(territory.id), body).then(onChanged);
 
@@ -310,18 +318,7 @@ export function TerritoryArticle({
               values={addedInfo(TERRITORY_INFO, territory)}
               lookups={lookups}
               onOpenArticle={onOpenArticle}
-              leading={
-                <>
-                  <InfoRow label="Territory Type">{territory.type}</InfoRow>
-                  {parent && (
-                    <InfoRow label="Parent Territory">
-                      <button type="button" className="politics-link-button" onClick={() => onOpenArticle("territory", parent.id)}>
-                        {parent.name}
-                      </button>
-                    </InfoRow>
-                  )}
-                </>
-              }
+              leading={<InfoRow label="Territory Type">{territory.type}</InfoRow>}
             />
             {/* Set apart from the info above by a larger gap. */}
             <div className="info-bar-sections">
@@ -555,7 +552,7 @@ function AuthorityManager({
                     type="button"
                     className="politics-link-button"
                     onClick={() => onOpenHolder(a.holderType, a.holderId)}
-                    title={a.holderType === "person" ? "Open in Characters" : "Open in Organizations"}
+                    data-tooltip={a.holderType === "person" ? "Open in Characters" : "Open in Organizations"}
                   >
                     {a.holderName}
                   </button>

@@ -1,12 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ImageUp, RefreshCw } from "lucide-react";
 import MapWorkspace from "./MapWorkspace";
 import MapSidebar from "./MapSidebar";
 import MapSettingsModal from "./MapSettingsModal";
+import DeleteMapDialog from "./maps/DeleteMapDialog";
+import MapHeader from "./maps/MapHeader";
 import MarkersListModal from "./MarkersListModal";
 import type { Marker } from "./MarkerLayer";
 import type { MapGrid } from "./GridLayer";
@@ -85,27 +86,13 @@ function assetLoadingMessage(asset: MapAsset, job: MapStatus["job"]): string {
   }
 }
 
-function Breadcrumbs({ trail }: { trail: Breadcrumb[] }) {
-  return (
-    <nav className="map-breadcrumbs">
-      <Link href="/maps">Maps</Link>
-      {trail.map((entry, i) => (
-        <span key={entry.id}>
-          {" / "}
-          {i === trail.length - 1 ? entry.name : <Link href={`/maps/${entry.id}`}>{entry.name}</Link>}
-        </span>
-      ))}
-    </nav>
-  );
-}
-
 export default function MapViewer({ mapId }: { mapId: string }) {
   const router = useRouter();
   const [status, setStatus] = useState<MapStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [markers, setMarkers] = useState<Marker[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deletingMap, setDeletingMap] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [markersListOpen, setMarkersListOpen] = useState(false);
   const [externalFocusMarkerId, setExternalFocusMarkerId] = useState<string | null>(null);
@@ -217,31 +204,8 @@ export default function MapViewer({ mapId }: { mapId: string }) {
     else window.alert((await res.json()).error ?? "Upload failed.");
   }
 
-  async function removeMap(strategy?: "cascade" | "orphan") {
-    if (!status) return;
-    setDeleteError(null);
-    const res = await fetch(`/api/maps/${mapId}`, {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(strategy ? { strategy } : {}),
-    });
-    if (res.status === 409) {
-      const data = await res.json();
-      const choice = window.confirm(
-        `"${status.map.name}" has ${data.childCount} child map(s). OK to move them to the root (Cancel to delete the whole subtree instead).`
-      );
-      await removeMap(choice ? "orphan" : "cascade");
-      return;
-    }
-    if (!res.ok) {
-      setDeleteError("Failed to delete map.");
-      return;
-    }
-    router.push("/maps");
-  }
-
   function onDeleteMap() {
-    if (window.confirm("Delete this map? This can be undone from the Trash page.")) removeMap();
+    setDeletingMap(true);
   }
 
   function closeToolPanels() {
@@ -375,18 +339,7 @@ export default function MapViewer({ mapId }: { mapId: string }) {
 
   return (
     <div className="map-page-root">
-      <Breadcrumbs trail={status.breadcrumbs} />
-      {deleteError && <p className="form-error">{deleteError}</p>}
-
-      {status.children.length > 0 && (
-        <div className="map-children-panel">
-          {status.children.map((child) => (
-            <Link key={child.id} href={`/maps/${child.id}`} className="map-child-card">
-              {child.name}
-            </Link>
-          ))}
-        </div>
-      )}
+      <MapHeader trail={status.breadcrumbs} category={status.category?.label ?? null} childMaps={status.children} />
 
       <div className="map-page-body">
         <MapSidebar
@@ -521,6 +474,14 @@ export default function MapViewer({ mapId }: { mapId: string }) {
         )}
       </div>
 
+      {deletingMap && (
+        <DeleteMapDialog
+          map={{ id: mapId, name: status.map.name }}
+          childCount={status.children.length}
+          onCancel={() => setDeletingMap(false)}
+          onDeleted={() => router.push("/maps")}
+        />
+      )}
       <MapSettingsModal
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}

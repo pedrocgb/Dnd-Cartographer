@@ -115,5 +115,7 @@ export const TRADITION_INFO = defineFieldSet(
     },
     { key: "symbolism", label: "Symbolism", group: "significance", kind: "text", hint: "The colors, objects and gestures and what they stand for." },
     { key: "taboos", label: "Taboos", group: "significance", kind: "text", hint: "What must never be done during it. A gift for your plot." },
-  ]
+  ],
+  // Required, in this order.
+  ["traditionType", "status"]
 );

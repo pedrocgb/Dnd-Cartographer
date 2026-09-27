@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { sanitizeInfo } from "@/server/articles/info-fields";
+import { personInfoSet } from "@/server/articles/info-sets";
 import { eq, and, isNull, like } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { people } from "@/server/db/schema";
@@ -20,11 +22,13 @@ export async function POST(request: Request) {
   if (!name) return NextResponse.json({ error: "A name is required." }, { status: 400 });
 
   const worldId = await ensureDefaultWorld();
+  // A Character by default; "player" makes a Player Character.
+  const kind = body?.kind === "player" ? "player" : "npc";
   const houseId = typeof body?.houseId === "string" && body.houseId ? body.houseId : null;
   const status = typeof body?.status === "string" && body.status ? body.status : null;
   const [created] = await db
     .insert(people)
-    .values({ worldId, name, houseId, status })
+    .values({ worldId, name, kind, houseId, status, info: JSON.stringify(sanitizeInfo(personInfoSet(kind), body?.info) ?? {}) })
     .returning();
   return NextResponse.json({ person: created }, { status: 201 });
 }

@@ -101,5 +101,7 @@ export const LAW_INFO = defineFieldSet(
       hint: "Whether the law currently holds.",
     },
     { key: "supersedes", label: "Supersedes", group: "status", kind: "link", link: link(["law"], true), hint: "Older laws this one replaces." },
-  ]
+  ],
+  // Required, in this order.
+  ["lawType", "legalStatus", "enforcementConsistency"]
 );

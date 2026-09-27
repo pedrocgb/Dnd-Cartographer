@@ -162,5 +162,7 @@ export const LANGUAGE_INFO = defineFieldSet(
       hint: "Anything uncanny about it: words that burn, names with power?",
     },
     { key: "tabooWords", label: "Taboo Words", group: "worldbuilding", kind: "text", hint: "Words never to be spoken, and what happens if they are." },
-  ]
+  ],
+  // Required, in this order.
+  ["status", "primaryRole", "communicationModes"]
 );

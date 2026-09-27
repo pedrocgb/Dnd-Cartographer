@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { sanitizeInfo } from "@/server/articles/info-fields";
+import { ORGANIZATION_INFO } from "@/server/articles/info-sets";
 import { eq, and, isNull, like } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { organizations } from "@/server/db/schema";
@@ -24,7 +26,7 @@ export async function POST(request: Request) {
   const kind = typeof body?.kind === "string" && (ORGANIZATION_KINDS as readonly string[]).includes(body.kind) ? body.kind : "Noble House";
   const [created] = await db
     .insert(organizations)
-    .values({ worldId, name, kind })
+    .values({ worldId, name, kind, info: JSON.stringify(sanitizeInfo(ORGANIZATION_INFO, body?.info) ?? {}) })
     .returning();
   return NextResponse.json({ organization: created }, { status: 201 });
 }

@@ -79,7 +79,7 @@ export function SliderField({
           className="btn btn-ghost btn-icon-xs"
           onClick={() => onChange(defaultValue)}
           aria-label={`Reset ${label.toLowerCase()}`}
-          title={`Reset ${label.toLowerCase()}`}
+          data-tooltip={`Reset ${label.toLowerCase()}`}
         >
           <RotateCcw size={12} strokeWidth={2.25} />
         </button>
@@ -201,7 +201,7 @@ export default function GridPanel({
             <button
               key={shape.key}
               className={grid.shape === shape.key ? "active" : ""}
-              title={shape.label}
+              data-tooltip={shape.label}
               aria-label={shape.label}
               aria-pressed={grid.shape === shape.key}
               onClick={() => updateShape(shape.key)}

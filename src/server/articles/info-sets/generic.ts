@@ -93,5 +93,7 @@ export const GENERIC_INFO = defineFieldSet(
       options: ["Ongoing", "Historical", "Recurring", "Disputed", "Forgotten", "Destroyed", "Unknown"],
       hint: "Where it stands today: still happening, long past, coming back, argued over, lost to memory?",
     },
-  ]
+  ],
+  // Required, in this order.
+  ["subjectType", "importance", "status"]
 );

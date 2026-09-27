@@ -103,5 +103,7 @@ export const SPECIES_INFO = defineFieldSet(
       options: ["Increasing", "Stable", "Declining", "Endangered", "Extinct", "Unknown"],
       hint: "Whether their numbers are growing or shrinking.",
     },
-  ]
+  ],
+  // Required, in this order.
+  ["creatureType", "typicalSize"]
 );

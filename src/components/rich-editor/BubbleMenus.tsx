@@ -78,7 +78,7 @@ function ToolButton({
   onClick: () => void;
 }) {
   return (
-    <button type="button" className={active ? "active" : ""} aria-label={label} aria-pressed={active} title={label} onMouseDown={keepSelection} onClick={onClick}>
+    <button type="button" className={active ? "active" : ""} aria-label={label} aria-pressed={active} data-tooltip={label} onMouseDown={keepSelection} onClick={onClick}>
       <Icon size={15} strokeWidth={2.25} />
     </button>
   );
@@ -193,7 +193,7 @@ function BlockStyleMenu({ editor }: { editor: Editor }) {
         type="button"
         className="rich-dropdown-button"
         aria-label={`Text style: ${current.label}`}
-        title="Text style"
+        data-tooltip="Text style"
         aria-haspopup="menu"
         aria-expanded={open}
         onMouseDown={keepSelection}
@@ -248,7 +248,7 @@ function ColorButton({ editor }: { editor: Editor }) {
         type="button"
         className={color ? "active" : ""}
         aria-label="Text color"
-        title="Text color"
+        data-tooltip="Text color"
         aria-expanded={open}
         onMouseDown={keepSelection}
         onClick={() => setOpen((o) => !o)}

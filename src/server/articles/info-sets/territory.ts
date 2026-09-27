@@ -2,20 +2,40 @@ import { GOVERNMENT_FORMS } from "../../politics/hierarchy-config";
 import { defineFieldSet, link } from "../info-fields";
 
 /**
- * Territory fields. Territory Type and Parent Territory aren't here: they
- * are the hierarchy's `type`/`parentId` (validated against the hierarchy
- * profile) and always shown as fixed rows. Government Form is the
- * `governmentForm` column.
+ * Territory fields. Territory Type and Hierarchy Profile aren't here: they
+ * are the hierarchy's `type`/`hierarchyProfileId`, always shown as fixed
+ * rows. Parent Territory is the `parentId` column — optional, and edited
+ * with a hierarchy-filtered picker (TerritoryArticle). Government Form is
+ * the `governmentForm` column.
  */
 export const TERRITORY_INFO = defineFieldSet(
   [
+    { key: "hierarchy", label: "Hierarchy" },
     { key: "geography", label: "Geography" },
     { key: "government", label: "Government" },
     { key: "history", label: "History" },
     { key: "society", label: "Society" },
   ],
   [
+    // Hierarchy
+    {
+      key: "parentTerritory",
+      label: "Parent Territory",
+      group: "hierarchy",
+      kind: "link",
+      link: link(["territory"]),
+      column: "parentId",
+      hint: "The larger territory this one belongs to. Only types the hierarchy profile allows are offered; leave it out for a root realm.",
+    },
     // Geography
+    {
+      key: "seasonProfile",
+      label: "Season Profile",
+      group: "geography",
+      kind: "link",
+      link: link(["seasonProfile"]),
+      hint: "Which season schedule (from Calendars) this territory follows, so its current season shows here. Leave it out when seasons don't matter.",
+    },
     { key: "area", label: "Area", group: "geography", kind: "text", hint: "How large the territory is — a figure, or a feel like \"three days' ride across\"." },
     {
       key: "borders",
@@ -123,5 +143,7 @@ export const TERRITORY_INFO = defineFieldSet(
       link: link(["species"], true),
       hint: "The peoples and creatures that live there in numbers.",
     },
-  ]
+  ],
+  // Required, in this order (Territory Type and Hierarchy Profile are fixed rows around it).
+  ["governmentForm"]
 );

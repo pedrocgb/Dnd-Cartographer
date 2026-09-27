@@ -28,7 +28,7 @@ import { useEditHistory } from "./use-edit-history";
 import { patchOverlayPositioning } from "./osd-overlay-position-fix";
 import { clientToImagePoint, screenPxPerImagePx } from "./osd-coords";
 import { centerAt, translateZoneGeometry } from "./paste-geometry";
-import { hitTest, type Hit, type HitScene } from "./hit-test";
+import { hitTest, MARKER_HIT_PX, type Hit, type HitScene } from "./hit-test";
 import { toMultiPolygon } from "./zone-paint";
 import SelectionLayer from "./SelectionLayer";
 import {
@@ -222,6 +222,8 @@ export default function MapWorkspace({
   const [pulseId, setPulseId] = useState<string | null>(null);
   /** Selection tool: the item under the pointer. */
   const [hovered, setHovered] = useState<Hit | null>(null);
+  /** Scene panel: the list item under the pointer, outlined on the map like a selection-tool hover. */
+  const [sceneHovered, setSceneHovered] = useState<{ kind: SceneKind; id: string } | null>(null);
   const pulseTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const lastChoiceRef = useRef({
     iconKey: DEFAULT_ICON_KEY,
@@ -1498,8 +1500,32 @@ export default function MapWorkspace({
     };
   }, [viewer, osd, hitScene]);
 
-  // The hover box goes away with the tool.
+  // The hover box goes away with the tool (and the scene-list one with its panel).
   if (!selectToolOn && hovered) setHovered(null);
+  if (!scenePanelOpen && sceneHovered) setSceneHovered(null);
+
+  /** An item's outline box on the map, as the selection tool draws it (null once it's gone). */
+  function sceneItemBounds(kind: SceneKind, id: string): Rect | null {
+    if (kind === "marker") {
+      const m = layerMarkers.find((x) => x.id === id);
+      if (!m) return null;
+      const r = MARKER_HIT_PX / screenPxPerImagePx(viewer);
+      return { x: m.u * imageWidth - r, y: m.v * imageHeight - r, width: 2 * r, height: 2 * r };
+    }
+    if (kind === "zone") {
+      const z = layerZones.find((x) => x.id === id);
+      return z ? zoneBounds(JSON.parse(z.geometry)) : null;
+    }
+    if (kind === "text") {
+      const t = layerTexts.find((x) => x.id === id);
+      return t ? textBounds(t) : null;
+    }
+    const l = layerLines.find((x) => x.id === id);
+    return l ? lineBounds(l.points) : null;
+  }
+
+  // The selection tool's hover wins; otherwise the scene list's.
+  const hoverBox = hovered?.bounds ?? (sceneHovered ? sceneItemBounds(sceneHovered.kind, sceneHovered.id) : null);
 
   const selectedMarker = layerMarkers.find((m) => m.id === selectedMarkerId) ?? null;
   const markerToolActive = addingMarker || selectedMarker !== null;
@@ -1556,7 +1582,7 @@ export default function MapWorkspace({
             value={activeLayerId}
             onChange={(e) => onSetActiveLayer(e.target.value)}
             aria-label="Active layer"
-            title="Active layer — markers, zones, grid and image shown and edited"
+            data-tooltip="Active layer — markers, zones, grid and image shown and edited"
           >
             {layerApi.layers.map((l) => (
               <option key={l.id} value={l.id}>
@@ -1572,7 +1598,7 @@ export default function MapWorkspace({
               disabled={!history.undoLabel}
               onClick={history.undo}
               aria-label={history.undoLabel ? `Undo: ${history.undoLabel}` : "Undo"}
-              title={history.undoLabel ? `Undo: ${history.undoLabel} (Ctrl+Z)` : "Nothing to undo"}
+              data-tooltip={history.undoLabel ? `Undo: ${history.undoLabel} (Ctrl+Z)` : "Nothing to undo"}
             >
               <Undo2 size={16} strokeWidth={2.25} />
             </button>
@@ -1581,7 +1607,7 @@ export default function MapWorkspace({
               disabled={!history.redoLabel}
               onClick={history.redo}
               aria-label={history.redoLabel ? `Redo: ${history.redoLabel}` : "Redo"}
-              title={history.redoLabel ? `Redo: ${history.redoLabel} (Ctrl+Y)` : "Nothing to redo"}
+              data-tooltip={history.redoLabel ? `Redo: ${history.redoLabel} (Ctrl+Y)` : "Nothing to redo"}
             >
               <Redo2 size={16} strokeWidth={2.25} />
             </button>
@@ -1590,7 +1616,7 @@ export default function MapWorkspace({
               disabled={!viewer}
               onClick={() => viewer?.viewport.zoomBy(ZOOM_PER_CLICK)}
               aria-label="Zoom in"
-              title="Zoom in"
+              data-tooltip="Zoom in"
             >
               <ZoomIn size={16} strokeWidth={2.25} />
             </button>
@@ -1599,7 +1625,7 @@ export default function MapWorkspace({
               disabled={!viewer}
               onClick={() => viewer?.viewport.zoomBy(1 / ZOOM_PER_CLICK)}
               aria-label="Zoom out"
-              title="Zoom out"
+              data-tooltip="Zoom out"
             >
               <ZoomOut size={16} strokeWidth={2.25} />
             </button>
@@ -1608,7 +1634,7 @@ export default function MapWorkspace({
               disabled={!viewer}
               onClick={() => viewer?.viewport.goHome()}
               aria-label="Reset view"
-              title="Reset view"
+              data-tooltip="Reset view"
             >
               <Home size={16} strokeWidth={2.25} />
             </button>
@@ -1617,7 +1643,7 @@ export default function MapWorkspace({
               disabled={!viewer}
               onClick={toggleFullscreen}
               aria-label="Toggle fullscreen"
-              title="Toggle fullscreen"
+              data-tooltip="Toggle fullscreen"
             >
               {isFullscreen ? <Minimize size={16} strokeWidth={2.25} /> : <Maximize size={16} strokeWidth={2.25} />}
             </button>
@@ -1703,10 +1729,10 @@ export default function MapWorkspace({
           }
         />
 
-        {selectToolOn && (
+        {(selectToolOn || sceneHovered) && (
           <SelectionLayer
             viewer={viewer}
-            box={hovered?.bounds ?? null}
+            box={hoverBox}
             pad={4 / screenPxPerImagePx(viewer)}
             imageWidth={imageWidth}
             imageHeight={imageHeight}
@@ -1816,6 +1842,7 @@ export default function MapWorkspace({
             texts={layerTexts}
             lines={layerLines}
             onPick={focusSceneItem}
+            onHover={setSceneHovered}
             onSetVisible={setItemsVisible}
             onClose={onCloseScenePanel}
           />

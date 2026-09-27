@@ -6,6 +6,8 @@ import { ensureDefaultWorld } from "@/server/world/default-world";
 import { createEmptyDocument } from "@/server/documents/create";
 import { isGenericTemplate } from "@/server/articles/templates";
 import { MAX_TITLE_LENGTH, toClientArticle } from "@/server/articles/articles";
+import { sanitizeInfo } from "@/server/articles/info-fields";
+import { INFO_FIELD_SETS } from "@/server/articles/info-sets";
 
 /** Generic-template articles, optionally of one template (`?template=`) and title-filtered (`?q=`). */
 export async function GET(request: Request) {
@@ -23,7 +25,7 @@ export async function GET(request: Request) {
   return NextResponse.json({ articles: rows.map(toClientArticle) });
 }
 
-/** Creates the article together with its (empty) body and sidebar documents. */
+/** Creates the article together with its (empty) body and sidebar documents, plus any `info` from the create form. */
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   if (!isGenericTemplate(body?.template)) {
@@ -32,12 +34,15 @@ export async function POST(request: Request) {
   const title = typeof body.title === "string" ? body.title.trim().slice(0, MAX_TITLE_LENGTH) : "";
   if (!title) return NextResponse.json({ error: "A title is required." }, { status: 400 });
 
+  const infoSet = INFO_FIELD_SETS[body.template as keyof typeof INFO_FIELD_SETS];
+  const info = infoSet ? sanitizeInfo(infoSet, body.info) : null;
+
   const worldId = await ensureDefaultWorld();
   const bodyDoc = await createEmptyDocument(worldId);
   const sidebarDoc = await createEmptyDocument(worldId);
   const [created] = await db
     .insert(articles)
-    .values({ worldId, template: body.template, title, bodyDocumentId: bodyDoc.id, sidebarDocumentId: sidebarDoc.id })
+    .values({ worldId, template: body.template, title, bodyDocumentId: bodyDoc.id, sidebarDocumentId: sidebarDoc.id, ...(info && { info: JSON.stringify(info) }) })
     .returning();
   return NextResponse.json({ article: toClientArticle(created) }, { status: 201 });
 }

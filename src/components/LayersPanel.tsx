@@ -70,7 +70,7 @@ function LayerRow({
         <button
           type="button"
           className="layer-drag-handle"
-          title="Drag to reorder (or focus and use ↑/↓)"
+          data-tooltip="Drag to reorder (or focus and use ↑/↓)"
           aria-label={`Reorder ${layer.name}`}
           onMouseDown={() => onArm(true)}
           onMouseUp={() => onArm(false)}
@@ -105,7 +105,7 @@ function LayerRow({
             className="layer-name"
             onClick={onSetActive}
             onDoubleClick={() => setRenaming(true)}
-            title="Click to make active, double-click to rename"
+            data-tooltip="Click to make active, double-click to rename"
           >
             {isActive && <Check size={13} strokeWidth={2.5} />}
             {layer.name}
@@ -115,7 +115,7 @@ function LayerRow({
           <button
             className="btn btn-ghost btn-icon btn-sm"
             onClick={() => onUpdate({ visible: !layer.visible })}
-            title={layer.visible ? "Hide layer" : "Show layer"}
+            data-tooltip={layer.visible ? "Hide layer" : "Show layer"}
             aria-label={layer.visible ? `Hide ${layer.name}` : `Show ${layer.name}`}
           >
             {layer.visible ? <Eye size={14} strokeWidth={2.25} /> : <EyeOff size={14} strokeWidth={2.25} />}
@@ -124,7 +124,7 @@ function LayerRow({
             className="btn btn-ghost btn-icon btn-sm"
             onClick={onDelete}
             disabled={isOnly}
-            title={isOnly ? "A map needs at least one layer" : "Delete layer"}
+            data-tooltip={isOnly ? "A map needs at least one layer" : "Delete layer"}
             aria-label={`Delete ${layer.name}`}
           >
             <Trash2 size={14} strokeWidth={2.25} />
@@ -196,7 +196,7 @@ function LayerOptions({
             />
           </label>
           {layer.asset && !processing && (
-            <button type="button" className="btn btn-sm" onClick={onRemoveImage} title="Remove this layer's image">
+            <button type="button" className="btn btn-sm" onClick={onRemoveImage} data-tooltip="Remove this layer's image">
               <ImageOff size={13} strokeWidth={2.25} />
               Remove
             </button>
@@ -230,7 +230,7 @@ function LayerOptions({
               onChange={(e) => onUpdate({ imageOpacity: Number(e.target.value) / 100 })}
             />
           </label>
-          <label className="layer-checkbox" title="Draw this image under every layer, not only when this layer is active">
+          <label className="layer-checkbox" data-tooltip="Draw this image under every layer, not only when this layer is active">
             <input type="checkbox" checked={layer.imageAlwaysVisible} onChange={(e) => onUpdate({ imageAlwaysVisible: e.target.checked })} />
             <span className="field-label">Always draw this image</span>
           </label>
@@ -238,7 +238,7 @@ function LayerOptions({
       )}
 
       {ALWAYS_DRAW_OPTIONS.map((o) => (
-        <label key={o.flag} className="layer-checkbox" title={`Draw this layer's ${o.noun} even while another layer is active (display only)`}>
+        <label key={o.flag} className="layer-checkbox" data-tooltip={`Draw this layer's ${o.noun} even while another layer is active (display only)`}>
           <input type="checkbox" checked={layer[o.flag]} onChange={(e) => onUpdate({ [o.flag]: e.target.checked })} />
           <span className="field-label">Always draw {o.noun}</span>
         </label>

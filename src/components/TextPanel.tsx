@@ -131,7 +131,7 @@ export default function TextPanel({
               className={v.bold ? "btn btn-icon active" : "btn btn-icon"}
               aria-pressed={v.bold}
               aria-label="Bold"
-              title="Bold"
+              data-tooltip="Bold"
               onClick={() => onChange({ bold: !v.bold })}
             >
               <Bold size={15} strokeWidth={2.5} />
