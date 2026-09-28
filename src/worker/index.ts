@@ -86,7 +86,9 @@ async function markJobDone(
   const asset = await db.query.mapAssets.findFirst({ where: eq(mapAssets.id, assetId) });
   if (!asset) return;
   if (asset.layerId) {
-    await db.update(mapLayers).set({ assetId, updatedAt: new Date() }).where(eq(mapLayers.id, asset.layerId));
+    // A new image starts at the frame's top-left at the frame's width; the
+    // layer's image offset and scale then line it up with the map.
+    await db.update(mapLayers).set({ assetId, imageX: 0, imageY: 0, imageScale: 1, updatedAt: new Date() }).where(eq(mapLayers.id, asset.layerId));
   }
   // The first image ever processed fixes the map's coordinate frame; it also
   // stays the map's thumbnail/export asset (maps.currentAssetId).
@@ -135,19 +137,14 @@ async function processJob(job: ClaimedJob): Promise<void> {
   await ensureDir(basenamePath);
   await ensureDir(thumbPath);
 
-  let image = sharp(srcPath, { limitInputPixels: false }).rotate(); // normalize EXIF orientation
+  const image = sharp(srcPath, { limitInputPixels: false }).rotate(); // normalize EXIF orientation
 
-  // Layer images are stretched to the map's frame so marker u/v, zone
-  // geometry and grids line up on every layer.
-  const map = await db.query.maps.findFirst({ where: eq(maps.id, asset.mapId) });
+  // Layer images keep their own size and proportions (never stretched to
+  // the map's frame): the layer's image offset and scale place them on it.
   const meta = await sharp(srcPath, { limitInputPixels: false }).metadata();
   // EXIF orientations 5-8 are 90° rotations, which .rotate() above applies.
   const swap = (meta.orientation ?? 1) >= 5;
-  let size = { width: (swap ? meta.height : meta.width) ?? 0, height: (swap ? meta.width : meta.height) ?? 0 };
-  if (map?.frameWidth && map.frameHeight && (size.width !== map.frameWidth || size.height !== map.frameHeight)) {
-    image = image.resize({ width: map.frameWidth, height: map.frameHeight, fit: "fill" });
-    size = { width: map.frameWidth, height: map.frameHeight };
-  }
+  const size = { width: (swap ? meta.height : meta.width) ?? 0, height: (swap ? meta.width : meta.height) ?? 0 };
 
   await image
     .clone()

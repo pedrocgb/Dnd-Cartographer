@@ -204,12 +204,13 @@ export default function ZoneLayer({
     function onKeyDown(e: KeyboardEvent) {
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
+      // Esc cancels a gesture in progress here; every other step back
+      // (deselect, disarm the tool, close the panel) is MapWorkspace's.
       if (e.key === "Escape") {
+        if (!transform && !draft) return;
+        e.preventDefault();
         if (transform) setTransform(null);
-        else if (draft) setDraft(null);
-        // With the brush, the selected zone is the paint target — Esc lets
-        // the next stroke start a new zone instead.
-        else if (activeTool === "brush" && selectedZoneId) onSelectZone(null);
+        else setDraft(null);
         return;
       }
       if (isPaintTool(activeTool) && (e.key === "[" || e.key === "]")) {
@@ -237,8 +238,9 @@ export default function ZoneLayer({
         }
       }
     }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    // On document, so it runs before MapWorkspace's window-level Esc.
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft, transform, hoveredVertex, selectedZoneId, activeTool, brushSize]);
 

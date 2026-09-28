@@ -11,6 +11,10 @@ export interface MapLayerData {
   sortOrder: number;
   visible: boolean;
   imageOpacity: number;
+  /** The image's top-left corner and width on the map frame, in frame widths (see map_layers). */
+  imageX: number;
+  imageY: number;
+  imageScale: number;
   imageAlwaysVisible: boolean;
   /** Draw this layer's zones/markers/texts/lines even while another layer is active (display only). */
   zonesAlwaysVisible: boolean;
@@ -26,7 +30,7 @@ export interface MapLayerData {
 export type LayerPatch = Partial<
   Pick<
     MapLayerData,
-    "name" | "visible" | "imageOpacity" | "imageAlwaysVisible" | "zonesAlwaysVisible" | "markersAlwaysVisible" | "textsAlwaysVisible" | "linesAlwaysVisible"
+    "name" | "visible" | "imageOpacity" | "imageX" | "imageY" | "imageScale" | "imageAlwaysVisible" | "zonesAlwaysVisible" | "markersAlwaysVisible" | "textsAlwaysVisible" | "linesAlwaysVisible"
   >
 >;
 
@@ -85,6 +89,9 @@ export interface DrawnImage {
   layerId: string;
   assetId: string;
   opacity: number;
+  x: number;
+  y: number;
+  width: number;
 }
 
 /** Layers in list order (top of the list first). */
@@ -101,7 +108,7 @@ export function drawnImages(layers: MapLayerData[], activeLayerId: string | null
   return sortLayers(layers)
     .reverse()
     .filter((l) => l.visible && l.asset && (l.id === activeLayerId || l.imageAlwaysVisible))
-    .map((l) => ({ layerId: l.id, assetId: l.asset!.id, opacity: l.imageOpacity }));
+    .map((l) => ({ layerId: l.id, assetId: l.asset!.id, opacity: l.imageOpacity, x: l.imageX, y: l.imageY, width: l.imageScale }));
 }
 
 /** Moves `draggedId` to `targetId`'s slot and returns the new id order. */
@@ -121,8 +128,8 @@ export function moveLayer(orderedIds: string[], draggedId: string, targetId: str
  * Keeps the viewer's tiled images in sync with the drawn layer images.
  * World item 0 is always the invisible frame item every overlay layer uses as
  * its coordinate reference (`world.getItemAt(0)`); layer images sit above it
- * at index 1+, stretched over the same bounds (x 0, width 1 — the worker
- * already resized them to the frame's pixel size).
+ * at index 1+, each placed by its layer's image offset and scale (frame
+ * widths; 0/0/1 matches the frame's top-left and width).
  */
 export function useLayerImages(viewer: OpenSeadragonType.Viewer | null, layers: MapLayerData[], activeLayerId: string | null) {
   const itemsRef = useRef(new Map<string, OpenSeadragonType.TiledImage | "loading">());
@@ -148,6 +155,15 @@ export function useLayerImages(viewer: OpenSeadragonType.Viewer | null, layers: 
         const item = items.get(w.assetId);
         if (!item || item === "loading") continue;
         item.setOpacity(w.opacity);
+        const bounds = item.getBounds();
+        if (bounds.x !== w.x || bounds.y !== w.y) {
+          // OpenSeadragon loads lazily; reuse a Point from the item instead of importing the constructor.
+          const at = bounds.getTopLeft();
+          at.x = w.x;
+          at.y = w.y;
+          item.setPosition(at, true);
+        }
+        if (bounds.width !== w.width) item.setWidth(w.width, true);
         if (v.world.getIndexOfItem(item) !== index) v.world.setItemIndex(item, index);
         index += 1;
       }
@@ -164,9 +180,9 @@ export function useLayerImages(viewer: OpenSeadragonType.Viewer | null, layers: 
       items.set(w.assetId, "loading");
       v.addTiledImage({
         tileSource: `/api/tiles/${w.assetId}/manifest.dzi`,
-        x: 0,
-        y: 0,
-        width: 1,
+        x: w.x,
+        y: w.y,
+        width: w.width,
         opacity: w.opacity,
         success: (e) => {
           const event = e as unknown as { item: OpenSeadragonType.TiledImage };

@@ -43,7 +43,6 @@ interface Props {
   pulseId?: string | null;
   selectedLineId: string | null;
   onCreate: (kind: LineKind, points: PenPt[]) => void;
-  onCancelDraw: () => void;
   onSelect: (id: string | null) => void;
   onMove: (id: string, dx: number, dy: number) => void;
   onDelete: (id: string) => void;
@@ -61,7 +60,6 @@ export default function LineLayer({
   pulseId = null,
   selectedLineId,
   onCreate,
-  onCancelDraw,
   onSelect,
   onMove,
   onDelete,
@@ -76,9 +74,9 @@ export default function LineLayer({
   const toImagePoint = (clientX: number, clientY: number) => clientToImagePoint(viewer, osd, clientX, clientY);
   // Parent callbacks are usually inline closures (new every render); read
   // them through a ref so the overlay only re-renders when its data changes.
-  const callbacksRef = useRef({ onCreate, onCancelDraw, onSelect, onMove, onDelete });
+  const callbacksRef = useRef({ onCreate, onSelect, onMove, onDelete });
   useEffect(() => {
-    callbacksRef.current = { onCreate, onCancelDraw, onSelect, onMove, onDelete };
+    callbacksRef.current = { onCreate, onSelect, onMove, onDelete };
   });
 
   // A half-drawn line never survives a mode switch, disarming or closing the panel.
@@ -115,16 +113,15 @@ export default function LineLayer({
         e.preventDefault();
         return;
       }
-      if (e.key === "Escape") {
-        if (drawing) onCancelDraw();
-        else if (selectedLineId) onSelect(null);
-      } else if ((e.key === "Delete" || e.key === "Backspace") && selectedLineId) {
+      // Esc past a pen draft (disarm, deselect, close) is MapWorkspace's.
+      if ((e.key === "Delete" || e.key === "Backspace") && selectedLineId) {
         e.preventDefault();
         onDelete(selectedLineId);
       }
     }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    // On document, so a pen draft's Esc runs before MapWorkspace's window-level one.
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
   });
 
   useEffect(() => {

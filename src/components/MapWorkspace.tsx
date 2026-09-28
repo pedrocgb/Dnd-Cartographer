@@ -31,6 +31,8 @@ import { centerAt, translateZoneGeometry } from "./paste-geometry";
 import { hitTest, MARKER_HIT_PX, type Hit, type HitScene } from "./hit-test";
 import { toMultiPolygon } from "./zone-paint";
 import SelectionLayer from "./SelectionLayer";
+import { isModalOpen } from "./Modal";
+import { isTypingTarget } from "./keyboard";
 import {
   ICONS,
   DEFAULT_ICON_KEY,
@@ -80,14 +82,34 @@ function editLabel(kind: SceneKind, keys: string[]): string {
   return `Edit ${kind}`;
 }
 
-const TEXT_INPUT_TYPES = new Set(["text", "search", "number", "email", "url", "password", "tel"]);
+/** Remembered style of the last zone drawn or restyled, per browser: the next new zone starts with it. */
+const ZONE_STYLE_STORAGE_KEY = "map-zone-last-style";
+const ZONE_STYLE_KEYS = ["fillColor", "fillOpacity", "strokeColor", "strokeOpacity", "strokeWidth"] as const;
+type ZoneStyle = Pick<ZoneData, (typeof ZONE_STYLE_KEYS)[number]>;
 
-/** Keyboard shortcuts leave text editing alone (it has its own undo); sliders and checkboxes don't count. */
-function isTypingTarget(target: EventTarget | null): boolean {
-  const el = target as HTMLElement | null;
-  if (!el?.tagName) return false;
-  if (el.isContentEditable || el.tagName === "TEXTAREA" || el.tagName === "SELECT") return true;
-  return el.tagName === "INPUT" && TEXT_INPUT_TYPES.has((el as HTMLInputElement).type);
+function zoneStyleOf(zone: ZoneStyle): ZoneStyle {
+  return Object.fromEntries(ZONE_STYLE_KEYS.map((k) => [k, zone[k]])) as ZoneStyle;
+}
+
+function loadZoneStyle(): ZoneStyle | null {
+  try {
+    const raw = window.localStorage.getItem(ZONE_STYLE_STORAGE_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : null;
+    if (!parsed || typeof parsed !== "object") return null;
+    const style = parsed as Record<string, unknown>;
+    const valid = ZONE_STYLE_KEYS.every((k) => (k.endsWith("Color") ? typeof style[k] === "string" : Number.isFinite(style[k])));
+    return valid ? (style as unknown as ZoneStyle) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveZoneStyle(style: ZoneStyle) {
+  try {
+    window.localStorage.setItem(ZONE_STYLE_STORAGE_KEY, JSON.stringify(style));
+  } catch {
+    // storage unavailable: the style is still remembered for this page
+  }
 }
 
 export default function MapWorkspace({
@@ -109,6 +131,7 @@ export default function MapWorkspace({
   scenePanelOpen,
   onCloseScenePanel,
   selectToolOn,
+  onOpenSelectTool,
   onCloseSelectTool,
   addMarkerRequest,
   onMarkerToolChange,
@@ -132,6 +155,7 @@ export default function MapWorkspace({
   onCloseZonesPanel,
   iconFilterPanelOpen,
   onCloseIconFilterPanel,
+  onFitFrame,
   imageWidth,
   imageHeight,
 }: {
@@ -154,6 +178,8 @@ export default function MapWorkspace({
   onCloseScenePanel: () => void;
   /** Selection tool: hover outlines an item, a click opens its tool with it selected. */
   selectToolOn: boolean;
+  /** Esc's last step: back to the Selection tool once nothing else is open. */
+  onOpenSelectTool: () => void;
   onCloseSelectTool: () => void;
   /** Changes each time the sidebar's "Add marker" is picked: same toggle as the toolbar button. */
   addMarkerRequest: number;
@@ -179,6 +205,8 @@ export default function MapWorkspace({
   onCloseZonesPanel: () => void;
   iconFilterPanelOpen: boolean;
   onCloseIconFilterPanel: () => void;
+  /** Grows the map frame to cover every layer image (after one is placed). */
+  onFitFrame: () => void;
   imageWidth: number;
   imageHeight: number;
 }) {
@@ -201,6 +229,8 @@ export default function MapWorkspace({
   const [activeZoneTool, setActiveZoneTool] = useState<ZoneTool>("select");
   const [brushSize, setBrushSize] = useState(DEFAULT_BRUSH_SIZE);
   const [zoneUndo, setZoneUndo] = useState<{ zone: ZoneData; timer: ReturnType<typeof setTimeout> } | null>(null);
+  /** Style the next new zone starts with (null until loaded from storage on first use). */
+  const lastZoneStyleRef = useRef<ZoneStyle | null>(null);
   const zonePatchTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const pendingZonePatchesRef = useRef<Map<string, Partial<ZoneData>>>(new Map());
   const [saveError, setSaveError] = useState<{ message: string; timer: ReturnType<typeof setTimeout> } | null>(null);
@@ -897,7 +927,7 @@ export default function MapWorkspace({
     fetch(`/api/maps/${mapId}/zones`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ regionId, shapeType, geometry, imageWidth, imageHeight }),
+      body: JSON.stringify({ regionId, shapeType, geometry, imageWidth, imageHeight, ...(lastZoneStyleRef.current ?? loadZoneStyle()) }),
     })
       .then((r) => json<{ zone?: ZoneData; error?: string }>(r))
       .then((d) => {
@@ -908,6 +938,7 @@ export default function MapWorkspace({
         }
         setZones((prev) => [...prev, d.zone!]);
         recordCreate("zone", d.zone.id);
+        rememberZoneStyle(zoneStyleOf(d.zone));
         setSelectedZoneId(d.zone.id);
         // A painted zone keeps the brush armed: the new zone is now selected,
         // so the next strokes keep adding to it.
@@ -935,8 +966,15 @@ export default function MapWorkspace({
       .then((d) => d.zones && setZones(d.zones));
   }
 
+  function rememberZoneStyle(style: ZoneStyle) {
+    lastZoneStyleRef.current = style;
+    saveZoneStyle(style);
+  }
+
   function updateZone(id: string, patch: Partial<ZoneData>) {
     recordUpdate("zone", id, patch);
+    const zone = zones.find((z) => z.id === id);
+    if (zone && ZONE_STYLE_KEYS.some((k) => k in patch)) rememberZoneStyle(zoneStyleOf({ ...zone, ...patch }));
     setZones((prev) => prev.map((z) => (z.id === id ? { ...z, ...patch } : z)));
     const timers = zonePatchTimersRef.current;
     const pending = pendingZonePatchesRef.current;
@@ -1212,10 +1250,44 @@ export default function MapWorkspace({
     setLineUndo(null);
   }
 
-  /** Map-wide shortcuts: Ctrl/Cmd+Z undo, Ctrl+Y or Ctrl+Shift+Z redo, Ctrl+C / Ctrl+V copy and paste the selected item. */
+  /**
+   * Esc backs out one step at a time: the innermost action first (a drawing
+   * in progress, an armed tool, an open item's settings), then the tool's
+   * panel, and finally back to the Selection tool. In-progress gestures owned
+   * by the map layers (a zone or pen-line draft, a marker drag) handle their
+   * own Esc and mark it handled with preventDefault.
+   */
+  function escapeStep() {
+    if (overlapChoices) return setOverlapChoices(null);
+    if (addingMarker) return setAddingMarker(false);
+    if (selectedMarker) return setSelectedMarkerId(null);
+    if (zonesPanelOpen) {
+      if (selectedZoneId) return setSelectedZoneId(null);
+      if (activeZoneTool !== "select") return setActiveZoneTool("select");
+      return onCloseZonesPanel();
+    }
+    if (textPanelOpen) {
+      if (placingText) return setPlacingText(false);
+      if (selectedTextId) return setSelectedTextId(null);
+      return onCloseTextPanel();
+    }
+    if (linePanelOpen) {
+      if (drawingLine) return setDrawingLine(false);
+      if (selectedLineId) return setSelectedLineId(null);
+      return onCloseLinePanel();
+    }
+    if (sidePanelOpen) return closeToolPanels();
+    if (!selectToolOn) onOpenSelectTool();
+  }
+
+  /** Map-wide shortcuts: Esc steps back, Ctrl/Cmd+Z undo, Ctrl+Y or Ctrl+Shift+Z redo, Ctrl+C / Ctrl+V copy and paste the selected item. */
   function handleShortcut(e: KeyboardEvent) {
-    if (e.key === "Escape" && selectToolOn) {
-      onCloseSelectTool();
+    if (e.key === "Escape") {
+      if (e.defaultPrevented || isModalOpen()) return;
+      // In a text field, Esc first just leaves the field.
+      if (isTypingTarget(e.target)) return (e.target as HTMLElement).blur();
+      e.preventDefault();
+      escapeStep();
       return;
     }
     if (!(e.ctrlKey || e.metaKey) || e.altKey || isTypingTarget(e.target)) return;
@@ -1686,7 +1758,6 @@ export default function MapWorkspace({
           pulseId={pulseId}
           selectedLineId={selectedLineId}
           onCreate={createLine}
-          onCancelDraw={() => setDrawingLine(false)}
           onSelect={selectLine}
           onMove={moveLine}
           onDelete={deleteLine}
@@ -1702,7 +1773,6 @@ export default function MapWorkspace({
           pulseId={pulseId}
           selectedTextId={selectedTextId}
           onPlace={placeText}
-          onCancelPlace={() => setPlacingText(false)}
           onSelect={setSelectedTextId}
           onUpdate={updateText}
           onDelete={deleteText}
@@ -1714,6 +1784,7 @@ export default function MapWorkspace({
           markers={visibleMarkers}
           editableIds={editableMarkerIds}
           pulseId={pulseId}
+          hoveredId={hovered?.kind === "marker" ? hovered.id : null}
           addingMarker={addingMarker}
           onPlaceMarker={placeMarker}
           onSelectMarker={(id) => selectMarker(id)}
@@ -1788,6 +1859,8 @@ export default function MapWorkspace({
             onRemoveImage={(id) => void layerApi.removeLayerImage(id)}
             onRetry={(assetId) => void layerApi.retryLayerImage(assetId)}
             onClose={onCloseLayersPanel}
+            onImageDialogClose={onFitFrame}
+            frame={{ width: imageWidth, height: imageHeight }}
           />
         )}
 

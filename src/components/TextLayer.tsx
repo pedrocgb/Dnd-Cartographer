@@ -39,7 +39,6 @@ interface Props {
   pulseId?: string | null;
   selectedTextId: string | null;
   onPlace: (x: number, y: number) => void;
-  onCancelPlace: () => void;
   onSelect: (id: string | null) => void;
   onUpdate: (id: string, patch: Partial<Pick<MapTextData, "x" | "y" | "rotation" | "fontSize">>) => void;
   onDelete: (id: string) => void;
@@ -55,7 +54,6 @@ export default function TextLayer({
   pulseId = null,
   selectedTextId,
   onPlace,
-  onCancelPlace,
   onSelect,
   onUpdate,
   onDelete,
@@ -76,17 +74,15 @@ export default function TextLayer({
     function onKeyDown(e: KeyboardEvent) {
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT")) return;
-      if (e.key === "Escape") {
-        if (placing) onCancelPlace();
-        else if (selectedTextId) onSelect(null);
-      } else if ((e.key === "Delete" || e.key === "Backspace") && selectedTextId) {
+      // Esc (stop placing, deselect, close) is MapWorkspace's.
+      if ((e.key === "Delete" || e.key === "Backspace") && selectedTextId) {
         e.preventDefault();
         onDelete(selectedTextId);
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [authoring, placing, selectedTextId, onCancelPlace, onSelect, onDelete]);
+  }, [authoring, selectedTextId, onDelete]);
 
   useEffect(() => {
     if (!viewer || !osd) return;

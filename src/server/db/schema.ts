@@ -125,6 +125,12 @@ export const mapLayers = sqliteTable(
     visible: integer("visible", { mode: "boolean" }).notNull().default(true),
     assetId: text("asset_id"),
     imageOpacity: real("image_opacity").notNull().default(1),
+    // Where the layer's image sits on the map frame, in frame widths (the
+    // viewer's world units): top-left corner and width. 0/0/1 covers the
+    // frame's width from its top-left, like images stretched to the frame.
+    imageX: real("image_x").notNull().default(0),
+    imageY: real("image_y").notNull().default(0),
+    imageScale: real("image_scale").notNull().default(1),
     imageAlwaysVisible: integer("image_always_visible", { mode: "boolean" }).notNull().default(false),
     // "Always draw" this layer's items even while another layer is active.
     zonesAlwaysVisible: integer("zones_always_visible", { mode: "boolean" }).notNull().default(false),

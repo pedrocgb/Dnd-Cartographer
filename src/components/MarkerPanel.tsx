@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { useState } from "react";
 import { X, Lock, Unlock, Copy, Check, ExternalLink, Trash2, Pencil, ChevronLeft, ChevronRight } from "lucide-react";
-import { RawIcon } from "./MarkerIcon";
+import IconPicker from "./IconPicker";
 import DescriptionSection from "./DescriptionSection";
-import { ICONS, COLOR_PRESETS, BACKGROUND_SHAPES, MARKER_CATEGORIES, DEFAULT_MARKER_CATEGORY } from "@/server/markers/icon-registry";
+import { COLOR_PRESETS, BACKGROUND_SHAPES, MARKER_CATEGORIES, DEFAULT_MARKER_CATEGORY } from "@/server/markers/icon-registry";
 import { STATUS_TAGS, ENVIRONMENT_TAGS, OWNERSHIP_TAGS } from "@/server/markers/tag-registry";
 import type { Marker } from "./MarkerLayer";
 import type { MapLayerData } from "./layer-images";
@@ -220,20 +220,7 @@ export default function MarkerPanel({
       {editing && (
         <>
           <CollapsibleSection title="Icons">
-            <div className="icon-grid">
-              {ICONS.map((icon) => (
-                <button
-                  key={icon.key}
-                  className={icon.key === marker.iconKey ? "active" : ""}
-                  data-tooltip={icon.label}
-                  aria-label={icon.label}
-                  aria-pressed={icon.key === marker.iconKey}
-                  onClick={() => onUpdate({ iconKey: icon.key })}
-                >
-                  <RawIcon iconKey={icon.key} size={16} />
-                </button>
-              ))}
-            </div>
+            <IconPicker value={marker.iconKey} onChange={(iconKey) => onUpdate({ iconKey })} />
           </CollapsibleSection>
 
           <CollapsibleSection title="Icon Color">

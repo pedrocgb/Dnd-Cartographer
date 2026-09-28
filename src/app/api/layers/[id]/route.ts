@@ -22,6 +22,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (typeof body.imageOpacity === "number" && Number.isFinite(body.imageOpacity)) {
     patch.imageOpacity = Math.min(1, Math.max(0, body.imageOpacity));
   }
+  // Image placement, in frame widths: offsets up to 10 frame widths away, scale 1%–10000%.
+  const clamp = (v: unknown, min: number, max: number) => (typeof v === "number" && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : undefined);
+  const imageX = clamp(body.imageX, -10, 10);
+  const imageY = clamp(body.imageY, -10, 10);
+  const imageScale = clamp(body.imageScale, 0.01, 100);
+  if (imageX !== undefined) patch.imageX = imageX;
+  if (imageY !== undefined) patch.imageY = imageY;
+  if (imageScale !== undefined) patch.imageScale = imageScale;
 
   const [updated] = await db.update(mapLayers).set(patch).where(eq(mapLayers.id, id)).returning();
   return NextResponse.json({ layer: updated });

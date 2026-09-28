@@ -55,6 +55,8 @@ interface Props {
   editableIds?: Set<string>;
   /** Marker briefly pulsed after being picked in the Scene panel. */
   pulseId?: string | null;
+  /** Marker under the Selection tool's pointer: shows its name like a CSS hover (the overlay itself gets no pointer events then). */
+  hoveredId?: string | null;
 }
 
 interface DragState {
@@ -81,6 +83,7 @@ export default function MarkerLayer({
   interactive = true,
   editableIds,
   pulseId = null,
+  hoveredId = null,
 }: Props) {
   const overlaysRef = useRef<Map<string, { el: HTMLDivElement; root: Root; rendered: Marker | null }>>(new Map());
   const dragRef = useRef<DragState | null>(null);
@@ -124,12 +127,14 @@ export default function MarkerLayer({
     function onKeyDown(e: KeyboardEvent) {
       const drag = dragRef.current;
       if (e.key === "Escape" && drag?.dragging) {
+        e.preventDefault();
         drag.cancelled = true;
         drag.revert();
       }
     }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    // On document, so it runs before MapWorkspace's window-level Esc.
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
 
   useEffect(() => {
@@ -310,6 +315,12 @@ export default function MarkerLayer({
       entry.el.classList.toggle("marker-overlay-selected", marker.id === selectedMarkerId);
       entry.el.classList.toggle("marker-overlay-noninteractive", !clickable);
       entry.el.classList.toggle("scene-focus-pulse-marker", marker.id === pulseId);
+      const hovered = marker.id === hoveredId;
+      if (entry.el.classList.contains("marker-overlay-hovered") !== hovered) {
+        entry.el.classList.toggle("marker-overlay-hovered", hovered);
+        // Same stacking bump as a real hover, so the name is never behind a neighbor.
+        if (entry.el.parentElement) entry.el.parentElement.style.zIndex = String(hovered ? OVERLAY_Z.hoveredMarker : OVERLAY_Z.markers);
+      }
       // `pointer-events: none` on our own element doesn't remove OSD's own
       // wrapper div (a sibling-of-content parent OSD creates around every
       // overlay for positioning) from hit-testing — that wrapper has no
@@ -346,7 +357,7 @@ export default function MarkerLayer({
         overlaysRef.current.delete(id);
       }
     }
-  }, [viewer, osd, markers, selectedMarkerId, interactive, editableIds, pulseId]);
+  }, [viewer, osd, markers, selectedMarkerId, interactive, editableIds, pulseId, hoveredId]);
 
   // Unmount all overlay roots when the layer itself goes away (map change).
   useEffect(() => {

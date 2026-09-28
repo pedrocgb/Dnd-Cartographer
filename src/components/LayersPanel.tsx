@@ -1,15 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { X, Layers, Plus, Eye, EyeOff, Trash2, GripVertical, ImageUp, ImageOff, RefreshCw, Check } from "lucide-react";
-import { moveLayer, type AlwaysDrawFlag, type LayerPatch, type MapLayerData } from "./layer-images";
-
-const ALWAYS_DRAW_OPTIONS: { flag: AlwaysDrawFlag; noun: string }[] = [
-  { flag: "zonesAlwaysVisible", noun: "zones" },
-  { flag: "markersAlwaysVisible", noun: "markers" },
-  { flag: "textsAlwaysVisible", noun: "texts" },
-  { flag: "linesAlwaysVisible", noun: "lines" },
-];
+import { X, Layers, Plus, Eye, EyeOff, Trash2, GripVertical, RefreshCw, Check, Settings } from "lucide-react";
+import ConfirmDialog from "./ConfirmDialog";
+import LayerImageDialog, { type Frame } from "./LayerImageDialog";
+import { moveLayer, type LayerPatch, type MapLayerData } from "./layer-images";
 
 function LayerRow({
   layer,
@@ -26,6 +21,8 @@ function LayerRow({
   onRetry,
   onMoveBy,
   dragHandlers,
+  frame,
+  onImageDialogClose,
 }: {
   layer: MapLayerData;
   isActive: boolean;
@@ -41,6 +38,8 @@ function LayerRow({
   onRetry: (assetId: string) => void;
   onMoveBy: (delta: -1 | 1) => void;
   dragHandlers: Pick<React.HTMLAttributes<HTMLLIElement>, "onDragStart" | "onDragOver" | "onDrop" | "onDragEnd">;
+  frame: Frame;
+  onImageDialogClose: () => void;
 }) {
   const [renaming, setRenaming] = useState(false);
   const [draftName, setDraftName] = useState(layer.name);
@@ -55,10 +54,22 @@ function LayerRow({
     else setDraftName(layer.name);
   }
 
-  async function pickFile(file: File) {
-    if (layer.asset && !window.confirm(`Replace the image of "${layer.name}"? It will be stretched to the map's frame.`)) return;
+  const [replacing, setReplacing] = useState<File | null>(null);
+  // The image dialog: opened to adjust, and after every upload to line the new image up.
+  const [imageDialog, setImageDialog] = useState(false);
+
+  async function upload(file: File) {
+    setReplacing(null);
     setUploadError(null);
-    setUploadError(await onUpload(file));
+    const error = await onUpload(file);
+    setUploadError(error);
+    if (!error) setImageDialog(true);
+  }
+
+  /** A new image for a layer that has one asks first (its position and scale start over). */
+  function pickFile(file: File) {
+    if (layer.asset) setReplacing(file);
+    else void upload(file);
   }
 
   const rowClass = ["layer-row", isActive && "active", isDragOver && "drag-over", !layer.visible && "hidden-layer"].filter(Boolean).join(" ");
@@ -140,33 +151,45 @@ function LayerRow({
             layer={layer}
             processing={Boolean(processing)}
             uploadError={uploadError}
-            onPickFile={(file) => void pickFile(file)}
-            onUpdate={onUpdate}
-            onRemoveImage={onRemoveImage}
+            onOpenSettings={() => setImageDialog(true)}
             onRetry={onRetry}
           />
         </div>
       </div>
+      {imageDialog && (
+        <LayerImageDialog
+          layer={layer}
+          frame={frame}
+          processing={Boolean(processing)}
+          uploadError={uploadError}
+          onUpdate={onUpdate}
+          onReplace={pickFile}
+          onRemoveImage={onRemoveImage}
+          onClose={() => {
+            setImageDialog(false);
+            onImageDialogClose();
+          }}
+        />
+      )}
+      <ConfirmDialog open={replacing !== null} danger={false} title={`Replace the image of ${layer.name}?`} confirmLabel="Replace image" onConfirm={() => replacing && void upload(replacing)} onCancel={() => setReplacing(null)}>
+        The new image starts at the map&apos;s top-left corner, as wide as the map. You&apos;ll line it up right after it uploads. Markers, zones and the grid stay where they are.
+      </ConfirmDialog>
     </li>
   );
 }
 
-/** The active layer's image, opacity and "Always draw" options. */
+/** The active layer's thumbnail and status; everything else lives in LayerImageDialog. */
 function LayerOptions({
   layer,
   processing,
   uploadError,
-  onPickFile,
-  onUpdate,
-  onRemoveImage,
+  onOpenSettings,
   onRetry,
 }: {
   layer: MapLayerData;
   processing: boolean;
   uploadError: string | null;
-  onPickFile: (file: File) => void;
-  onUpdate: (patch: LayerPatch) => void;
-  onRemoveImage: () => void;
+  onOpenSettings: () => void;
   onRetry: (assetId: string) => void;
 }) {
   const pending = layer.pendingAsset;
@@ -180,27 +203,10 @@ function LayerOptions({
           <div className="layer-thumb layer-thumb-empty">No image</div>
         )}
         <div className="layer-image-actions">
-          <label className={processing ? "btn btn-sm disabled" : "btn btn-sm"}>
-            <ImageUp size={13} strokeWidth={2.25} />
-            {layer.asset ? "Replace" : "Add image"}
-            <input
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              style={{ display: "none" }}
-              disabled={processing}
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                e.target.value = "";
-                if (file) onPickFile(file);
-              }}
-            />
-          </label>
-          {layer.asset && !processing && (
-            <button type="button" className="btn btn-sm" onClick={onRemoveImage} data-tooltip="Remove this layer's image">
-              <ImageOff size={13} strokeWidth={2.25} />
-              Remove
-            </button>
-          )}
+          <button type="button" className="btn btn-sm" onClick={onOpenSettings} data-tooltip="Image, position, size, opacity and what this layer always draws">
+            <Settings size={13} strokeWidth={2.25} />
+            Settings
+          </button>
         </div>
       </div>
       {processing && <p className="field-label zone-tool-hint">Processing image…</p>}
@@ -214,35 +220,6 @@ function LayerOptions({
         </p>
       )}
       {uploadError && <p className="form-error layer-error">{uploadError}</p>}
-
-      {layer.asset && (
-        <>
-          <label className="grid-field">
-            <div className="grid-field-header">
-              <span className="field-label">Image opacity</span>
-              <span className="grid-field-value">{Math.round(layer.imageOpacity * 100)}%</span>
-            </div>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              value={Math.round(layer.imageOpacity * 100)}
-              onChange={(e) => onUpdate({ imageOpacity: Number(e.target.value) / 100 })}
-            />
-          </label>
-          <label className="layer-checkbox" data-tooltip="Draw this image under every layer, not only when this layer is active">
-            <input type="checkbox" checked={layer.imageAlwaysVisible} onChange={(e) => onUpdate({ imageAlwaysVisible: e.target.checked })} />
-            <span className="field-label">Always draw this image</span>
-          </label>
-        </>
-      )}
-
-      {ALWAYS_DRAW_OPTIONS.map((o) => (
-        <label key={o.flag} className="layer-checkbox" data-tooltip={`Draw this layer's ${o.noun} even while another layer is active (display only)`}>
-          <input type="checkbox" checked={layer[o.flag]} onChange={(e) => onUpdate({ [o.flag]: e.target.checked })} />
-          <span className="field-label">Always draw {o.noun}</span>
-        </label>
-      ))}
     </>
   );
 }
@@ -259,6 +236,8 @@ export default function LayersPanel({
   onRemoveImage,
   onRetry,
   onClose,
+  onImageDialogClose,
+  frame,
 }: {
   /** Already in list order (top first). */
   layers: MapLayerData[];
@@ -272,6 +251,10 @@ export default function LayersPanel({
   onRemoveImage: (id: string) => void;
   onRetry: (assetId: string) => void;
   onClose: () => void;
+  /** A layer's image settings closed: its placement is final, so the map frame can grow to cover it. */
+  onImageDialogClose: () => void;
+  /** The map's frame in pixels (what markers, zones and the grid are placed on). */
+  frame: Frame;
 }) {
   const [armedId, setArmedId] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
@@ -320,6 +303,8 @@ export default function LayersPanel({
             onRemoveImage={() => onRemoveImage(layer.id)}
             onRetry={onRetry}
             onMoveBy={(delta) => moveBy(layer.id, delta)}
+            frame={frame}
+            onImageDialogClose={onImageDialogClose}
             dragHandlers={{
               onDragStart: (e) => {
                 e.dataTransfer.effectAllowed = "move";

@@ -9,6 +9,9 @@ function layer(id: string, sortOrder: number, extra: Partial<MapLayerData> = {})
     sortOrder,
     visible: true,
     imageOpacity: 1,
+    imageX: 0,
+    imageY: 0,
+    imageScale: 1,
     imageAlwaysVisible: false,
     zonesAlwaysVisible: false,
     markersAlwaysVisible: false,
@@ -42,9 +45,14 @@ describe("drawnImages", () => {
     expect(drawnImages(layers, "a")).toEqual([]);
   });
 
+  it("carries each layer's image offset and scale", () => {
+    const layers = [layer("a", 0, { imageX: 0.1, imageY: -0.05, imageScale: 1.25 })];
+    expect(drawnImages(layers, "a")).toEqual([{ layerId: "a", assetId: "asset-a", opacity: 1, x: 0.1, y: -0.05, width: 1.25 }]);
+  });
+
   it("skips layers without an image and carries opacity", () => {
     const layers = [layer("empty", 0, { asset: null }), layer("base", 1, { imageAlwaysVisible: true, imageOpacity: 0.4 })];
-    expect(drawnImages(layers, "empty")).toEqual([{ layerId: "base", assetId: "asset-base", opacity: 0.4 }]);
+    expect(drawnImages(layers, "empty")).toEqual([{ layerId: "base", assetId: "asset-base", opacity: 0.4, x: 0, y: 0, width: 1 }]);
   });
 });
 

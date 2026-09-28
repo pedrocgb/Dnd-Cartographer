@@ -19,6 +19,7 @@ export function useMapLayers(mapId: string) {
   const [layers, setLayers] = useState<MapLayerData[]>([]);
   const [chosenLayerId, setActiveLayerId] = useState<string | null>(null);
   const patchTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const pendingPatchesRef = useRef(new Map<string, LayerPatch>());
   const cancelledRef = useRef(false);
 
   const refresh = useCallback(async () => {
@@ -63,19 +64,37 @@ export function useMapLayers(mapId: string) {
     if (created) setActiveLayerId(created.id);
   }
 
-  /** Optimistic; sliders (opacity) are debounced like grid/zone slider edits. */
+  /** Optimistic; sliders (opacity, image offset and scale) are debounced like grid/zone slider edits. */
   function updateLayer(id: string, patch: LayerPatch) {
     setLayers((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)));
-    const send = () =>
-      fetch(`/api/layers/${id}`, {
+    // Changes not sent yet are merged, so a debounced save never drops an earlier one.
+    const pending = { ...pendingPatchesRef.current.get(id), ...patch };
+    pendingPatchesRef.current.set(id, pending);
+    const send = () => {
+      pendingPatchesRef.current.delete(id);
+      return fetch(`/api/layers/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(patch),
+        body: JSON.stringify(pending),
       });
+    };
     const timers = patchTimersRef.current;
     clearTimeout(timers.get(id));
-    if ("imageOpacity" in patch) timers.set(id, setTimeout(send, 250));
+    if ("imageOpacity" in patch || "imageX" in patch || "imageY" in patch || "imageScale" in patch) timers.set(id, setTimeout(send, 250));
     else void send();
+  }
+
+  /** Sends every debounced edit right away (before the frame is refit from the saved placements). */
+  async function flushPatches() {
+    const timers = patchTimersRef.current;
+    const pending = [...pendingPatchesRef.current];
+    pendingPatchesRef.current.clear();
+    for (const [id] of pending) clearTimeout(timers.get(id));
+    await Promise.all(
+      pending.map(([id, patch]) =>
+        fetch(`/api/layers/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) })
+      )
+    );
   }
 
   function reorderLayers(orderedIds: string[]) {
@@ -123,6 +142,7 @@ export function useMapLayers(mapId: string) {
     refresh,
     createLayer,
     updateLayer,
+    flushPatches,
     reorderLayers,
     deleteLayer,
     uploadLayerImage,

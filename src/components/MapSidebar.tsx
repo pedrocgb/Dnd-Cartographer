@@ -18,6 +18,8 @@ import {
   ChevronsLeft,
   ChevronsRight,
 } from "lucide-react";
+import { isModalOpen } from "./Modal";
+import { isTypingTarget } from "./keyboard";
 
 /** Hovering a tool this long expands the bar to show every tool's name. */
 const PEEK_DELAY_MS = 750;
@@ -43,6 +45,22 @@ function savePinned(pinned: boolean) {
 /** The sidebar tool whose screen (panel, modal or mode) is currently open. */
 export type SidebarTool = "select" | "scene" | "layers" | "markers" | "zones" | "lines" | "text" | "grid" | "settings";
 
+/** Single-key shortcuts (no modifiers) that open each tool, shown in its tooltip. */
+const SHORTCUT_KEYS: Record<SidebarTool, string> = {
+  select: "V",
+  scene: "S",
+  markers: "M",
+  zones: "Z",
+  text: "T",
+  lines: "P",
+  grid: "G",
+  layers: "L",
+  settings: ",",
+};
+const TOOL_BY_KEY = new Map(Object.entries(SHORTCUT_KEYS).map(([tool, key]) => [key.toLowerCase(), tool as SidebarTool]));
+
+const withShortcut = (tooltip: string, tool: SidebarTool) => `${tooltip} (${SHORTCUT_KEYS[tool]})`;
+
 const btnClass = (active: boolean, extra = "") => `map-sidebar-btn${extra}${active ? " active" : ""}`;
 
 type HoverHandlers = { onPointerEnter: () => void; onPointerLeave: () => void };
@@ -54,6 +72,7 @@ function SidebarButton({
   className = "map-sidebar-btn",
   hover,
   buttonRef,
+  shortcut,
   ...rest
 }: {
   icon: React.ReactNode;
@@ -62,9 +81,20 @@ function SidebarButton({
   className?: string;
   hover: HoverHandlers;
   buttonRef?: React.Ref<HTMLButtonElement>;
+  /** The tool whose keyboard shortcut this button shares. */
+  shortcut?: SidebarTool;
 } & Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "title" | "className">) {
+  const tooltip = title ?? label;
   return (
-    <button ref={buttonRef} className={className} data-tooltip={title ?? label} aria-label={label} {...hover} {...rest}>
+    <button
+      ref={buttonRef}
+      className={className}
+      data-tooltip={shortcut ? withShortcut(tooltip, shortcut) : tooltip}
+      aria-label={label}
+      aria-keyshortcuts={shortcut ? SHORTCUT_KEYS[shortcut] : undefined}
+      {...hover}
+      {...rest}
+    >
       {icon}
       <span className="map-sidebar-label" aria-hidden>
         {label}
@@ -84,6 +114,8 @@ function MarkersMenu({
   disabled,
   filterDisabled,
   hover,
+  open,
+  onOpenChange,
   onOpen,
   onAddMarker,
   onOpenMarkers,
@@ -94,12 +126,15 @@ function MarkersMenu({
   disabled: boolean;
   filterDisabled: boolean;
   hover: HoverHandlers;
+  /** Owned by the sidebar, so another tool's shortcut can close the menu. */
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   onOpen: () => void;
   onAddMarker: () => void;
   onOpenMarkers: () => void;
   onOpenIconFilter: () => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const setOpen = onOpenChange;
   const rootRef = useRef<HTMLDivElement | null>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -112,7 +147,7 @@ function MarkersMenu({
     }
     window.addEventListener("pointerdown", onPointerDown);
     return () => window.removeEventListener("pointerdown", onPointerDown);
-  }, [open]);
+  }, [open, setOpen]);
 
   function toggle() {
     if (!open) onOpen();
@@ -146,6 +181,7 @@ function MarkersMenu({
         icon={<MapPin size={19} strokeWidth={2.25} />}
         label="Markers"
         title={disabled ? "Upload an image first" : "Markers"}
+        shortcut={disabled ? undefined : "markers"}
         hover={hover}
         onClick={toggle}
         disabled={disabled}
@@ -265,6 +301,42 @@ export default function MapSidebar({
   }
 
   const upload = (disabled: boolean, title: string) => (disabled ? "Upload an image first" : title);
+  const [markersMenuOpen, setMarkersMenuOpen] = useState(false);
+
+  /** What each tool's shortcut does: the same as clicking its button (the Selection tool only turns on). */
+  const toolActions: Record<SidebarTool, { disabled: boolean; run: () => void }> = {
+    select: { disabled: sceneDisabled, run: () => !selectToolOn && onToggleSelectTool() },
+    scene: { disabled: sceneDisabled, run: onOpenScene },
+    markers: {
+      disabled: markersDisabled,
+      run: () => {
+        onOpenMarkersMenu();
+        setMarkersMenuOpen(true);
+      },
+    },
+    zones: { disabled: zonesDisabled, run: onOpenZones },
+    text: { disabled: textDisabled, run: onOpenText },
+    lines: { disabled: linesDisabled, run: onOpenLines },
+    grid: { disabled: gridDisabled, run: onOpenGrid },
+    layers: { disabled: layersDisabled, run: onOpenLayers },
+    settings: { disabled: false, run: onOpenSettings },
+  };
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.defaultPrevented || e.repeat || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+      if (isTypingTarget(e.target) || isModalOpen()) return;
+      const tool = TOOL_BY_KEY.get(e.key.toLowerCase());
+      const action = tool && toolActions[tool];
+      if (!action || action.disabled) return;
+      e.preventDefault();
+      // Only one tool at a time: any other tool's shortcut closes the Markers menu.
+      if (tool !== "markers") setMarkersMenuOpen(false);
+      action.run();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  });
 
   return (
     <div className={`map-sidebar${pinned ? " pinned" : ""}`}>
@@ -274,6 +346,7 @@ export default function MapSidebar({
           icon={<MousePointer2 size={19} strokeWidth={2.25} />}
           label="Selection"
           title={upload(sceneDisabled, "Select: click anything on this layer to edit it")}
+          shortcut={sceneDisabled ? undefined : "select"}
           hover={hover}
           onClick={onToggleSelectTool}
           disabled={sceneDisabled}
@@ -284,23 +357,18 @@ export default function MapSidebar({
           label="Scene"
           className={btnClass(activeTool === "scene")}
           title={upload(sceneDisabled, "Scene: everything on this layer")}
+          shortcut={sceneDisabled ? undefined : "scene"}
           hover={hover}
           onClick={onOpenScene}
           disabled={sceneDisabled}
-        />
-        <SidebarButton
-          icon={<Layers size={19} strokeWidth={2.25} />}
-          label="Layers"
-          className={btnClass(activeTool === "layers")}
-          hover={hover}
-          onClick={onOpenLayers}
-          disabled={layersDisabled}
         />
         <MarkersMenu
           active={activeTool === "markers"}
           disabled={markersDisabled}
           filterDisabled={iconFilterDisabled}
           hover={hover}
+          open={markersMenuOpen}
+          onOpenChange={setMarkersMenuOpen}
           onOpen={onOpenMarkersMenu}
           onAddMarker={onAddMarker}
           onOpenMarkers={onOpenMarkers}
@@ -311,42 +379,56 @@ export default function MapSidebar({
           label="Zones"
           className={btnClass(activeTool === "zones")}
           title={upload(zonesDisabled, "Zones")}
+          shortcut={zonesDisabled ? undefined : "zones"}
           hover={hover}
           onClick={onOpenZones}
           disabled={zonesDisabled}
-        />
-        <SidebarButton
-          icon={<PenTool size={19} strokeWidth={2.25} />}
-          label="Lines"
-          className={btnClass(activeTool === "lines")}
-          title={upload(linesDisabled, "Lines")}
-          hover={hover}
-          onClick={onOpenLines}
-          disabled={linesDisabled}
         />
         <SidebarButton
           icon={<Type size={19} strokeWidth={2.25} />}
           label="Text"
           className={btnClass(activeTool === "text")}
           title={upload(textDisabled, "Text")}
+          shortcut={textDisabled ? undefined : "text"}
           hover={hover}
           onClick={onOpenText}
           disabled={textDisabled}
+        />
+        <SidebarButton
+          icon={<PenTool size={19} strokeWidth={2.25} />}
+          label="Lines"
+          className={btnClass(activeTool === "lines")}
+          title={upload(linesDisabled, "Lines")}
+          shortcut={linesDisabled ? undefined : "lines"}
+          hover={hover}
+          onClick={onOpenLines}
+          disabled={linesDisabled}
         />
         <SidebarButton
           icon={<Grid3x3 size={19} strokeWidth={2.25} />}
           label="Grid"
           className={btnClass(activeTool === "grid")}
           title={upload(gridDisabled, "Grid overlay")}
+          shortcut={gridDisabled ? undefined : "grid"}
           hover={hover}
           onClick={onOpenGrid}
           disabled={gridDisabled}
+        />
+        <SidebarButton
+          icon={<Layers size={19} strokeWidth={2.25} />}
+          label="Layers"
+          className={btnClass(activeTool === "layers")}
+          shortcut={layersDisabled ? undefined : "layers"}
+          hover={hover}
+          onClick={onOpenLayers}
+          disabled={layersDisabled}
         />
         <SidebarButton
           icon={<Settings size={19} strokeWidth={2.25} />}
           label="Settings"
           className={btnClass(activeTool === "settings")}
           title="Map settings"
+          shortcut="settings"
           hover={hover}
           onClick={onOpenSettings}
         />

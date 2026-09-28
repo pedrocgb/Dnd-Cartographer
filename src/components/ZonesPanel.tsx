@@ -319,16 +319,56 @@ function RegionRow({
 }) {
   const isAddingZone = isActive && activeTool !== "select";
   const addZoneDisabled = region.locked || !region.visible;
+  const [renaming, setRenaming] = useState(false);
+  const [draftName, setDraftName] = useState(region.name);
+
+  function startRename() {
+    setDraftName(region.name);
+    setRenaming(true);
+  }
+
+  function commitName() {
+    setRenaming(false);
+    const name = draftName.trim();
+    if (name && name !== region.name) onUpdateRegion({ name });
+  }
+
   return (
     <li className="zone-region">
       <div className={isActive ? "zone-region-row active" : "zone-region-row"}>
         <button className="zone-tree-toggle" onClick={onToggleExpand} aria-label={isExpanded ? "Collapse" : "Expand"}>
           {isExpanded ? <ChevronDown size={13} strokeWidth={2.25} /> : <ChevronRight size={13} strokeWidth={2.25} />}
         </button>
-        <button className="zone-region-name" onClick={sharedFrom ? onToggleExpand : onSelectRegion}>
-          {region.name} <span className="field-label">({zones.length})</span>
-          {sharedFrom && <span className="field-label zone-region-shared"> · from {sharedFrom}</span>}
-        </button>
+        {renaming ? (
+          <input
+            type="text"
+            className="zone-region-name-input"
+            value={draftName}
+            autoFocus
+            aria-label="Region name"
+            onFocus={(e) => e.currentTarget.select()}
+            onChange={(e) => setDraftName(e.target.value)}
+            onBlur={commitName}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") e.currentTarget.blur();
+              if (e.key === "Escape") {
+                e.stopPropagation();
+                setDraftName(region.name);
+                setRenaming(false);
+              }
+            }}
+          />
+        ) : (
+          <button
+            className="zone-region-name"
+            onClick={sharedFrom ? onToggleExpand : onSelectRegion}
+            onDoubleClick={sharedFrom ? undefined : startRename}
+            data-tooltip={sharedFrom ? undefined : "Click to select, double-click to rename"}
+          >
+            {region.name} <span className="field-label">({zones.length})</span>
+            {sharedFrom && <span className="field-label zone-region-shared"> · from {sharedFrom}</span>}
+          </button>
+        )}
         {!sharedFrom && (
         <div className="zone-row-actions">
           <button className="btn btn-ghost btn-icon-xs" onClick={() => onMoveRegion("up")} disabled={!canMoveUp} aria-label="Move Region up" data-tooltip="Move up">

@@ -153,7 +153,8 @@ export default function MapViewer({ mapId }: { mapId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- schedulePoll intentionally omitted: it's re-created each render but always closes over the current mapId, and only mapId changing should restart the loop.
   }, [mapId]);
 
-  useEffect(() => {
+  /** Everything placed on the map (reloaded after the frame grows, which rewrites their coordinates). */
+  function loadItems() {
     fetch(`/api/maps/${mapId}/markers`)
       .then((r) => r.json())
       .then((d) => setMarkers(d.markers));
@@ -172,6 +173,11 @@ export default function MapViewer({ mapId }: { mapId: string }) {
     fetch(`/api/maps/${mapId}/lines`)
       .then((r) => r.json())
       .then((d) => setLines(d.lines));
+  }
+
+  useEffect(() => {
+    loadItems();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadItems is re-created each render but always closes over the current mapId.
   }, [mapId]);
 
   async function retry() {
@@ -190,6 +196,32 @@ export default function MapViewer({ mapId }: { mapId: string }) {
   useEffect(() => {
     if (hasFrame) void refreshLayers();
   }, [hasFrame, refreshLayers]);
+
+  /**
+   * The frame (where the grid and every item can go) grows to cover every
+   * layer image; the server shifts all stored coordinates with it, so the
+   * map reloads them when it did.
+   */
+  async function fitFrame() {
+    await layerApi.flushPatches();
+    const res = await fetch(`/api/maps/${mapId}/fit-frame`, { method: "POST" });
+    if (!res.ok) return;
+    const data: { frame: { width: number; height: number } | null } = await res.json();
+    if (!data.frame) return;
+    await Promise.all([refresh(), refreshLayers()]);
+    loadItems();
+  }
+
+  // On open and whenever a layer's image changes (a new upload starts at the
+  // frame's width, so a taller one reaches below it).
+  const fitFrameRef = useRef(fitFrame);
+  useEffect(() => {
+    fitFrameRef.current = fitFrame;
+  });
+  const layerAssetKey = layerApi.layers.map((l) => l.asset?.id ?? "").join(",");
+  useEffect(() => {
+    if (hasFrame && layerAssetKey.replaceAll(",", "")) void fitFrameRef.current();
+  }, [hasFrame, layerAssetKey]);
 
   /** First image of an empty map; later images are managed per layer in the Layers panel. */
   async function uploadImage(file: File) {
@@ -264,6 +296,11 @@ export default function MapViewer({ mapId }: { mapId: string }) {
     const next = !selectToolOn;
     closeToolPanels();
     setSelectToolOn(next);
+  }
+
+  function onOpenSelectTool() {
+    closeToolPanels();
+    setSelectToolOn(true);
   }
 
   // Switching layers swaps the grid (and zones), so a grid panel left open
@@ -412,6 +449,8 @@ export default function MapViewer({ mapId }: { mapId: string }) {
         {hasFrame && activeLayerId && (
           <div className="spike-root">
             <MapWorkspace
+              // A grown frame rewrote every stored coordinate: start over (undo history included).
+              key={`${status.map.frameWidth}x${status.map.frameHeight}`}
               mapId={mapId}
               layerApi={layerApi}
               activeLayerId={activeLayerId}
@@ -430,6 +469,7 @@ export default function MapViewer({ mapId }: { mapId: string }) {
               scenePanelOpen={scenePanelOpen}
               onCloseScenePanel={() => setScenePanelOpen(false)}
               selectToolOn={selectToolOn}
+              onOpenSelectTool={onOpenSelectTool}
               onCloseSelectTool={() => setSelectToolOn(false)}
               addMarkerRequest={addMarkerRequest}
               onMarkerToolChange={setMarkerToolActive}
@@ -453,6 +493,7 @@ export default function MapViewer({ mapId }: { mapId: string }) {
               onCloseZonesPanel={() => setZonesPanelOpen(false)}
               iconFilterPanelOpen={iconFilterPanelOpen}
               onCloseIconFilterPanel={() => setIconFilterPanelOpen(false)}
+              onFitFrame={() => void fitFrame()}
               imageWidth={status.map.frameWidth ?? 1}
               imageHeight={status.map.frameHeight ?? 1}
             />
