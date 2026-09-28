@@ -10,6 +10,7 @@
  */
 
 import { MAP_FONTS, mapFontFamily } from "../texts/fonts";
+import { MAX_MENTION_LABEL, MENTION_ID, isMentionKind } from "../mentions/kinds";
 import { ARTICLE_IMAGE_KEY, ARTICLE_IMAGE_URL_PREFIX, HEADING_LEVELS, IMAGE_ALIGNS, MAX_IMAGE_DIMENSION, TEXT_ALIGNS } from "./rich-attrs";
 
 // Older documents are a subset of this schema, so the version is unchanged.
@@ -28,6 +29,7 @@ export const ALLOWED_NODE_TYPES = new Set([
   "hardBreak",
   "title",
   "image",
+  "mention",
 ]);
 
 export const ALLOWED_MARK_TYPES = new Set(["bold", "italic", "strike", "underline", "link", "textStyle"]);
@@ -80,6 +82,13 @@ function checkNodeAttrs(node: JsonNode): void {
   }
   if (node.type === "heading" && !oneOf(HEADING_LEVELS, attrs.level)) {
     fail(`Unsupported heading level: ${String(attrs.level)}`);
+  }
+  if (node.type === "mention") {
+    if (!isMentionKind(attrs.kind)) fail("Unsupported mention.");
+    if (typeof attrs.id !== "string" || !MENTION_ID.test(attrs.id)) fail("Invalid mention target.");
+    if (!(typeof attrs.label === "string" && attrs.label.length <= MAX_MENTION_LABEL)) fail("Invalid mention label.");
+    if (!isNullish(attrs.campaign) && !(typeof attrs.campaign === "string" && MENTION_ID.test(attrs.campaign))) fail("Invalid mention campaign.");
+    return;
   }
   if (node.type !== "image") return;
   if (!isArticleImageSrc(attrs.src)) fail("Images must be uploaded to this app.");
@@ -142,6 +151,10 @@ export function deriveText(json: unknown): string {
   function visit(node: JsonNode): void {
     if (node.type === "text" && node.text) {
       current += node.text;
+      return;
+    }
+    if (node.type === "mention") {
+      current += `@${typeof node.attrs?.label === "string" ? node.attrs.label : ""}`;
       return;
     }
     const blockTypes = new Set(["paragraph", "heading", "title", "listItem", "blockquote"]);

@@ -1,6 +1,7 @@
 import type { CoinLine, Currency, LootLine, SessionNotes } from "@/server/sessions/types";
 import type { ArticleRef } from "@/components/calendars/types";
 import type { QuestLogLine } from "@/server/quests/types";
+import type { CampaignSetup, SessionPrep } from "@/server/writer/types";
 
 export interface RosterMember {
   /** The roster row id (for PATCH/DELETE). */
@@ -21,6 +22,8 @@ export interface ClientCampaign {
   currencies: Currency[];
   status: "active" | "finished";
   archived: boolean;
+  /** The Campaign Writer's one-page setup. */
+  setup: CampaignSetup;
   roster: RosterMember[];
 }
 
@@ -42,6 +45,8 @@ export interface ClientSession {
   coins: CoinLine[];
   /** What happened to the campaign's quests this session. */
   questLog: QuestLogLine[];
+  /** The Lazy DM prep for this session. */
+  prep: SessionPrep;
   version: number;
 }
 

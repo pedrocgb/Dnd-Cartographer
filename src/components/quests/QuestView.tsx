@@ -5,6 +5,7 @@ import { BookOpen, Flame, Gem, GitBranch, History, KeyRound, ListChecks, Pencil,
 import Modal from "@/components/Modal";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import RichEditor from "@/components/RichEditor";
+import MentionBacklinks from "@/components/MentionBacklinks";
 import type { Candidate } from "@/components/articles/candidates";
 import { api } from "@/components/calendars/api";
 import { dayLabel } from "@/components/calendars/evaluate";
@@ -266,6 +267,7 @@ export default function QuestView({
             <RichEditor documentId={quest.bodyDocumentId} editable={false} placeholder="No notes yet. Use Edit to write the truth behind it." />
           </section>
         )}
+        <MentionBacklinks targetId={quest.id} variant="plain" />
 
         {error && (
           <p className="form-error" role="alert">

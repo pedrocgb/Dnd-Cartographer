@@ -3,12 +3,9 @@ import { and, asc, eq, gte, isNull, like, lte, or } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { campaigns, sessions } from "@/server/db/schema";
 import { ensureDefaultWorld } from "@/server/world/default-world";
-import { createEmptyDocument } from "@/server/documents/create";
-import { chronologyOf } from "@/server/calendars/store";
 import { cleanName } from "@/server/calendars/parse";
 import { badRequest, notFound, readBody } from "@/server/calendars/respond";
-import { campaignOf, rosterOf, sessionsOf, toClientSession, type SessionRow } from "@/server/sessions/store";
-import { nextSessionNumber } from "@/server/sessions/totals";
+import { campaignOf, createNextSession, sessionsOf, toClientSession, type SessionRow } from "@/server/sessions/store";
 
 /** Widest in-world window one request may ask for, like calendar entries. */
 const MAX_WINDOW = 50_000;
@@ -50,11 +47,7 @@ export async function GET(request: Request) {
   return NextResponse.json({ sessions: rows.map((r) => brief(r.row, r.campaignName)) });
 }
 
-/**
- * Creates the campaign's next session with an empty recap. It starts the
- * day after the previous session ended (else on the world's current day)
- * with the active party attending.
- */
+/** Creates the campaign's next session (see createNextSession). */
 export async function POST(request: Request) {
   const body = await readBody(request);
   if (!body) return badRequest("Invalid request body.");
@@ -62,23 +55,6 @@ export async function POST(request: Request) {
   const worldId = await ensureDefaultWorld();
   const campaign = await campaignOf(worldId, body.campaignId);
   if (!campaign) return notFound("Campaign not found.");
-  const existing = await sessionsOf(campaign.id);
-  const last = existing.at(-1);
-  const startDay = last?.endDay != null ? last.endDay + 1 : (await chronologyOf(worldId)).currentDay;
-  const attendance = (await rosterOf(campaign.id)).filter((m) => m.status === "active" && m.name !== null).map((m) => m.personId);
-  const recap = await createEmptyDocument(worldId);
-  const [row] = await db
-    .insert(sessions)
-    .values({
-      worldId,
-      campaignId: campaign.id,
-      number: nextSessionNumber(existing.map((s) => s.number)),
-      title: cleanName(body.title, 120),
-      startDay,
-      endDay: startDay,
-      recapDocumentId: recap.id,
-      attendance: JSON.stringify(attendance),
-    })
-    .returning();
+  const row = await createNextSession(worldId, campaign.id, cleanName(body.title, 120));
   return NextResponse.json({ session: toClientSession(row) }, { status: 201 });
 }

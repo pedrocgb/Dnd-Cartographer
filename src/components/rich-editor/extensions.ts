@@ -4,6 +4,7 @@ import Placeholder from "@tiptap/extension-placeholder";
 import TextAlign from "@tiptap/extension-text-align";
 import { Color, FontFamily, TextStyle } from "@tiptap/extension-text-style";
 import Image from "@tiptap/extension-image";
+import { Mention } from "./mention";
 import { IMAGE_ALIGNS, HEADING_LEVELS, TEXT_ALIGNS } from "@/server/documents/rich-attrs";
 
 declare module "@tiptap/core" {
@@ -88,6 +89,8 @@ export function buildExtensions(placeholder: string): Extensions {
     FontFamily,
     TextAlign.configure({ types: ["heading", "paragraph", "title"], alignments: [...TEXT_ALIGNS] }),
     ArticleImage,
+    // Always loaded, so a document with mentions keeps them in every editor.
+    Mention,
     Placeholder.configure({ placeholder }),
   ];
 }

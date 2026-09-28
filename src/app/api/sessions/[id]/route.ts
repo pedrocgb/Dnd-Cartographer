@@ -13,6 +13,7 @@ import type { Currency } from "@/server/sessions/types";
 import { parseQuestLog } from "@/server/quests/parse";
 import { applyLogLine, changedLogLines, type LogChange } from "@/server/quests/logic";
 import { questsOf, toClientQuest } from "@/server/quests/store";
+import { parsePrep, readPrep } from "@/server/writer/parse";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -72,6 +73,11 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       const loot = parseLoot(body.loot, roster, coinIds);
       await checkArticles(loot.flatMap((l) => (l.articleId && l.template ? [{ template: l.template, articleId: l.articleId }] : [])));
       patch.loot = JSON.stringify(loot);
+    }
+    if ("prep" in body) {
+      const prep = parsePrep(body.prep, readPrep(safeJson<unknown>(row.prep, {})));
+      await checkArticles(prep.npcs);
+      patch.prep = JSON.stringify(prep);
     }
     if ("coins" in body) patch.coins = JSON.stringify(parseCoins(body.coins, roster, coinIds));
     const campaignQuests = "questLog" in body ? await questsOf(campaign.id) : [];

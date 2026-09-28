@@ -8,6 +8,7 @@ import RichEditor from "@/components/RichEditor";
 import CalendarBacklinks from "@/components/calendars/CalendarBacklinks";
 import SessionBacklinks from "@/components/sessions/SessionBacklinks";
 import QuestBacklinks from "@/components/quests/QuestBacklinks";
+import MentionBacklinks from "@/components/MentionBacklinks";
 import type { ArticleTemplateKey } from "@/server/articles/templates";
 import { templateOf } from "./templates";
 import TagEditor from "./TagEditor";
@@ -331,6 +332,7 @@ export default function ArticleView({
       {articleId && <CalendarBacklinks key={articleId} articleId={articleId} />}
       {articleId && <SessionBacklinks key={`sessions:${articleId}`} articleId={articleId} />}
       {articleId && <QuestBacklinks key={`quests:${articleId}`} articleId={articleId} />}
+      {articleId && <MentionBacklinks key={`mentions:${articleId}`} targetId={articleId} />}
       <ConfirmDialog
         open={confirmingFooterRemoval}
         title="Remove the footer?"

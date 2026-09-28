@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Compass, Trash2, Download, Upload, Book, CalendarDays, ScrollText } from "lucide-react";
+import { Compass, Trash2, Download, Upload, Book, CalendarDays, ScrollText, PenLine } from "lucide-react";
 import SearchBox from "./SearchBox";
 
 const LINKS = [
@@ -10,6 +10,7 @@ const LINKS = [
   { href: "/articles", label: "Articles", icon: Book },
   { href: "/calendars", label: "Calendars", icon: CalendarDays },
   { href: "/sessions", label: "Sessions", icon: ScrollText },
+  { href: "/writer", label: "Writer", icon: PenLine },
   { href: "/maps/trash", label: "Trash", icon: Trash2 },
   { href: "/import", label: "Import", icon: Upload },
 ];

@@ -399,7 +399,7 @@ export default function SessionEditor({
             (session.recapDocumentId ? (
               <div className="cel-section ss-recap-edit">
                 <p className="cal-help">What happened, in your words. It saves as you type.</p>
-                <RichEditor documentId={session.recapDocumentId} editable placeholder="The party arrived at…" />
+                <RichEditor documentId={session.recapDocumentId} editable mentionCampaignId={campaign.id} placeholder="The party arrived at…" />
               </div>
             ) : (
               <p className="cal-help">This session has no recap document.</p>

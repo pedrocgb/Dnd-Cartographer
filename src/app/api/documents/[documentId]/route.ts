@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { eq, and } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import { richDocuments } from "@/server/db/schema";
+import { documentMentions, richDocuments } from "@/server/db/schema";
+import { extractMentions } from "@/server/mentions/kinds";
 import { validateDocument, deriveText, DocumentValidationError, SCHEMA_VERSION } from "@/server/documents/schema";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ documentId: string }> }) {
@@ -49,11 +50,22 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ do
   const jsonText = JSON.stringify(body.json);
   const plainText = deriveText(body.json);
 
-  const [updated] = await db
-    .update(richDocuments)
-    .set({ jsonText, plainText, schemaVersion: SCHEMA_VERSION, revision: revision + 1, updatedAt: new Date() })
-    .where(and(eq(richDocuments.id, documentId), eq(richDocuments.revision, revision)))
-    .returning();
+  const mentions = extractMentions(body.json);
+
+  // The backlink index is rewritten with the text, so the two never disagree.
+  const updated = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(richDocuments)
+      .set({ jsonText, plainText, schemaVersion: SCHEMA_VERSION, revision: revision + 1, updatedAt: new Date() })
+      .where(and(eq(richDocuments.id, documentId), eq(richDocuments.revision, revision)))
+      .returning();
+    if (!row) return null;
+    await tx.delete(documentMentions).where(eq(documentMentions.documentId, documentId));
+    if (mentions.length) {
+      await tx.insert(documentMentions).values(mentions.map((m) => ({ documentId, targetKind: m.kind, targetId: m.id, label: m.label })));
+    }
+    return row;
+  });
 
   if (!updated) {
     // Another save won the race between our read and this write.

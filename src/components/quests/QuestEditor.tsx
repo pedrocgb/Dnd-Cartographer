@@ -193,7 +193,7 @@ export default function QuestEditor({
             (quest?.bodyDocumentId ? (
               <div className="cel-section ss-recap-edit">
                 <p className="cal-help">Your notes: the truth behind it, what the villain wants, how it could end. They save as you type.</p>
-                <RichEditor documentId={quest.bodyDocumentId} editable placeholder="What's really going on…" />
+                <RichEditor documentId={quest.bodyDocumentId} editable mentionCampaignId={campaignId} placeholder="What's really going on…" />
               </div>
             ) : (
               <p className="cal-help">Create the quest first; its notes open here right after.</p>

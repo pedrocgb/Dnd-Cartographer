@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { ImagePlus } from "lucide-react";
 import { buildExtensions } from "./rich-editor/extensions";
 import { TextBubbleMenu, ImageBubbleMenu } from "./rich-editor/BubbleMenus";
+import MentionMenu from "./rich-editor/MentionMenu";
 import { imageFilesOf, insertImageFiles } from "./rich-editor/images";
 import { SkeletonRegion, SkeletonText } from "./Skeleton";
 
@@ -73,6 +74,7 @@ export default function RichEditor({
   editable,
   placeholder,
   footerActions,
+  mentionCampaignId = null,
 }: {
   documentId: string;
   editable: boolean;
@@ -80,6 +82,8 @@ export default function RichEditor({
   placeholder?: string;
   /** Extra buttons after "Insert image" while editing (e.g. an article body's "Add footer"). */
   footerActions?: React.ReactNode;
+  /** The @ menu also offers this campaign's quests, fronts and outline items (articles are always offered). */
+  mentionCampaignId?: string | null;
 }) {
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -125,7 +129,7 @@ export default function RichEditor({
     // a plain transaction otherwise.
     shouldRerenderOnTransaction: true,
     editable,
-    extensions: buildExtensions("Write here… select text to format it, drop an image to add it."),
+    extensions: buildExtensions("Write here… type @ to link a character, place or quest; select text to format it."),
     editorProps: {
       // Image files dropped or pasted into the text upload and land where they were dropped / at the caret.
       handleDrop: (view, event, _slice, moved) => {
@@ -150,6 +154,14 @@ export default function RichEditor({
       },
       handleClick: (view, _pos, event) => {
         const anchor = event.target instanceof Element ? event.target.closest("a[href]") : null;
+        // @mentions are app pages: reading follows them here; editing needs Ctrl/Cmd+click (new tab).
+        if (anchor?.hasAttribute("data-mention")) {
+          if (view.editable && !(event.ctrlKey || event.metaKey)) return false;
+          event.preventDefault();
+          if (view.editable) window.open(anchor.getAttribute("href")!, "_blank", "noopener,noreferrer");
+          else window.location.assign(anchor.getAttribute("href")!);
+          return true;
+        }
         if (view.editable || !anchor) return false;
         window.open(anchor.getAttribute("href")!, "_blank", "noopener,noreferrer");
         return true;
@@ -316,6 +328,7 @@ export default function RichEditor({
       <EditorContent editor={editor} className="rich-content" />
       <TextBubbleMenu editor={editor} />
       <ImageBubbleMenu editor={editor} />
+      <MentionMenu editor={editor} campaignId={mentionCampaignId} />
       <div className="rich-editor-footer">
         <button
           type="button"

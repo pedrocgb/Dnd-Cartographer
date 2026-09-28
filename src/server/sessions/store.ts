@@ -6,9 +6,13 @@ import { and, asc, eq, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { campaignCharacters, campaigns, people, sessions } from "@/server/db/schema";
 import { safeJson } from "@/server/calendars/parse";
+import { chronologyOf } from "@/server/calendars/store";
+import { createEmptyDocument } from "@/server/documents/create";
+import { nextSessionNumber } from "./totals";
 import { parseInfo } from "@/server/articles/info-fields";
 import type { QuestLogLine } from "@/server/quests/types";
 import { normalizeLogLine } from "@/server/quests/logic";
+import { readPrep, readSetup } from "@/server/writer/parse";
 import { EMPTY_NOTES, type CoinLine, type Currency, type LootLine, type SessionNotes } from "./types";
 
 export type CampaignRow = typeof campaigns.$inferSelect;
@@ -62,6 +66,7 @@ export const toClientCampaign = (row: CampaignRow, roster: ClientRosterMember[])
   currencies: safeJson<Currency[]>(row.currencies, []),
   status: row.status,
   archived: row.archivedAt !== null,
+  setup: readSetup(safeJson<unknown>(row.setup, {})),
   roster,
 });
 
@@ -88,6 +93,7 @@ export const toClientSession = (row: SessionRow) => ({
   loot: safeJson<LootLine[]>(row.loot, []),
   coins: safeJson<CoinLine[]>(row.coins, []),
   questLog: safeJson<QuestLogLine[]>(row.questLog, []).map(normalizeLogLine),
+  prep: readPrep(safeJson<unknown>(row.prep, {})),
   version: row.version,
 });
 
@@ -111,4 +117,22 @@ export function sessionsUsingPerson(list: ClientSession[], personId: string) {
 /** Sessions of the campaign that use one of these coins (coin lines or item values). */
 export function sessionsUsingCurrency(list: ClientSession[], currencyIds: ReadonlySet<string>) {
   return list.filter((s) => s.coins.some((c) => currencyIds.has(c.currencyId)) || s.loot.some((l) => l.value && currencyIds.has(l.value.currencyId)));
+}
+
+/**
+ * Creates the campaign's next session with an empty recap. It starts the
+ * day after the previous session ended (else on the world's current day)
+ * with the active party attending.
+ */
+export async function createNextSession(worldId: string, campaignId: string, title = "", prep: string = "{}") {
+  const existing = await sessionsOf(campaignId);
+  const last = existing.at(-1);
+  const startDay = last?.endDay != null ? last.endDay + 1 : (await chronologyOf(worldId)).currentDay;
+  const attendance = (await rosterOf(campaignId)).filter((m) => m.status === "active" && m.name !== null).map((m) => m.personId);
+  const recap = await createEmptyDocument(worldId);
+  const [row] = await db
+    .insert(sessions)
+    .values({ worldId, campaignId, number: nextSessionNumber(existing.map((s) => s.number)), title, startDay, endDay: startDay, recapDocumentId: recap.id, attendance: JSON.stringify(attendance), prep })
+    .returning();
+  return row;
 }

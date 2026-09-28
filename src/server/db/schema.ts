@@ -843,6 +843,8 @@ export const campaigns = sqliteTable(
     status: text("status", { enum: ["active", "finished"] }).notNull().default("active"),
     /** JSON { [nodeId]: { x, y } }: where the DM dragged the quest map's nodes. */
     questMap: text("quest_map").notNull().default("{}"),
+    /** JSON { pitch, truths, sessionZero, lines, veils, guidesHidden }: the Campaign Writer's one-page setup. */
+    setup: text("setup").notNull().default("{}"),
     sortOrder: integer("sort_order").notNull().default(0),
     archivedAt: integer("archived_at", { mode: "timestamp_ms" }),
     ...timestamps,
@@ -904,6 +906,8 @@ export const sessions = sqliteTable(
     coins: text("coins").notNull().default("[]"),
     /** JSON [{ questId, action, note, objectiveIds, clueIds, clockTicks, rewardsAdded }]: what happened to the campaign's quests (their history). */
     questLog: text("quest_log").notNull().default("[]"),
+    /** JSON: the session's Lazy DM prep (strong start, secrets, locations, NPCs, …) and whether it was reviewed. */
+    prep: text("prep").notNull().default("{}"),
     version: integer("version").notNull().default(1),
     deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
     ...timestamps,
@@ -986,4 +990,123 @@ export const fronts = sqliteTable(
     ...timestamps,
   },
   (table) => [index("fronts_campaign_idx").on(table.campaignId)]
+);
+
+/**
+ * The Campaign Writer's outline: arcs (no parent), their chapters and the
+ * chapters' scenes, each with its own text (created on first open). Scenes
+ * are planned for a session and marked played / changed / skipped after it.
+ */
+export const outlineNodes = sqliteTable(
+  "outline_nodes",
+  {
+    id: id(),
+    worldId: text("world_id")
+      .notNull()
+      .references(() => worlds.id),
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => campaigns.id),
+    parentId: text("parent_id"),
+    kind: text("kind", { enum: ["arc", "chapter", "scene"] }).notNull(),
+    title: text("title").notNull(),
+    synopsis: text("synopsis").notNull().default(""),
+    documentId: text("document_id").references(() => richDocuments.id),
+    /** On an arc or chapter: the story structure its children follow (src/server/writer/templates.ts). */
+    beatTemplate: text("beat_template"),
+    /** On a child of a templated node: which beat it fills. */
+    beatKey: text("beat_key"),
+    status: text("status", { enum: ["planned", "ready", "played", "changed", "skipped"] }).notNull().default("planned"),
+    plannedSessionId: text("planned_session_id"),
+    playedSessionId: text("played_session_id"),
+    /** What happened instead, when the table went another way. */
+    changeNote: text("change_note").notNull().default(""),
+    /** JSON [{ kind: "quest" | "front", id }]. */
+    links: text("links").notNull().default("[]"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    version: integer("version").notNull().default(1),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+    ...timestamps,
+  },
+  (table) => [index("outline_nodes_campaign_idx").on(table.campaignId, table.parentId, table.sortOrder)]
+);
+
+/** A story thread the writer follows across scenes: a promise to pay off, a Chekhov setup, or a MICE thread. */
+export const plotThreads = sqliteTable(
+  "plot_threads",
+  {
+    id: id(),
+    worldId: text("world_id")
+      .notNull()
+      .references(() => worlds.id),
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => campaigns.id),
+    name: text("name").notNull(),
+    kind: text("kind", { enum: ["promise", "chekhov", "mice"] }).notNull().default("promise"),
+    miceType: text("mice_type", { enum: ["milieu", "inquiry", "character", "event"] }),
+    status: text("status", { enum: ["open", "paid", "dropped"] }).notNull().default("open"),
+    questId: text("quest_id"),
+    summary: text("summary").notNull().default(""),
+    color: text("color"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    version: integer("version").notNull().default(1),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+    ...timestamps,
+  },
+  (table) => [index("plot_threads_campaign_idx").on(table.campaignId)]
+);
+
+/** Where a thread shows up: one cell of the plot grid (thread × scene). */
+export const threadBeats = sqliteTable(
+  "thread_beats",
+  {
+    id: id(),
+    threadId: text("thread_id")
+      .notNull()
+      .references(() => plotThreads.id),
+    nodeId: text("node_id")
+      .notNull()
+      .references(() => outlineNodes.id),
+    role: text("role", { enum: ["setup", "progress", "payoff"] }).notNull().default("progress"),
+    note: text("note").notNull().default(""),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex("thread_beats_unique").on(table.threadId, table.nodeId), index("thread_beats_node_idx").on(table.nodeId)]
+);
+
+/** The backlink index: which documents @mention what (rewritten on every save). */
+export const documentMentions = sqliteTable(
+  "document_mentions",
+  {
+    documentId: text("document_id")
+      .notNull()
+      .references(() => richDocuments.id),
+    targetKind: text("target_kind").notNull(),
+    targetId: text("target_id").notNull(),
+    label: text("label").notNull().default(""),
+  },
+  (table) => [uniqueIndex("document_mentions_pk").on(table.documentId, table.targetKind, table.targetId), index("document_mentions_target_idx").on(table.targetKind, table.targetId)]
+);
+
+/** The Alexandrian's campaign status document: what changed in the world, session by session. */
+export const campaignStatusLog = sqliteTable(
+  "campaign_status_log",
+  {
+    id: id(),
+    worldId: text("world_id")
+      .notNull()
+      .references(() => worlds.id),
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => campaigns.id),
+    sessionId: text("session_id"),
+    worldDay: integer("world_day"),
+    kind: text("kind", { enum: ["world", "faction", "npc", "place", "other"] }).notNull().default("world"),
+    /** JSON { template, articleId } or null: who or what changed. */
+    subject: text("subject"),
+    text: text("text").notNull(),
+    ...timestamps,
+  },
+  (table) => [index("campaign_status_log_campaign_idx").on(table.campaignId)]
 );
