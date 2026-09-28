@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronRight, CirclePlus, Network } from "lucide-react";
+import { ChevronDown, ChevronRight, CirclePlus, type LucideIcon } from "lucide-react";
 import { ARTICLE_TEMPLATE_GROUPS, personTemplate, type ArticleTemplateKey } from "@/server/articles/templates";
 import { ARTICLE_TEMPLATES, templateOf, type ArticleTemplate } from "./templates";
 import { PickRow, sortByName } from "./shared";
@@ -84,7 +84,8 @@ function FolderHeader({ template, count, open, active, onToggle }: { template: A
 /**
  * The Articles left bar: "Create new article", a search box, one folder per
  * template (click to expand/collapse, showing its own grouping), and the
- * Hierarchy profiles entry pinned at the bottom. While searching, every
+ * tool entries (Relationships, Family trees, Boards, Hierarchy profiles)
+ * pinned at the bottom. While searching, every
  * folder with a match is shown open as a flat list of matches.
  */
 export default function ArticlesSidebar({
@@ -97,8 +98,7 @@ export default function ArticlesSidebar({
   onToggleFolder,
   onOpenArticle,
   onCreate,
-  profilesActive,
-  onOpenProfiles,
+  tools,
   territoryExpanded,
   onToggleTerritory,
   loading = false,
@@ -115,8 +115,8 @@ export default function ArticlesSidebar({
   onToggleFolder: (template: ArticleTemplateKey) => void;
   onOpenArticle: OpenArticle;
   onCreate: () => void;
-  profilesActive: boolean;
-  onOpenProfiles: () => void;
+  /** Pages beside the article folders, pinned at the bottom. */
+  tools: readonly { key: string; label: string; Icon: LucideIcon; active: boolean; onOpen: () => void }[];
   territoryExpanded: Set<string>;
   onToggleTerritory: (id: string) => void;
 }) {
@@ -191,10 +191,14 @@ export default function ArticlesSidebar({
         )}
       </nav>
 
-      <button type="button" className={profilesActive ? "articles-folder articles-profiles active" : "articles-folder articles-profiles"} onClick={onOpenProfiles}>
-        <Network size={16} strokeWidth={2.25} aria-hidden />
-        <span className="articles-folder-name">Hierarchy profiles</span>
-      </button>
+      <div className="articles-tools">
+        {tools.map(({ key, label, Icon, active, onOpen }) => (
+          <button key={key} type="button" className={active ? "articles-folder active" : "articles-folder"} onClick={onOpen}>
+            <Icon size={16} strokeWidth={2.25} aria-hidden />
+            <span className="articles-folder-name">{label}</span>
+          </button>
+        ))}
+      </div>
     </aside>
   );
 }

@@ -12,6 +12,7 @@ import DeleteArticleButton from "./DeleteArticleButton";
 import { InfoForm, InfoView, type InfoLookups } from "./InfoBar";
 import { PickGroupRow, patchRecord, sortByName, useEditingResetOnSelect, useExpandedSet } from "./shared";
 import type { OpenArticle, Organization } from "./types";
+import { useRelationValues } from "@/components/relations/relations-context";
 
 const recordUrl = (id: string) => `/api/politics/organizations/${id}`;
 
@@ -70,6 +71,8 @@ export function OrganizationArticle({
   onOpenArticle: OpenArticle;
 }) {
   const [editing, setEditing] = useEditingResetOnSelect(organization.id);
+  const relationValues = useRelationValues(ORGANIZATION_INFO, organization.id);
+  const shownRelationValues = useRelationValues(ORGANIZATION_INFO, organization.id, { forView: true });
 
   const update = (body: Record<string, unknown>) => patchRecord(recordUrl(organization.id), body).then(onChanged);
 
@@ -107,7 +110,7 @@ export function OrganizationArticle({
             key={organization.id}
             set={ORGANIZATION_INFO}
             name={organization.name}
-            initialValues={addedInfo(ORGANIZATION_INFO, organization)}
+            initialValues={addedInfo(ORGANIZATION_INFO, organization, relationValues)}
             lookups={lookups}
             onSave={(name, values) => patchRecord(recordUrl(organization.id), { name, ...columnPatch(ORGANIZATION_INFO, values), info: values })}
             onSaved={() => {
@@ -117,7 +120,7 @@ export function OrganizationArticle({
             onCancel={() => setEditing(false)}
           />
         ) : (
-          <InfoView set={ORGANIZATION_INFO} values={addedInfo(ORGANIZATION_INFO, organization)} lookups={lookups} onOpenArticle={onOpenArticle} />
+          <InfoView set={ORGANIZATION_INFO} values={addedInfo(ORGANIZATION_INFO, organization, shownRelationValues)} lookups={lookups} onOpenArticle={onOpenArticle} />
         )
       }
       body={{ documentId: organization.descriptionDocumentId, onCreated: (id) => update({ descriptionDocumentId: id }) }}

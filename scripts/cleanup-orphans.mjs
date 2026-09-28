@@ -30,6 +30,7 @@ export async function cleanupOrphans() {
 
   const { rows } = await client.execute("SELECT id FROM map_assets");
   const knownAssetIds = new Set(rows.map((r) => r.id));
+  const relations = await cleanupOrphanRelations(client);
   client.close();
 
   let removed = 0;
@@ -42,11 +43,24 @@ export async function cleanupOrphans() {
       }
     }
   }
-  return removed;
+  return { removed, relations };
+}
+
+const RECORD_TABLES = ["people", "organizations", "territories", "articles"];
+
+/**
+ * Hard-deletes relations whose end no longer exists in any record table
+ * (records are soft-deleted, so this only follows a purge). Relations to a
+ * soft-deleted record stay: they come back when it's restored.
+ */
+async function cleanupOrphanRelations(client) {
+  const exists = (col) => `(${RECORD_TABLES.map((t) => `EXISTS (SELECT 1 FROM ${t} WHERE id = relations.${col})`).join(" OR ")})`;
+  const result = await client.execute(`DELETE FROM relations WHERE NOT ${exists("from_id")} OR NOT ${exists("to_id")}`);
+  return result.rowsAffected;
 }
 
 if (path.resolve(fileURLToPath(import.meta.url)) === path.resolve(process.argv[1])) {
-  cleanupOrphans().then((removed) => {
-    console.log(`Removed ${removed} orphaned asset directory(ies).`);
+  cleanupOrphans().then(({ removed, relations }) => {
+    console.log(`Removed ${removed} orphaned asset directory(ies) and ${relations} orphaned relation(s).`);
   });
 }

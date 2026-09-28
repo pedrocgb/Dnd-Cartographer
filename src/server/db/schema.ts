@@ -491,6 +491,8 @@ export const organizations = sqliteTable(
     descriptionDocumentId: text("description_document_id").references(() => richDocuments.id),
     // Relative storage key for the uploaded "Crest" image, or null.
     portraitKey: text("portrait_key"),
+    // #RRGGBB, or null: a house's color on family trees and relationship webs (its members use it).
+    color: text("color"),
     // Article layer: manual tags (JSON string[]), the sidebar and optional footer documents.
     tags: text("tags").notNull().default("[]"),
     sidebarDocumentId: text("sidebar_document_id").references(() => richDocuments.id),
@@ -1115,4 +1117,75 @@ export const campaignStatusLog = sqliteTable(
     ...timestamps,
   },
   (table) => [index("campaign_status_log_campaign_idx").on(table.campaignId)]
+);
+
+/**
+ * A typed tie between two records (people, organizations, territories or
+ * generic articles; ids are unique across those tables). One row per tie:
+ * the type's registry entry (src/server/relations/types.ts) says how its
+ * direction reads ("Parent of" from -> to, "Child of" back) or that it's
+ * symmetric. `pairKey` identifies the pair per type for the duplicate check:
+ * "from|to", or the two ids sorted for symmetric types. Info Bar relationship
+ * fields (Parents, Allies, …) read and write these rows.
+ */
+export const relations = sqliteTable(
+  "relations",
+  {
+    id: id(),
+    worldId: text("world_id")
+      .notNull()
+      .references(() => worlds.id),
+    type: text("type").notNull(),
+    fromKind: text("from_kind", { enum: ["person", "organization", "territory", "article"] }).notNull(),
+    fromId: text("from_id").notNull(),
+    toKind: text("to_kind", { enum: ["person", "organization", "territory", "article"] }).notNull(),
+    toId: text("to_id").notNull(),
+    pairKey: text("pair_key").notNull(),
+    /** Custom wording shown with (or, for "custom", instead of) the type's label. */
+    label: text("label").notNull().default(""),
+    /** A symmetric type held by `from` only (an ally who isn't allied back): drawn with an arrow. */
+    oneWay: integer("one_way", { mode: "boolean" }).notNull().default(false),
+    secret: integer("secret", { mode: "boolean" }).notNull().default(false),
+    pinned: integer("pinned", { mode: "boolean" }).notNull().default(false),
+    /** -3 (hostile) … +3 (devoted), or null. */
+    attitude: integer("attitude"),
+    parentKind: text("parent_kind", { enum: ["biological", "adoptive", "step"] }),
+    spouseStatus: text("spouse_status", { enum: ["married", "betrothed", "divorced", "widowed", "lover", "unknown"] }),
+    /** In-world span (worldDay, inclusive); either end may be open. */
+    sinceDay: integer("since_day"),
+    untilDay: integer("until_day"),
+    notes: text("notes").notNull().default(""),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+    ...timestamps,
+  },
+  (table) => [
+    index("relations_world_type_idx").on(table.worldId, table.type),
+    index("relations_from_idx").on(table.fromId),
+    index("relations_to_idx").on(table.toId),
+    uniqueIndex("relations_pair_unique")
+      .on(table.worldId, table.type, table.pairKey)
+      .where(sql`${table.deletedAt} IS NULL AND ${table.type} <> 'custom'`),
+  ]
+);
+
+/**
+ * A hand-arranged relationship board: record cards (their relations are
+ * drawn between the cards present) and free sticky notes.
+ */
+export const relationshipBoards = sqliteTable(
+  "relationship_boards",
+  {
+    id: id(),
+    worldId: text("world_id")
+      .notNull()
+      .references(() => worlds.id),
+    name: text("name").notNull(),
+    /** JSON [{ id, x, y, text?, color? }]: a record id, or "note:<uuid>" with its text and color. */
+    cards: text("cards").notNull().default("[]"),
+    /** JSON { groups?, types?, showDerived?, asOfDay? }. */
+    filters: text("filters").notNull().default("{}"),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+    ...timestamps,
+  },
+  (table) => [index("relationship_boards_world_idx").on(table.worldId)]
 );

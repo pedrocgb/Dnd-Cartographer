@@ -13,6 +13,7 @@ import type { ArticleTemplateKey } from "@/server/articles/templates";
 import { templateOf } from "./templates";
 import TagEditor from "./TagEditor";
 import { CreateArticleContext } from "./create-context";
+import RelationshipsCard from "@/components/relations/RelationshipsCard";
 
 /** Floating editor UI (bubble menus, popovers) lives outside the card; clicks there keep it editing. */
 const FLOATING_EDITOR_UI = ".rich-floating";
@@ -329,6 +330,7 @@ export default function ArticleView({
           />
         )}
       </div>
+      {articleId && <RelationshipsCard key={`relations:${articleId}`} recordId={articleId} template={template} />}
       {articleId && <CalendarBacklinks key={articleId} articleId={articleId} />}
       {articleId && <SessionBacklinks key={`sessions:${articleId}`} articleId={articleId} />}
       {articleId && <QuestBacklinks key={`quests:${articleId}`} articleId={articleId} />}

@@ -7,6 +7,8 @@ import { sanitizeInfo } from "@/server/articles/info-fields";
 import { personInfoSet } from "@/server/articles/info-sets";
 import { people, authorityAssignments } from "@/server/db/schema";
 import { getAuthoritiesForPerson } from "@/server/politics/queries";
+import { RelationError } from "@/server/relations/store";
+import { withRelationSync } from "@/server/relations/sync";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -43,8 +45,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const info = sanitizeInfo(personInfoSet(person.kind), body.info);
   if (info) patch.info = JSON.stringify(info);
 
-  const [updated] = await db.update(people).set(patch).where(eq(people.id, id)).returning();
-  return NextResponse.json({ person: updated });
+  try {
+    const updated = await withRelationSync(personInfoSet(person.kind), person, body.info, async (ex) => {
+      const [row] = await ex.update(people).set(patch).where(eq(people.id, id)).returning();
+      return row;
+    });
+    return NextResponse.json({ person: updated });
+  } catch (err) {
+    if (err instanceof RelationError) return NextResponse.json({ error: err.message }, { status: 409 });
+    throw err;
+  }
 }
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {

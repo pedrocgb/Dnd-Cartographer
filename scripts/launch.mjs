@@ -48,8 +48,9 @@ async function main() {
   console.log("World Wiki — Maps: starting local workspace");
   await run("node", ["scripts/migrate.mjs"]);
   await cleanOrphanedTemp();
-  const orphansRemoved = await cleanupOrphans();
-  if (orphansRemoved > 0) console.log(`Removed ${orphansRemoved} orphaned asset director(ies).`);
+  const orphans = await cleanupOrphans();
+  if (orphans.removed > 0) console.log(`Removed ${orphans.removed} orphaned asset director(ies).`);
+  if (orphans.relations > 0) console.log(`Removed ${orphans.relations} orphaned relation(s).`);
 
   if (mode === "start") {
     await run("npm", ["run", "build"]);

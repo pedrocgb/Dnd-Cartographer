@@ -14,6 +14,7 @@ import { personInfoSet } from "@/server/articles/info-sets";
 import { personTemplate, type PersonKind } from "@/server/articles/templates";
 import { InfoForm, InfoView, type InfoLookups } from "./InfoBar";
 import type { Authority, OpenArticle, Organization, Person, PersonAuthority, Territory } from "./types";
+import { useRelationValues } from "@/components/relations/relations-context";
 
 const recordUrl = (id: string) => `/api/politics/people/${id}`;
 
@@ -273,6 +274,8 @@ export function CharacterArticle({
   const update = (body: Record<string, unknown>) => patchRecord(recordUrl(person.id), body).then(onChanged);
   const template = personTemplate(person.kind);
   const set = personInfoSet(person.kind);
+  const relationValues = useRelationValues(set, person.id);
+  const shownRelationValues = useRelationValues(set, person.id, { forView: true });
 
   return (
     <ArticleView
@@ -299,7 +302,7 @@ export function CharacterArticle({
             key={person.id}
             set={set}
             name={person.name}
-            initialValues={addedInfo(set, person)}
+            initialValues={addedInfo(set, person, relationValues)}
             lookups={lookups}
             onSave={(name, values) => patchRecord(recordUrl(person.id), { name, ...columnPatch(set, values), info: values })}
             onSaved={() => {
@@ -311,7 +314,7 @@ export function CharacterArticle({
         ) : (
           <InfoView
             set={set}
-            values={addedInfo(set, person)}
+            values={addedInfo(set, person, shownRelationValues)}
             lookups={lookups}
             onOpenArticle={onOpenArticle}
             extra={

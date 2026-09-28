@@ -10,6 +10,7 @@ import {
   CircleQuestionMark,
   ExternalLink,
   EyeOff,
+  Palette,
   GripVertical,
   Maximize2,
   Plus,
@@ -30,6 +31,7 @@ import {
   requiredFields,
 } from "@/server/articles/info-fields";
 import { TEMPLATE_LABELS } from "@/server/articles/templates";
+import { COLOR_PRESETS } from "@/server/markers/icon-registry";
 import InfoPicker, { type PickerOption } from "./InfoPicker";
 import type { OpenArticle } from "./types";
 
@@ -48,6 +50,7 @@ const KIND: Record<InfoFieldKind, { Icon: LucideIcon; hint: string }> = {
   text: { Icon: Type, hint: "Text" },
   select: { Icon: ArrowDownWideNarrow, hint: "Dropdown" },
   link: { Icon: ExternalLink, hint: "Link" },
+  color: { Icon: Palette, hint: "Color" },
 };
 
 const isEmpty = (v: InfoValue | undefined) => v === null || v === undefined || v === "" || (Array.isArray(v) && v.length === 0);
@@ -210,7 +213,14 @@ export function InfoView({
         const value = values[field.key];
         let shown: React.ReactNode;
         if (isEmpty(value)) shown = <span className="field-label">—</span>;
-        else if (field.kind === "link" && field.link) {
+        else if (field.kind === "color") {
+          shown = (
+            <span className="info-color">
+              <span className="info-color-swatch" style={{ background: String(value) }} aria-hidden />
+              {String(value)}
+            </span>
+          );
+        } else if (field.kind === "link" && field.link) {
           const ids = Array.isArray(value) ? value : [value as string];
           shown = <CollapsedList items={ids.map((id) => linkButton(field.link!.targets, id))} />;
         } else if (Array.isArray(value)) {
@@ -424,6 +434,31 @@ function FieldEditor({
         maxLength={MAX_INFO_TEXT_LENGTH}
         onChange={(e) => onChange(e.target.value)}
       />
+    );
+  }
+
+  if (field.kind === "color") {
+    const current = typeof value === "string" ? value : null;
+    return (
+      <div className="info-color-editor" data-field={field.key}>
+        {COLOR_PRESETS.map((c) => (
+          <button
+            key={c}
+            type="button"
+            className={c === current ? "color-swatch active" : "color-swatch"}
+            style={{ background: c }}
+            onClick={() => onChange(c)}
+            aria-label={`${field.label} ${c}`}
+            data-tooltip={c}
+          />
+        ))}
+        <input type="color" aria-label={`Custom ${field.label.toLowerCase()}`} value={current ?? "#808080"} onChange={(e) => onChange(e.target.value.toUpperCase())} />
+        {current && !field.required && (
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => onChange(null)}>
+            None
+          </button>
+        )}
+      </div>
     );
   }
 

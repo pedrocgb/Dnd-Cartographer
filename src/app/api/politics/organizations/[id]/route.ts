@@ -5,8 +5,10 @@ import { encodeTags, sanitizeTags } from "@/server/articles/tags";
 import { TEMPLATE_LABELS } from "@/server/articles/templates";
 import { organizations, people, authorityAssignments } from "@/server/db/schema";
 import { ORGANIZATION_KINDS } from "@/server/politics/hierarchy-config";
-import { sanitizeInfo } from "@/server/articles/info-fields";
+import { sanitizeColor, sanitizeInfo } from "@/server/articles/info-fields";
 import { ORGANIZATION_INFO } from "@/server/articles/info-sets";
+import { RelationError } from "@/server/relations/store";
+import { withRelationSync } from "@/server/relations/sync";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -29,11 +31,21 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
   const tags = sanitizeTags(body.tags, TEMPLATE_LABELS.organization);
   if (tags) patch.tags = encodeTags(tags);
+  if ("color" in body) patch.color = sanitizeColor(body.color);
   if (typeof body.kind === "string" && (ORGANIZATION_KINDS as readonly string[]).includes(body.kind)) patch.kind = body.kind;
   const info = sanitizeInfo(ORGANIZATION_INFO, body.info);
   if (info) patch.info = JSON.stringify(info);
 
-  const [updated] = await db.update(organizations).set(patch).where(eq(organizations.id, id)).returning();
+  let updated;
+  try {
+    updated = await withRelationSync(ORGANIZATION_INFO, org, body.info, async (ex) => {
+      const [row] = await ex.update(organizations).set(patch).where(eq(organizations.id, id)).returning();
+      return row;
+    });
+  } catch (err) {
+    if (err instanceof RelationError) return NextResponse.json({ error: err.message }, { status: 409 });
+    throw err;
+  }
   return NextResponse.json({ organization: updated });
 }
 

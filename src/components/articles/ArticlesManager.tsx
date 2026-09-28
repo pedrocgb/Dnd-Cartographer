@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { CirclePlus } from "lucide-react";
+import { CirclePlus, GitFork, LayoutDashboard, Network, Waypoints } from "lucide-react";
 import { ancestorsOf } from "@/components/TerritoryTree";
 import {
   ARTICLE_TEMPLATE_KEYS,
@@ -27,13 +27,24 @@ import { CreateArticleContext } from "./create-context";
 import { OrganizationArticle, OrganizationForm } from "./OrganizationArticle";
 import { loadSeasonProfileLookup } from "@/components/calendars/profile-lookup";
 import { ArticleSkeleton } from "@/components/Skeleton";
+import { RelationsContext, type Relation, type RelationsState, type ServerDerived } from "@/components/relations/relations-context";
+import { buildCatalog, derivedEdges } from "@/server/relations/graph";
+import RelationsPage from "@/components/relations/RelationsPage";
+import FamilyTreePage from "@/components/relations/FamilyTreePage";
+import BoardsPage from "@/components/relations/BoardsPage";
 import type { GenericArticle as GenericArticleData, HierarchyProfile, Organization, Person, Territory } from "./types";
 
 /** What the middle pane shows. */
 type View =
   | { kind: "template"; template: ArticleTemplateKey }
   | { kind: "article"; template: ArticleTemplateKey; id: string }
-  | { kind: "profiles"; id: string | null };
+  | { kind: "profiles"; id: string | null }
+  | { kind: "relationships"; focus: string | null }
+  | { kind: "family"; id: string | null; bloodline: boolean }
+  | { kind: "boards"; id: string | null };
+
+/** Views that aren't an article folder (their sidebar entries are pinned tools). */
+const isToolView = (view: View): view is Exclude<View, { kind: "template" | "article" }> => view.kind !== "template" && view.kind !== "article";
 
 /** `?type=&id=`; also accepts the old /politics keys (person, profile). */
 function viewFromParams(params: URLSearchParams): View {
@@ -41,15 +52,25 @@ function viewFromParams(params: URLSearchParams): View {
   const id = params.get("id");
   const type = raw === "person" ? "character" : raw;
   if (type === "profile" || type === "profiles") return { kind: "profiles", id };
+  if (type === "relationships") return { kind: "relationships", focus: params.get("focus") };
+  if (type === "family") return { kind: "family", id, bloodline: params.get("mode") === "bloodline" };
+  if (type === "boards") return { kind: "boards", id };
   if (isArticleTemplate(type)) return id ? { kind: "article", template: type, id } : { kind: "template", template: type };
   return { kind: "template", template: "generic" };
 }
 
 function urlOf(view: View): string {
   const params = new URLSearchParams();
-  if (view.kind === "profiles") {
-    params.set("type", "profiles");
+  if (view.kind === "profiles" || view.kind === "boards") {
+    params.set("type", view.kind);
     if (view.id) params.set("id", view.id);
+  } else if (view.kind === "relationships") {
+    params.set("type", "relationships");
+    if (view.focus) params.set("focus", view.focus);
+  } else if (view.kind === "family") {
+    params.set("type", "family");
+    if (view.id) params.set("id", view.id);
+    if (view.bloodline) params.set("mode", "bloodline");
   } else {
     params.set("type", view.template);
     if (view.kind === "article") params.set("id", view.id);
@@ -108,6 +129,7 @@ export default function ArticlesManager() {
   const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
   // Calendars season profiles, for the Season Profile info field (with each one's current season).
   const [seasonProfiles, setSeasonProfiles] = useState<{ id: string; name: string; detail: string }[]>([]);
+  const [relationData, setRelationData] = useState<{ relations: Relation[]; derived: ServerDerived[] }>({ relations: [], derived: [] });
   const [query, setQuery] = useState("");
   const storedOpenFolders = useSyncExternalStore(subscribeToStorage, readStoredOpenFolders, () => null);
   // Null until the user (or a deep link) changes which folders are open.
@@ -131,8 +153,10 @@ export default function ArticlesManager() {
       fetch("/api/articles").then((r) => json<{ articles: GenericArticleData[] }>(r)),
       fetch("/api/articles/tags").then((r) => json<{ tags: string[] }>(r)),
       loadSeasonProfileLookup().catch(() => []),
-    ]).then(([t, p, o, a, tags, seasonProfiles]) => {
+      fetch("/api/relations").then((r) => json<{ relations: Relation[]; derived: ServerDerived[] }>(r)),
+    ]).then(([t, p, o, a, tags, seasonProfiles, rel]) => {
       setLists({ territories: t.territories, people: p.people, organizations: o.organizations, articles: a.articles });
+      setRelationData(rel);
       setSeasonProfiles(seasonProfiles);
       setTagSuggestions(tags.tags);
       setLoaded(true);
@@ -234,8 +258,30 @@ export default function ArticlesManager() {
     return lookups;
   }, [lists, seasonProfiles]);
 
-  const activeTemplate = view.kind === "profiles" ? null : view.template;
+  // Every live record (template, name, house color), for relation-backed Info Bar fields and graphs.
+  const catalog = useMemo(() => buildCatalog(lists), [lists]);
+  const derivedRelationEdges = useMemo(() => derivedEdges(catalog, relationData.derived, lists), [catalog, relationData.derived, lists]);
+
+
+  const activeTemplate = isToolView(view) ? null : view.template;
+  const tools = [
+    { key: "relationships", label: "Relationships", Icon: Waypoints, active: view.kind === "relationships", onOpen: () => go({ kind: "relationships", focus: null }) },
+    { key: "family", label: "Family trees", Icon: GitFork, active: view.kind === "family", onOpen: () => go({ kind: "family", id: null, bloodline: false }) },
+    { key: "boards", label: "Boards", Icon: LayoutDashboard, active: view.kind === "boards", onOpen: () => go({ kind: "boards", id: null }) },
+    { key: "profiles", label: "Hierarchy profiles", Icon: Network, active: view.kind === "profiles", onOpen: () => go({ kind: "profiles", id: null }) },
+  ];
   const refresh = () => void refreshLists();
+  const relationsState: RelationsState = {
+    relations: relationData.relations,
+    derived: derivedRelationEdges,
+    catalog,
+    templateOf: (id) => catalog.get(id)?.template ?? null,
+    lookups: infoLookups,
+    openArticle,
+    openWeb: (focus) => go({ kind: "relationships", focus }),
+    openFamily: (id) => go({ kind: "family", id, bloodline: false }),
+    refresh,
+  };
   const deleted = (template: ArticleTemplateKey) => () => {
     go({ kind: "template", template });
     void refreshLists();
@@ -315,6 +361,9 @@ export default function ArticlesManager() {
         <HierarchyProfiles selectedId={view.id} onSelect={(id) => go({ kind: "profiles", id })} onChanged={refreshProfiles} />
       );
     }
+    if (view.kind === "relationships") return <RelationsPage focusId={view.focus} onFocus={(focus) => go({ kind: "relationships", focus })} />;
+    if (view.kind === "family") return <FamilyTreePage personId={view.id} bloodline={view.bloodline} onChange={(id, bloodline) => go({ kind: "family", id, bloodline })} />;
+    if (view.kind === "boards") return <BoardsPage boardId={view.id} onOpenBoard={(id) => go({ kind: "boards", id })} />;
     if (view.kind === "article") {
       const content = renderArticle(view.template, view.id);
       if (content) return content;
@@ -336,6 +385,7 @@ export default function ArticlesManager() {
   }
 
   return (
+    <RelationsContext.Provider value={relationsState}>
     <div className="articles-page">
       <ArticlesSidebar
         lists={lists}
@@ -347,8 +397,7 @@ export default function ArticlesManager() {
         onToggleFolder={toggleFolder}
         onOpenArticle={openArticle}
         onCreate={() => setCreating({ template: null })}
-        profilesActive={view.kind === "profiles"}
-        onOpenProfiles={() => go({ kind: "profiles", id: null })}
+        tools={tools}
         territoryExpanded={territoryExpanded}
         onToggleTerritory={toggleTerritory}
         loading={!loaded}
@@ -365,5 +414,6 @@ export default function ArticlesManager() {
         />
       )}
     </div>
+    </RelationsContext.Provider>
   );
 }

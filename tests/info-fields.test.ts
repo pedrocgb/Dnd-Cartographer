@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { MAX_INFO_TEXT_LENGTH, addedInfo, columnPatch, defineFieldSet, emptyRequiredInfo, sanitizeInfo } from "../src/server/articles/info-fields";
+import { MAX_INFO_TEXT_LENGTH, addedInfo, columnPatch, defineFieldSet, emptyRequiredInfo, sanitizeColor, sanitizeInfo } from "../src/server/articles/info-fields";
 import { CHARACTER_INFO, INFO_FIELD_SETS, ORGANIZATION_INFO, PLAYER_CHARACTER_INFO, TERRITORY_INFO, TITLE_INFO, personInfoSet } from "../src/server/articles/info-sets";
-import { ARTICLE_TEMPLATE_GROUPS, ARTICLE_TEMPLATE_KEYS, isArticleTemplate } from "../src/server/articles/templates";
+import { ARTICLE_TEMPLATE_GROUPS, ARTICLE_TEMPLATE_KEYS, isArticleTemplate, type ArticleTemplateKey } from "../src/server/articles/templates";
+import { relationFieldValues } from "../src/server/relations/info-backing";
+import { allows, relationType } from "../src/server/relations/types";
 
 describe("ARTICLE_TEMPLATE_GROUPS", () => {
   it("lists every template once, in ARTICLE_TEMPLATE_KEYS order", () => {
@@ -69,8 +71,8 @@ describe("sanitizeInfo", () => {
   });
 
   it("dedupes multi links and drops non-ids", () => {
-    expect(sanitizeInfo(CHARACTER_INFO, { organizations: ["a", "b", "a", 3, ""] })).toEqual({ organizations: ["a", "b"] });
-    expect(sanitizeInfo(CHARACTER_INFO, { organizations: "a" })).toEqual({ organizations: [] });
+    expect(sanitizeInfo(CHARACTER_INFO, { culture: ["a", "b", "a", 3, ""] })).toEqual({ culture: ["a", "b"] });
+    expect(sanitizeInfo(CHARACTER_INFO, { culture: "a" })).toEqual({ culture: [] });
     expect(sanitizeInfo(CHARACTER_INFO, { lastSeen: ["a"] })).toEqual({ lastSeen: null });
   });
 
@@ -105,7 +107,7 @@ describe("addedInfo", () => {
 describe("columnPatch", () => {
   it("sends each column field's value, clearing removed ones", () => {
     expect(columnPatch(CHARACTER_INFO, { house: "org-1" })).toEqual({ houseId: "org-1", status: null });
-    expect(columnPatch(ORGANIZATION_INFO, { organizationType: "Guild", motto: "x" })).toEqual({ kind: "Guild" });
+    expect(columnPatch(ORGANIZATION_INFO, { organizationType: "Guild", motto: "x" })).toEqual({ kind: "Guild", color: null });
   });
 });
 
@@ -169,5 +171,61 @@ describe("PLAYER_CHARACTER_INFO", () => {
   it("drops a bad Party Role", () => {
     expect(sanitizeInfo(PLAYER_CHARACTER_INFO, { partyRole: "The Bard" })).toEqual({ partyRole: null });
     expect(sanitizeInfo(PLAYER_CHARACTER_INFO, { partyRole: "The Tank" })).toEqual({ partyRole: "The Tank" });
+  });
+});
+
+describe("relation-backed fields", () => {
+  for (const [template, set] of Object.entries(INFO_FIELD_SETS)) {
+    const backed = set!.fields.filter((f) => f.relation);
+    if (backed.length === 0) continue;
+    it(`${template}: each fits its relation type, and no two share a relation`, () => {
+      for (const f of backed) {
+        const type = relationType(f.relation!.type);
+        expect(type, f.key).toBeDefined();
+        expect(f.kind).toBe("link");
+        const [self, other] = f.relation!.side === "to" ? [type!.endpoints.to, type!.endpoints.from] : [type!.endpoints.from, type!.endpoints.to];
+        expect(allows(self, template as ArticleTemplateKey), f.key).toBe(true);
+        for (const target of f.link!.targets) expect(allows(other, target as ArticleTemplateKey), `${f.key} -> ${target}`).toBe(true);
+        if (f.relation!.side === "any") expect(type!.symmetric, f.key).toBe(true);
+      }
+      for (const a of backed) {
+        for (const b of backed) {
+          if (a === b || a.relation!.type !== b.relation!.type) continue;
+          const sidesOverlap = a.relation!.side === "any" || b.relation!.side === "any" || a.relation!.side === b.relation!.side;
+          const targetsOverlap = a.link!.targets.some((t) => b.link!.targets.includes(t));
+          expect(sidesOverlap && targetsOverlap, `${a.key} / ${b.key}`).toBe(false);
+        }
+      }
+    });
+  }
+
+  const templates: Record<string, ArticleTemplateKey> = { anna: "character", bran: "character", guild: "organization", pc: "playerCharacter" };
+  const templateOf = (id: string) => templates[id] ?? null;
+
+  it("reads both ends of a tie, one-way ties only from their holder", () => {
+    const rels = [
+      { type: "parent", fromId: "anna", toId: "bran" },
+      { type: "ally", fromId: "guild", toId: "bran" },
+      { type: "ally", fromId: "pc", toId: "bran", oneWay: true },
+    ];
+    expect(relationFieldValues(CHARACTER_INFO, "bran", rels, templateOf)).toMatchObject({ parents: ["anna"], children: [], allies: ["guild"] });
+    expect(relationFieldValues(CHARACTER_INFO, "anna", rels, templateOf)).toMatchObject({ children: ["bran"], parents: [] });
+    expect(relationFieldValues(PLAYER_CHARACTER_INFO, "pc", rels, templateOf)).toMatchObject({ allies: ["bran"] });
+    expect(relationFieldValues(ORGANIZATION_INFO, "guild", rels, templateOf)).toMatchObject({ alliedOrganizations: [] });
+  });
+
+  it("stores relation fields as presence markers and shows ties made from the other side", () => {
+    expect(sanitizeInfo(CHARACTER_INFO, { parents: ["anna"] })).toEqual({ parents: null });
+    const values = addedInfo(CHARACTER_INFO, { info: JSON.stringify({ reputation: "Kind" }) }, { parents: ["anna"], children: [] });
+    expect(Object.keys(values).slice(-2)).toEqual(["reputation", "parents"]);
+    expect(values.parents).toEqual(["anna"]);
+  });
+});
+
+describe("color fields", () => {
+  it("accept #RRGGBB only, uppercased", () => {
+    expect(sanitizeColor(" #a1b2c3 ")).toBe("#A1B2C3");
+    expect(sanitizeColor("red")).toBeNull();
+    expect(sanitizeColor("#abc")).toBeNull();
   });
 });

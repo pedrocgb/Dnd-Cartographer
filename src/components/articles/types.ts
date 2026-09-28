@@ -52,6 +52,8 @@ export interface Organization extends RecordArticleFields {
   id: string;
   name: string;
   kind: string;
+  /** #RRGGBB house color, or null. */
+  color: string | null;
   descriptionDocumentId: string | null;
   portraitKey: string | null;
   updatedAt: string;

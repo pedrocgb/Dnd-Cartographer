@@ -69,13 +69,14 @@ const PLAYER_FIELDS: InfoField[] = [
     options: PARTY_ROLES,
     hint: "The part they usually play in the group. Shows gaps in the party and who takes the lead in a scene.",
   },
-  { key: "family", label: "Family", group: "party", kind: "link", link: link(["character"], true), hint: "Relatives in the world: people the villain can threaten and the hero will ride out to save." },
+  { key: "family", label: "Family", group: "party", kind: "link", link: link(["character", "playerCharacter"], true), relation: { type: "relative", side: "any" }, hint: "Relatives in the world: people the villain can threaten and the hero will ride out to save." },
   {
     key: "friends",
     label: "Friends",
     group: "party",
     kind: "link",
     link: link(["character", "playerCharacter"], true),
+    relation: { type: "friend", side: "any" },
     hint: "NPCs and fellow party members they trust. Friends are allies in a pinch and heartbreak when they turn.",
   },
   {
@@ -84,6 +85,7 @@ const PLAYER_FIELDS: InfoField[] = [
     group: "party",
     kind: "link",
     link: link(["character", "playerCharacter", "organization"], true),
+    relation: { type: "enemy", side: "any" },
     hint: "Characters, fellow players' characters and organizations that want them gone. Rivalries drive conflict.",
   },
   {

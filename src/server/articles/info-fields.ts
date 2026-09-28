@@ -11,7 +11,7 @@ import type { ArticleTemplateKey } from "./templates";
  * query it), and `info` holds only the key as a presence marker.
  */
 
-export type InfoFieldKind = "text" | "select" | "link";
+export type InfoFieldKind = "text" | "select" | "link" | "color";
 /**
  * A link points at articles of these templates (ids are unique across all
  * of them), or at a Calendars season profile ("seasonProfile") — the
@@ -43,6 +43,15 @@ export interface InfoField {
   link?: { targets: readonly InfoLinkTarget[]; multiple?: boolean };
   /** Stored in this record column rather than in `info`. */
   column?: string;
+  /**
+   * Backed by the relations table instead of `info` (a link field): the ids
+   * are the other ends of this record's relations of `type` where it is on
+   * `side` ("any" for symmetric types) and the other end's template is one of
+   * `link.targets`. Saving the field adds and removes those relations, so the
+   * other record shows the tie too (Bran's Parents list Anna once Anna's
+   * Children list Bran). See src/server/relations/info-backing.ts.
+   */
+  relation?: { type: string; side: "from" | "to" | "any" };
   /** Always present (may stay empty): not in the add menu and not removable. Set through defineFieldSet's `required`. */
   required?: boolean;
 }
@@ -103,10 +112,16 @@ export function parseInfo(raw: unknown): InfoValues {
 
 const isId = (v: unknown): v is string => typeof v === "string" && v.length > 0 && v.length <= 64;
 
+/** A "color" field's value: #RRGGBB (uppercased), or null. */
+export function sanitizeColor(value: unknown): string | null {
+  return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value.trim()) ? value.trim().toUpperCase() : null;
+}
+
 function sanitizeValue(field: InfoField, value: unknown): InfoValue {
   const list = isListField(field);
   if (value === null || value === undefined || value === "") return list ? [] : null;
   if (field.kind === "text") return typeof value === "string" ? value.trim().slice(0, MAX_INFO_TEXT_LENGTH) || null : null;
+  if (field.kind === "color") return sanitizeColor(value);
   if (field.kind === "select") {
     const valid = (v: unknown): v is string => typeof v === "string" && Boolean(field.options?.includes(v));
     if (list) return Array.isArray(value) ? [...new Set(value.filter(valid))] : [];
@@ -118,8 +133,10 @@ function sanitizeValue(field: InfoField, value: unknown): InfoValue {
 
 /**
  * The storable form of a PATCHed `info` object: known fields only, each
- * value checked against its field kind. A column field keeps just its key
- * (value null) — that marks it as added while its column is still empty.
+ * value checked against its field kind. A column or relation field keeps
+ * just its key (value null) — that marks it as added while it's still empty.
+ * Relation fields are saved by syncRelationFields (src/server/relations/sync.ts)
+ * from the same PATCH, so a client must send the whole `info` object.
  * Null when `raw` isn't an object (the field isn't being patched).
  */
 export function sanitizeInfo(set: InfoFieldSet, raw: unknown): InfoValues | null {
@@ -128,7 +145,7 @@ export function sanitizeInfo(set: InfoFieldSet, raw: unknown): InfoValues | null
   // The client's key order is the user's display order (see addedInfo), so it's kept.
   for (const [key, value] of Object.entries(raw)) {
     const field = set.fields.find((f) => f.key === key);
-    if (field) out[key] = field.column ? null : sanitizeValue(field, value);
+    if (field) out[key] = field.column || field.relation ? null : sanitizeValue(field, value);
   }
   return out;
 }
@@ -137,16 +154,22 @@ export function sanitizeInfo(set: InfoFieldSet, raw: unknown): InfoValues | null
  * The fields a record has added, with their values (column fields read from
  * their columns), in display order: required fields first, then the added
  * ones in their stored order (the order the user added or arranged them),
- * then any column field set before it had an `info` key (older data).
+ * then any column field set before it had an `info` key (older data), then
+ * any relation field with values but no key (the tie was made from the
+ * other record: Bran's Parents after Anna listed him as a child).
+ * `relationValues` holds the relation fields' values (relationFieldValues).
  */
-export function addedInfo<T extends { info?: string }>(set: InfoFieldSet, record: T): InfoValues {
+export function addedInfo<T extends { info?: string }>(set: InfoFieldSet, record: T, relationValues: InfoValues = {}): InfoValues {
   const info = parseInfo(record.info);
   const columns = record as Record<string, unknown>;
   const columnValue = (field: InfoField) => {
     const raw = field.column ? columns[field.column] : undefined;
     return typeof raw === "string" && raw ? raw : null;
   };
-  const valueOf = (field: InfoField): InfoValue => (field.column ? columnValue(field) : (info[field.key] ?? (isListField(field) ? [] : null)));
+  const empty = (field: InfoField): InfoValue => (isListField(field) ? [] : null);
+  const valueOf = (field: InfoField): InfoValue =>
+    field.column ? columnValue(field) : field.relation ? (relationValues[field.key] ?? empty(field)) : (info[field.key] ?? empty(field));
+  const hasValue = (v: InfoValue | undefined) => (Array.isArray(v) ? v.length > 0 : Boolean(v));
 
   const out: InfoValues = {};
   for (const field of requiredFields(set)) out[field.key] = valueOf(field);
@@ -155,6 +178,7 @@ export function addedInfo<T extends { info?: string }>(set: InfoFieldSet, record
     if (field && !field.required) out[key] = valueOf(field);
   }
   for (const field of set.fields) if (field.column && !(field.key in out) && columnValue(field)) out[field.key] = columnValue(field);
+  for (const field of set.fields) if (field.relation && !(field.key in out) && hasValue(relationValues[field.key])) out[field.key] = valueOf(field);
   return out;
 }
 
