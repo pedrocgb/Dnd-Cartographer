@@ -45,17 +45,13 @@ function syncUrl(values: Record<"campaign" | "node" | "tab", string | null>) {
  */
 export default function CampaignWriter({
   campaign,
-  campaigns,
   initialNode,
   initialTab,
-  onPickCampaign,
   onCampaignChanged,
 }: {
   campaign: ClientCampaign;
-  campaigns: ClientCampaign[];
   initialNode: string | null;
   initialTab: string | null;
-  onPickCampaign: (id: string) => void;
   onCampaignChanged: (c: ClientCampaign) => void;
 }) {
   const { data, loading, error, reload, update } = useWriterData(campaign.id);
@@ -112,18 +108,6 @@ export default function CampaignWriter({
 
   const sidebar = (
     <aside className="articles-sidebar wr-sidebar" aria-label="Story outline">
-      <section className="cal-side-section">
-        <label className="cal-field">
-          <span className="field-label">Campaign</span>
-          <select value={campaign.id} onChange={(e) => onPickCampaign(e.target.value)}>
-            {campaigns.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      </section>
       <section className="cal-side-section wr-outline-section">
         <h2 className="field-label">
           <ListTree size={14} aria-hidden /> Outline

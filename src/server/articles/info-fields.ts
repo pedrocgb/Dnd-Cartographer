@@ -11,7 +11,7 @@ import type { ArticleTemplateKey } from "./templates";
  * query it), and `info` holds only the key as a presence marker.
  */
 
-export type InfoFieldKind = "text" | "select" | "link" | "color";
+export type InfoFieldKind = "text" | "select" | "link" | "color" | "url";
 /**
  * A link points at articles of these templates (ids are unique across all
  * of them), or at a Calendars season profile ("seasonProfile") — the
@@ -68,6 +68,7 @@ export type InfoValue = string | string[] | null;
 export type InfoValues = Record<string, InfoValue>;
 
 export const MAX_INFO_TEXT_LENGTH = 200;
+export const MAX_INFO_URL_LENGTH = 500;
 const MAX_LIST_ITEMS = 50;
 
 /**
@@ -95,6 +96,9 @@ export function emptyRequiredInfo(set: InfoFieldSet): InfoValues {
   return Object.fromEntries(requiredFields(set).map((f) => [f.key, isListField(f) ? [] : null]));
 }
 
+/** The options of another set's select field (to share one list, like Geography's biomes). */
+export const optionsOf = (set: InfoFieldSet, key: string): readonly string[] => set.fields.find((f) => f.key === key)?.options ?? [];
+
 export const link = (targets: InfoLinkTarget[], multiple = false) => ({ targets, multiple });
 
 /** Whether a field stores a list (multi-select or multi-link). */
@@ -117,11 +121,25 @@ export function sanitizeColor(value: unknown): string | null {
   return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value.trim()) ? value.trim().toUpperCase() : null;
 }
 
+/** A "url" field's value: an http(s) address, or null. */
+export function sanitizeUrl(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > MAX_INFO_URL_LENGTH) return null;
+  try {
+    const url = new URL(trimmed);
+    return url.protocol === "http:" || url.protocol === "https:" ? trimmed : null;
+  } catch {
+    return null;
+  }
+}
+
 function sanitizeValue(field: InfoField, value: unknown): InfoValue {
   const list = isListField(field);
   if (value === null || value === undefined || value === "") return list ? [] : null;
   if (field.kind === "text") return typeof value === "string" ? value.trim().slice(0, MAX_INFO_TEXT_LENGTH) || null : null;
   if (field.kind === "color") return sanitizeColor(value);
+  if (field.kind === "url") return sanitizeUrl(value);
   if (field.kind === "select") {
     const valid = (v: unknown): v is string => typeof v === "string" && Boolean(field.options?.includes(v));
     if (list) return Array.isArray(value) ? [...new Set(value.filter(valid))] : [];

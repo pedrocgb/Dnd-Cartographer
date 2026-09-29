@@ -4,6 +4,7 @@ import { Pencil } from "lucide-react";
 import PortraitUploader from "@/components/PortraitUploader";
 import { addedInfo } from "@/server/articles/info-fields";
 import { INFO_FIELD_SETS } from "@/server/articles/info-sets";
+import { useRelationValues } from "@/components/relations/relations-context";
 import ArticleView from "./ArticleView";
 import DeleteArticleButton from "./DeleteArticleButton";
 import { InfoForm, InfoView, type InfoLookups } from "./InfoBar";
@@ -34,6 +35,8 @@ export default function GenericArticle({
   const [editing, setEditing] = useEditingResetOnSelect(article.id);
   const update = (body: Record<string, unknown>) => patchRecord(recordUrl(article.id), body).then(onChanged);
   const infoSet = INFO_FIELD_SETS[article.template];
+  const relationValues = useRelationValues(infoSet, article.id);
+  const shownRelationValues = useRelationValues(infoSet, article.id, { forView: true });
 
   return (
     <ArticleView
@@ -65,7 +68,7 @@ export default function GenericArticle({
             key={article.id}
             set={infoSet}
             name={article.title}
-            initialValues={addedInfo(infoSet, article)}
+            initialValues={addedInfo(infoSet, article, relationValues)}
             lookups={lookups}
             onSave={(title, values) => patchRecord(recordUrl(article.id), { title, info: values })}
             onSaved={() => {
@@ -75,7 +78,7 @@ export default function GenericArticle({
             onCancel={() => setEditing(false)}
           />
         ) : (
-          <InfoView set={infoSet} values={addedInfo(infoSet, article)} lookups={lookups} onOpenArticle={onOpenArticle} />
+          <InfoView set={infoSet} values={addedInfo(infoSet, article, shownRelationValues)} lookups={lookups} onOpenArticle={onOpenArticle} />
         ))
       }
       body={{ documentId: article.bodyDocumentId, onCreated: (id) => update({ bodyDocumentId: id }) }}

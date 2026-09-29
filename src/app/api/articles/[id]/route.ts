@@ -7,6 +7,8 @@ import { TEMPLATE_LABELS, isGenericTemplate } from "@/server/articles/templates"
 import { MAX_TITLE_LENGTH, toClientArticle } from "@/server/articles/articles";
 import { sanitizeInfo } from "@/server/articles/info-fields";
 import { INFO_FIELD_SETS } from "@/server/articles/info-sets";
+import { RelationError, type Executor } from "@/server/relations/store";
+import { withRelationSync } from "@/server/relations/sync";
 
 async function findArticle(id: string) {
   const article = await db.query.articles.findFirst({ where: eq(articles.id, id) });
@@ -44,7 +46,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const info = infoSet ? sanitizeInfo(infoSet, body.info) : null;
   if (info) patch.info = JSON.stringify(info);
 
-  const [updated] = await db.update(articles).set(patch).where(eq(articles.id, id)).returning();
+  const write = async (ex: Executor) => {
+    const [row] = await ex.update(articles).set(patch).where(eq(articles.id, id)).returning();
+    return row;
+  };
+  let updated;
+  try {
+    updated = infoSet ? await withRelationSync(infoSet, article, body.info, write) : await write(db);
+  } catch (err) {
+    if (err instanceof RelationError) return NextResponse.json({ error: err.message }, { status: 409 });
+    throw err;
+  }
   return NextResponse.json({ article: toClientArticle(updated) });
 }
 

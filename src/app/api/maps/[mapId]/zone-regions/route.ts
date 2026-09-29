@@ -3,6 +3,7 @@ import { and, eq, isNull, asc } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { zoneRegions, maps } from "@/server/db/schema";
 import { isLayerOfMap } from "@/server/layers/layers";
+import { toClientFolder } from "@/server/maps/layer-folders";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ mapId: string }> }) {
   const { mapId } = await params;
@@ -10,7 +11,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ map
     where: and(eq(zoneRegions.mapId, mapId), isNull(zoneRegions.deletedAt)),
     orderBy: [asc(zoneRegions.sortOrder)],
   });
-  return NextResponse.json({ regions });
+  return NextResponse.json({ regions: regions.map(toClientFolder) });
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ mapId: string }> }) {
@@ -34,5 +35,5 @@ export async function POST(request: Request, { params }: { params: Promise<{ map
   const sortOrder = existing.length > 0 ? Math.min(...existing.map((r) => r.sortOrder)) - 1 : 0;
 
   const [region] = await db.insert(zoneRegions).values({ mapId, layerId, name, sortOrder }).returning();
-  return NextResponse.json({ region }, { status: 201 });
+  return NextResponse.json({ region: toClientFolder(region) }, { status: 201 });
 }

@@ -25,6 +25,10 @@ import {
 } from "lucide-react";
 import ColorWheel from "./ColorWheel";
 import LayerChecklist from "./LayerChecklist";
+import { DeleteFolderDialog, FolderSelect, FolderSettings, ItemRow, MixedTag, MultiHeader, type FolderPatch, type MapFolderData } from "./LayerFolders";
+import { clickMods, dropMoves, editLayers, mixedKeys, sharedLayers, type ClickMods } from "./multi-select";
+import ToolSection from "./ToolSection";
+import { useListDrag } from "./use-list-drag";
 import type { MapLayerData } from "./layer-images";
 import { buildTerritoryTree, TerritoryTreeRow } from "./TerritoryTree";
 import { articleHref } from "@/server/articles/templates";
@@ -96,7 +100,8 @@ function TerritoryLinkPicker({ onPick, onCancel }: { onPick: (id: string) => voi
   );
 }
 
-function ZoneTerritoryLink({ zone, onUpdate }: { zone: ZoneData; onUpdate: (patch: Partial<ZoneData>) => void }) {
+/** `mixed`: several zones linked to different territories (or some to none). */
+function ZoneTerritoryLink({ zone, mixed = false, onUpdate }: { zone: ZoneData; mixed?: boolean; onUpdate: (patch: Partial<ZoneData>) => void }) {
   const [picking, setPicking] = useState(false);
   const [chain, setChain] = useState<Territory[] | null>(null);
   // Tracks which territoryId `chain` was actually loaded for, so a stale
@@ -128,8 +133,23 @@ function ZoneTerritoryLink({ zone, onUpdate }: { zone: ZoneData; onUpdate: (patc
 
   return (
     <div className="zone-territory-link">
-      <span className="field-label">Political territory (optional)</span>
-      {zone.territoryId ? (
+      <span className="field-label">
+        Political territory (optional) <MixedTag show={mixed} />
+      </span>
+      {mixed && !picking ? (
+        <div className="zone-territory-chain">
+          <span className="field-label">The selected zones link to different territories.</span>
+          <div className="marker-panel-actions">
+            <button className="btn btn-sm" onClick={() => setPicking(true)}>
+              <Crown size={13} strokeWidth={2.25} />
+              Link all to…
+            </button>
+            <button className="btn btn-sm" onClick={() => onUpdate({ territoryId: null })}>
+              Remove all links
+            </button>
+          </div>
+        </div>
+      ) : zone.territoryId && !picking ? (
         <div className="zone-territory-chain">
           {visibleChain === null ? (
             <span className="field-label">Linked territory is unavailable.</span>
@@ -170,10 +190,82 @@ function ZoneTerritoryLink({ zone, onUpdate }: { zone: ZoneData; onUpdate: (patc
   );
 }
 
+type ZoneStyle = Pick<ZoneData, "fillColor" | "fillOpacity" | "strokeColor" | "strokeOpacity" | "strokeWidth">;
+
+function Group({ id, title, sectioned, children }: { id: string; title: string; sectioned: boolean; children: React.ReactNode }) {
+  return sectioned ? (
+    <ToolSection id={id} title={title}>
+      {children}
+    </ToolSection>
+  ) : (
+    <>{children}</>
+  );
+}
+
+/** Fill and outline: for a zone, or a region's default style. */
+const NO_MIXED: ReadonlySet<string> = new Set();
+
+/** Fill and outline: for a zone (or several: `mixed` fields differ between them), or a region's default style. */
+function ZoneStyleFields({ v, sectioned = true, mixed = NO_MIXED, onChange }: { v: ZoneStyle; sectioned?: boolean; mixed?: ReadonlySet<string>; onChange: (patch: Partial<ZoneStyle>) => void }) {
+  const m = (key: keyof ZoneStyle) => mixed.has(key);
+  const percent = (key: keyof ZoneStyle, value: number) => (m(key) ? <span className="mixed-tag">Mixed</span> : `${Math.round(value * 100)}%`);
+  return (
+    <>
+      <Group id="zone-fill" title="Fill" sectioned={sectioned}>
+        <span className="field-label">
+          Fill color <MixedTag show={m("fillColor")} />
+        </span>
+        <ColorWheel value={v.fillColor} mixed={m("fillColor")} onChange={(fillColor) => onChange({ fillColor })} />
+        <label className="grid-field">
+          <div className="grid-field-header">
+            <span className="field-label">Fill opacity</span>
+            <span className="grid-field-value">{percent("fillOpacity", v.fillOpacity)}</span>
+          </div>
+          <input type="range" min={0} max={100} value={Math.round(v.fillOpacity * 100)} onChange={(e) => onChange({ fillOpacity: Number(e.target.value) / 100 })} />
+        </label>
+      </Group>
+
+      <Group id="zone-outline" title="Outline" sectioned={sectioned}>
+        <span className="field-label">
+          Outline color <MixedTag show={m("strokeColor")} />
+        </span>
+        <div className="color-swatch-row">
+          {COLOR_PRESETS.map((c) => (
+            <button
+              key={c}
+              className={!m("strokeColor") && c === v.strokeColor ? "color-swatch active" : "color-swatch"}
+              style={{ background: c }}
+              onClick={() => onChange({ strokeColor: normalizeColor(c) })}
+              aria-label={`Outline color ${c}`}
+            />
+          ))}
+        </div>
+        <label className="grid-field">
+          <div className="grid-field-header">
+            <span className="field-label">Outline opacity</span>
+            <span className="grid-field-value">{percent("strokeOpacity", v.strokeOpacity)}</span>
+          </div>
+          <input type="range" min={0} max={100} value={Math.round(v.strokeOpacity * 100)} onChange={(e) => onChange({ strokeOpacity: Number(e.target.value) / 100 })} />
+        </label>
+        <label className="grid-field">
+          <div className="grid-field-header">
+            <span className="field-label">Outline width</span>
+            <span className="grid-field-value">{m("strokeWidth") ? <span className="mixed-tag">Mixed</span> : v.strokeWidth.toFixed(2)}</span>
+          </div>
+          <input type="range" min={0} max={2} step={0.05} value={v.strokeWidth} onChange={(e) => onChange({ strokeWidth: Number(e.target.value) })} />
+        </label>
+      </Group>
+    </>
+  );
+}
+
 function ZoneEditor({
   zone,
   layers,
   homeLayerId,
+  region,
+  regionOptions,
+  endOf,
   onUpdate,
   onDelete,
   onDone,
@@ -182,6 +274,12 @@ function ZoneEditor({
   layers: MapLayerData[];
   /** The zone's home layer: its region's. */
   homeLayerId: string | null;
+  /** Its region, whose "Also show on" layers it inherits. */
+  region: ZoneRegionData | undefined;
+  /** Regions it can move to (its layer's). */
+  regionOptions: ZoneRegionData[];
+  /** The sortOrder after a region's last zone: a moved zone goes in last. */
+  endOf: (regionId: string) => number;
   onUpdate: (patch: Partial<ZoneData>) => void;
   onDelete: () => void;
   onDone: () => void;
@@ -220,52 +318,23 @@ function ZoneEditor({
       </div>
       <span className="field-label">{SHAPE_LABEL[zone.shapeType]}</span>
 
-      <span className="field-label">Fill color</span>
-      <ColorWheel value={zone.fillColor} onChange={(fillColor) => onUpdate({ fillColor })} />
-      <label className="grid-field">
-        <div className="grid-field-header">
-          <span className="field-label">Fill opacity</span>
-          <span className="grid-field-value">{Math.round(zone.fillOpacity * 100)}%</span>
-        </div>
-        <input type="range" min={0} max={100} value={Math.round(zone.fillOpacity * 100)} onChange={(e) => onUpdate({ fillOpacity: Number(e.target.value) / 100 })} />
-      </label>
+      <ZoneStyleFields v={zone} onChange={onUpdate} />
 
-      <span className="field-label">Outline color</span>
-      <div className="color-swatch-row">
-        {COLOR_PRESETS.map((c) => (
-          <button
-            key={c}
-            className={c === zone.strokeColor ? "color-swatch active" : "color-swatch"}
-            style={{ background: c }}
-            onClick={() => onUpdate({ strokeColor: normalizeColor(c) })}
-            aria-label={`Outline color ${c}`}
-          />
-        ))}
-      </div>
-      <label className="grid-field">
-        <div className="grid-field-header">
-          <span className="field-label">Outline opacity</span>
-          <span className="grid-field-value">{Math.round(zone.strokeOpacity * 100)}%</span>
-        </div>
-        <input type="range" min={0} max={100} value={Math.round(zone.strokeOpacity * 100)} onChange={(e) => onUpdate({ strokeOpacity: Number(e.target.value) / 100 })} />
-      </label>
-      <label className="grid-field">
-        <div className="grid-field-header">
-          <span className="field-label">Outline width</span>
-          <span className="grid-field-value">{zone.strokeWidth.toFixed(2)}</span>
-        </div>
-        <input type="range" min={0} max={2} step={0.05} value={zone.strokeWidth} onChange={(e) => onUpdate({ strokeWidth: Number(e.target.value) })} />
-      </label>
+      <ToolSection id="zone-territory" title="Political territory">
+        <ZoneTerritoryLink zone={zone} onUpdate={onUpdate} />
+      </ToolSection>
 
-      <ZoneTerritoryLink zone={zone} onUpdate={onUpdate} />
-
-      <LayerChecklist
-        layers={layers}
-        homeLayerId={homeLayerId}
-        value={zone.extraLayerIds ?? []}
-        alwaysDrawFlag="zonesAlwaysVisible"
-        onChange={(extraLayerIds) => onUpdate({ extraLayerIds })}
-      />
+      <ToolSection id="zone-layers" title="Folder and layers">
+        <FolderSelect value={zone.regionId} folders={regionOptions} disabled={zone.locked || region?.locked} onChange={(regionId) => regionId && onUpdate({ regionId, sortOrder: endOf(regionId) })} />
+        <LayerChecklist
+          layers={layers}
+          homeLayerId={homeLayerId}
+          value={zone.extraLayerIds ?? []}
+          alwaysDrawFlag="zonesAlwaysVisible"
+          inherited={region ? { ids: region.extraLayerIds, from: region.name } : undefined}
+          onChange={(extraLayerIds) => onUpdate({ extraLayerIds })}
+        />
+      </ToolSection>
 
       <button className="btn btn-danger" onClick={onDelete} disabled={zone.locked}>
         <Trash2 size={14} strokeWidth={2.25} />
@@ -279,36 +348,34 @@ function RegionRow({
   region,
   zones,
   isActive,
+  isOpen,
   isExpanded,
-  selectedZoneId,
   activeTool,
   onSelectRegion,
   onToggleExpand,
   onUpdateRegion,
   onDeleteRegion,
-  onSelectZone,
-  onUpdateZone,
-  onDeleteZone,
   onMoveRegion,
   onStartAddZone,
   onStopAddZone,
   canMoveUp,
   canMoveDown,
   sharedFrom,
+  renderZone,
+  dropProps,
+  dropInto,
 }: {
   region: ZoneRegionData;
   zones: ZoneData[];
   isActive: boolean;
+  /** Its settings are open in the right column. */
+  isOpen: boolean;
   isExpanded: boolean;
-  selectedZoneId: string | null;
   activeTool: ZoneTool;
   onSelectRegion: () => void;
   onToggleExpand: () => void;
-  onUpdateRegion: (patch: Partial<ZoneRegionData>) => void;
+  onUpdateRegion: (patch: FolderPatch) => void;
   onDeleteRegion: () => void;
-  onSelectZone: (id: string) => void;
-  onUpdateZone: (id: string, patch: Partial<ZoneData>) => void;
-  onDeleteZone: (id: string) => void;
   onMoveRegion: (dir: "up" | "down") => void;
   onStartAddZone: () => void;
   onStopAddZone: () => void;
@@ -316,6 +383,11 @@ function RegionRow({
   canMoveDown: boolean;
   /** Set when this region lives on another layer and only some of its zones are shown here. */
   sharedFrom?: string;
+  /** A zone's row in the list. */
+  renderZone: (zone: ZoneData) => React.ReactNode;
+  /** Drop target: dragged zones go into the region. */
+  dropProps?: React.HTMLAttributes<HTMLElement>;
+  dropInto?: boolean;
 }) {
   const isAddingZone = isActive && activeTool !== "select";
   const addZoneDisabled = region.locked || !region.visible;
@@ -335,7 +407,7 @@ function RegionRow({
 
   return (
     <li className="zone-region">
-      <div className={isActive ? "zone-region-row active" : "zone-region-row"}>
+      <div className={["zone-region-row", isActive && "active", isOpen && "folder-open", dropInto && "drop-into"].filter(Boolean).join(" ")} {...dropProps}>
         <button className="zone-tree-toggle" onClick={onToggleExpand} aria-label={isExpanded ? "Collapse" : "Expand"}>
           {isExpanded ? <ChevronDown size={13} strokeWidth={2.25} /> : <ChevronRight size={13} strokeWidth={2.25} />}
         </button>
@@ -363,10 +435,16 @@ function RegionRow({
             className="zone-region-name"
             onClick={sharedFrom ? onToggleExpand : onSelectRegion}
             onDoubleClick={sharedFrom ? undefined : startRename}
-            data-tooltip={sharedFrom ? undefined : "Click to select, double-click to rename"}
+            data-tooltip={sharedFrom ? undefined : "Click: open its settings, new zones go here. Double-click to rename."}
           >
             {region.name} <span className="field-label">({zones.length})</span>
             {sharedFrom && <span className="field-label zone-region-shared"> · from {sharedFrom}</span>}
+            {!sharedFrom && region.extraLayerIds.length > 0 && (
+              <span className="field-label zone-region-shared">
+                {" "}
+                · +{region.extraLayerIds.length} {region.extraLayerIds.length === 1 ? "layer" : "layers"}
+              </span>
+            )}
           </button>
         )}
         {!sharedFrom && (
@@ -424,45 +502,7 @@ function RegionRow({
           </li>
           )}
           {zones.length === 0 && <li className="field-label zone-empty-hint">No zones yet.</li>}
-          {zones.map((zone) => {
-            const ShapeIcon = SHAPE_ICON[zone.shapeType];
-            return (
-              <li key={zone.id} className={zone.id === selectedZoneId ? "zone-row active" : "zone-row"}>
-                <button className="zone-row-name" onClick={() => onSelectZone(zone.id)}>
-                  <ShapeIcon size={13} strokeWidth={2.25} />
-                  <span className="zone-color-dot" style={{ background: zone.fillColor }} />
-                  {zone.name}
-                </button>
-                <div className="zone-row-actions">
-                  <button
-                    className="btn btn-ghost btn-icon-xs"
-                    onClick={() => onUpdateZone(zone.id, { visible: !zone.visible })}
-                    aria-label={zone.visible ? "Hide zone" : "Show zone"}
-                    data-tooltip={zone.visible ? "Hide zone" : "Show zone"}
-                  >
-                    {zone.visible ? <Eye size={12} strokeWidth={2.25} /> : <EyeOff size={12} strokeWidth={2.25} />}
-                  </button>
-                  <button
-                    className="btn btn-ghost btn-icon-xs"
-                    onClick={() => onUpdateZone(zone.id, { locked: !zone.locked })}
-                    aria-label={zone.locked ? "Unlock zone" : "Lock zone"}
-                    data-tooltip={zone.locked ? "Unlock zone" : "Lock zone"}
-                  >
-                    {zone.locked ? <Lock size={12} strokeWidth={2.25} /> : <LockOpen size={12} strokeWidth={2.25} />}
-                  </button>
-                  <button
-                    className="btn btn-ghost btn-icon-xs"
-                    onClick={() => onDeleteZone(zone.id)}
-                    disabled={zone.locked}
-                    aria-label="Delete zone"
-                    data-tooltip="Delete zone"
-                  >
-                    <Trash2 size={12} strokeWidth={2.25} />
-                  </button>
-                </div>
-              </li>
-            );
-          })}
+          {zones.map(renderZone)}
         </ul>
       )}
     </li>
@@ -489,6 +529,11 @@ export default function ZonesPanel({
   onClose,
   layers,
   sharedRegionIds,
+  captureZoneStyle,
+  selectedIds,
+  onPick,
+  onUpdateMany,
+  onDeleteMany,
 }: {
   /** Name of the active layer this tool edits. */
   layerName: string;
@@ -503,7 +548,7 @@ export default function ZonesPanel({
   onBrushSizeChange: (size: number) => void;
   onSelectZone: (id: string | null) => void;
   onCreateRegion: (name: string) => void;
-  onUpdateRegion: (id: string, patch: Partial<ZoneRegionData>) => void;
+  onUpdateRegion: (id: string, patch: FolderPatch) => void;
   onDeleteRegion: (id: string, mode?: "cascade") => void;
   onUpdateZone: (id: string, patch: Partial<ZoneData>) => void;
   onDeleteZone: (id: string) => void;
@@ -511,10 +556,22 @@ export default function ZonesPanel({
   layers: MapLayerData[];
   /** Regions of other layers, listed only for their zones shared onto this layer. */
   sharedRegionIds: Set<string>;
+  /** The style new zones get now (the last one used): where a region's default style starts. */
+  captureZoneStyle: () => ZoneStyle;
+  /** Every selected zone (several: they're edited together). */
+  selectedIds: string[];
+  /** A click on a zone in the list (Ctrl/Shift pick several); `order` is the list as shown. */
+  onPick: (id: string, mods: ClickMods, order: string[]) => void;
+  /** One edit of several zones (locked ones are skipped unless `includeLocked`). */
+  onUpdateMany: (ids: string[], patchOf: (zone: ZoneData) => Partial<ZoneData>, opts?: { includeLocked?: boolean }) => void;
+  onDeleteMany: (ids: string[]) => void;
 }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [creatingRegion, setCreatingRegion] = useState(false);
   const [newRegionName, setNewRegionName] = useState("");
+  /** The region whose settings fill the right column (when no zone is selected). */
+  const [openRegionId, setOpenRegionId] = useState<string | null>(null);
+  const [deletingRegion, setDeletingRegion] = useState<{ folder: MapFolderData; count: number } | null>(null);
 
   // Auto-expand the active Region as a render-time adjustment (rather than
   // an effect) — only fires when activeRegionId actually changes to a new
@@ -538,6 +595,56 @@ export default function ZonesPanel({
       zones.filter((z) => z.regionId === region.id).sort((a, b) => a.sortOrder - b.sortOrder)
     );
   }
+
+  // The list as shown, for Shift ranges.
+  const order = sortedRegions.flatMap((r) => (zonesByRegion.get(r.id) ?? []).map((z) => z.id));
+  const picked = new Set(selectedIds);
+  const multi = selectedIds.length > 1 ? zones.filter((z) => picked.has(z.id)) : [];
+  const regionOf = (z: ZoneData) => regions.find((r) => r.id === z.regionId);
+  const zoneLocked = (z: ZoneData) => z.locked || Boolean(regionOf(z)?.locked);
+  const endOf = (regionId: string) => Math.max(-1, ...zones.filter((z) => z.regionId === regionId).map((z) => z.sortOrder)) + 1;
+  /** A region's layer's own regions (where its zones can move). */
+  const regionsOnLayerOf = (region: ZoneRegionData | undefined) => sortedRegions.filter((r) => region && r.layerId === region.layerId && !sharedRegionIds.has(r.id));
+
+  // Drag and drop: unlocked zones of the layer's own regions move into a region or next to another zone.
+  const canDrag = (z: ZoneData) => !zoneLocked(z) && !sharedRegionIds.has(z.regionId);
+  const drag = useListDrag((ids, spot) => {
+    const anchor = spot.place === "into" ? undefined : zones.find((z) => z.id === spot.key);
+    const target = spot.place === "into" ? spot.key : anchor?.regionId;
+    if (!target) return;
+    const moving = order.filter((id) => ids.includes(id));
+    const moves = dropMoves(zonesByRegion.get(target) ?? [], moving, anchor?.id ?? null, spot.place, (id) => zones.find((z) => z.id === id)?.regionId ?? null, target);
+    if (moves.size === 0) return;
+    onUpdateMany([...moves.keys()], (z) => {
+      const move = moves.get(z.id);
+      return move ? ("folder" in move && move.folder ? { regionId: move.folder, sortOrder: move.sortOrder } : { sortOrder: move.sortOrder }) : {};
+    });
+  });
+
+  const zoneRow = (zone: ZoneData, region: ZoneRegionData, shared: boolean) => (
+    <ItemRow
+      key={zone.id}
+      Icon={SHAPE_ICON[zone.shapeType]}
+      color={zone.fillColor}
+      label={zone.name}
+      active={picked.has(zone.id)}
+      visible={zone.visible}
+      locked={zone.locked}
+      lockedByFolder={region.locked}
+      noun="zone"
+      onSelect={(e) => onPick(zone.id, clickMods(e), order)}
+      onToggleVisible={() => onUpdateZone(zone.id, { visible: !zone.visible })}
+      onToggleLocked={() => onUpdateZone(zone.id, { locked: !zone.locked })}
+      onDelete={() => onDeleteZone(zone.id)}
+      dragProps={drag.itemProps(zone.id, {
+        canDrag: canDrag(zone),
+        canDrop: !shared && !region.locked,
+        idsOf: () => (picked.has(zone.id) ? order.filter((id) => picked.has(id) && zones.some((z) => z.id === id && canDrag(z))) : [zone.id]),
+      })}
+      dropPlace={drag.placeOf(zone.id)}
+      dragged={drag.isDragged(zone.id)}
+    />
+  );
 
   const activeRegion = regions.find((r) => r.id === activeRegionId) ?? null;
   const drawingDisabled = !activeRegion || activeRegion.locked || !activeRegion.visible;
@@ -563,17 +670,15 @@ export default function ZonesPanel({
 
   function requestDeleteRegion(region: ZoneRegionData) {
     const count = zonesByRegion.get(region.id)?.length ?? 0;
-    if (count > 0) {
-      const ok = window.confirm(`"${region.name}" still contains ${count} zone(s). Delete the Region and all its zones?`);
-      if (!ok) return;
-      onDeleteRegion(region.id, "cascade");
-      return;
-    }
+    if (count > 0) return setDeletingRegion({ folder: region, count });
+    if (openRegionId === region.id) setOpenRegionId(null);
     onDeleteRegion(region.id);
   }
 
+  const openRegion = selectedIds.length === 0 ? (regions.find((r) => r.id === openRegionId && !sharedRegionIds.has(r.id)) ?? null) : null;
+
   return (
-    <div className={selectedZone ? "zones-panel zones-panel-editing" : "zones-panel"}>
+    <div className={selectedZone || openRegion || multi.length > 1 ? "zones-panel zones-panel-editing" : "zones-panel"}>
       <div className="zones-panel-main">
       <div className="marker-side-panel-header">
         <h2>
@@ -676,11 +781,13 @@ export default function ZonesPanel({
             region={region}
             zones={zonesByRegion.get(region.id) ?? []}
             isActive={region.id === activeRegionId}
+            isOpen={region.id === openRegion?.id}
             isExpanded={expanded.has(region.id)}
-            selectedZoneId={selectedZoneId}
             activeTool={activeTool}
             onSelectRegion={() => {
               onSetActiveRegion(region.id);
+              setOpenRegionId(region.id);
+              onSelectZone(null);
               setExpanded((prev) => new Set(prev).add(region.id));
             }}
             onToggleExpand={() =>
@@ -693,9 +800,6 @@ export default function ZonesPanel({
             }
             onUpdateRegion={(patch) => onUpdateRegion(region.id, patch)}
             onDeleteRegion={() => requestDeleteRegion(region)}
-            onSelectZone={onSelectZone}
-            onUpdateZone={onUpdateZone}
-            onDeleteZone={onDeleteZone}
             onMoveRegion={(dir) => moveRegion(region, dir)}
             onStartAddZone={() => {
               onSetActiveRegion(region.id);
@@ -706,6 +810,9 @@ export default function ZonesPanel({
             canMoveUp={i > 0}
             canMoveDown={i < ownRegionCount - 1}
             sharedFrom={sharedRegionIds.has(region.id) ? layerNameOf(region.layerId) : undefined}
+            renderZone={(zone) => zoneRow(zone, region, sharedRegionIds.has(region.id))}
+            dropProps={sharedRegionIds.has(region.id) ? undefined : drag.folderProps(region.id, !region.locked)}
+            dropInto={drag.placeOf(region.id) === "into"}
           />
         ))}
       </ul>
@@ -739,18 +846,142 @@ export default function ZonesPanel({
 
       </div>
 
+      {multi.length > 1 && (
+        <div className="zones-panel-editor">
+          <MultiZoneEditor
+            zones={multi}
+            layers={layers}
+            regionsOf={regionsOnLayerOf}
+            endOf={endOf}
+            regionOf={regionOf}
+            isLocked={zoneLocked}
+            onUpdateMany={(patchOf, opts) => onUpdateMany(selectedIds, patchOf, opts)}
+            onDelete={() => onDeleteMany(selectedIds)}
+            onDone={() => onSelectZone(null)}
+          />
+        </div>
+      )}
       {selectedZone && (
         <div className="zones-panel-editor">
           <ZoneEditor
             zone={selectedZone}
             layers={layers}
             homeLayerId={selectedZoneRegion?.layerId ?? null}
+            region={selectedZoneRegion}
+            regionOptions={regionsOnLayerOf(selectedZoneRegion)}
+            endOf={endOf}
             onUpdate={(patch) => onUpdateZone(selectedZone.id, patch)}
             onDelete={() => onDeleteZone(selectedZone.id)}
             onDone={() => onSelectZone(null)}
           />
         </div>
       )}
+      {openRegion && (
+        <div className="zones-panel-editor">
+          <FolderSettings
+            folder={openRegion}
+            count={zonesByRegion.get(openRegion.id)?.length ?? 0}
+            noun="zone"
+            layers={layers}
+            alwaysDrawFlag="zonesAlwaysVisible"
+            captureStyle={() => ({ ...captureZoneStyle() })}
+            renderStyle={(style, change) => <ZoneStyleFields v={{ ...captureZoneStyle(), ...style } as ZoneStyle} sectioned={false} onChange={change} />}
+            onUpdate={(patch) => onUpdateRegion(openRegion.id, patch)}
+            onDelete={() => requestDeleteRegion(openRegion)}
+            onDone={() => setOpenRegionId(null)}
+          />
+        </div>
+      )}
+      <DeleteFolderDialog
+        target={deletingRegion}
+        noun="zone"
+        canKeep={false}
+        onConfirm={() => {
+          if (deletingRegion) {
+            onDeleteRegion(deletingRegion.folder.id, "cascade");
+            if (openRegionId === deletingRegion.folder.id) setOpenRegionId(null);
+          }
+          setDeletingRegion(null);
+        }}
+        onCancel={() => setDeletingRegion(null)}
+      />
+    </div>
+  );
+}
+
+/** Several zones' settings at once: a field shows its value when they agree, "Mixed" when not. */
+function MultiZoneEditor({
+  zones,
+  layers,
+  regionsOf,
+  endOf,
+  regionOf,
+  isLocked,
+  onUpdateMany,
+  onDelete,
+  onDone,
+}: {
+  zones: ZoneData[];
+  layers: MapLayerData[];
+  regionsOf: (region: ZoneRegionData | undefined) => ZoneRegionData[];
+  endOf: (regionId: string) => number;
+  regionOf: (zone: ZoneData) => ZoneRegionData | undefined;
+  isLocked: (zone: ZoneData) => boolean;
+  onUpdateMany: (patchOf: (zone: ZoneData) => Partial<ZoneData>, opts?: { includeLocked?: boolean }) => void;
+  onDelete: () => void;
+  onDone: () => void;
+}) {
+  const [first] = zones;
+  const mixed = mixedKeys(zones);
+  const layersOf = sharedLayers(zones.map((z) => z.extraLayerIds));
+  const homeLayers = new Set(zones.map((z) => regionOf(z)?.layerId ?? null));
+  const oneLayer = homeLayers.size === 1;
+  const regionOptions = oneLayer ? regionsOf(regionOf(first)) : [];
+  const allVisible = zones.every((z) => z.visible);
+  const allLocked = zones.every((z) => z.locked);
+  const setAll = (patch: Partial<ZoneData>) => onUpdateMany(() => patch);
+  return (
+    <div className="zone-editor">
+      <MultiHeader
+        Icon={Shapes}
+        count={zones.length}
+        noun="zone"
+        lockedCount={zones.filter(isLocked).length}
+        allVisible={allVisible}
+        allLocked={allLocked}
+        onToggleVisible={() => onUpdateMany(() => ({ visible: !allVisible }), { includeLocked: true })}
+        onToggleLocked={() => onUpdateMany(() => ({ locked: !allLocked }), { includeLocked: true })}
+        onDelete={onDelete}
+        onDone={onDone}
+      />
+      <ZoneStyleFields v={first} mixed={mixed} onChange={setAll} />
+      <ToolSection id="zone-territory" title="Political territory">
+        <ZoneTerritoryLink zone={first} mixed={mixed.has("territoryId")} onUpdate={setAll} />
+      </ToolSection>
+      <ToolSection id="zone-layers" title="Folder and layers">
+        <FolderSelect
+          value={first.regionId}
+          mixed={mixed.has("regionId")}
+          folders={regionOptions}
+          disabled={!oneLayer}
+          hint={oneLayer ? undefined : "Their regions are on different layers."}
+          onChange={(regionId) => {
+            if (!regionId) return;
+            const start = endOf(regionId);
+            // Moved zones go in last, keeping their order.
+            onUpdateMany((z) => (z.regionId === regionId ? {} : { regionId, sortOrder: start + zones.indexOf(z) }));
+          }}
+        />
+        <LayerChecklist
+          layers={layers}
+          homeLayerId={oneLayer ? (regionOf(first)?.layerId ?? null) : null}
+          value={layersOf.all}
+          mixedIds={layersOf.some}
+          alwaysDrawFlag="zonesAlwaysVisible"
+          onChange={() => undefined}
+          onEdit={(add, remove) => onUpdateMany((z) => ({ extraLayerIds: editLayers(z.extraLayerIds, add, remove).filter((id) => id !== regionOf(z)?.layerId) }))}
+        />
+      </ToolSection>
     </div>
   );
 }

@@ -114,3 +114,31 @@ export function snapToAngle(from: LinePt, to: LinePt, stepDeg = 45): LinePt {
   const angle = Math.round(Math.atan2(to.y - from.y, to.x - from.x) / step) * step;
   return { x: from.x + Math.cos(angle) * dist, y: from.y + Math.sin(angle) * dist };
 }
+
+/** Free-draw smoothing (0–100): how far the pen trails the cursor, and how much wobble is dropped on release. */
+export const SMOOTHING_MAX = 100;
+const STRING_PX_AT_MAX = 24;
+const MIN_TOLERANCE_PX = 0.75;
+const TOLERANCE_PX_AT_MAX = 3;
+
+/** Length of the stabilizer's "string" in screen pixels. */
+export const stringLength = (smoothing: number) => (Math.min(SMOOTHING_MAX, Math.max(0, smoothing)) / SMOOTHING_MAX) * STRING_PX_AT_MAX;
+
+/** Screen-pixel tolerance of the simplification on release. */
+export const smoothingTolerance = (smoothing: number) =>
+  MIN_TOLERANCE_PX + (Math.min(SMOOTHING_MAX, Math.max(0, smoothing)) / SMOOTHING_MAX) * (TOLERANCE_PX_AT_MAX - MIN_TOLERANCE_PX);
+
+/**
+ * Stabilizer ("pulled string"): the pen stays put while the cursor moves
+ * within `length` of it, then follows at that distance. Small hand shakes
+ * never reach the line; deliberate strokes do, slightly behind the cursor.
+ * Returns the new pen position, or null when it didn't move.
+ */
+export function pullString(pen: LinePt, cursor: LinePt, length: number): LinePt | null {
+  const dx = cursor.x - pen.x;
+  const dy = cursor.y - pen.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist === 0 || dist <= length) return null;
+  const t = (dist - length) / dist;
+  return { x: pen.x + dx * t, y: pen.y + dy * t };
+}

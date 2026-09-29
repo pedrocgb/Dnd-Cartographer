@@ -7,3 +7,22 @@ export function attitudeColor(attitude: number | null): string {
   const mix = (c: number) => Math.round(156 + (c - 156) * t);
   return `rgb(${mix(r)}, ${mix(g)}, ${mix(b)})`;
 }
+
+/** A card's accent when it has no house color: one hue per kind of article. */
+const TINTS: Record<string, string> = {
+  character: "#47bfab",
+  playerCharacter: "#d29c53",
+  organization: "#6f9fe0",
+  territory: "#7fbf6a",
+  settlement: "#7fbf6a",
+  building: "#7fbf6a",
+  geography: "#7fbf6a",
+  religion: "#c9a7f0",
+  culture: "#c9a7f0",
+  tradition: "#c9a7f0",
+  species: "#c9a7f0",
+};
+
+export const templateTint = (template: string) => TINTS[template] ?? "#8b9199";
+
+export const portraitSrc = (key: string) => `/api/politics/portraits/${key}`;

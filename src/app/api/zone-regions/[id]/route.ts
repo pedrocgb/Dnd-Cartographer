@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { zoneRegions, zones } from "@/server/db/schema";
+import { folderPatch, toClientFolder } from "@/server/maps/layer-folders";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -11,14 +12,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const body = await request.json().catch(() => null);
   if (!body) return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
 
-  const patch: Partial<typeof zoneRegions.$inferInsert> = { updatedAt: new Date() };
-  if (typeof body.name === "string" && body.name.trim()) patch.name = body.name.trim();
-  if (typeof body.visible === "boolean") patch.visible = body.visible;
-  if (typeof body.locked === "boolean") patch.locked = body.locked;
-  if (typeof body.sortOrder === "number") patch.sortOrder = body.sortOrder;
-
-  const [updated] = await db.update(zoneRegions).set(patch).where(eq(zoneRegions.id, id)).returning();
-  return NextResponse.json({ region: updated });
+  // Name, visible, locked, order, "Also show on" layers and the default style of new zones.
+  const result = await folderPatch("zone", body, region);
+  if ("error" in result) return NextResponse.json({ error: result.error }, { status: 400 });
+  const [updated] = await db.update(zoneRegions).set(result.patch).where(eq(zoneRegions.id, id)).returning();
+  return NextResponse.json({ region: toClientFolder(updated) });
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {

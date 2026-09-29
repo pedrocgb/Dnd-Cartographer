@@ -1,5 +1,6 @@
 import { GOVERNMENT_FORMS } from "../../politics/hierarchy-config";
 import { defineFieldSet, link } from "../info-fields";
+import { WILDLIFE_FIELDS, WILDLIFE_GROUP } from "./wildlife";
 
 /**
  * Territory fields. Territory Type and Hierarchy Profile aren't here: they
@@ -15,6 +16,7 @@ export const TERRITORY_INFO = defineFieldSet(
     { key: "government", label: "Government" },
     { key: "history", label: "History" },
     { key: "society", label: "Society" },
+    WILDLIFE_GROUP,
   ],
   [
     // Hierarchy
@@ -143,6 +145,7 @@ export const TERRITORY_INFO = defineFieldSet(
       link: link(["species"], true),
       hint: "The peoples and creatures that live there in numbers.",
     },
+    ...WILDLIFE_FIELDS,
   ],
   // Required, in this order (Territory Type and Hierarchy Profile are fixed rows around it).
   ["governmentForm"]

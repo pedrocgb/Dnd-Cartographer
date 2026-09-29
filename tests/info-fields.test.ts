@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { MAX_INFO_TEXT_LENGTH, addedInfo, columnPatch, defineFieldSet, emptyRequiredInfo, sanitizeColor, sanitizeInfo } from "../src/server/articles/info-fields";
-import { CHARACTER_INFO, INFO_FIELD_SETS, ORGANIZATION_INFO, PLAYER_CHARACTER_INFO, TERRITORY_INFO, TITLE_INFO, personInfoSet } from "../src/server/articles/info-sets";
+import { MAX_INFO_TEXT_LENGTH, addedInfo, columnPatch, defineFieldSet, emptyRequiredInfo, sanitizeColor, sanitizeInfo, sanitizeUrl } from "../src/server/articles/info-fields";
+import { CHARACTER_INFO, FAUNA_INFO, GEOGRAPHY_INFO, INFO_FIELD_SETS, MONSTER_INFO, ORGANIZATION_INFO, PLAYER_CHARACTER_INFO, TERRITORY_INFO, TITLE_INFO, personInfoSet } from "../src/server/articles/info-sets";
 import { ARTICLE_TEMPLATE_GROUPS, ARTICLE_TEMPLATE_KEYS, isArticleTemplate, type ArticleTemplateKey } from "../src/server/articles/templates";
 import { relationFieldValues } from "../src/server/relations/info-backing";
-import { allows, relationType } from "../src/server/relations/types";
+import { allows, perspectiveOptions, relationType } from "../src/server/relations/types";
 
 describe("ARTICLE_TEMPLATE_GROUPS", () => {
   it("lists every template once, in ARTICLE_TEMPLATE_KEYS order", () => {
@@ -227,5 +227,37 @@ describe("color fields", () => {
     expect(sanitizeColor(" #a1b2c3 ")).toBe("#A1B2C3");
     expect(sanitizeColor("red")).toBeNull();
     expect(sanitizeColor("#abc")).toBeNull();
+  });
+});
+
+describe("url fields", () => {
+  it("accept http(s) addresses only", () => {
+    expect(sanitizeUrl(" https://www.dndbeyond.com/monsters/1 ")).toBe("https://www.dndbeyond.com/monsters/1");
+    expect(sanitizeUrl("http://localhost:3000/x")).toBe("http://localhost:3000/x");
+    expect(sanitizeUrl("javascript:alert(1)")).toBeNull();
+    expect(sanitizeUrl("www.example.com")).toBeNull();
+    expect(sanitizeUrl(`https://example.com/${"a".repeat(600)}`)).toBeNull();
+    expect(sanitizeInfo(MONSTER_INFO, { characterSheet: "ftp://x" })).toEqual({ characterSheet: null });
+  });
+});
+
+describe("Found In (Nature templates)", () => {
+  const templateOf = (id: string): ArticleTemplateKey | null =>
+    (({ deer: "fauna", oak: "flora", troll: "monster", hills: "territory", woods: "geography" }) as Record<string, ArticleTemplateKey>)[id] ?? null;
+  const rels = [
+    { type: "foundIn", fromId: "deer", toId: "hills" },
+    { type: "foundIn", fromId: "oak", toId: "hills" },
+    { type: "foundIn", fromId: "troll", toId: "hills" },
+    { type: "foundIn", fromId: "deer", toId: "woods" },
+  ];
+
+  it("lists the place on the creature and the creature on the place, by template", () => {
+    expect(relationFieldValues(FAUNA_INFO, "deer", rels, templateOf)).toEqual({ foundIn: ["hills", "woods"] });
+    expect(relationFieldValues(TERRITORY_INFO, "hills", rels, templateOf)).toMatchObject({ fauna: ["deer"], flora: ["oak"], monsters: ["troll"] });
+    expect(relationFieldValues(GEOGRAPHY_INFO, "woods", rels, templateOf)).toMatchObject({ fauna: ["deer"], flora: [], monsters: [] });
+  });
+
+  it("is kept out of the add-relation picker", () => {
+    expect(perspectiveOptions("fauna", "territory").some((o) => o.type === "foundIn")).toBe(false);
   });
 });

@@ -10,6 +10,7 @@ import {
 import { parseTags } from "@/server/articles/tags";
 import { addedInfo, columnPatch, emptyRequiredInfo, type InfoValues } from "@/server/articles/info-fields";
 import { TERRITORY_INFO } from "@/server/articles/info-sets";
+import { useRelationValues } from "@/components/relations/relations-context";
 import { ancestorsOf, buildTerritoryTree, TerritoryTreeRow } from "@/components/TerritoryTree";
 import PortraitUploader from "@/components/PortraitUploader";
 import ArticleView from "./ArticleView";
@@ -194,11 +195,12 @@ function TerritoryInfoForm({
   onCancel: () => void;
 }) {
   const h = useHierarchy(profiles, territories, territory);
+  const relationValues = useRelationValues(TERRITORY_INFO, territory.id);
   return (
     <InfoForm
       set={TERRITORY_INFO}
       name={territory.name}
-      initialValues={addedInfo(TERRITORY_INFO, territory)}
+      initialValues={addedInfo(TERRITORY_INFO, territory, relationValues)}
       lookups={lookups}
       fixedRows={<TypeRow h={h} />}
       fixedRowsAfter={<ProfileRow h={h} profiles={profiles} />}
@@ -234,6 +236,7 @@ export function TerritoryArticle({
   const [authorities, setAuthorities] = useState<Authority[]>([]);
   const [missing, setMissing] = useState<string[]>([]);
   const [affiliatedMarkers, setAffiliatedMarkers] = useState<AffiliatedMarker[]>([]);
+  const shownRelationValues = useRelationValues(TERRITORY_INFO, territory.id, { forView: true });
 
   function refreshDetail() {
     fetch(`${recordUrl(territory.id)}?withChain=true`)
@@ -315,7 +318,7 @@ export function TerritoryArticle({
             )}
             <InfoView
               set={TERRITORY_INFO}
-              values={addedInfo(TERRITORY_INFO, territory)}
+              values={addedInfo(TERRITORY_INFO, territory, shownRelationValues)}
               lookups={lookups}
               onOpenArticle={onOpenArticle}
               leading={<InfoRow label="Territory Type">{territory.type}</InfoRow>}

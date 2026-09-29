@@ -1,4 +1,5 @@
 import { defineFieldSet, link } from "../info-fields";
+import { WILDLIFE_FIELDS, WILDLIFE_GROUP } from "./wildlife";
 
 export const GEOGRAPHY_INFO = defineFieldSet(
   [
@@ -6,6 +7,7 @@ export const GEOGRAPHY_INFO = defineFieldSet(
     { key: "features", label: "Features" },
     { key: "historyAndAssociations", label: "History and Associations" },
     { key: "location", label: "Location" },
+    WILDLIFE_GROUP,
   ],
   [
     // Environment
@@ -204,6 +206,7 @@ export const GEOGRAPHY_INFO = defineFieldSet(
       link: link(["geography"]),
       hint: "The larger feature this one is part of.",
     },
+    ...WILDLIFE_FIELDS,
   ],
   // Required, in this order.
   ["primaryBiome", "climate"]

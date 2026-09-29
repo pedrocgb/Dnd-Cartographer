@@ -2,15 +2,37 @@
 
 import dynamic from "next/dynamic";
 import { useMemo, useState } from "react";
-import { GitFork } from "lucide-react";
+import { ExternalLink, GitFork, Minus, Network, Plus } from "lucide-react";
 import InfoPicker, { type PickerOption } from "@/components/articles/InfoPicker";
 import { Skeleton } from "@/components/Skeleton";
 import { TEMPLATE_LABELS } from "@/server/articles/templates";
 import { layoutFamily } from "@/server/relations/family";
+import { webEdges } from "@/server/relations/graph";
 import type { CanvasCard, CanvasLine } from "./RelationsCanvas";
 import { useHideSecrets, useRelations } from "./relations-context";
+import { HideSecretsSwitch, Inspector, RailHeader, RailSection, RailSwitch, RelWorkspace, StageEmpty } from "./workspace";
 
-const RelationsCanvas = dynamic(() => import("./RelationsCanvas"), { ssr: false, loading: () => <Skeleton height="100%" radius="var(--radius-md)" /> });
+const RelationsCanvas = dynamic(() => import("./RelationsCanvas"), { ssr: false, loading: () => <Skeleton height="100%" radius="0" /> });
+
+const MAX_GENERATIONS = 6;
+
+/** Player characters first, then characters; each by name. */
+const PERSON_ORDER: Record<string, number> = { playerCharacter: 0, character: 1 };
+
+function Stepper({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+  return (
+    <div className="rel-stepper">
+      <span>{label}</span>
+      <button type="button" className="rel-icon-btn" onClick={() => onChange(Math.max(0, value - 1))} disabled={value === 0} aria-label={`Fewer: ${label}`}>
+        <Minus size={13} />
+      </button>
+      <strong aria-live="polite">{value}</strong>
+      <button type="button" className="rel-icon-btn" onClick={() => onChange(Math.min(MAX_GENERATIONS, value + 1))} disabled={value === MAX_GENERATIONS} aria-label={`More: ${label}`}>
+        <Plus size={13} />
+      </button>
+    </div>
+  );
+}
 
 /**
  * A character's family tree: parents above, children below, partners side
@@ -19,18 +41,19 @@ const RelationsCanvas = dynamic(() => import("./RelationsCanvas"), { ssr: false,
  * far as it goes, with partners faint.
  */
 export default function FamilyTreePage({ personId, bloodline, onChange }: { personId: string | null; bloodline: boolean; onChange: (personId: string | null, bloodline: boolean) => void }) {
-  const { relations, catalog, openArticle } = useRelations();
+  const { relations, catalog, openArticle, openWeb } = useRelations();
   const [hideSecrets] = useHideSecrets();
   const [up, setUp] = useState(2);
   const [down, setDown] = useState(2);
   const [inLaws, setInLaws] = useState(true);
+  const [selected, setSelected] = useState<string | null>(null);
 
   const people = useMemo<PickerOption[]>(
     () =>
       [...catalog.values()]
-        .filter((e) => e.template === "character" || e.template === "playerCharacter")
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .map((e) => ({ value: e.id, label: e.name, group: TEMPLATE_LABELS[e.template] })),
+        .filter((e) => e.template in PERSON_ORDER)
+        .sort((a, b) => PERSON_ORDER[a.template] - PERSON_ORDER[b.template] || a.name.localeCompare(b.name))
+        .map((e) => ({ value: e.id, label: e.name, group: `${TEMPLATE_LABELS[e.template]}s` })),
     [catalog]
   );
   const focus = personId && catalog.has(personId) ? personId : null;
@@ -53,6 +76,8 @@ export default function FamilyTreePage({ personId, bloodline, onChange }: { pers
     return { cards, lines: tree.lines.map((l): CanvasLine => ({ kind: "family", ...l })) };
   }, [tree, catalog, focus]);
 
+  const personCount = cards.filter((c) => c.kind === "record").length;
+  const generations = tree ? new Set(tree.nodes.filter((n) => n.kind === "person").map((n) => n.generation)).size : 0;
   const houses = useMemo(() => {
     const ids = new Set(cards.flatMap((c) => (c.kind === "record" && c.entry.houseId ? [c.entry.houseId] : [])));
     return [...ids].flatMap((id) => {
@@ -60,68 +85,115 @@ export default function FamilyTreePage({ personId, bloodline, onChange }: { pers
       return house ? [{ id, name: house.name, color: house.color }] : [];
     });
   }, [cards, catalog]);
+  const familyEdges = useMemo(() => webEdges(catalog, relations, [], { hideSecrets, groups: ["family"], showDerived: false }), [catalog, relations, hideSecrets]);
+  const selectedEntry = selected && cards.some((c) => c.id === selected) ? catalog.get(selected) : undefined;
+
+  const rail = (
+    <>
+      <RailHeader Icon={GitFork} title="Family trees" subtitle={focus ? `${personCount} ${personCount === 1 ? "person" : "people"} · ${generations} ${generations === 1 ? "generation" : "generations"}` : "Parents, partners and children"} />
+      <RailSection title="Whose family">
+        <InfoPicker options={people} value={focus} placeholder="Pick a character…" ariaLabel="Character" onChange={(id) => onChange(id, bloodline)} />
+      </RailSection>
+      <RailSection title="View">
+        <div className="rel-segmented" role="radiogroup" aria-label="Tree kind">
+          <button type="button" role="radio" aria-checked={!bloodline} className={!bloodline ? "active" : undefined} onClick={() => onChange(focus, false)} data-tooltip="A few generations around them, with everyone's partners">
+            Family
+          </button>
+          <button type="button" role="radio" aria-checked={bloodline} className={bloodline ? "active" : undefined} onClick={() => onChange(focus, true)} data-tooltip="Every blood relative, as far back and down as known">
+            Bloodline
+          </button>
+        </div>
+        {bloodline ? (
+          <RailSwitch label="Show partners" hint="Partners who aren't blood relatives, shown faint" checked={inLaws} onChange={setInLaws} />
+        ) : (
+          <>
+            <Stepper label="Generations up" value={up} onChange={setUp} />
+            <Stepper label="Generations down" value={down} onChange={setDown} />
+          </>
+        )}
+        <HideSecretsSwitch />
+      </RailSection>
+      {houses.length > 0 && (
+        <RailSection title="Houses">
+          <ul className="rel-houses">
+            {houses.map((h) => (
+              <li key={h.id}>
+                <span className="rel-house-swatch" style={{ background: h.color ?? "transparent" }} aria-hidden />
+                <button type="button" className="btn-link" onClick={() => openArticle("organization", h.id)}>
+                  {h.name}
+                </button>
+                {!h.color && <span className="rel-muted" data-tooltip="Set one on the house's Info Bar">no color</span>}
+              </li>
+            ))}
+          </ul>
+        </RailSection>
+      )}
+      <RailSection title="Lines">
+        <ul className="rel-key">
+          <li>
+            <span className="rel-key-line" style={{ borderColor: "#D4A24C" }} /> Parent and child
+          </li>
+          <li>
+            <span className="rel-key-line" style={{ borderColor: "#E879A6" }} /> Partners
+          </li>
+          <li>
+            <span className="rel-key-line dotted" style={{ borderColor: "#D4A24C" }} /> Adoptive or step parent
+          </li>
+          <li>
+            <span className="rel-key-line dotted" style={{ borderColor: "#6B7280" }} /> Co-parents, no marriage recorded
+          </li>
+        </ul>
+      </RailSection>
+      <p className="rel-rail-tip">Click a card for details, double-click to open it, Shift-click to see that person&apos;s tree.</p>
+    </>
+  );
 
   return (
-    <div className="rel-page">
-      <header className="rel-page-header">
-        <h1>
-          <GitFork size={20} strokeWidth={2.25} aria-hidden /> Family trees
-        </h1>
-        <div className="rel-toolbar">
-          <InfoPicker options={people} value={focus} placeholder="Whose family?" ariaLabel="Character" onChange={(id) => onChange(id, bloodline)} />
-          <div className="rel-tabs" role="tablist" aria-label="Tree kind">
-            <button type="button" role="tab" aria-selected={!bloodline} className={!bloodline ? "rel-chip active" : "rel-chip"} onClick={() => onChange(focus, false)} data-tooltip="A few generations around them, with everyone's partners">
-              Family
-            </button>
-            <button type="button" role="tab" aria-selected={bloodline} className={bloodline ? "rel-chip active" : "rel-chip"} onClick={() => onChange(focus, true)} data-tooltip="Every blood relative, as far back and down as known">
-              Bloodline
-            </button>
-          </div>
-          {bloodline ? (
-            <label className="cal-check">
-              <input type="checkbox" checked={inLaws} onChange={(e) => setInLaws(e.target.checked)} /> Show partners
-            </label>
-          ) : (
-            <>
-              <label className="rel-field rel-depth">
-                <span className="field-label">Generations up: {up}</span>
-                <input type="range" min={0} max={6} value={up} onChange={(e) => setUp(Number(e.target.value))} />
-              </label>
-              <label className="rel-field rel-depth">
-                <span className="field-label">Generations down: {down}</span>
-                <input type="range" min={0} max={6} value={down} onChange={(e) => setDown(Number(e.target.value))} />
-              </label>
-            </>
-          )}
-        </div>
-      </header>
-      {houses.length > 0 && (
-        <ul className="rel-legend" aria-label="Houses">
-          {houses.map((h) => (
-            <li key={h.id}>
-              <span className="info-color-swatch" style={{ background: h.color ?? "transparent" }} aria-hidden />
-              {h.name}
-              {!h.color && <span className="field-label">(no color: set one on its Info Bar)</span>}
-            </li>
-          ))}
-        </ul>
-      )}
-      <div className="rel-canvas">
-        {!focus ? (
-          <p className="cal-help rel-empty">Pick a character to see their family. Parents, children and partners come from their Info Bar or Relationships card.</p>
-        ) : cards.length <= 1 ? (
-          <p className="cal-help rel-empty">No family recorded for {catalog.get(focus)?.name} yet.</p>
-        ) : (
+    <RelWorkspace rail={rail}>
+      {!focus ? (
+        <StageEmpty Icon={GitFork} title="Pick a character">
+          Their parents, partners and children come from their Info Bar or Relationships card.
+        </StageEmpty>
+      ) : cards.length <= 1 ? (
+        <StageEmpty Icon={GitFork} title="No family recorded">
+          Add parents, partners or children to {catalog.get(focus)?.name}&apos;s Info Bar.
+        </StageEmpty>
+      ) : (
+        <>
           <RelationsCanvas
             key={[focus, bloodline, up, down, inLaws, ...cards.map((c) => `${c.id}@${c.position.x},${c.position.y}`)].join("|")}
             cards={cards}
             lines={lines}
+            highlightId={selectedEntry ? selected : null}
             onOpen={(e) => openArticle(e.template, e.id)}
             onFocus={(id) => onChange(id, bloodline)}
+            onSelect={setSelected}
           />
-        )}
-      </div>
-      <p className="cal-help">Click a card to open its article; Shift-click to see that person&apos;s tree. Dotted lines: adoptive or step parents, or parents with no marriage recorded.</p>
-    </div>
+          {selectedEntry && (
+            <Inspector
+              entry={selectedEntry}
+              edges={familyEdges}
+              onSelect={setSelected}
+              onClose={() => setSelected(null)}
+              actions={
+                <>
+                  <button type="button" className="btn btn-sm" onClick={() => openArticle(selectedEntry.template, selectedEntry.id)}>
+                    <ExternalLink size={13} /> Open
+                  </button>
+                  {selectedEntry.id !== focus && (
+                    <button type="button" className="btn btn-sm btn-ghost" onClick={() => onChange(selectedEntry.id, bloodline)}>
+                      <GitFork size={13} /> Their tree
+                    </button>
+                  )}
+                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => openWeb(selectedEntry.id)}>
+                    <Network size={13} /> Web
+                  </button>
+                </>
+              }
+            />
+          )}
+        </>
+      )}
+    </RelWorkspace>
   );
 }

@@ -1,4 +1,5 @@
 import { defineFieldSet, link } from "../info-fields";
+import { WILDLIFE_FIELDS, WILDLIFE_GROUP } from "./wildlife";
 
 export const BUILDING_TYPES = [
   "Residence",
@@ -105,6 +106,7 @@ export const BUILDING_INFO = defineFieldSet(
     { key: "function", label: "Function" },
     { key: "location", label: "Location" },
     { key: "ownership", label: "Ownership" },
+    WILDLIFE_GROUP,
   ],
   [
     // Construction
@@ -212,6 +214,7 @@ export const BUILDING_INFO = defineFieldSet(
       link: link(["character", "organization"], true),
       hint: "Who owned it before. Some may want it back.",
     },
+    ...WILDLIFE_FIELDS,
   ],
   // Required, in this order.
   ["buildingType", "publicAccess", "structuralCondition"]

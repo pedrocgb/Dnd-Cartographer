@@ -265,6 +265,10 @@ export const zoneRegions = sqliteTable(
     visible: integer("visible", { mode: "boolean" }).notNull().default(true),
     locked: integer("locked", { mode: "boolean" }).notNull().default(false),
     sortOrder: integer("sort_order").notNull().default(0),
+    // JSON string[] of other layers every item in the folder is also shown (and editable) on.
+    extraLayerIds: text("extra_layer_ids").notNull().default("[]"),
+    /** JSON style new items drawn into the folder start with, or null (the tool's own). */
+    defaultStyle: text("default_style"),
     deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
     ...timestamps,
   },
@@ -313,6 +317,29 @@ export const zones = sqliteTable(
   (table) => [index("zones_region_idx").on(table.regionId), index("zones_map_idx").on(table.mapId)]
 );
 
+/** A map-local folder of texts on one layer (e.g. "Kingdoms", "Seas"), like line groups. */
+export const textGroups = sqliteTable(
+  "text_groups",
+  {
+    id: id(),
+    mapId: text("map_id")
+      .notNull()
+      .references(() => maps.id),
+    layerId: text("layer_id").notNull(),
+    name: text("name").notNull(),
+    visible: integer("visible", { mode: "boolean" }).notNull().default(true),
+    locked: integer("locked", { mode: "boolean" }).notNull().default(false),
+    sortOrder: integer("sort_order").notNull().default(0),
+    // JSON string[] of other layers every item in the folder is also shown (and editable) on.
+    extraLayerIds: text("extra_layer_ids").notNull().default("[]"),
+    /** JSON style new items drawn into the folder start with, or null (the tool's own). */
+    defaultStyle: text("default_style"),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+    ...timestamps,
+  },
+  (table) => [index("text_groups_map_idx").on(table.mapId)]
+);
+
 /**
  * A styled map label placed on one layer. Position (`x`,`y` = center) and
  * `fontSize` are in the map frame's pixel space; spacing/outline/shadow
@@ -350,10 +377,42 @@ export const mapTexts = sqliteTable(
     shadowColor: text("shadow_color").notNull().default("#000000"),
     shadowOpacity: real("shadow_opacity").notNull().default(0.6),
     visible: integer("visible", { mode: "boolean" }).notNull().default(true),
+    /** Its folder on the home layer, or null (listed as Ungrouped). */
+    groupId: text("group_id"),
+    /** Locked texts are drawn but can't be picked, moved or edited. */
+    locked: integer("locked", { mode: "boolean" }).notNull().default(false),
+    sortOrder: integer("sort_order").notNull().default(0),
     deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
     ...timestamps,
   },
   (table) => [index("map_texts_map_idx").on(table.mapId), index("map_texts_layer_idx").on(table.layerId)]
+);
+
+/**
+ * A map-local folder of lines on one layer (e.g. "Roads", "Rivers",
+ * "Borders"), like zone regions: organizational only. Hiding or locking a
+ * group hides or locks its lines.
+ */
+export const lineGroups = sqliteTable(
+  "line_groups",
+  {
+    id: id(),
+    mapId: text("map_id")
+      .notNull()
+      .references(() => maps.id),
+    layerId: text("layer_id").notNull(),
+    name: text("name").notNull(),
+    visible: integer("visible", { mode: "boolean" }).notNull().default(true),
+    locked: integer("locked", { mode: "boolean" }).notNull().default(false),
+    sortOrder: integer("sort_order").notNull().default(0),
+    // JSON string[] of other layers every item in the folder is also shown (and editable) on.
+    extraLayerIds: text("extra_layer_ids").notNull().default("[]"),
+    /** JSON style new items drawn into the folder start with, or null (the tool's own). */
+    defaultStyle: text("default_style"),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+    ...timestamps,
+  },
+  (table) => [index("line_groups_map_idx").on(table.mapId)]
 );
 
 /**
@@ -372,6 +431,10 @@ export const mapLines = sqliteTable(
     layerId: text("layer_id"),
     // JSON string[] of other layers this item is also shown (and editable) on.
     extraLayerIds: text("extra_layer_ids").notNull().default("[]"),
+    /** Its folder on the home layer, or null (listed as Ungrouped). */
+    groupId: text("group_id"),
+    /** Optional label for the Lines list; empty shows "Line N". */
+    name: text("name").notNull().default(""),
     kind: text("kind", { enum: ["free", "pen"] }).notNull(),
     points: text("points").notNull(),
     color: text("color").notNull().default("#E11D48"),
@@ -388,6 +451,8 @@ export const mapLines = sqliteTable(
     shadowDistance: real("shadow_distance").notNull().default(0.5),
     shadowAngle: real("shadow_angle").notNull().default(45),
     visible: integer("visible", { mode: "boolean" }).notNull().default(true),
+    locked: integer("locked", { mode: "boolean" }).notNull().default(false),
+    sortOrder: integer("sort_order").notNull().default(0),
     deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
     ...timestamps,
   },

@@ -37,6 +37,16 @@ export const FULL_MAP_OVERLAY_CLASS = "full-map-overlay";
 const disposers = new WeakMap<HTMLElement, () => void>();
 
 /**
+ * A layer shrunk below this during an animation is re-laid-out at its current
+ * size, but only while it is much bigger than the viewer (`BIG_LAYER_VIEWERS`
+ * widths): shrinking such a close-up layer flashes as the browser re-rasters
+ * it tile by tile. Every other re-layout waits for the motion to settle —
+ * each one re-rasters the whole layer (curved text costs several frames).
+ */
+const MIN_ANIMATED_SCALE = 0.5;
+const BIG_LAYER_VIEWERS = 2;
+
+/**
  * Adds a full-map SVG layer as an OSD overlay that is *scaled* while the
  * viewer animates and only re-laid-out when the motion settles.
  *
@@ -52,17 +62,39 @@ const disposers = new WeakMap<HTMLElement, () => void>();
  * `vector-effect: non-scaling-stroke` (which ignores CSS transforms on HTML
  * ancestors) is exact again at rest.
  */
+/**
+ * `fixedSize`: the element keeps the map frame's size in CSS pixels forever
+ * and is only ever scaled. For layers whose re-layout is what's expensive
+ * (curved text: every glyph laid out along its path, ~15 ms per resize), a
+ * scale costs nothing to lay out. Its `--overlay-scale` (screen px per frame
+ * px, updated when the motion settles) stands in for non-scaling strokes.
+ */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function addFullMapOverlay(viewer: any, element: HTMLElement, zIndex: number) {
+export function addFullMapOverlay(viewer: any, element: HTMLElement, zIndex: number, { fixedSize = false } = {}) {
   const tiledImage = viewer.world.getItemAt(0);
   type P = { x: number; y: number };
   let last: { position: P; size: P } | null = null;
   let base: P | null = null;
   let animating = false;
+  const frame: P | null = fixedSize ? tiledImage.getContentSize() : null;
+  if (frame) {
+    element.style.width = `${frame.x}px`;
+    element.style.height = `${frame.y}px`;
+  }
+
+  function applyFixed(f: P) {
+    if (!last) return;
+    const sx = last.size.x / f.x;
+    element.style.transform = `translate(${last.position.x}px, ${last.position.y}px) scale(${sx}, ${last.size.y / f.y})`;
+    if (!animating) element.style.setProperty("--overlay-scale", String(sx));
+  }
 
   function apply() {
+    if (frame) return applyFixed(frame);
     if (!last) return;
-    if (!animating || !base) {
+    const drift = base && base.x ? last.size.x / base.x : 1;
+    const bigLayer = Boolean(base && base.x > BIG_LAYER_VIEWERS * (viewer.container?.clientWidth || Infinity));
+    if (!animating || !base || (bigLayer && drift < MIN_ANIMATED_SCALE)) {
       base = last.size;
       element.style.width = `${base.x}px`;
       element.style.height = `${base.y}px`;

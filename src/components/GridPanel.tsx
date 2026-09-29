@@ -38,6 +38,7 @@ export function SliderField({
   step = 1,
   defaultValue,
   suffix,
+  mixed = false,
   onChange,
 }: {
   label: string;
@@ -47,6 +48,8 @@ export function SliderField({
   step?: number;
   defaultValue: number;
   suffix?: string;
+  /** The edited items have different values: shown as "Mixed" until one is set. */
+  mixed?: boolean;
   onChange: (value: number) => void;
 }) {
   // Round to 2 decimals (not a fixed 1) so small values like 0.05 remain
@@ -62,7 +65,7 @@ export function SliderField({
 
   function commit(raw: string) {
     const parsed = Number(raw);
-    if (Number.isNaN(parsed)) {
+    if (raw.trim() === "" || Number.isNaN(parsed)) {
       setText(formatValue(value));
       return;
     }
@@ -71,8 +74,11 @@ export function SliderField({
     setText(formatValue(clamped));
   }
 
+  // Still showing the first item's value: nothing set yet.
+  const showMixed = mixed && text === formatValue(value);
+
   return (
-    <div className="grid-field">
+    <div className={showMixed ? "grid-field mixed" : "grid-field"}>
       <div className="grid-field-header">
         <span className="field-label">{label}</span>
         <button
@@ -87,7 +93,8 @@ export function SliderField({
           <input
             type="number"
             className="grid-field-value-input"
-            value={text}
+            value={showMixed ? "" : text}
+            placeholder={showMixed ? "Mixed" : undefined}
             min={min}
             max={max}
             step={step}

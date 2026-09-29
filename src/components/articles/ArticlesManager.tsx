@@ -123,6 +123,14 @@ export default function ArticlesManager() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [requestedView, setView] = useState<View>(() => viewFromParams(searchParams));
+  // A link to another view (the top bar's Articles menu) changes only the address: follow it.
+  const search = searchParams.toString();
+  const [lastSearch, setLastSearch] = useState(search);
+  if (search !== lastSearch) {
+    setLastSearch(search);
+    const linked = viewFromParams(searchParams);
+    if (JSON.stringify(linked) !== JSON.stringify(requestedView)) setView(linked);
+  }
   const [lists, setLists] = useState<ArticleLists>(EMPTY_LISTS);
   const [loaded, setLoaded] = useState(false);
   const [profiles, setProfiles] = useState<HierarchyProfile[]>([]);
@@ -402,7 +410,7 @@ export default function ArticlesManager() {
         onToggleTerritory={toggleTerritory}
         loading={!loaded}
       />
-      <div className="articles-main">
+      <div className={view.kind === "relationships" || view.kind === "family" || view.kind === "boards" ? "articles-main articles-main-tool" : "articles-main"}>
         <CreateArticleContext.Provider value={openCreate}>{renderMiddle()}</CreateArticleContext.Provider>
       </div>
       {creating && (

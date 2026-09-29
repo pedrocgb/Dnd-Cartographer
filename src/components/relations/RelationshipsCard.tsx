@@ -76,7 +76,7 @@ export default function RelationshipsCard({ recordId, template }: { recordId: st
   const calendar = useDefaultCalendar();
 
   const mine = useMemo(
-    () => relations.filter((r) => (r.fromId === recordId || r.toId === recordId) && catalog.has(r.fromId === recordId ? r.toId : r.fromId) && !(hideSecrets && r.secret)),
+    () => relations.filter((r) => (r.fromId === recordId || r.toId === recordId) && !relationType(r.type)?.hidden && catalog.has(r.fromId === recordId ? r.toId : r.fromId) && !(hideSecrets && r.secret)),
     [relations, recordId, catalog, hideSecrets]
   );
   const computed = useMemo(() => {

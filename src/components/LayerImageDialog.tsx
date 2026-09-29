@@ -24,6 +24,45 @@ const ALWAYS_DRAW_OPTIONS: { flag: AlwaysDrawFlag; noun: string }[] = [
 const round1 = (v: number) => Math.round(v * 10) / 10;
 const round2 = (v: number) => Math.round(v * 100) / 100;
 
+const MAX_LAYER_NAME = 120;
+
+/** The layer's name: saved on Enter or leaving the field, Esc restores it. */
+function LayerNameField({ name, onRename }: { name: string; onRename: (name: string) => void }) {
+  const [draft, setDraft] = useState(name);
+  const [lastName, setLastName] = useState(name);
+  // Follow renames made elsewhere (the Layers list) without clobbering typing.
+  if (name !== lastName) {
+    setLastName(name);
+    setDraft(name);
+  }
+  const commit = () => {
+    const next = draft.trim();
+    if (next && next !== name) onRename(next);
+    else setDraft(name);
+  };
+  return (
+    <label className="grid-field lid-name">
+      <span className="field-label">Name</span>
+      <input
+        type="text"
+        value={draft}
+        maxLength={MAX_LAYER_NAME}
+        aria-label="Layer name"
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.currentTarget.blur();
+          if (e.key === "Escape") {
+            e.preventDefault();
+            e.stopPropagation();
+            setDraft(name);
+          }
+        }}
+      />
+    </label>
+  );
+}
+
 /** Reads "-12", "98,98" or "10.05"; null while the text isn't a number yet ("", "-", ","). */
 function parseNumber(text: string): number | null {
   const t = text.trim().replace(",", ".");
@@ -138,6 +177,7 @@ export default function LayerImageDialog({
     <>
       <Modal open onClose={onClose} title={`Layer settings · ${layer.name}`} minimized={minimized} onMinimize={setMinimized}>
         <div className="lid">
+          <LayerNameField name={layer.name} onRename={(name) => onUpdate({ name })} />
           <div className="lid-summary">
             {asset ? (
               // eslint-disable-next-line @next/next/no-img-element -- small local thumbnail

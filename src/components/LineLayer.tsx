@@ -1,12 +1,13 @@
 "use client";
 
+import type { MapFolderData } from "./LayerFolders";
 import { useEffect, useRef, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import type OpenSeadragonType from "openseadragon";
 import { setOsdNavEnabled } from "./osd-nav";
 import { OVERLAY_Z, addFullMapOverlay, removeFullMapOverlay } from "./osd-overlay-stack";
 import { clientToImagePoint, frameSize, screenPxPerImagePx, type Pt } from "./osd-coords";
-import { dashArray, freePath, penPath, pointsBounds, polylineLength, simplify, snapToAngle } from "./line-geometry";
+import { dashArray, freePath, penPath, pointsBounds, polylineLength, pullString, simplify, smoothingTolerance, snapToAngle, stringLength } from "./line-geometry";
 import { shadowOffset } from "./text-geometry";
 import type { LineKind, LineStyle, PenPt } from "@/server/lines/line-config";
 
@@ -18,13 +19,21 @@ export interface MapLineData extends LineStyle {
   extraLayerIds: string[];
   /** Hidden items stay in the Scene list but aren't drawn or pickable. */
   visible: boolean;
+  /** Locked lines are drawn but can't be picked, moved or edited. */
+  locked: boolean;
+  /** Its folder (on the home layer), or null: Ungrouped. */
+  groupId: string | null;
+  /** Optional label for the Lines list. */
+  name: string;
+  sortOrder: number;
   kind: LineKind;
   points: PenPt[];
 }
 
+/** A folder of lines on one layer (like a zone region). */
+export type LineGroupData = MapFolderData;
+
 const CLICK_THRESHOLD_PX = 5;
-/** Free-draw simplification tolerance, in screen pixels. */
-const SIMPLIFY_SCREEN_PX = 0.75;
 
 interface Props {
   viewer: OpenSeadragonType.Viewer | null;
@@ -36,6 +45,8 @@ interface Props {
   mode: LineKind;
   /** Style previewed while drawing (= what the new line will get). */
   draftStyle: LineStyle;
+  /** Free-draw smoothing, 0–100 (see line-geometry's pullString). */
+  smoothing: number;
   lines: MapLineData[];
   /** Lines that can be selected/edited; the rest (other layers' "always draw") are display only. Omitted = all. */
   editableIds?: Set<string>;
@@ -44,6 +55,8 @@ interface Props {
   selectedLineId: string | null;
   onCreate: (kind: LineKind, points: PenPt[]) => void;
   onSelect: (id: string | null) => void;
+  /** Ctrl/Cmd+click: add the line to (or take it out of) the selection. */
+  onToggleSelect?: (id: string) => void;
   onMove: (id: string, dx: number, dy: number) => void;
   onDelete: (id: string) => void;
 }
@@ -55,12 +68,14 @@ export default function LineLayer({
   drawing,
   mode,
   draftStyle,
+  smoothing,
   lines,
   editableIds,
   pulseId = null,
   selectedLineId,
   onCreate,
   onSelect,
+  onToggleSelect,
   onMove,
   onDelete,
 }: Props) {
@@ -74,9 +89,9 @@ export default function LineLayer({
   const toImagePoint = (clientX: number, clientY: number) => clientToImagePoint(viewer, osd, clientX, clientY);
   // Parent callbacks are usually inline closures (new every render); read
   // them through a ref so the overlay only re-renders when its data changes.
-  const callbacksRef = useRef({ onCreate, onSelect, onMove, onDelete });
+  const callbacksRef = useRef({ onCreate, onSelect, onToggleSelect, onMove, onDelete });
   useEffect(() => {
-    callbacksRef.current = { onCreate, onSelect, onMove, onDelete };
+    callbacksRef.current = { onCreate, onSelect, onToggleSelect, onMove, onDelete };
   });
 
   // A half-drawn line never survives a mode switch, disarming or closing the panel.
@@ -186,15 +201,31 @@ export default function LineLayer({
     if (mode === "free") {
       const samples: PenPt[] = [start];
       setDraft(samples);
+      // The pen trails the cursor on a string measured in screen pixels, so it steadies the same at any zoom.
+      const string = stringLength(smoothing);
+      let pen = { x: e.clientX, y: e.clientY };
+      // Every sample is kept, but the preview redraws once per frame: a fast
+      // mouse reports several moves per frame, and redrawing the whole layer
+      // for each one piles up renders (React's "Maximum update depth exceeded").
+      let frame = 0;
       drag(
         e,
-        (cur) => {
-          samples.push(cur);
-          setDraft([...samples]);
+        (_cur, ev) => {
+          const next = pullString(pen, { x: ev.clientX, y: ev.clientY }, string);
+          const point = next && toImagePoint(next.x, next.y);
+          if (!next || !point) return;
+          pen = next;
+          samples.push(point);
+          if (!frame)
+            frame = requestAnimationFrame(() => {
+              frame = 0;
+              setDraft([...samples]);
+            });
         },
         () => {
+          cancelAnimationFrame(frame);
           setDraft(null);
-          const tolerance = SIMPLIFY_SCREEN_PX / screenPxPerImagePx(viewer);
+          const tolerance = smoothingTolerance(smoothing) / screenPxPerImagePx(viewer);
           const pts = simplify(samples, tolerance);
           if (pts.length >= 2 && polylineLength(pts) > 0) callbacksRef.current.onCreate("free", pts);
         },
@@ -229,6 +260,11 @@ export default function LineLayer({
 
   function onLineMouseDown(e: React.MouseEvent, line: MapLineData) {
     if (e.button !== 0) return;
+    const toggle = callbacksRef.current.onToggleSelect;
+    if ((e.ctrlKey || e.metaKey) && toggle) {
+      e.stopPropagation();
+      return toggle(line.id);
+    }
     const start = toImagePoint(e.clientX, e.clientY);
     if (!start) return;
     let delta = { dx: 0, dy: 0 };
@@ -247,7 +283,8 @@ export default function LineLayer({
   }
 
   function onBackgroundMouseDown(e: React.MouseEvent) {
-    if (e.button === 0 && selectedLineId) callbacksRef.current.onSelect(null);
+    // Also clears a multi-selection (no single selected line then).
+    if (e.button === 0) callbacksRef.current.onSelect(null);
   }
 
   useEffect(() => {
@@ -456,10 +493,10 @@ function LineSvg(props: SvgProps) {
       })}
 
       {/* Hit paths and the selection box sit outside the shadow groups (no shadow, one pass).
-          While armed to draw, clicking a line selects it instead of starting a
-          new one — except mid-way through a pen line, where clicks add points. */}
+          While armed to draw, existing lines are ignored: strokes and pen
+          points go right over them. */}
       {interactive &&
-        !(drawing && draft) &&
+        !drawing &&
         lines.filter((line) => !props.editableIds || props.editableIds.has(line.id)).map((line) => (
           <path
             key={line.id}

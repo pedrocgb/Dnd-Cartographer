@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { MapPin, ZoomIn, ZoomOut, Home, Maximize, Minimize, Undo2, Redo2 } from "lucide-react";
 import type OpenSeadragonType from "openseadragon";
@@ -16,7 +16,9 @@ import LayersPanel from "./LayersPanel";
 import TextLayer, { type MapTextData } from "./TextLayer";
 import TextPanel, { type TextDraft, type TextPatch } from "./TextPanel";
 import { defaultTextStyle } from "@/server/texts/text-config";
-import LineLayer, { type MapLineData } from "./LineLayer";
+import LineLayer, { type LineGroupData, type MapLineData } from "./LineLayer";
+import type { MapFolderData } from "./LayerFolders";
+import { useFolderSync } from "./use-folder-sync";
 import LinePanel, { type LinePatch } from "./LinePanel";
 import { defaultLineStyle, translatePoints, type LineKind, type LineStyle, type PenPt } from "@/server/lines/line-config";
 import { drawnLayerIds, isOnLayer, itemsInLayers, useLayerImages, withHomeLayer } from "./layer-images";
@@ -31,6 +33,8 @@ import { centerAt, translateZoneGeometry } from "./paste-geometry";
 import { hitTest, MARKER_HIT_PX, type Hit, type HitScene } from "./hit-test";
 import { toMultiPolygon } from "./zone-paint";
 import SelectionLayer from "./SelectionLayer";
+import { useSelection, type ClickMods } from "./multi-select";
+import { usePanelInset } from "./use-panel-inset";
 import { isModalOpen } from "./Modal";
 import { isTypingTarget } from "./keyboard";
 import {
@@ -69,6 +73,20 @@ const NO_REGIONS: ZoneRegionData[] = [];
 const NO_ZONES: ZoneData[] = [];
 
 type MapItem = Marker | ZoneData | MapTextData | MapLineData;
+/** Kinds the tool panels multi-select. */
+type ListKind = "zone" | "text" | "line";
+type ItemPatch = Record<string, unknown>;
+const TOGGLE: ClickMods = { toggle: true, range: false };
+const lineGroupUrl = (id: string) => `/api/line-groups/${id}`;
+const textGroupUrl = (id: string) => `/api/text-groups/${id}`;
+const zoneRegionUrl = (id: string) => `/api/zone-regions/${id}`;
+
+/** An item's own "Also show on" layers plus its folder's. */
+function withFolderLayers(own: readonly string[] | undefined, folder: Pick<MapFolderData, "extraLayerIds"> | undefined): string[] {
+  const mine = own ?? [];
+  return folder?.extraLayerIds.length ? [...new Set([...mine, ...folder.extraLayerIds])] : [...mine];
+}
+
 const ITEM_API: Record<SceneKind, string> = { marker: "/api/markers", zone: "/api/zones", text: "/api/texts", line: "/api/lines" };
 /** Marker fields undo covers: map edits, not its wiki content (name, description, politics). */
 const MARKER_EDIT_KEYS = new Set(["u", "v", "iconKey", "color", "backgroundColor", "outlineColor", "backgroundShape", "layerId", "extraLayerIds"]);
@@ -101,6 +119,26 @@ function loadZoneStyle(): ZoneStyle | null {
     return valid ? (style as unknown as ZoneStyle) : null;
   } catch {
     return null;
+  }
+}
+
+const LINE_SMOOTHING_STORAGE_KEY = "map-line-smoothing";
+const DEFAULT_LINE_SMOOTHING = 50;
+
+function loadLineSmoothing(): number {
+  try {
+    const n = Number(window.localStorage.getItem(LINE_SMOOTHING_STORAGE_KEY));
+    return window.localStorage.getItem(LINE_SMOOTHING_STORAGE_KEY) !== null && Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : DEFAULT_LINE_SMOOTHING;
+  } catch {
+    return DEFAULT_LINE_SMOOTHING;
+  }
+}
+
+function saveLineSmoothing(value: number) {
+  try {
+    window.localStorage.setItem(LINE_SMOOTHING_STORAGE_KEY, String(value));
+  } catch {
+    // storage unavailable: kept for this page only
   }
 }
 
@@ -149,6 +187,10 @@ export default function MapWorkspace({
   onDeleteGrid,
   zoneRegions,
   setZoneRegions,
+  lineGroups,
+  setLineGroups,
+  textGroups,
+  setTextGroups,
   zones,
   setZones,
   zonesPanelOpen,
@@ -199,6 +241,10 @@ export default function MapWorkspace({
   onDeleteGrid: () => void;
   zoneRegions: ZoneRegionData[];
   setZoneRegions: React.Dispatch<React.SetStateAction<ZoneRegionData[]>>;
+  lineGroups: LineGroupData[];
+  setLineGroups: React.Dispatch<React.SetStateAction<LineGroupData[]>>;
+  textGroups: MapFolderData[];
+  setTextGroups: React.Dispatch<React.SetStateAction<MapFolderData[]>>;
   zones: ZoneData[];
   setZones: React.Dispatch<React.SetStateAction<ZoneData[]>>;
   zonesPanelOpen: boolean;
@@ -211,6 +257,9 @@ export default function MapWorkspace({
   imageHeight: number;
 }) {
   const viewerElRef = useRef<HTMLDivElement | null>(null);
+  /** The canvas area, whose open lateral panel the floating buttons stay clear of. */
+  const [canvasArea, setCanvasArea] = useState<HTMLDivElement | null>(null);
+  const panelInset = usePanelInset(canvasArea);
   const viewerRef = useRef<OpenSeadragonType.Viewer | null>(null);
   const [viewer, setViewer] = useState<OpenSeadragonType.Viewer | null>(null);
   const [osd, setOsd] = useState<typeof OpenSeadragonType | null>(null);
@@ -225,7 +274,10 @@ export default function MapWorkspace({
   const [undo, setUndo] = useState<{ marker: Marker; timer: ReturnType<typeof setTimeout> } | null>(null);
   const [allMaps, setAllMaps] = useState<MapOption[]>([]);
   const [activeZoneRegionId, setActiveZoneRegionId] = useState<string | null>(null);
-  const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
+  // One selected item edits alone; several (Ctrl/Shift-click) edit together.
+  const zoneSel = useSelection();
+  const selectedZoneId = zoneSel.single;
+  const setSelectedZoneId = zoneSel.select;
   const [activeZoneTool, setActiveZoneTool] = useState<ZoneTool>("select");
   const [brushSize, setBrushSize] = useState(DEFAULT_BRUSH_SIZE);
   const [zoneUndo, setZoneUndo] = useState<{ zone: ZoneData; timer: ReturnType<typeof setTimeout> } | null>(null);
@@ -235,16 +287,29 @@ export default function MapWorkspace({
   const pendingZonePatchesRef = useRef<Map<string, Partial<ZoneData>>>(new Map());
   const [saveError, setSaveError] = useState<{ message: string; timer: ReturnType<typeof setTimeout> } | null>(null);
   const iconFilter = useToggleSet(ICON_UNIVERSE);
-  const [selectedTextId, setSelectedTextId] = useState<string | null>(null);
+  const textSel = useSelection();
+  const selectedTextId = textSel.single;
+  const setSelectedTextId = textSel.select;
   const [placingText, setPlacingText] = useState(false);
   const [textDraft, setTextDraft] = useState<TextDraft>(() => ({ ...defaultTextStyle(imageWidth, imageHeight), text: "New text" }));
   const [textUndo, setTextUndo] = useState<{ text: MapTextData; timer: ReturnType<typeof setTimeout> } | null>(null);
   const textPatchTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const pendingTextPatchesRef = useRef<Map<string, TextPatch>>(new Map());
-  const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
+  const lineSel = useSelection();
+  const selectedLineId = lineSel.single;
+  const setSelectedLineId = lineSel.select;
+  /** Folder new lines go into (one of the active layer's), or null: Ungrouped. */
+  const [activeLineGroupId, setActiveLineGroupId] = useState<string | null>(null);
+  const updateLineGroup = useFolderSync(setLineGroups, lineGroupUrl);
+  const updateTextGroup = useFolderSync(setTextGroups, textGroupUrl);
+  const updateZoneRegion = useFolderSync(setZoneRegions, zoneRegionUrl);
+  /** Folder new texts go into (one of the active layer's), or null: Ungrouped. */
+  const [activeTextGroupId, setActiveTextGroupId] = useState<string | null>(null);
   const [drawingLine, setDrawingLine] = useState(false);
   const [lineMode, setLineMode] = useState<LineKind>("free");
   const [lineDraft, setLineDraft] = useState<LineStyle>(() => defaultLineStyle(imageWidth, imageHeight));
+  /** Free-draw smoothing (0–100), a drawing setting remembered per browser. */
+  const [lineSmoothing, setLineSmoothing] = useState(loadLineSmoothing);
   const [lineUndo, setLineUndo] = useState<{ line: MapLineData; timer: ReturnType<typeof setTimeout> } | null>(null);
   const linePatchTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const pendingLinePatchesRef = useRef<Map<string, LinePatch>>(new Map());
@@ -263,6 +328,8 @@ export default function MapWorkspace({
     backgroundShape: DEFAULT_BACKGROUND_SHAPE as string,
   });
   const history = useEditHistory();
+  /** Set while a multi-selection edit applies its items one by one: it records one step for all of them. */
+  const bulkRef = useRef(false);
   /** Latest items and update functions, for undo/redo entries recorded in an earlier render. */
   const latestRef = useRef<{
     markers: Marker[];
@@ -550,19 +617,18 @@ export default function MapWorkspace({
   /** Takes an item off the map and soft-deletes it (undo of a create, redo of a delete). */
   function removeItem(kind: SceneKind, id: string) {
     const drop = <T extends { id: string }>(prev: T[]) => prev.filter((x) => x.id !== id);
-    const unselect = (sel: string | null) => (sel === id ? null : sel);
     if (kind === "marker") {
       setMarkers(drop);
-      setSelectedMarkerId(unselect);
+      setSelectedMarkerId((sel) => (sel === id ? null : sel));
     } else if (kind === "zone") {
       setZones(drop);
-      setSelectedZoneId(unselect);
+      zoneSel.remove([id]);
     } else if (kind === "text") {
       setTexts(drop);
-      setSelectedTextId(unselect);
+      textSel.remove([id]);
     } else {
       setLines(drop);
-      setSelectedLineId(unselect);
+      lineSel.remove([id]);
     }
     return fetch(`${ITEM_API[kind]}/${id}`, { method: "DELETE" });
   }
@@ -604,6 +670,7 @@ export default function MapWorkspace({
 
   /** Stores the patched fields' previous values; undo applies them through the same update function. */
   function recordUpdate(kind: SceneKind, id: string, patch: Record<string, unknown>) {
+    if (bulkRef.current) return;
     const item = findItem(kind, id) as unknown as Record<string, unknown> | undefined;
     const keys = Object.keys(patch);
     if (!item || keys.length === 0 || keys.every((k) => Object.is(item[k], patch[k]))) return;
@@ -626,6 +693,63 @@ export default function MapWorkspace({
   useEffect(() => {
     latestRef.current = { markers, zones, texts, lines, apply: applyPatch, applyVisible, moveLine };
   });
+
+  /** Locked items (their own lock or their folder's) keep their settings in a multi-selection edit. */
+  function listItemLocked(kind: ListKind, item: MapItem): boolean {
+    if (kind === "zone") return zoneLocked(item as ZoneData);
+    return kind === "text" ? textLocked(item as MapTextData) : lineLocked(item as MapLineData);
+  }
+
+  /**
+   * One edit of several items (a multi-selection, a drag and drop): each
+   * gets its own patch, locked ones are skipped unless `includeLocked` (show
+   * and lock toggles), and it's a single undo step.
+   */
+  function updateMany(kind: ListKind, ids: readonly string[], patchOf: (item: MapItem) => ItemPatch, { includeLocked = false } = {}) {
+    const edits: { id: string; patch: ItemPatch; before: ItemPatch }[] = [];
+    for (const id of ids) {
+      const item = findItem(kind, id);
+      if (!item || (!includeLocked && listItemLocked(kind, item))) continue;
+      const patch = patchOf(item);
+      const current = item as unknown as ItemPatch;
+      const keys = Object.keys(patch).filter((k) => !Object.is(current[k], patch[k]) && JSON.stringify(current[k]) !== JSON.stringify(patch[k]));
+      if (keys.length === 0) continue;
+      edits.push({ id, patch: Object.fromEntries(keys.map((k) => [k, patch[k]])), before: Object.fromEntries(keys.map((k) => [k, current[k]])) });
+    }
+    if (edits.length === 0) return;
+    const keys = [...new Set(edits.flatMap((e) => Object.keys(e.patch)))].sort();
+    history.record({
+      label: edits.length === 1 ? editLabel(kind, keys) : `${editLabel(kind, keys)} ×${edits.length}`,
+      key: keys.some((k) => GESTURE_KEYS.has(k)) ? undefined : `${kind}:bulk:${edits.map((e) => e.id).sort().join(",")}:${keys.join(",")}`,
+      undo: () => edits.forEach((e) => latestRef.current?.apply(kind, e.id, e.before)),
+      redo: () => edits.forEach((e) => latestRef.current?.apply(kind, e.id, e.patch)),
+    });
+    bulkRef.current = true;
+    try {
+      edits.forEach((e) => applyPatch(kind, e.id, e.patch));
+    } finally {
+      bulkRef.current = false;
+    }
+  }
+
+  /** Deletes the unlocked ones of several items, as one undo step. */
+  function deleteMany(kind: ListKind, ids: readonly string[]) {
+    const items = ids.map((id) => findItem(kind, id)).filter((item): item is MapItem => Boolean(item && !listItemLocked(kind, item)));
+    if (items.length === 0) return;
+    let snapshots = items;
+    history.record({
+      label: `Delete ${items.length} ${kind}s`,
+      undo: () => Promise.all(snapshots.map((item) => restoreItem(kind, item))),
+      redo: () => {
+        snapshots = snapshots.map((item) => findItem(kind, item.id) ?? item);
+        return Promise.all(snapshots.map((item) => removeItem(kind, item.id)));
+      },
+    });
+    items.forEach((item) => void removeItem(kind, item.id));
+  }
+
+  /** The panel's selection of one kind. */
+  const selectionOf = (kind: ListKind) => (kind === "zone" ? zoneSel : kind === "text" ? textSel : lineSel);
 
   /**
    * Scene folder eye: shows or hides every listed item of one kind through
@@ -810,9 +934,12 @@ export default function MapWorkspace({
   // items are fully editable there too).
   const ownRegions = useMemo(() => zoneRegions.filter((r) => r.layerId === activeLayerId), [zoneRegions, activeLayerId]);
   const ownRegionIds = useMemo(() => new Set(ownRegions.map((r) => r.id)), [ownRegions]);
+  // A folder's "Also show on" layers add to each of its items' own.
+  const regionById = useMemo(() => new Map(zoneRegions.map((r) => [r.id, r])), [zoneRegions]);
+  const zoneLocked = (z: ZoneData) => z.locked || Boolean(regionById.get(z.regionId)?.locked);
   const layerZones = useMemo(
-    () => zones.filter((z) => ownRegionIds.has(z.regionId) || z.extraLayerIds?.includes(activeLayerId)),
-    [zones, ownRegionIds, activeLayerId]
+    () => zones.filter((z) => ownRegionIds.has(z.regionId) || withFolderLayers(z.extraLayerIds, regionById.get(z.regionId)).includes(activeLayerId)),
+    [zones, ownRegionIds, regionById, activeLayerId]
   );
   // Home regions of zones shared onto this layer come along (read-only groups in the panel).
   const sharedRegionIds = useMemo(
@@ -824,9 +951,24 @@ export default function MapWorkspace({
     [ownRegions, zoneRegions, sharedRegionIds]
   );
   const layerMarkers = useMemo(() => markers.filter((m) => isOnLayer(m.layerId, m.extraLayerIds, activeLayerId)), [markers, activeLayerId]);
-  const layerTexts = useMemo(() => texts.filter((t) => isOnLayer(t.layerId, t.extraLayerIds, activeLayerId)), [texts, activeLayerId]);
+  const textGroupById = useMemo(() => new Map(textGroups.map((g) => [g.id, g])), [textGroups]);
+  const textExtras = useCallback((t: MapTextData) => withFolderLayers(t.extraLayerIds, t.groupId ? textGroupById.get(t.groupId) : undefined), [textGroupById]);
+  const textShown = useCallback((t: MapTextData) => t.visible && (!t.groupId || textGroupById.get(t.groupId)?.visible !== false), [textGroupById]);
+  const textLocked = useCallback((t: MapTextData) => t.locked || Boolean(t.groupId && textGroupById.get(t.groupId)?.locked), [textGroupById]);
+  const layerTexts = useMemo(() => texts.filter((t) => isOnLayer(t.layerId, textExtras(t), activeLayerId)), [texts, textExtras, activeLayerId]);
+  const ownTextGroups = useMemo(() => textGroups.filter((g) => g.layerId === activeLayerId), [textGroups, activeLayerId]);
+  if (activeTextGroupId && !ownTextGroups.some((g) => g.id === activeTextGroupId)) setActiveTextGroupId(null);
+  const activeTextGroup = ownTextGroups.find((g) => g.id === activeTextGroupId) ?? null;
   const selectedText = layerTexts.find((t) => t.id === selectedTextId) ?? null;
-  const layerLines = useMemo(() => lines.filter((l) => isOnLayer(l.layerId, l.extraLayerIds, activeLayerId)), [lines, activeLayerId]);
+  // A folder hides or locks its lines, and shows them on its extra layers too.
+  const lineGroupById = useMemo(() => new Map(lineGroups.map((g) => [g.id, g])), [lineGroups]);
+  const lineExtras = useCallback((l: MapLineData) => withFolderLayers(l.extraLayerIds, l.groupId ? lineGroupById.get(l.groupId) : undefined), [lineGroupById]);
+  const layerLines = useMemo(() => lines.filter((l) => isOnLayer(l.layerId, lineExtras(l), activeLayerId)), [lines, lineExtras, activeLayerId]);
+  const lineShown = useCallback((l: MapLineData) => l.visible && (!l.groupId || lineGroupById.get(l.groupId)?.visible !== false), [lineGroupById]);
+  const lineLocked = useCallback((l: MapLineData) => l.locked || Boolean(l.groupId && lineGroupById.get(l.groupId)?.locked), [lineGroupById]);
+  const ownLineGroups = useMemo(() => lineGroups.filter((g) => g.layerId === activeLayerId), [lineGroups, activeLayerId]);
+  if (activeLineGroupId && !ownLineGroups.some((g) => g.id === activeLineGroupId)) setActiveLineGroupId(null);
+  const activeLineGroup = ownLineGroups.find((g) => g.id === activeLineGroupId) ?? null;
   const selectedLine = layerLines.find((l) => l.id === selectedLineId) ?? null;
 
   // "Always draw": other visible layers flagged per kind are drawn too
@@ -854,16 +996,16 @@ export default function MapWorkspace({
     [markers, markerLayerIds, activeLayerId]
   );
   const drawnTexts = useMemo(
-    () => itemsInLayers(texts, (t) => t.layerId, textLayerIds, { extrasOf: (t) => t.extraLayerIds, activeLayerId }).filter((t) => t.visible),
-    [texts, textLayerIds, activeLayerId]
+    () => itemsInLayers(texts, (t) => t.layerId, textLayerIds, { extrasOf: textExtras, activeLayerId }).filter(textShown),
+    [texts, textLayerIds, activeLayerId, textExtras, textShown]
   );
   const drawnLines = useMemo(
-    () => itemsInLayers(lines, (l) => l.layerId, lineLayerIds, { extrasOf: (l) => l.extraLayerIds, activeLayerId }).filter((l) => l.visible),
-    [lines, lineLayerIds, activeLayerId]
+    () => itemsInLayers(lines, (l) => l.layerId, lineLayerIds, { extrasOf: lineExtras, activeLayerId }).filter(lineShown),
+    [lines, lineLayerIds, activeLayerId, lineExtras, lineShown]
   );
   const editableMarkerIds = useMemo(() => new Set(layerVisible ? layerMarkers.map((m) => m.id) : []), [layerMarkers, layerVisible]);
-  const editableTextIds = useMemo(() => new Set(layerTexts.map((t) => t.id)), [layerTexts]);
-  const editableLineIds = useMemo(() => new Set(layerLines.map((l) => l.id)), [layerLines]);
+  const editableTextIds = useMemo(() => new Set(layerTexts.filter((t) => textShown(t) && !textLocked(t)).map((t) => t.id)), [layerTexts, textShown, textLocked]);
+  const editableLineIds = useMemo(() => new Set(layerLines.filter((l) => lineShown(l) && !lineLocked(l)).map((l) => l.id)), [layerLines, lineShown, lineLocked]);
 
   // The active region (where new zones go) is always one of the layer's own.
   if (zonesPanelOpen && !ownRegionIds.has(activeZoneRegionId ?? "") && ownRegions.length > 0) {
@@ -905,18 +1047,12 @@ export default function MapWorkspace({
       });
   }
 
-  function updateZoneRegion(id: string, patch: Partial<ZoneRegionData>) {
-    setZoneRegions((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
-    fetch(`/api/zone-regions/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patch),
-    });
-  }
-
   function deleteZoneRegion(id: string, mode?: "cascade" | "move", targetRegionId?: string) {
     setZoneRegions((prev) => prev.filter((r) => r.id !== id));
-    if (mode === "cascade") setZones((prev) => prev.filter((z) => z.regionId !== id));
+    if (mode === "cascade") {
+      setZones((prev) => prev.filter((z) => z.regionId !== id));
+      zoneSel.remove(zones.filter((z) => z.regionId === id).map((z) => z.id));
+    }
     else if (mode === "move" && targetRegionId) setZones((prev) => prev.map((z) => (z.regionId === id ? { ...z, regionId: targetRegionId } : z)));
     if (activeZoneRegionId === id) setActiveZoneRegionId(null);
     const qs = mode ? `?mode=${mode}${targetRegionId ? `&targetRegionId=${targetRegionId}` : ""}` : "";
@@ -927,7 +1063,8 @@ export default function MapWorkspace({
     fetch(`/api/maps/${mapId}/zones`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ regionId, shapeType, geometry, imageWidth, imageHeight, ...(lastZoneStyleRef.current ?? loadZoneStyle()) }),
+      // A region's default style wins over the last one used.
+      body: JSON.stringify({ regionId, shapeType, geometry, imageWidth, imageHeight, ...(lastZoneStyleRef.current ?? loadZoneStyle()), ...(regionById.get(regionId)?.defaultStyle ?? {}) }),
     })
       .then((r) => json<{ zone?: ZoneData; error?: string }>(r))
       .then((d) => {
@@ -1043,7 +1180,7 @@ export default function MapWorkspace({
     fetch(`/api/maps/${mapId}/texts`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...textDraft, x, y, layerId: activeLayerId }),
+      body: JSON.stringify({ ...textDraft, ...(activeTextGroup?.defaultStyle ?? {}), x, y, layerId: activeLayerId, groupId: activeTextGroupId }),
     })
       .then((r) => json<{ text?: MapTextData; error?: string }>(r))
       .then((d) => {
@@ -1059,7 +1196,10 @@ export default function MapWorkspace({
 
   /** Optimistic; slider/typing edits are debounced, gesture commits and layer moves go straight through. */
   function updateText(id: string, rawPatch: TextPatch) {
-    const patch = withHomeLayer(rawPatch, texts.find((t) => t.id === id)?.extraLayerIds);
+    const current = texts.find((t) => t.id === id);
+    const patch: TextPatch = withHomeLayer(rawPatch, current?.extraLayerIds);
+    // A folder belongs to one layer: moving the text elsewhere ungroups it (the server does the same).
+    if (patch.layerId && patch.layerId !== current?.layerId && !("groupId" in patch)) patch.groupId = null;
     recordUpdate("text", id, patch);
     setTexts((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
     // Moving it to another layer follows it there (unless it stays shown here), so it stays selected and visible.
@@ -1071,7 +1211,7 @@ export default function MapWorkspace({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(patch),
       });
-    const immediate = "layerId" in patch || "x" in patch || "y" in patch;
+    const immediate = "layerId" in patch || "groupId" in patch || "x" in patch || "y" in patch;
     if (immediate) {
       void send();
       return;
@@ -1106,7 +1246,7 @@ export default function MapWorkspace({
 
   function deleteText(id: string) {
     const text = texts.find((t) => t.id === id);
-    if (!text) return;
+    if (!text || textLocked(text)) return;
     recordDelete("text", text);
     setTexts((prev) => prev.filter((t) => t.id !== id));
     if (selectedTextId === id) setSelectedTextId(null);
@@ -1121,9 +1261,9 @@ export default function MapWorkspace({
   function undoTextDelete() {
     if (!textUndo) return;
     clearTimeout(textUndo.timer);
-    fetch(`/api/texts/${textUndo.text.id}/restore`, { method: "POST" }).then(() => {
-      setTexts((prev) => [...prev, textUndo.text]);
-    });
+    fetch(`/api/texts/${textUndo.text.id}/restore`, { method: "POST" })
+      .then((r) => json<{ text?: MapTextData }>(r))
+      .then((d) => setTexts((prev) => [...prev, d.text ?? textUndo.text]));
     setTextUndo(null);
   }
 
@@ -1131,7 +1271,7 @@ export default function MapWorkspace({
     fetch(`/api/maps/${mapId}/lines`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...lineDraft, kind, points, layerId: activeLayerId }),
+      body: JSON.stringify({ ...lineDraft, ...(activeLineGroup?.defaultStyle ?? {}), kind, points, layerId: activeLayerId, groupId: activeLineGroupId }),
     })
       .then((r) => json<{ line?: MapLineData; error?: string }>(r))
       .then((d) => {
@@ -1164,13 +1304,16 @@ export default function MapWorkspace({
 
   /** Optimistic; style edits are debounced (merged per line), layer moves go straight through. */
   function updateLine(id: string, rawPatch: LinePatch) {
-    const patch = withHomeLayer(rawPatch, lines.find((l) => l.id === id)?.extraLayerIds);
+    const line = lines.find((l) => l.id === id);
+    const patch: LinePatch = withHomeLayer(rawPatch, line?.extraLayerIds);
+    // A folder belongs to one layer: moving the line elsewhere ungroups it (the server does the same).
+    if (patch.layerId && patch.layerId !== line?.layerId && !("groupId" in patch)) patch.groupId = null;
     recordUpdate("line", id, patch);
     setLines((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)));
     // Moving it to another layer follows it there (unless it stays shown here), so it stays selected and visible.
     if (patch.layerId && !isOnLayer(patch.layerId, patch.extraLayerIds, activeLayerId)) onSetActiveLayer(patch.layerId);
     const body = (b: LinePatch) => ({ method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) });
-    if ("layerId" in patch) {
+    if ("layerId" in patch || "groupId" in patch) {
       void fetch(`/api/lines/${id}`, body(patch));
       return;
     }
@@ -1227,9 +1370,45 @@ export default function MapWorkspace({
     setLineDraft((prev) => ({ ...prev, ...style }));
   }
 
+  /** Creates a line or text folder on the active layer and makes it where new items go. */
+  function createFolder(kind: "line" | "text", name: string) {
+    fetch(`/api/maps/${mapId}/${kind}-groups`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, layerId: activeLayerId }),
+    })
+      .then((r) => json<{ group?: MapFolderData; error?: string }>(r))
+      .then((d) => {
+        if (!d.group) return window.alert(d.error ?? "Could not create the folder.");
+        if (kind === "line") {
+          setLineGroups((prev) => [...prev, d.group!]);
+          setActiveLineGroupId(d.group.id);
+        } else {
+          setTextGroups((prev) => [...prev, d.group!]);
+          setActiveTextGroupId(d.group.id);
+        }
+      });
+  }
+
+  /** Its items move to Ungrouped, or are deleted with it (`cascade`). */
+  function deleteFolder(kind: "line" | "text", id: string, cascade: boolean) {
+    if (kind === "line") {
+      setLineGroups((prev) => prev.filter((g) => g.id !== id));
+      setLines((prev) => (cascade ? prev.filter((l) => l.groupId !== id) : prev.map((l) => (l.groupId === id ? { ...l, groupId: null } : l))));
+      if (activeLineGroupId === id) setActiveLineGroupId(null);
+      if (cascade) lineSel.remove(lines.filter((l) => l.groupId === id).map((l) => l.id));
+    } else {
+      setTextGroups((prev) => prev.filter((g) => g.id !== id));
+      setTexts((prev) => (cascade ? prev.filter((t) => t.groupId !== id) : prev.map((t) => (t.groupId === id ? { ...t, groupId: null } : t))));
+      if (activeTextGroupId === id) setActiveTextGroupId(null);
+      if (cascade) textSel.remove(texts.filter((t) => t.groupId === id).map((t) => t.id));
+    }
+    void fetch(`/api/${kind}-groups/${id}${cascade ? "?mode=cascade" : ""}`, { method: "DELETE" });
+  }
+
   function deleteLine(id: string) {
     const line = lines.find((l) => l.id === id);
-    if (!line) return;
+    if (!line || lineLocked(line)) return;
     recordDelete("line", line);
     setLines((prev) => prev.filter((l) => l.id !== id));
     if (selectedLineId === id) setSelectedLineId(null);
@@ -1244,9 +1423,9 @@ export default function MapWorkspace({
   function undoLineDelete() {
     if (!lineUndo) return;
     clearTimeout(lineUndo.timer);
-    fetch(`/api/lines/${lineUndo.line.id}/restore`, { method: "POST" }).then(() => {
-      setLines((prev) => [...prev, lineUndo.line]);
-    });
+    fetch(`/api/lines/${lineUndo.line.id}/restore`, { method: "POST" })
+      .then((r) => json<{ line?: MapLineData }>(r))
+      .then((d) => setLines((prev) => [...prev, d.line ?? lineUndo.line]));
     setLineUndo(null);
   }
 
@@ -1262,18 +1441,18 @@ export default function MapWorkspace({
     if (addingMarker) return setAddingMarker(false);
     if (selectedMarker) return setSelectedMarkerId(null);
     if (zonesPanelOpen) {
-      if (selectedZoneId) return setSelectedZoneId(null);
+      if (zoneSel.ids.length) return setSelectedZoneId(null);
       if (activeZoneTool !== "select") return setActiveZoneTool("select");
       return onCloseZonesPanel();
     }
     if (textPanelOpen) {
       if (placingText) return setPlacingText(false);
-      if (selectedTextId) return setSelectedTextId(null);
+      if (textSel.ids.length) return setSelectedTextId(null);
       return onCloseTextPanel();
     }
     if (linePanelOpen) {
       if (drawingLine) return setDrawingLine(false);
-      if (selectedLineId) return setSelectedLineId(null);
+      if (lineSel.ids.length) return setSelectedLineId(null);
       return onCloseLinePanel();
     }
     if (sidePanelOpen) return closeToolPanels();
@@ -1290,8 +1469,20 @@ export default function MapWorkspace({
       escapeStep();
       return;
     }
+    if ((e.key === "Delete" || e.key === "Backspace") && !e.defaultPrevented && !isModalOpen() && !isTypingTarget(e.target)) {
+      const open = openListKind();
+      if (open && selectionOf(open).ids.length > 1) {
+        e.preventDefault();
+        deleteMany(open, selectionOf(open).ids);
+      }
+      return;
+    }
     if (!(e.ctrlKey || e.metaKey) || e.altKey || isTypingTarget(e.target)) return;
     const key = e.key.toLowerCase();
+    if (key === "a" && !e.shiftKey) {
+      if (selectAllInFolder()) e.preventDefault();
+      return;
+    }
     if (key === "c" && !e.shiftKey) {
       // Selected page text keeps the browser's own copy.
       if (!window.getSelection()?.isCollapsed) return;
@@ -1313,6 +1504,37 @@ export default function MapWorkspace({
     if (isUndo) history.undo();
     else history.redo();
   }
+  /** The tool panel open with a list of items, if any. */
+  function openListKind(): ListKind | null {
+    return zonesPanelOpen ? "zone" : textPanelOpen ? "text" : linePanelOpen ? "line" : null;
+  }
+
+  /**
+   * Ctrl+A: every item of the folder the last clicked item is in (or where
+   * new items go), in the open tool panel.
+   */
+  function selectAllInFolder(): boolean {
+    const kind = openListKind();
+    if (!kind) return false;
+    const sel = selectionOf(kind);
+    const byOrder = (a: { sortOrder: number }, b: { sortOrder: number }) => a.sortOrder - b.sortOrder;
+    if (kind === "zone") {
+      const anchor = layerZones.find((z) => z.id === sel.anchor);
+      const regionId = anchor?.regionId ?? activeZoneRegionId;
+      if (!regionId) return false;
+      sel.set(layerZones.filter((z) => z.regionId === regionId).sort(byOrder).map((z) => z.id));
+      return true;
+    }
+    const items: (MapTextData | MapLineData)[] = kind === "text" ? layerTexts : layerLines;
+    const ownIds = new Set((kind === "text" ? ownTextGroups : ownLineGroups).map((g) => g.id));
+    // Items shared from other layers are one list; home items are in a folder or Ungrouped.
+    const folderKey = (item: MapTextData | MapLineData) => (item.layerId !== activeLayerId ? "shared" : item.groupId && ownIds.has(item.groupId) ? item.groupId : "ungrouped");
+    const anchor = items.find((item) => item.id === sel.anchor);
+    const key = anchor ? folderKey(anchor) : ((kind === "text" ? activeTextGroupId : activeLineGroupId) ?? "ungrouped");
+    sel.set(items.filter((item) => folderKey(item) === key).sort(byOrder).map((item) => item.id));
+    return true;
+  }
+
   const shortcutRef = useRef(handleShortcut);
   useEffect(() => {
     shortcutRef.current = handleShortcut;
@@ -1394,7 +1616,8 @@ export default function MapWorkspace({
     } else if (clip.kind === "text") {
       const { id: _id, layerId: _layer, extraLayerIds: _extra, ...fields } = clip.item as MapTextData;
       void [_id, _layer, _extra];
-      post(`/api/maps/${mapId}/texts`, { ...fields, x: point.x, y: point.y, layerId: activeLayerId })
+      const groupId = activeTextGroup && !activeTextGroup.locked ? activeTextGroup.id : null;
+      post(`/api/maps/${mapId}/texts`, { ...fields, x: point.x, y: point.y, layerId: activeLayerId, groupId })
         .then((r) => json<{ text?: MapTextData; error?: string }>(r))
         .then((d) => {
           if (!d.text) return fail("text")(d);
@@ -1407,7 +1630,8 @@ export default function MapWorkspace({
       void [_id, _layer, _extra];
       const b = lineBounds(points);
       const { dx, dy } = b ? centerAt(b, point, frame) : { dx: 0, dy: 0 };
-      post(`/api/maps/${mapId}/lines`, { ...fields, points: translatePoints(points, dx, dy, frame), layerId: activeLayerId })
+      const groupId = activeLineGroup && !activeLineGroup.locked ? activeLineGroup.id : null;
+      post(`/api/maps/${mapId}/lines`, { ...fields, points: translatePoints(points, dx, dy, frame), layerId: activeLayerId, groupId })
         .then((r) => json<{ line?: MapLineData; error?: string }>(r))
         .then((d) => {
           if (!d.line) return fail("line")(d);
@@ -1518,8 +1742,8 @@ export default function MapWorkspace({
       markers: layerMarkers
         .filter((m) => m.visible && (iconFilter.allOn || iconFilter.selected.has(m.iconKey)))
         .map((m) => ({ id: m.id, x: m.u * imageWidth, y: m.v * imageHeight })),
-      texts: layerTexts.filter((t) => t.visible),
-      lines: layerLines.filter((l) => l.visible).map((l) => ({ id: l.id, points: l.points, width: l.width })),
+      texts: layerTexts.filter((t) => textShown(t) && !textLocked(t)),
+      lines: layerLines.filter((l) => lineShown(l) && !lineLocked(l)).map((l) => ({ id: l.id, points: l.points, width: l.width })),
       zones: zonePaintOrder(layerRegions, layerZones)
         .filter(({ zone, region }) => zone.visible && region.visible)
         .flatMap(({ zone }) => {
@@ -1528,7 +1752,7 @@ export default function MapWorkspace({
           return bounds ? [{ id: zone.id, bounds, polygons: toMultiPolygon(geometry) }] : [];
         }),
     };
-  }, [selectToolOn, layerVisible, layerMarkers, layerTexts, layerLines, layerRegions, layerZones, iconFilter, imageWidth, imageHeight]);
+  }, [selectToolOn, layerVisible, layerMarkers, layerTexts, textShown, textLocked, layerLines, lineShown, lineLocked, layerRegions, layerZones, iconFilter, imageWidth, imageHeight]);
 
   const pickRef = useRef<(hit: Hit) => void>(() => {});
   useEffect(() => {
@@ -1596,6 +1820,15 @@ export default function MapWorkspace({
     return l ? lineBounds(l.points) : null;
   }
 
+  // Several selected items are outlined on the map (one has its own handles).
+  const multiBoxes = useMemo(() => {
+    const boxes: Rect[] = [];
+    if (zoneSel.ids.length > 1) for (const z of layerZones) if (zoneSel.has(z.id)) boxes.push(...[zoneBounds(JSON.parse(z.geometry))].filter((b): b is Rect => Boolean(b)));
+    if (textSel.ids.length > 1) for (const t of layerTexts) if (textSel.has(t.id)) boxes.push(textBounds(t));
+    if (lineSel.ids.length > 1) for (const l of layerLines) if (lineSel.has(l.id)) boxes.push(...[lineBounds(l.points)].filter((b): b is Rect => Boolean(b)));
+    return boxes;
+  }, [zoneSel, textSel, lineSel, layerZones, layerTexts, layerLines]);
+
   // The selection tool's hover wins; otherwise the scene list's.
   const hoverBox = hovered?.bounds ?? (sceneHovered ? sceneItemBounds(sceneHovered.kind, sceneHovered.id) : null);
 
@@ -1612,7 +1845,7 @@ export default function MapWorkspace({
 
   return (
     <div className="viewer-layout">
-      <div className="viewer-canvas-area">
+      <div className="viewer-canvas-area" ref={setCanvasArea}>
         <div ref={viewerElRef} className="spike-viewer" />
 
         {selectedMarker && (
@@ -1637,8 +1870,8 @@ export default function MapWorkspace({
         <div
           className={selectedMarker ? "viewer-toolbar-left panel-open" : "viewer-toolbar-left"}
           style={{
-            // The zones panel widens to two columns (640px) while a zone is being edited.
-            left: 12 + ((zonesPanelOpen && selectedZoneId) || textPanelOpen ? 640 : selectedMarker || sidePanelOpen ? 320 : 0),
+            // Right of the open panel, whatever its width (two columns while an item or folder is edited).
+            left: 12 + panelInset,
           }}
         >
           <button
@@ -1737,6 +1970,7 @@ export default function MapWorkspace({
           activeRegionId={activeZoneRegionId}
           selectedZoneId={selectedZoneId}
           onSelectZone={setSelectedZoneId}
+          onToggleZone={(id) => zoneSel.click(id, TOGGLE, [])}
           onCreateZone={createZone}
           onUpdateZoneGeometry={(zoneId, geometry) => updateZone(zoneId, { geometry: JSON.stringify(geometry) })}
           onPaintZone={(zoneId, geometry) =>
@@ -1753,12 +1987,14 @@ export default function MapWorkspace({
           drawing={drawingLine}
           mode={lineMode}
           draftStyle={lineDraft}
+          smoothing={lineSmoothing}
           lines={drawnLines}
           editableIds={editableLineIds}
           pulseId={pulseId}
           selectedLineId={selectedLineId}
           onCreate={createLine}
           onSelect={selectLine}
+          onToggleSelect={(id) => lineSel.click(id, TOGGLE, [])}
           onMove={moveLine}
           onDelete={deleteLine}
         />
@@ -1774,6 +2010,7 @@ export default function MapWorkspace({
           selectedTextId={selectedTextId}
           onPlace={placeText}
           onSelect={setSelectedTextId}
+          onToggleSelect={(id) => textSel.click(id, TOGGLE, [])}
           onUpdate={updateText}
           onDelete={deleteText}
         />
@@ -1794,16 +2031,17 @@ export default function MapWorkspace({
           selectedMarkerId={selectedMarkerId}
           interactive={
             !selectToolOn &&
-            !(zonesPanelOpen && (activeZoneTool !== "select" || selectedZoneId !== null)) &&
-            !(textPanelOpen && (placingText || selectedTextId !== null)) &&
-            !(linePanelOpen && (drawingLine || selectedLineId !== null))
+            !(zonesPanelOpen && (activeZoneTool !== "select" || zoneSel.ids.length > 0)) &&
+            !(textPanelOpen && (placingText || textSel.ids.length > 0)) &&
+            !(linePanelOpen && (drawingLine || lineSel.ids.length > 0))
           }
         />
 
-        {(selectToolOn || sceneHovered) && (
+        {(selectToolOn || sceneHovered || multiBoxes.length > 0) && (
           <SelectionLayer
             viewer={viewer}
             box={hoverBox}
+            boxes={multiBoxes}
             pad={4 / screenPxPerImagePx(viewer)}
             imageWidth={imageWidth}
             imageHeight={imageHeight}
@@ -1840,9 +2078,14 @@ export default function MapWorkspace({
             onDeleteRegion={deleteZoneRegion}
             onUpdateZone={updateZone}
             onDeleteZone={deleteZone}
+            selectedIds={zoneSel.ids}
+            onPick={zoneSel.click}
+            onUpdateMany={(ids, patchOf, opts) => updateMany("zone", ids, (item) => patchOf(item as ZoneData), opts)}
+            onDeleteMany={(ids) => deleteMany("zone", ids)}
             onClose={onCloseZonesPanel}
             layers={layers}
             sharedRegionIds={sharedRegionIds}
+            captureZoneStyle={() => ({ ...(lastZoneStyleRef.current ?? loadZoneStyle() ?? { fillColor: "#FFFFFF", fillOpacity: 0.25, strokeColor: "#FFFFFF", strokeOpacity: 1, strokeWidth: 0.15 }) })}
           />
         )}
 
@@ -1881,6 +2124,28 @@ export default function MapWorkspace({
             onDelete={() => selectedText && deleteText(selectedText.id)}
             onDone={() => setSelectedTextId(null)}
             onClose={onCloseTextPanel}
+            selectedLocked={selectedText ? textLocked(selectedText) : false}
+            texts={layerTexts}
+            groups={textGroups}
+            activeLayerId={activeLayerId}
+            activeGroupId={activeTextGroupId}
+            onSetActiveGroup={setActiveTextGroupId}
+            onSelectText={(id) => {
+              if (id) setPlacingText(false);
+              setSelectedTextId(id);
+            }}
+            onUpdateText={updateText}
+            onDeleteText={deleteText}
+            selectedIds={textSel.ids}
+            onPick={(id, mods, order) => {
+              setPlacingText(false);
+              textSel.click(id, mods, order);
+            }}
+            onUpdateMany={(ids, patchOf, opts) => updateMany("text", ids, (item) => patchOf(item as MapTextData), opts)}
+            onDeleteMany={(ids) => deleteMany("text", ids)}
+            onCreateGroup={(name) => createFolder("text", name)}
+            onUpdateGroup={updateTextGroup}
+            onDeleteGroup={(id, cascade) => deleteFolder("text", id, cascade)}
           />
         )}
 
@@ -1894,6 +2159,11 @@ export default function MapWorkspace({
             drawing={drawingLine}
             maxWidth={Math.max(8, Math.round(Math.max(imageWidth, imageHeight) / 50))}
             onSetMode={setLineMode}
+            smoothing={lineSmoothing}
+            onSmoothingChange={(value) => {
+              setLineSmoothing(value);
+              saveLineSmoothing(value);
+            }}
             onToggleDrawing={() => {
               setAddingMarker(false);
               setSelectedLineId(null);
@@ -1903,6 +2173,27 @@ export default function MapWorkspace({
             onDelete={() => selectedLine && deleteLine(selectedLine.id)}
             onDone={() => setSelectedLineId(null)}
             onClose={onCloseLinePanel}
+            lines={layerLines}
+            groups={lineGroups}
+            activeLayerId={activeLayerId}
+            activeGroupId={activeLineGroupId}
+            selectedLocked={selectedLine ? lineLocked(selectedLine) : false}
+            onSetActiveGroup={setActiveLineGroupId}
+            onSelectLine={selectLine}
+            onUpdateLine={updateLine}
+            onDeleteLine={deleteLine}
+            selectedIds={lineSel.ids}
+            onPick={(id, mods, order) => {
+              // A plain click also seeds the next line's style, like a click on the map.
+              if (!mods.toggle && !mods.range) return selectLine(id);
+              setDrawingLine(false);
+              lineSel.click(id, mods, order);
+            }}
+            onUpdateMany={(ids, patchOf, opts) => updateMany("line", ids, (item) => patchOf(item as MapLineData), opts)}
+            onDeleteMany={(ids) => deleteMany("line", ids)}
+            onCreateGroup={(name) => createFolder("line", name)}
+            onUpdateGroup={updateLineGroup}
+            onDeleteGroup={(id, cascade) => deleteFolder("line", id, cascade)}
           />
         )}
 

@@ -14,12 +14,15 @@ import type { Rect } from "./scene-bounds";
 export default function SelectionLayer({
   viewer,
   box,
+  boxes,
   pad,
   imageWidth,
   imageHeight,
 }: {
   viewer: OpenSeadragonType.Viewer | null;
   box: Rect | null;
+  /** Several selected items, outlined the same way. */
+  boxes?: readonly Rect[];
   /** Gap between the item and the box, in frame pixels. */
   pad: number;
   imageWidth: number;
@@ -51,21 +54,22 @@ export default function SelectionLayer({
         style={{ display: "block", overflow: "visible", pointerEvents: "none" }}
       >
         {/* Alternating black and white dashes read on any map color. */}
-        {box &&
+        {[...(boxes ?? []), ...(box ? [box] : [])].map((b, i) =>
           ["selection-hover-box-dark", "selection-hover-box-light"].map((className) => (
             <rect
-              key={className}
+              key={`${i}-${className}`}
               className={className}
-              x={box.x - pad}
-              y={box.y - pad}
-              width={box.width + 2 * pad}
-              height={box.height + 2 * pad}
+              x={b.x - pad}
+              y={b.y - pad}
+              width={b.width + 2 * pad}
+              height={b.height + 2 * pad}
               vectorEffect="non-scaling-stroke"
             />
-          ))}
+          ))
+        )}
       </svg>
     );
-  }, [viewer, box, pad, imageWidth, imageHeight]);
+  }, [viewer, box, boxes, pad, imageWidth, imageHeight]);
 
   return null;
 }

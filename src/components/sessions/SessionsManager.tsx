@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { CalendarDays, Coins, Flame, Gem, Network, Pencil, Plus, ScrollText, Swords, Users } from "lucide-react";
 import { api } from "@/components/calendars/api";
+import { announceCampaignsChanged, readActiveCampaign, rememberActiveCampaign } from "@/components/campaign/active-campaign";
 import { formatIsoDate } from "@/components/DatePicker";
 import { dayLabel } from "@/components/calendars/evaluate";
 import type { Chronology, ClientCalendar } from "@/components/calendars/types";
@@ -59,7 +60,8 @@ export default function SessionsManager() {
   const [calendars, setCalendars] = useState<ClientCalendar[] | null>(null);
   const [chronology, setChronology] = useState<Chronology | null>(null);
   const [campaigns, setCampaigns] = useState<ClientCampaign[] | null>(null);
-  const [campaignId, setCampaignId] = useState<string | null>(params.get("campaign"));
+  // The Campaign area's active campaign: the address's, else the last one used here or in the Writer.
+  const [campaignId, setCampaignId] = useState<string | null>(() => params.get("campaign") ?? readActiveCampaign());
   const [sessions, setSessions] = useState<ClientSession[]>([]);
   const [viewing, setViewing] = useState<string | null>(params.get("session"));
   const [editing, setEditing] = useState<string | null>(null);
@@ -84,6 +86,7 @@ export default function SessionsManager() {
     setCalendars(cal.data.calendars);
     setChronology(cal.data.chronology);
     setCampaigns(camp.data.campaigns);
+    announceCampaignsChanged();
   }, []);
 
   const loadSessions = useCallback(async (id: string) => {
@@ -143,6 +146,7 @@ export default function SessionsManager() {
 
   useEffect(() => {
     syncUrl({ campaign: activeId, session: viewing, view: mainView === "sessions" ? null : mainView, quest: viewingQuest });
+    rememberActiveCampaign(activeId);
   }, [activeId, viewing, mainView, viewingQuest]);
 
   const visibleSessions = useMemo(() => (activeId ? sessions.filter((s) => s.campaignId === activeId) : []), [sessions, activeId]);
@@ -158,6 +162,14 @@ export default function SessionsManager() {
     setSessions([]);
     setQuests([]);
     setFronts([]);
+  }
+
+  // The header's campaign picker changes the address: follow it.
+  const urlCampaign = params.get("campaign");
+  const [lastUrlCampaign, setLastUrlCampaign] = useState(urlCampaign);
+  if (urlCampaign !== lastUrlCampaign) {
+    setLastUrlCampaign(urlCampaign);
+    if (urlCampaign && urlCampaign !== activeId) pick(urlCampaign);
   }
 
   const replaceFront = (f: FrontData) => setFronts((list) => (list.some((x) => x.id === f.id) ? list.map((x) => (x.id === f.id ? f : x)) : [...list, f]));

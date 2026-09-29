@@ -19,12 +19,21 @@ export default function LayerChecklist({
   homeLayerId,
   value,
   alwaysDrawFlag,
+  inherited,
+  mixedIds,
+  onEdit,
   onChange,
 }: {
   layers: MapLayerData[];
   homeLayerId: string | null;
   value: readonly string[];
   alwaysDrawFlag: AlwaysDrawFlag;
+  /** Layers it's already shown on through its folder: listed as checked and fixed. */
+  inherited?: { ids: readonly string[]; from: string };
+  /** Several items edited at once: layers only some of them are on (shown half-ticked). */
+  mixedIds?: readonly string[];
+  /** Several items edited at once: layers to add to and remove from each (instead of `onChange`). */
+  onEdit?: (add: string[], remove: string[]) => void;
   onChange: (extraLayerIds: string[]) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -48,10 +57,15 @@ export default function LayerChecklist({
   const home = layers.find((l) => l.id === homeLayerId);
   // Drawn everywhere already: its home layer draws this kind on every layer.
   const homeAlwaysDraws = Boolean(home?.[alwaysDrawFlag]);
-  const chosen = others.filter((l) => value.includes(l.id));
+  const viaFolder = (id: string) => Boolean(inherited?.ids.includes(id));
+  const isMixed = (id: string) => Boolean(mixedIds?.includes(id)) && !value.includes(id) && !viaFolder(id);
+  const chosen = others.filter((l) => value.includes(l.id) || viaFolder(l.id));
+  const mixedCount = others.filter((l) => isMixed(l.id)).length;
   const summary = homeAlwaysDraws
     ? "Every layer (Always draw is on)"
-    : chosen.length === 0
+    : mixedCount > 0
+      ? `Mixed (${chosen.length ? `${chosen.length} on all, ` : ""}${mixedCount} on some)`
+      : chosen.length === 0
       ? "None"
       : chosen.length <= 2
         ? chosen.map((l) => l.name).join(", ")
@@ -60,6 +74,7 @@ export default function LayerChecklist({
   const shown = q ? others.filter((l) => l.name.toLowerCase().includes(q)) : others;
 
   function toggle(id: string, on: boolean) {
+    if (onEdit) return onEdit(on ? [id] : [], on ? [] : [id]);
     onChange(on ? [...value.filter((v) => v !== id), id] : value.filter((v) => v !== id));
   }
 
@@ -114,19 +129,29 @@ export default function LayerChecklist({
             />
           )}
           <div className="layer-multi-actions">
-            <button type="button" className="layer-multi-action" onClick={() => onChange(others.map((l) => l.id))}>
+            <button type="button" className="layer-multi-action" onClick={() => (onEdit ? onEdit(others.map((l) => l.id), []) : onChange(others.map((l) => l.id)))}>
               All
             </button>
-            <button type="button" className="layer-multi-action" onClick={() => onChange([])}>
+            <button type="button" className="layer-multi-action" onClick={() => (onEdit ? onEdit([], others.map((l) => l.id)) : onChange([]))}>
               None
             </button>
           </div>
           <div role="group" aria-labelledby={labelId} className="layer-multi-options">
             {shown.map((l) => (
-              <label key={l.id} className="layer-checkbox layer-multi-option">
-                <input type="checkbox" checked={value.includes(l.id)} onChange={(e) => toggle(l.id, e.target.checked)} />
+              <label key={l.id} className="layer-checkbox layer-multi-option" data-tooltip={viaFolder(l.id) ? `Shown here through its folder “${inherited?.from}”` : undefined}>
+                <input
+                  type="checkbox"
+                  checked={value.includes(l.id) || viaFolder(l.id)}
+                  ref={(el) => {
+                    if (el) el.indeterminate = isMixed(l.id);
+                  }}
+                  disabled={viaFolder(l.id)}
+                  onChange={(e) => toggle(l.id, e.target.checked)}
+                />
                 <span>
                   {l.name}
+                  {viaFolder(l.id) && <span className="field-label"> (via folder)</span>}
+                  {isMixed(l.id) && <span className="field-label"> (some)</span>}
                   {!l.visible && <span className="field-label"> (hidden)</span>}
                 </span>
               </label>

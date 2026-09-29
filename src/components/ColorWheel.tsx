@@ -61,7 +61,7 @@ function rgbToHsv(r: number, g: number, b: number): { h: number; s: number; v: n
  * for the visual only; the actual stored color always comes from
  * hsvToHex(h, s, v), never the filtered pixel.
  */
-export default function ColorWheel({ value, onChange }: { value: string; onChange: (hex: string) => void }) {
+export default function ColorWheel({ value, mixed = false, onChange }: { value: string; /** The edited items have different colors: shown as "Mixed" until one is picked. */ mixed?: boolean; onChange: (hex: string) => void }) {
   const [hsv, setHsv] = useState(() => {
     const rgb = hexToRgb(value);
     return rgb ? rgbToHsv(...rgb) : { h: 0, s: 1, v: 1 };
@@ -157,9 +157,11 @@ export default function ColorWheel({ value, onChange }: { value: string; onChang
   const dotY = RADIUS + dotDist * Math.sin(dotAngleRad);
   const currentHex = hsvToHex(hsv.h, hsv.s, hsv.v);
   const rgb = hexToRgb(currentHex) ?? [0, 0, 0];
+  // Still showing the first item's color: nothing picked yet.
+  const showMixed = mixed && hexText === value;
 
   return (
-    <div className="color-wheel">
+    <div className={showMixed ? "color-wheel mixed" : "color-wheel"}>
       <div
         ref={wheelRef}
         className="color-wheel-disc"
@@ -182,7 +184,7 @@ export default function ColorWheel({ value, onChange }: { value: string; onChang
           setFromPointer(e.clientX, e.clientY);
         }}
       >
-        <div className="color-wheel-dot" style={{ left: dotX, top: dotY, background: currentHex }} />
+        {!showMixed && <div className="color-wheel-dot" style={{ left: dotX, top: dotY, background: currentHex }} />}
       </div>
 
       <div className="color-wheel-controls">
@@ -191,13 +193,20 @@ export default function ColorWheel({ value, onChange }: { value: string; onChang
           <input type="range" min={0} max={1} step={0.01} value={hsv.v} onChange={(e) => updateValue(Number(e.target.value))} />
         </label>
 
-        <div className="color-wheel-preview" style={{ background: currentHex }} />
+        {showMixed ? (
+          <div className="color-wheel-preview mixed-swatch" data-tooltip="The selected items have different colors. Picking one sets it on all of them.">
+            Mixed
+          </div>
+        ) : (
+          <div className="color-wheel-preview" style={{ background: currentHex }} />
+        )}
 
         <label className="color-wheel-field">
           <span className="field-label">Hex</span>
           <input
             type="text"
-            value={hexText}
+            value={showMixed ? "" : hexText}
+            placeholder={showMixed ? "Mixed" : undefined}
             onChange={(e) => setHexText(e.target.value)}
             onBlur={(e) => commitHex(e.target.value)}
             onKeyDown={(e) => {
@@ -214,7 +223,8 @@ export default function ColorWheel({ value, onChange }: { value: string; onChang
                 type="number"
                 min={0}
                 max={255}
-                value={rgb[i]}
+                value={showMixed ? "" : rgb[i]}
+                placeholder={showMixed ? "–" : undefined}
                 onChange={(e) => updateRgbChannel(i as 0 | 1 | 2, e.target.value)}
               />
             </label>

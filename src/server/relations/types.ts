@@ -10,7 +10,8 @@ import type { ArticleTemplateKey } from "../articles/templates";
  * read the same from both ends and ignore direction (unless `oneWay`).
  */
 
-export type RelationGroup = "social" | "political" | "family" | "custom";
+/** "ecology" (Found in) backs Info Bar fields only: not in RELATION_GROUPS, never drawn. */
+export type RelationGroup = "social" | "political" | "family" | "ecology" | "custom";
 export type RelationLine = "solid" | "dotted" | "double";
 export type FamilyRole = "parent" | "spouse" | "sibling" | "relative";
 export type RelationAttr = "parentKind" | "spouseStatus";
@@ -33,6 +34,8 @@ export interface RelationTypeDef {
   line: RelationLine;
   /** Extra attributes this type carries. */
   attrs?: readonly RelationAttr[];
+  /** Only backs Info Bar fields: left out of graphs, the Relationships card and the add-relation picker. */
+  hidden?: boolean;
 }
 
 export const RELATION_GROUPS: readonly { key: RelationGroup; label: string }[] = [
@@ -94,6 +97,8 @@ export const RELATION_TYPES: readonly RelationTypeDef[] = [
   dir("branch", "political", "Parent organization of", "Part of", ["organization", "military", "religion"], ["organization", "military", "religion"], "#6366F1", "solid", { acyclic: true }),
   sym("treaty", "political", "Treaty with", POWERS, "#14B8A6", "double"),
   sym("atWar", "political", "At war with", FACTIONS, "#DC2626", "double"),
+  // Ecology (Info Bar only): where a creature or plant lives
+  dir("foundIn", "ecology", "Found in", "Home of", ["fauna", "flora", "monster"], ["territory", "geography", "building"], "#65A30D", "dotted", { hidden: true }),
   // Anything else, named by its label
   dir("custom", "custom", "Related to", "Related to", "*", "*", "#9CA3AF"),
 ];
@@ -169,6 +174,7 @@ export interface PerspectiveOption {
 export function perspectiveOptions(self: ArticleTemplateKey, other: ArticleTemplateKey): PerspectiveOption[] {
   const out: PerspectiveOption[] = [];
   for (const t of RELATION_TYPES) {
+    if (t.hidden) continue;
     if (allows(t.endpoints.from, self) && allows(t.endpoints.to, other)) out.push({ type: t.key, label: t.label, group: t.group, swap: false });
     if (!t.symmetric && t.key !== "custom" && allows(t.endpoints.from, other) && allows(t.endpoints.to, self)) {
       out.push({ type: t.key, label: t.inverseLabel, group: t.group, swap: true });

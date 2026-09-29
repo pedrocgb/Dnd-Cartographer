@@ -13,7 +13,8 @@ import type { Marker } from "./MarkerLayer";
 import type { MapGrid } from "./GridLayer";
 import type { ZoneData, ZoneRegionData } from "./ZoneLayer";
 import type { MapTextData } from "./TextLayer";
-import type { MapLineData } from "./LineLayer";
+import type { LineGroupData, MapLineData } from "./LineLayer";
+import type { MapFolderData } from "./LayerFolders";
 import { useMapLayers } from "./use-map-layers";
 
 interface MapAsset {
@@ -114,6 +115,8 @@ export default function MapViewer({ mapId }: { mapId: string }) {
   /** Placing or editing a marker in MapWorkspace (highlights the sidebar's Markers). */
   const [markerToolActive, setMarkerToolActive] = useState(false);
   const [lines, setLines] = useState<MapLineData[]>([]);
+  const [lineGroups, setLineGroups] = useState<LineGroupData[]>([]);
+  const [textGroups, setTextGroups] = useState<MapFolderData[]>([]);
   const layerApi = useMapLayers(mapId);
   const { activeLayerId, refresh: refreshLayers } = layerApi;
   const grid = grids.find((g) => g.layerId === activeLayerId) ?? null;
@@ -173,6 +176,12 @@ export default function MapViewer({ mapId }: { mapId: string }) {
     fetch(`/api/maps/${mapId}/lines`)
       .then((r) => r.json())
       .then((d) => setLines(d.lines));
+    fetch(`/api/maps/${mapId}/line-groups`)
+      .then((r) => r.json())
+      .then((d) => setLineGroups(d.groups));
+    fetch(`/api/maps/${mapId}/text-groups`)
+      .then((r) => r.json())
+      .then((d) => setTextGroups(d.groups));
   }
 
   useEffect(() => {
@@ -367,6 +376,8 @@ export default function MapViewer({ mapId }: { mapId: string }) {
     setGrids((prev) => prev.filter((g) => g.layerId !== id));
     setTexts((prev) => prev.filter((t) => t.layerId !== id));
     setLines((prev) => prev.filter((l) => l.layerId !== id));
+    setLineGroups((prev) => prev.filter((g) => g.layerId !== id));
+    setTextGroups((prev) => prev.filter((g) => g.layerId !== id));
   }
 
   if (error) return <div className="map-status">Error: {error}</div>;
@@ -464,6 +475,10 @@ export default function MapViewer({ mapId }: { mapId: string }) {
               onCloseTextPanel={() => setTextPanelOpen(false)}
               lines={lines}
               setLines={setLines}
+              lineGroups={lineGroups}
+              setLineGroups={setLineGroups}
+              textGroups={textGroups}
+              setTextGroups={setTextGroups}
               linePanelOpen={linePanelOpen}
               onCloseLinePanel={() => setLinePanelOpen(false)}
               scenePanelOpen={scenePanelOpen}

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { dashArray, freePath, penPath, pointsBounds, polylineLength, simplify, snapToAngle } from "../src/components/line-geometry";
+import { pullString, smoothingTolerance, stringLength } from "../src/components/line-geometry";
 
 describe("penPath", () => {
   it("uses straight segments between corner points", () => {
@@ -53,5 +54,27 @@ describe("snapToAngle", () => {
     expect(v.x).toBeCloseTo(0);
     const d = snapToAngle(o, { x: 10, y: 8 });
     expect(d.x).toBeCloseTo(d.y);
+  });
+});
+
+describe("free-draw smoothing", () => {
+  it("keeps the pen still while the cursor stays within the string", () => {
+    expect(pullString({ x: 0, y: 0 }, { x: 3, y: 4 }, 10)).toBeNull();
+  });
+
+  it("drags the pen behind the cursor at the string's length", () => {
+    expect(pullString({ x: 0, y: 0 }, { x: 30, y: 40 }, 10)).toEqual({ x: 24, y: 32 });
+  });
+
+  it("follows the cursor exactly with no string (smoothing off)", () => {
+    expect(pullString({ x: 0, y: 0 }, { x: 5, y: 0 }, stringLength(0))).toEqual({ x: 5, y: 0 });
+    expect(pullString({ x: 5, y: 0 }, { x: 5, y: 0 }, 0)).toBeNull();
+  });
+
+  it("scales string and release tolerance with the setting, clamped", () => {
+    expect(stringLength(0)).toBe(0);
+    expect(stringLength(200)).toBe(stringLength(100));
+    expect(smoothingTolerance(0)).toBeCloseTo(0.75);
+    expect(smoothingTolerance(100)).toBeCloseTo(3);
   });
 });

@@ -18,6 +18,11 @@ export interface MapTextData extends TextFields {
   extraLayerIds: string[];
   /** Hidden items stay in the Scene list but aren't drawn or pickable. */
   visible: boolean;
+  /** Locked texts are drawn but can't be picked, moved or edited. */
+  locked: boolean;
+  /** Its folder (on the home layer), or null: Ungrouped. */
+  groupId: string | null;
+  sortOrder: number;
 }
 
 /** Geometry the user is dragging, previewed until mouseup commits it. */
@@ -40,6 +45,8 @@ interface Props {
   selectedTextId: string | null;
   onPlace: (x: number, y: number) => void;
   onSelect: (id: string | null) => void;
+  /** Ctrl/Cmd+click: add the text to (or take it out of) the selection. */
+  onToggleSelect?: (id: string) => void;
   onUpdate: (id: string, patch: Partial<Pick<MapTextData, "x" | "y" | "rotation" | "fontSize">>) => void;
   onDelete: (id: string) => void;
 }
@@ -55,6 +62,7 @@ export default function TextLayer({
   selectedTextId,
   onPlace,
   onSelect,
+  onToggleSelect,
   onUpdate,
   onDelete,
 }: Props) {
@@ -93,7 +101,8 @@ export default function TextLayer({
       const el = document.createElement("div");
       el.className = "text-layer-overlay";
       overlayRef.current = { el, root: createRoot(el) };
-      addFullMapOverlay(viewer, el, OVERLAY_Z.texts);
+      // Never resized, only scaled: curved text is costly to lay out again.
+      addFullMapOverlay(viewer, el, OVERLAY_Z.texts, { fixedSize: true });
     } else {
       viewer.updateOverlay(overlayRef.current.el, bounds);
     }
@@ -114,9 +123,9 @@ export default function TextLayer({
   const draggingRef = useRef(false);
   // Parent callbacks are usually inline closures (new every render); read
   // them through a ref so the overlay only re-renders when its data changes.
-  const callbacksRef = useRef({ onPlace, onSelect, onUpdate });
+  const callbacksRef = useRef({ onPlace, onSelect, onToggleSelect, onUpdate });
   useEffect(() => {
-    callbacksRef.current = { onPlace, onSelect, onUpdate };
+    callbacksRef.current = { onPlace, onSelect, onToggleSelect, onUpdate };
   });
 
   // An unselected text can be grabbed while OSD nav is still on (nothing
@@ -157,6 +166,11 @@ export default function TextLayer({
   }
 
   function beginMove(e: React.MouseEvent, text: MapTextData) {
+    const toggle = callbacksRef.current.onToggleSelect;
+    if ((e.ctrlKey || e.metaKey) && toggle) {
+      e.stopPropagation();
+      return toggle(text.id);
+    }
     const start = toImagePoint(e.clientX, e.clientY);
     const size = frameSize(viewer);
     if (!start || !size) return;
@@ -220,7 +234,8 @@ export default function TextLayer({
     if (placing) {
       const pt = toImagePoint(e.clientX, e.clientY);
       if (pt) callbacksRef.current.onPlace(pt.x, pt.y);
-    } else if (selectedTextId) {
+    } else {
+      // Also clears a multi-selection (no single selected text then).
       callbacksRef.current.onSelect(null);
     }
   }
@@ -546,11 +561,13 @@ function TextHandles({
   ];
   const topCenter = { x: frame.x + frame.width / 2, y: frame.y };
   const rotateAt = { x: topCenter.x, y: topCenter.y - hs * 4 };
-  const outline = { fill: "none", stroke: "#fff", strokeWidth: 1.5, vectorEffect: "non-scaling-stroke" as const };
+  // The layer is scaled, not resized (see addFullMapOverlay's fixedSize): widths in screen px divide by its scale.
+  const screenPx = (px: number) => `calc(${px}px / var(--overlay-scale, 1))`;
+  const outline = { fill: "none", stroke: "#fff", style: { strokeWidth: screenPx(1.5) } };
 
   return (
     <g>
-      <rect {...frame} {...outline} strokeDasharray="6 4" />
+      <rect {...frame} {...outline} style={{ strokeWidth: screenPx(1.5), strokeDasharray: `${screenPx(6)} ${screenPx(4)}` }} />
       <line x1={topCenter.x} y1={topCenter.y} x2={rotateAt.x} y2={rotateAt.y} {...outline} />
       <circle
         cx={rotateAt.x}
@@ -558,9 +575,7 @@ function TextHandles({
         r={hs * 0.9}
         fill="#fff"
         stroke="#0D0E10"
-        strokeWidth={1}
-        vectorEffect="non-scaling-stroke"
-        style={{ pointerEvents: "all", cursor: "grab" }}
+        style={{ strokeWidth: screenPx(1), pointerEvents: "all", cursor: "grab" }}
         onMouseDown={onRotateMouseDown}
         data-tooltip="Drag to rotate (Shift snaps to 15°)"
       />
@@ -573,9 +588,7 @@ function TextHandles({
           height={hs}
           fill="#fff"
           stroke="#0D0E10"
-          strokeWidth={1}
-          vectorEffect="non-scaling-stroke"
-          style={{ pointerEvents: "all", cursor: c.cursor }}
+          style={{ strokeWidth: screenPx(1), pointerEvents: "all", cursor: c.cursor }}
           onMouseDown={onScaleMouseDown}
         />
       ))}

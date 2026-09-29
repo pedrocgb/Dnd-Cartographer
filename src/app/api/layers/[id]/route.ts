@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import { mapGrids, mapLayers, mapLines, mapTexts, markers, zoneRegions, zones } from "@/server/db/schema";
+import { lineGroups, mapGrids, mapLayers, mapLines, textGroups, mapTexts, markers, zoneRegions, zones } from "@/server/db/schema";
 import { findLayer, listLayerRows } from "@/server/layers/layers";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -79,6 +79,8 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
       .where(and(eq(zoneRegions.layerId, id), isNull(zoneRegions.deletedAt)));
     await tx.update(mapTexts).set({ deletedAt: now, updatedAt: now }).where(and(eq(mapTexts.layerId, id), isNull(mapTexts.deletedAt)));
     await tx.update(mapLines).set({ deletedAt: now, updatedAt: now }).where(and(eq(mapLines.layerId, id), isNull(mapLines.deletedAt)));
+    await tx.update(lineGroups).set({ deletedAt: now, updatedAt: now }).where(and(eq(lineGroups.layerId, id), isNull(lineGroups.deletedAt)));
+    await tx.update(textGroups).set({ deletedAt: now, updatedAt: now }).where(and(eq(textGroups.layerId, id), isNull(textGroups.deletedAt)));
     await tx.delete(mapGrids).where(eq(mapGrids.layerId, id));
     await tx.update(mapLayers).set({ deletedAt: now, updatedAt: now }).where(eq(mapLayers.id, id));
   });

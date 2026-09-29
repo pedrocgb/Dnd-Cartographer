@@ -2,12 +2,12 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Eye, EyeOff, LayoutDashboard, Pencil, Plus, StickyNote, Trash2, Users, X } from "lucide-react";
+import { Check, ExternalLink, LayoutDashboard, Loader2, Pencil, Plus, StickyNote, Trash2, Users, X } from "lucide-react";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import InfoPicker, { type PickerOption } from "@/components/articles/InfoPicker";
 import { Skeleton } from "@/components/Skeleton";
 import { TEMPLATE_LABELS } from "@/server/articles/templates";
-import { isNoteId, MAX_BOARD_NAME, MAX_NOTE_TEXT, NOTE_PREFIX, type BoardCard, type BoardFilters } from "@/server/relations/boards";
+import { isNoteId, MAX_BOARD_NAME, NOTE_PREFIX, type BoardCard, type BoardFilters } from "@/server/relations/boards";
 import type { ClientBoard } from "@/server/relations/board-store";
 import { webEdges } from "@/server/relations/graph";
 import type { Point } from "@/server/relations/layout";
@@ -15,29 +15,92 @@ import { RELATION_GROUPS, type RelationGroup } from "@/server/relations/types";
 import RelationsLegend from "./RelationsLegend";
 import type { CanvasCard, CanvasLine } from "./RelationsCanvas";
 import { useHideSecrets, useRelations } from "./relations-context";
+import { GROUP_COLORS, HideSecretsSwitch, RailHeader, RailSection, RailSwitch, RelWorkspace, StageEmpty } from "./workspace";
 
-const RelationsCanvas = dynamic(() => import("./RelationsCanvas"), { ssr: false, loading: () => <Skeleton height="100%" radius="var(--radius-md)" /> });
+const RelationsCanvas = dynamic(() => import("./RelationsCanvas"), { ssr: false, loading: () => <Skeleton height="100%" radius="0" /> });
 
-const NOTE_COLORS = ["#facc15", "#60a5fa", "#f87171", "#4ade80", "#c084fc"];
+const NOTE_COLORS = [
+  { color: "#facc15", name: "Yellow" },
+  { color: "#fb923c", name: "Orange" },
+  { color: "#f87171", name: "Red" },
+  { color: "#f472b6", name: "Pink" },
+  { color: "#c084fc", name: "Purple" },
+  { color: "#60a5fa", name: "Blue" },
+  { color: "#4ade80", name: "Green" },
+];
 const SAVE_DELAY = 600;
 
-async function send(url: string, method: string, body?: unknown): Promise<{ board?: ClientBoard; boards?: ClientBoard[]; error?: string }> {
+type SaveState = "idle" | "saving" | "saved" | "error";
+
+async function send(url: string, method: string, body?: unknown): Promise<{ board?: ClientBoard; boards?: ClientBoard[] }> {
   const res = await fetch(url, { method, headers: body ? { "Content-Type": "application/json" } : undefined, body: body ? JSON.stringify(body) : undefined });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error ?? "The board couldn't be saved.");
+  if (!res.ok) throw new Error(data.error ?? `The board couldn't be saved (server error ${res.status}). Try again in a moment.`);
   return data;
 }
 
-/** Where a new card goes: right of the rightmost card, or near `near`. */
-function spotFor(cards: BoardCard[], near?: Point, index = 0): Point {
+/** Where a new card goes: around `near` (ring by ring), or right of the rightmost card. */
+function spotFor(cards: readonly BoardCard[], near?: Point, index = 0): Point {
   if (near) {
-    const angle = (index * 2 * Math.PI) / 8;
-    const ring = 260 + Math.floor(index / 8) * 120;
+    const angle = (index * 2 * Math.PI) / 8 - Math.PI / 2;
+    const ring = 240 + Math.floor(index / 8) * 120;
     return { x: Math.round(near.x + ring * Math.cos(angle)), y: Math.round(near.y + ring * Math.sin(angle)) };
   }
   if (!cards.length) return { x: 0, y: 0 };
-  const right = Math.max(...cards.map((c) => c.x));
-  return { x: right + 240, y: cards[cards.length - 1].y };
+  const right = cards.reduce((a, b) => (b.x > a.x ? b : a));
+  return { x: right.x + 240, y: right.y };
+}
+
+function BoardRow({ board, active, onOpen, onRename, onDelete }: { board: ClientBoard; active: boolean; onOpen: () => void; onRename: (name: string) => void; onDelete: () => void }) {
+  const [name, setName] = useState<string | null>(null);
+  const save = () => {
+    const next = name?.trim();
+    setName(null);
+    if (next && next !== board.name) onRename(next);
+  };
+  if (name !== null) {
+    return (
+      <li className="rel-board-row editing">
+        <input
+          autoFocus
+          maxLength={MAX_BOARD_NAME}
+          value={name}
+          aria-label="Board name"
+          onChange={(e) => setName(e.target.value)}
+          onBlur={save}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") save();
+            if (e.key === "Escape") {
+              e.preventDefault();
+              setName(null);
+            }
+          }}
+        />
+      </li>
+    );
+  }
+  const notes = board.cards.filter((c) => isNoteId(c.id)).length;
+  const articles = board.cards.length - notes;
+  return (
+    <li className={active ? "rel-board-row active" : "rel-board-row"}>
+      <button type="button" className="rel-board-open" onClick={onOpen} onDoubleClick={() => setName(board.name)} aria-current={active ? "page" : undefined}>
+        <LayoutDashboard size={14} aria-hidden />
+        <span className="rel-board-name">{board.name}</span>
+        <span className="rel-board-meta">
+          {articles} {articles === 1 ? "article" : "articles"}
+          {notes > 0 && ` · ${notes} ${notes === 1 ? "note" : "notes"}`}
+        </span>
+      </button>
+      <span className="rel-board-actions">
+        <button type="button" className="rel-icon-btn" onClick={() => setName(board.name)} aria-label={`Rename ${board.name}`} data-tooltip="Rename">
+          <Pencil size={13} />
+        </button>
+        <button type="button" className="rel-icon-btn danger" onClick={onDelete} aria-label={`Delete ${board.name}`} data-tooltip="Delete">
+          <Trash2 size={13} />
+        </button>
+      </span>
+    </li>
+  );
 }
 
 /**
@@ -47,12 +110,12 @@ function spotFor(cards: BoardCard[], near?: Point, index = 0): Point {
  */
 export default function BoardsPage({ boardId, onOpenBoard }: { boardId: string | null; onOpenBoard: (id: string | null) => void }) {
   const { relations, derived, catalog, openArticle } = useRelations();
-  const [hideSecrets, setHideSecrets] = useHideSecrets();
+  const [hideSecrets] = useHideSecrets();
   const [boards, setBoards] = useState<ClientBoard[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [saveState, setSaveState] = useState<SaveState>("idle");
   const [selected, setSelected] = useState<string | null>(null);
-  const [renaming, setRenaming] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState(false);
+  const [deleting, setDeleting] = useState<ClientBoard | null>(null);
   const pending = useRef<{ id: string; patch: Partial<ClientBoard> } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -64,7 +127,9 @@ export default function BoardsPage({ boardId, onOpenBoard }: { boardId: string |
     if (!job) return;
     try {
       await send(`/api/relation-boards/${job.id}`, "PATCH", job.patch);
+      if (!pending.current) setSaveState("saved");
     } catch (err) {
+      setSaveState("error");
       setError((err as Error).message);
     }
   }, []);
@@ -82,17 +147,22 @@ export default function BoardsPage({ boardId, onOpenBoard }: { boardId: string |
 
   const board = boards?.find((b) => b.id === boardId) ?? null;
 
-  /** Updates the board locally at once and saves it shortly after (moves come in bursts). */
-  const change = (patch: Partial<Pick<ClientBoard, "cards" | "filters" | "name">>, now = false) => {
-    if (!board) return;
-    setBoards((prev) => prev?.map((b) => (b.id === board.id ? { ...b, ...patch } : b)) ?? prev);
-    pending.current = { id: board.id, patch: { ...(pending.current?.id === board.id ? pending.current.patch : {}), ...patch } };
+  /** Updates a board locally at once and saves it shortly after (moves come in bursts). */
+  const change = (id: string, patch: Partial<Pick<ClientBoard, "cards" | "filters" | "name">>, now = false) => {
+    setBoards((prev) => prev?.map((b) => (b.id === id ? { ...b, ...patch } : b)) ?? prev);
+    if (pending.current && pending.current.id !== id) void flush();
+    pending.current = { id, patch: { ...(pending.current?.id === id ? pending.current.patch : {}), ...patch } };
+    setSaveState("saving");
     if (timer.current) clearTimeout(timer.current);
     if (now) void flush();
     else timer.current = setTimeout(() => void flush(), SAVE_DELAY);
   };
-  const setCards = (cards: BoardCard[]) => change({ cards });
-  const setFilters = (filters: BoardFilters) => change({ filters });
+
+  const cards = useMemo(() => board?.cards ?? [], [board]);
+  const filters = useMemo<BoardFilters>(() => board?.filters ?? {}, [board]);
+  const groups = useMemo(() => filters.groups ?? [], [filters]);
+  const setCards = (next: BoardCard[]) => board && change(board.id, { cards: next });
+  const setFilters = (next: BoardFilters) => board && change(board.id, { filters: next });
 
   const create = async () => {
     setError(null);
@@ -101,39 +171,32 @@ export default function BoardsPage({ boardId, onOpenBoard }: { boardId: string |
       if (!created) return;
       setBoards((prev) => [...(prev ?? []), created]);
       onOpenBoard(created.id);
-      setRenaming(created.name);
     } catch (err) {
       setError((err as Error).message);
     }
   };
-  const saveName = () => {
-    const name = renaming?.trim();
-    setRenaming(null);
-    if (name && board && name !== board.name) change({ name }, true);
-  };
   const remove = async () => {
-    if (!board) return;
+    if (!deleting) return;
     try {
-      await send(`/api/relation-boards/${board.id}`, "DELETE");
-      pending.current = null;
-      setBoards((prev) => prev?.filter((b) => b.id !== board.id) ?? prev);
-      setDeleting(false);
-      onOpenBoard(null);
+      await send(`/api/relation-boards/${deleting.id}`, "DELETE");
+      if (pending.current?.id === deleting.id) pending.current = null;
+      setBoards((prev) => prev?.filter((b) => b.id !== deleting.id) ?? prev);
+      if (deleting.id === boardId) onOpenBoard(null);
+      setDeleting(null);
     } catch (err) {
       setError((err as Error).message);
     }
   };
 
-  const cards = useMemo(() => board?.cards ?? [], [board]);
   const present = useMemo(() => new Set(cards.map((c) => c.id)), [cards]);
-  const filters = useMemo<BoardFilters>(() => board?.filters ?? {}, [board]);
-  const groups = useMemo(() => filters.groups ?? [], [filters]);
-  const edges = useMemo(
-    () =>
-      webEdges(catalog, relations, derived, { hideSecrets, groups, showDerived: filters.showDerived ?? false, showLinked: false }).filter(
-        (e) => present.has(e.fromId) && present.has(e.toId)
-      ),
-    [catalog, relations, derived, hideSecrets, groups, filters.showDerived, present]
+  const allEdges = useMemo(
+    () => webEdges(catalog, relations, derived, { hideSecrets, groups, showDerived: filters.showDerived ?? false, showLinked: false }),
+    [catalog, relations, derived, hideSecrets, groups, filters.showDerived]
+  );
+  const edges = useMemo(() => allEdges.filter((e) => present.has(e.fromId) && present.has(e.toId)), [allEdges, present]);
+  const tiesOf = useCallback(
+    (id: string) => [...new Set(allEdges.flatMap((e) => (e.fromId === id ? [e.toId] : e.toId === id ? [e.fromId] : [])))].filter((other) => !present.has(other)),
+    [allEdges, present]
   );
 
   const canvasCards = useMemo<CanvasCard[]>(
@@ -149,7 +212,6 @@ export default function BoardsPage({ boardId, onOpenBoard }: { boardId: string |
   const lines = useMemo<CanvasLine[]>(() => edges.map((edge) => ({ kind: "graph", edge })), [edges]);
   const missing = cards.filter((c) => !isNoteId(c.id) && !catalog.has(c.id)).length;
 
-  const boardOptions = useMemo<PickerOption[]>(() => (boards ?? []).map((b) => ({ value: b.id, label: b.name })), [boards]);
   const recordOptions = useMemo<PickerOption[]>(
     () =>
       [...catalog.values()]
@@ -159,157 +221,195 @@ export default function BoardsPage({ boardId, onOpenBoard }: { boardId: string |
     [catalog, present]
   );
 
-  const selectedCard = cards.find((c) => c.id === selected) ?? null;
-  const addRecord = (id: string | null) => id && !present.has(id) && setCards([...cards, { id, ...spotFor(cards) }]);
+  const selectedCard = cards.find((c) => c.id === selected);
+  const addRecord = (id: string | null) => {
+    if (!id || present.has(id)) return;
+    setCards([...cards, { id, ...spotFor(cards, selectedCard, cards.length) }]);
+  };
   const addNote = () => {
     const id = `${NOTE_PREFIX}${crypto.randomUUID()}`;
-    setCards([...cards, { id, ...spotFor(cards), text: "", color: NOTE_COLORS[0] }]);
-    setSelected(id);
+    setCards([...cards, { id, ...spotFor(cards, selectedCard, cards.length), text: "", color: NOTE_COLORS[0].color }]);
   };
-  const addNeighbours = () => {
-    if (!selectedCard) return;
-    const all = webEdges(catalog, relations, derived, { hideSecrets, groups, showDerived: filters.showDerived ?? false, showLinked: false });
-    const ids = [...new Set(all.flatMap((e) => (e.fromId === selectedCard.id ? [e.toId] : e.toId === selectedCard.id ? [e.fromId] : [])))].filter((id) => !present.has(id));
-    setCards([...cards, ...ids.map((id, i) => ({ id, ...spotFor(cards, selectedCard, i) }))]);
+  const addTies = (id: string) => {
+    const from = cards.find((c) => c.id === id);
+    if (!from) return;
+    setCards([...cards, ...tiesOf(id).map((other, i) => ({ id: other, ...spotFor(cards, from, i) }))]);
   };
-  const removeSelected = () => {
-    if (!selectedCard) return;
-    setCards(cards.filter((c) => c.id !== selectedCard.id));
-    setSelected(null);
+  const removeCards = (ids: string[]) => {
+    setCards(cards.filter((c) => !ids.includes(c.id)));
+    if (selected && ids.includes(selected)) setSelected(null);
   };
-  const editNote = (patch: Partial<BoardCard>) => selectedCard && setCards(cards.map((c) => (c.id === selectedCard.id ? { ...c, ...patch } : c)));
+  const editCard = (id: string, patch: Partial<BoardCard>) => setCards(cards.map((c) => (c.id === id ? { ...c, ...patch } : c)));
   const moved = (moves: Record<string, Point>) => setCards(cards.map((c) => (moves[c.id] ? { ...c, ...moves[c.id] } : c)));
   const toggleGroup = (g: RelationGroup) => setFilters({ ...filters, groups: groups.includes(g) ? groups.filter((x) => x !== g) : [...groups, g] });
 
-  // Remount only when cards come or go: dragging keeps React Flow's own state.
-  const canvasKey = [board?.id, ...canvasCards.map((c) => c.id)].join("|");
+  // Floats by the selected card: above an article, below a note.
+  const renderToolbar = (card: CanvasCard) => {
+    if (card.kind === "note") {
+      return (
+        <>
+          <span className="rel-swatches" role="radiogroup" aria-label="Note color">
+            {NOTE_COLORS.map((c) => (
+              <button
+                key={c.color}
+                type="button"
+                role="radio"
+                aria-checked={card.color === c.color}
+                aria-label={c.name}
+                data-tooltip={c.name}
+                className={card.color === c.color ? "rel-swatch active" : "rel-swatch"}
+                style={{ background: c.color }}
+                onClick={() => editCard(card.id, { color: c.color })}
+              />
+            ))}
+          </span>
+          <span className="rel-float-sep" aria-hidden />
+          <button type="button" className="rel-float-btn danger" onClick={() => removeCards([card.id])} aria-label="Delete note" data-tooltip="Delete note">
+            <Trash2 size={14} />
+          </button>
+        </>
+      );
+    }
+    if (card.kind !== "record") return null;
+    const ties = tiesOf(card.id).length;
+    return (
+      <>
+        <button type="button" className="rel-float-btn" onClick={() => openArticle(card.entry.template, card.entry.id)} data-tooltip="Open article">
+          <ExternalLink size={14} /> Open
+        </button>
+        <button type="button" className="rel-float-btn" disabled={!ties} onClick={() => addTies(card.id)} data-tooltip={ties ? "Add everything tied to it that isn't on the board" : "All its ties are on the board"}>
+          <Users size={14} /> Add ties
+          {ties > 0 && <span className="rel-chip-count">{ties}</span>}
+        </button>
+        <span className="rel-float-sep" aria-hidden />
+        <button type="button" className="rel-float-btn danger" onClick={() => removeCards([card.id])} aria-label="Remove from board" data-tooltip="Remove from board (the article stays)">
+          <X size={14} />
+        </button>
+      </>
+    );
+  };
+
+  const rail = (
+    <>
+      <RailHeader Icon={LayoutDashboard} title="Boards" subtitle="Arrange articles and notes; their ties draw themselves" />
+      <RailSection
+        title="Your boards"
+        action={
+          <button type="button" className="btn-link" onClick={create}>
+            <Plus size={13} /> New
+          </button>
+        }
+      >
+        {boards === null ? (
+          <Skeleton height={36} />
+        ) : boards.length === 0 ? (
+          <p className="rel-muted">No boards yet.</p>
+        ) : (
+          <ul className="rel-board-list">
+            {boards.map((b) => (
+              <BoardRow key={b.id} board={b} active={b.id === boardId} onOpen={() => onOpenBoard(b.id)} onRename={(name) => change(b.id, { name }, true)} onDelete={() => setDeleting(b)} />
+            ))}
+          </ul>
+        )}
+      </RailSection>
+      {board && (
+        <>
+          <RailSection title="Add to board">
+            <InfoPicker options={recordOptions} value={null} placeholder="Add an article…" ariaLabel="Add an article" collapsibleGroups onChange={addRecord} />
+            <button type="button" className="btn btn-sm rel-rail-btn" onClick={addNote}>
+              <StickyNote size={14} /> Add a note
+            </button>
+          </RailSection>
+          <RailSection title="Ties drawn" action={groups.length > 0 && <button type="button" className="btn-link" onClick={() => setFilters({ ...filters, groups: [] })}>All</button>}>
+            <div className="rel-chip-grid">
+              {RELATION_GROUPS.map((g) => {
+                const on = groups.includes(g.key);
+                return (
+                  <button key={g.key} type="button" className={on ? "rel-filter-chip active" : "rel-filter-chip"} aria-pressed={on} onClick={() => toggleGroup(g.key)} style={{ ["--chip" as string]: GROUP_COLORS[g.key] }}>
+                    <span className="rel-dot" aria-hidden />
+                    {g.label}
+                  </button>
+                );
+              })}
+            </div>
+            <RailSwitch label="From other information" hint="Houses, rulers, seats and territory parents" checked={filters.showDerived ?? false} onChange={(on) => setFilters({ ...filters, showDerived: on })} />
+            <RailSwitch label="Color by attitude" hint="From hostile (red) to devoted (green)" checked={filters.attitudeMode ?? false} onChange={(on) => setFilters({ ...filters, attitudeMode: on })} />
+            <HideSecretsSwitch />
+          </RailSection>
+        </>
+      )}
+      {error && (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      )}
+      {board && <p className="rel-rail-tip">Drag to arrange. Click a card for its actions; double-click a note to write in it. Delete removes the selected card.</p>}
+    </>
+  );
 
   return (
-    <div className="rel-page">
-      <header className="rel-page-header">
-        <h1>
-          <LayoutDashboard size={20} strokeWidth={2.25} aria-hidden /> Boards
-        </h1>
-        <div className="rel-toolbar">
-          {boards === null ? (
-            <Skeleton height="32px" width="240px" />
-          ) : renaming !== null && board ? (
-            <input
-              autoFocus
-              maxLength={MAX_BOARD_NAME}
-              value={renaming}
-              aria-label="Board name"
-              onChange={(e) => setRenaming(e.target.value)}
-              onBlur={saveName}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") saveName();
-                if (e.key === "Escape") {
-                  e.preventDefault();
-                  setRenaming(null);
-                }
-              }}
-            />
-          ) : (
-            <InfoPicker options={boardOptions} value={board?.id ?? null} placeholder={boards.length ? "Open a board…" : "No boards yet"} ariaLabel="Board" disabled={!boards.length} onChange={onOpenBoard} />
-          )}
-          <button type="button" className="btn btn-sm" onClick={create}>
-            <Plus size={14} /> New board
-          </button>
-          {board && (
-            <>
-              <button type="button" className="btn btn-sm btn-ghost" onClick={() => setRenaming(board.name)} data-tooltip="Rename this board">
-                <Pencil size={14} /> Rename
-              </button>
-              <button type="button" className="btn btn-sm btn-ghost" onClick={() => setDeleting(true)} data-tooltip="Delete this board (its articles stay)">
-                <Trash2 size={14} /> Delete
-              </button>
-            </>
-          )}
-          <button type="button" className={hideSecrets ? "btn btn-sm active" : "btn btn-sm"} aria-pressed={hideSecrets} onClick={() => setHideSecrets(!hideSecrets)} data-tooltip="Hide secret ties everywhere (for sharing your screen)">
-            {hideSecrets ? <EyeOff size={14} /> : <Eye size={14} />} {hideSecrets ? "Secrets hidden" : "Hide secrets"}
-          </button>
-        </div>
-        {board && (
-          <div className="rel-toolbar">
-            <InfoPicker options={recordOptions} value={null} placeholder="Add an article…" ariaLabel="Add an article" collapsibleGroups onChange={addRecord} />
-            <button type="button" className="btn btn-sm" onClick={addNote}>
-              <StickyNote size={14} /> Add note
-            </button>
-            <button type="button" className="btn btn-sm btn-ghost" disabled={!selectedCard || isNoteId(selectedCard.id)} onClick={addNeighbours} data-tooltip="Add everything tied to the selected article">
-              <Users size={14} /> Add its ties
-            </button>
-            <button type="button" className="btn btn-sm btn-ghost" disabled={!selectedCard} onClick={removeSelected} data-tooltip="Take the selected card off the board">
-              <X size={14} /> Remove from board
-            </button>
-            {RELATION_GROUPS.map((g) => (
-              <button key={g.key} type="button" className={groups.includes(g.key) ? "rel-chip active" : "rel-chip"} aria-pressed={groups.includes(g.key)} onClick={() => toggleGroup(g.key)}>
-                {g.label}
-              </button>
-            ))}
-            <label className="cal-check">
-              <input type="checkbox" checked={filters.showDerived ?? false} onChange={(e) => setFilters({ ...filters, showDerived: e.target.checked })} /> From other information
-            </label>
-            <label className="cal-check">
-              <input type="checkbox" checked={filters.attitudeMode ?? false} onChange={(e) => setFilters({ ...filters, attitudeMode: e.target.checked })} /> Attitude colors
-            </label>
-          </div>
-        )}
-        {selectedCard && isNoteId(selectedCard.id) && (
-          <div className="rel-toolbar rel-board-note">
-            <textarea
-              rows={3}
-              maxLength={MAX_NOTE_TEXT}
-              value={selectedCard.text ?? ""}
-              placeholder="Write the note…"
-              aria-label="Note text"
-              onChange={(e) => editNote({ text: e.target.value })}
-            />
-            <div className="info-color-editor" role="group" aria-label="Note color">
-              {NOTE_COLORS.map((color) => (
-                <button
-                  key={color}
-                  type="button"
-                  className={selectedCard.color === color ? "color-swatch active" : "color-swatch"}
-                  style={{ background: color }}
-                  aria-label={`Color ${color}`}
-                  aria-pressed={selectedCard.color === color}
-                  onClick={() => editNote({ color })}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-        {error && (
-          <p className="form-error" role="alert">
-            {error}
-          </p>
-        )}
-      </header>
-      {board && <RelationsLegend edges={edges} attitudeMode={filters.attitudeMode ?? false} />}
-      <div className="rel-canvas">
-        {!board ? (
-          <p className="cal-help rel-empty">{boards?.length ? "Open a board, or start a new one." : "Boards are canvases you arrange yourself: put articles and notes on one, and their relationships draw themselves."}</p>
-        ) : canvasCards.length === 0 ? (
-          <p className="cal-help rel-empty">An empty board. Add an article or a note above.</p>
-        ) : (
+    <RelWorkspace rail={rail}>
+      {!board ? (
+        <StageEmpty Icon={LayoutDashboard} title={boards?.length ? "Open a board" : "Start your first board"}>
+          {boards?.length ? "Pick one on the left, or start a new one." : "A board is a canvas you arrange yourself: a conspiracy, a royal court, the party's contacts."}
+        </StageEmpty>
+      ) : canvasCards.length === 0 ? (
+        <StageEmpty Icon={StickyNote} title="An empty board">
+          Add articles or notes from the left. Ties between the articles draw themselves.
+        </StageEmpty>
+      ) : (
+        <>
           <RelationsCanvas
-            key={canvasKey}
+            key={board.id}
             cards={canvasCards}
             lines={lines}
             attitudeMode={filters.attitudeMode ?? false}
             onOpen={(e) => openArticle(e.template, e.id)}
             onMoved={moved}
             onSelect={setSelected}
+            onDelete={removeCards}
+            onNoteText={(id, text) => editCard(id, { text })}
+            renderToolbar={renderToolbar}
           />
-        )}
-      </div>
-      <p className="cal-help">
-        Drag cards to arrange them; double-click an article to open it. Select a card to add its ties or remove it.
-        {missing > 0 && ` ${missing} card(s) point to deleted articles and stay hidden until they're restored.`}
-      </p>
-      <ConfirmDialog open={deleting} title="Delete board?" confirmLabel="Delete board" onConfirm={remove} onCancel={() => setDeleting(false)}>
-        <p>“{board?.name}” and its notes will be deleted. The articles and their relationships stay.</p>
+          {edges.length > 0 && (
+            <details className="rel-legend-panel">
+              <summary>Legend</summary>
+              <RelationsLegend edges={edges} attitudeMode={filters.attitudeMode ?? false} />
+            </details>
+          )}
+        </>
+      )}
+      {!board && (
+        <button type="button" className="btn btn-create rel-stage-cta" onClick={create}>
+          <Plus size={14} /> New board
+        </button>
+      )}
+      {board && (
+        <div className="rel-focus-pill">
+          <LayoutDashboard size={13} aria-hidden /> {board.name}
+          <span className={`rel-save rel-save-${saveState}`} aria-live="polite">
+            {saveState === "saving" && (
+              <>
+                <Loader2 size={12} className="rel-spin" /> Saving
+              </>
+            )}
+            {saveState === "saved" && (
+              <>
+                <Check size={12} /> Saved
+              </>
+            )}
+            {saveState === "error" && "Not saved"}
+          </span>
+          {missing > 0 && (
+            <span className="rel-muted" data-tooltip="They come back if the articles are restored">
+              {missing} hidden
+            </span>
+          )}
+        </div>
+      )}
+      <ConfirmDialog open={deleting !== null} title="Delete board?" confirmLabel="Delete board" onConfirm={remove} onCancel={() => setDeleting(null)}>
+        <p>“{deleting?.name}” and its notes will be deleted. The articles and their relationships stay.</p>
       </ConfirmDialog>
-    </div>
+    </RelWorkspace>
   );
 }

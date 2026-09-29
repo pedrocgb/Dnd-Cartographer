@@ -5,6 +5,8 @@ import { CHARACTER_INFO } from "./character";
 import { CONFLICT_INFO } from "./conflict";
 import { CULTURE_INFO } from "./culture";
 import { DOCUMENT_INFO } from "./document";
+import { FAUNA_INFO } from "./fauna";
+import { FLORA_INFO } from "./flora";
 import { GENERIC_INFO } from "./generic";
 import { GEOGRAPHY_INFO } from "./geography";
 import { ITEM_INFO } from "./item";
@@ -12,6 +14,7 @@ import { LANGUAGE_INFO } from "./language";
 import { LAW_INFO } from "./law";
 import { MAGIC_INFO } from "./magic";
 import { MILITARY_INFO } from "./military";
+import { MONSTER_INFO } from "./monster";
 import { ORGANIZATION_INFO } from "./organization";
 import { PLAYER_CHARACTER_INFO } from "./player-character";
 import { RELIGION_INFO } from "./religion";
@@ -43,6 +46,9 @@ export const INFO_FIELD_SETS: Partial<Record<ArticleTemplateKey, InfoFieldSet>> 
   tradition: TRADITION_INFO,
   culture: CULTURE_INFO,
   species: SPECIES_INFO,
+  fauna: FAUNA_INFO,
+  flora: FLORA_INFO,
+  monster: MONSTER_INFO,
   religion: RELIGION_INFO,
   item: ITEM_INFO,
   magic: MAGIC_INFO,
@@ -56,6 +62,8 @@ export {
   CONFLICT_INFO,
   CULTURE_INFO,
   DOCUMENT_INFO,
+  FAUNA_INFO,
+  FLORA_INFO,
   GENERIC_INFO,
   GEOGRAPHY_INFO,
   ITEM_INFO,
@@ -63,6 +71,7 @@ export {
   LAW_INFO,
   MAGIC_INFO,
   MILITARY_INFO,
+  MONSTER_INFO,
   ORGANIZATION_INFO,
   PLAYER_CHARACTER_INFO,
   RELIGION_INFO,

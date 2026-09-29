@@ -8,6 +8,8 @@ import { resolveChain, levelsByProfileId, toTerritoryLike, getAuthoritiesForChai
 import { validateChain, computeMissingRequiredTypes } from "@/server/politics/hierarchy-config";
 import { sanitizeInfo } from "@/server/articles/info-fields";
 import { TERRITORY_INFO } from "@/server/articles/info-sets";
+import { RelationError } from "@/server/relations/store";
+import { withRelationSync } from "@/server/relations/sync";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -117,7 +119,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (changingProfile) patch.hierarchyProfileId = nextProfileId;
   }
 
-  const [updated] = await db.update(territories).set(patch).where(eq(territories.id, id)).returning();
+  let updated;
+  try {
+    updated = await withRelationSync(TERRITORY_INFO, territory, body.info, async (ex) => {
+      const [row] = await ex.update(territories).set(patch).where(eq(territories.id, id)).returning();
+      return row;
+    });
+  } catch (err) {
+    if (err instanceof RelationError) return NextResponse.json({ error: err.message }, { status: 409 });
+    throw err;
+  }
   return NextResponse.json({ territory: updated });
 }
 

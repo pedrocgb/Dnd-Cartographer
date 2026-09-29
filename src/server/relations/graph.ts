@@ -152,7 +152,7 @@ export function webEdges(catalog: Catalog, relations: readonly GraphRelation[], 
   const related = new Set<string>();
   for (const r of relations) {
     const type = relationType(r.type);
-    if (!type || !keep(r.fromId) || !keep(r.toId)) continue;
+    if (!type || type.hidden || !keep(r.fromId) || !keep(r.toId)) continue;
     related.add(pair(r.fromId, r.toId));
     if (filters.hideSecrets && r.secret) continue;
     if (filters.groups?.length && !filters.groups.includes(type.group)) continue;

@@ -12,6 +12,7 @@ import {
   EyeOff,
   Palette,
   GripVertical,
+  Link2,
   Maximize2,
   Plus,
   Search,
@@ -21,7 +22,9 @@ import {
 } from "lucide-react";
 import {
   MAX_INFO_TEXT_LENGTH,
+  MAX_INFO_URL_LENGTH,
   isListField,
+  sanitizeUrl,
   type InfoField,
   type InfoFieldKind,
   type InfoFieldSet,
@@ -51,6 +54,7 @@ const KIND: Record<InfoFieldKind, { Icon: LucideIcon; hint: string }> = {
   select: { Icon: ArrowDownWideNarrow, hint: "Dropdown" },
   link: { Icon: ExternalLink, hint: "Link" },
   color: { Icon: Palette, hint: "Color" },
+  url: { Icon: Link2, hint: "Web address" },
 };
 
 const isEmpty = (v: InfoValue | undefined) => v === null || v === undefined || v === "" || (Array.isArray(v) && v.length === 0);
@@ -219,6 +223,12 @@ export function InfoView({
               <span className="info-color-swatch" style={{ background: String(value) }} aria-hidden />
               {String(value)}
             </span>
+          );
+        } else if (field.kind === "url") {
+          shown = (
+            <a className="info-url" href={String(value)} target="_blank" rel="noopener noreferrer">
+              {String(value)}
+            </a>
           );
         } else if (field.kind === "link" && field.link) {
           const ids = Array.isArray(value) ? value : [value as string];
@@ -433,6 +443,24 @@ function FieldEditor({
         value={(value as string | null) ?? ""}
         maxLength={MAX_INFO_TEXT_LENGTH}
         onChange={(e) => onChange(e.target.value)}
+      />
+    );
+  }
+
+  if (field.kind === "url") {
+    const text = (value as string | null) ?? "";
+    const invalid = text.trim() !== "" && !sanitizeUrl(text);
+    return (
+      <input
+        type="url"
+        data-field={field.key}
+        aria-label={field.label}
+        aria-invalid={invalid || undefined}
+        placeholder="https://"
+        value={text}
+        maxLength={MAX_INFO_URL_LENGTH}
+        onChange={(e) => onChange(e.target.value)}
+        data-tooltip={invalid ? "Needs a full address starting with http:// or https:// (otherwise it isn't saved)" : undefined}
       />
     );
   }

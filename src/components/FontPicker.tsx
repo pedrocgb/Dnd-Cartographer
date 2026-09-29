@@ -14,10 +14,13 @@ import { MAP_FONTS, mapFontFamily, type MapFontKey } from "@/server/texts/fonts"
 export default function FontPicker({
   value,
   bold,
+  mixed = false,
   onChange,
 }: {
   value: MapFontKey;
   bold: boolean;
+  /** The edited texts use different fonts. */
+  mixed?: boolean;
   onChange: (key: MapFontKey) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -92,7 +95,7 @@ export default function FontPicker({
         onClick={() => (open ? setOpen(false) : openList())}
         onKeyDown={onKeyDown}
       >
-        <span style={{ fontFamily: mapFontFamily(current.key), fontWeight }}>{current.label}</span>
+        {mixed ? <span className="field-label">Mixed</span> : <span style={{ fontFamily: mapFontFamily(current.key), fontWeight }}>{current.label}</span>}
         <ChevronDown size={14} strokeWidth={2.25} aria-hidden />
       </button>
       {open && (
@@ -113,7 +116,7 @@ export default function FontPicker({
               }}
             >
               {f.label}
-              {f.key === value && <Check size={13} strokeWidth={2.5} aria-hidden />}
+              {!mixed && f.key === value && <Check size={13} strokeWidth={2.5} aria-hidden />}
             </li>
           ))}
         </ul>

@@ -3,6 +3,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { mapLines, maps } from "@/server/db/schema";
 import { isLayerOfMap } from "@/server/layers/layers";
+import { folderError, sanitizeFolderName, topSortOrder } from "@/server/maps/layer-folders";
 import { LINE_KINDS, defaultLineStyle, sanitizeLinePatch, sanitizePoints, toClientLine, type LineKind } from "@/server/lines/line-config";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ mapId: string }> }) {
@@ -33,10 +34,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ map
   const points = sanitizePoints(kind, body.points, frame);
   if (!points) return NextResponse.json({ error: "A line needs 2 or more valid points." }, { status: 400 });
 
+  const groupId: string | null = typeof body.groupId === "string" ? body.groupId : null;
+  const groupError = await folderError("line", groupId, mapId, body.layerId);
+  if (groupError) return NextResponse.json({ error: groupError }, { status: 409 });
+
   const style = { ...defaultLineStyle(frame.width, frame.height), ...sanitizeLinePatch(body, frame) };
+  const sortOrder = await topSortOrder("line", mapId, groupId);
   const [created] = await db
     .insert(mapLines)
-    .values({ ...style, mapId, layerId: body.layerId, kind, points: JSON.stringify(points) })
+    .values({ ...style, mapId, layerId: body.layerId, groupId, name: sanitizeFolderName(body.name), sortOrder, kind, points: JSON.stringify(points) })
     .returning();
   return NextResponse.json({ line: toClientLine(created) }, { status: 201 });
 }

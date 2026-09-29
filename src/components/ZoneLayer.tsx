@@ -1,5 +1,6 @@
 "use client";
 
+import type { MapFolderData } from "./LayerFolders";
 import { useEffect, useRef, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import type OpenSeadragonType from "openseadragon";
@@ -8,15 +9,8 @@ import { OVERLAY_Z, addFullMapOverlay, removeFullMapOverlay } from "./osd-overla
 import { clientToImagePoint, frameSize, screenPxPerImagePx as imagePxScale } from "./osd-coords";
 import { applyStroke, multiPolygonPath, toMultiPolygon, translateArea, type AreaGeom } from "./zone-paint";
 
-export interface ZoneRegionData {
-  id: string;
-  mapId: string;
-  layerId: string | null;
-  name: string;
-  visible: boolean;
-  locked: boolean;
-  sortOrder: number;
-}
+/** A zone region: a folder of zones (see LayerFolders). */
+export type ZoneRegionData = MapFolderData;
 
 export interface ZoneData {
   id: string;
@@ -94,6 +88,8 @@ interface Props {
   activeRegionId: string | null;
   selectedZoneId: string | null;
   onSelectZone: (id: string | null) => void;
+  /** Ctrl/Cmd+click: add the zone to (or take it out of) the selection. */
+  onToggleZone?: (id: string) => void;
   onCreateZone: (regionId: string, shapeType: ZoneData["shapeType"], geometry: AnyGeom) => void;
   onUpdateZoneGeometry: (zoneId: string, geometry: AnyGeom) => void;
   /** Result of a brush/eraser stroke on an existing zone — null when the eraser removed all of it. */
@@ -149,6 +145,7 @@ export default function ZoneLayer({
   activeRegionId,
   selectedZoneId,
   onSelectZone,
+  onToggleZone,
   onCreateZone,
   onUpdateZoneGeometry,
   onPaintZone,
@@ -471,6 +468,7 @@ export default function ZoneLayer({
     if (e.button !== 0) return;
     if (zone.locked) return;
     e.stopPropagation();
+    if ((e.ctrlKey || e.metaKey) && onToggleZone) return onToggleZone(zone.id);
     const startImg = toImagePoint(e.clientX, e.clientY);
     if (!startImg) return;
     const original = parseGeom(zone);

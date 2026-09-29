@@ -12,7 +12,10 @@ import {
   Languages,
   Map as MapIcon,
   MapPinned,
+  PawPrint,
   Scale,
+  Skull,
+  Sprout,
   Shield,
   Sword,
   Swords,
@@ -114,6 +117,21 @@ const DETAILS: Record<ArticleTemplateKey, Omit<ArticleTemplate, "key" | "label">
     plural: "Species",
     Icon: Dna,
     description: "Peoples, beasts and monsters: their origins, their nature, and how to survive them.",
+  },
+  fauna: {
+    plural: "Fauna",
+    Icon: PawPrint,
+    description: "Animals of the wild and the farm: where they roam, what they eat, and what people make of them.",
+  },
+  flora: {
+    plural: "Flora",
+    Icon: Sprout,
+    description: "Trees, herbs, fungi and stranger growths: where they grow, what they heal, and what they poison.",
+  },
+  monster: {
+    plural: "Monsters",
+    Icon: Skull,
+    description: "Creatures to fear: their lairs, their habits, their legends, and a link to their stat block.",
   },
   religion: {
     plural: "Religion",

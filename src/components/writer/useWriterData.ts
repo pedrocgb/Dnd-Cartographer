@@ -76,6 +76,7 @@ export const upsert = <T extends { id: string }>(list: T[], item: T) => (list.so
 export function useCampaigns() {
   const [campaigns, setCampaigns] = useState<ClientCampaign[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [version, setVersion] = useState(0);
   useEffect(() => {
     let cancelled = false;
     void api<{ campaigns: ClientCampaign[] }>("GET", "/api/campaigns").then((res) => {
@@ -86,7 +87,9 @@ export function useCampaigns() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [version]);
   const replace = useCallback((c: ClientCampaign) => setCampaigns((list) => (list ? upsert(list, c) : [c])), []);
-  return { campaigns, error, replace };
+  /** Loads the list again (campaigns changed elsewhere). */
+  const reload = useCallback(() => setVersion((v) => v + 1), []);
+  return { campaigns, error, replace, reload };
 }
