@@ -38,6 +38,23 @@ const SHAPES: Record<string, { d: string; viewH: number; glyphScale: number; gly
   pin: { d: "M18 44.5C13 38.5 2 28.5 2 18A16 16 0 1 1 34 18C34 28.5 23 38.5 18 44.5Z", viewH: 46, glyphScale: 0.92, glyphCy: 18 },
 };
 
+/** A shape's outline alone, for the editor's shape picker; "none" is a dashed circle. */
+export function ShapeSilhouette({ shape, size = 18 }: { shape: string; size?: number }) {
+  const def = SHAPES[shape];
+  if (!def) {
+    return (
+      <svg viewBox="0 0 36 36" width={size} height={size} aria-hidden="true">
+        <circle cx="18" cy="18" r="14" fill="none" stroke="currentColor" strokeWidth={2.5} strokeDasharray="4 4" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox={`0 0 36 ${def.viewH}`} height={size} width={(size * 36) / def.viewH} aria-hidden="true" style={{ overflow: "visible" }}>
+      <path d={def.d} fill="currentColor" fillOpacity={0.18} stroke="currentColor" strokeWidth={2.5} strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 /**
  * The full on-map marker visual: a colored backing shape (an SVG path with
  * the outline color as its stroke) behind a single-color glyph. `size` is
