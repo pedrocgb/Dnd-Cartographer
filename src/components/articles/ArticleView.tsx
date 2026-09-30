@@ -9,6 +9,7 @@ import CalendarBacklinks from "@/components/calendars/CalendarBacklinks";
 import SessionBacklinks from "@/components/sessions/SessionBacklinks";
 import QuestBacklinks from "@/components/quests/QuestBacklinks";
 import MentionBacklinks from "@/components/MentionBacklinks";
+import ArticleMapPresence from "./ArticleMapPresence";
 import type { ArticleTemplateKey } from "@/server/articles/templates";
 import { templateOf } from "./templates";
 import TagEditor from "./TagEditor";
@@ -331,6 +332,7 @@ export default function ArticleView({
         )}
       </div>
       {articleId && <RelationshipsCard key={`relations:${articleId}`} recordId={articleId} template={template} />}
+      {articleId && <ArticleMapPresence key={`map:${articleId}`} template={template} articleId={articleId} title={title} />}
       {articleId && <CalendarBacklinks key={articleId} articleId={articleId} />}
       {articleId && <SessionBacklinks key={`sessions:${articleId}`} articleId={articleId} />}
       {articleId && <QuestBacklinks key={`quests:${articleId}`} articleId={articleId} />}

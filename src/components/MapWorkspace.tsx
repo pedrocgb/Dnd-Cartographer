@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { isArticleTemplate, type ArticleTemplateKey } from "@/server/articles/templates";
 import { MapPin, ZoomIn, ZoomOut, Home, Maximize, Minimize, Undo2, Redo2 } from "lucide-react";
 import type OpenSeadragonType from "openseadragon";
 import MarkerLayer, { type Marker } from "./MarkerLayer";
@@ -48,6 +49,13 @@ import {
 } from "@/server/markers/icon-registry";
 
 const ICON_UNIVERSE = ICONS.map((i) => i.key);
+
+/** The article a `?place=<template>:<id>` link asks to place a marker for, or null when absent or malformed. */
+function parsePlaceParam(place: string | null, name: string | null): { template: ArticleTemplateKey; id: string; name: string } | null {
+  const [template, id] = place?.split(":") ?? [];
+  if (!isArticleTemplate(template) || !id) return null;
+  return { template, id, name: name?.trim().slice(0, 120) || "the article" };
+}
 
 /** Where a marker is drawn relative to its anchor, for the selection tool (screen px). */
 function markerHitShape(m: Pick<Marker, "backgroundShape" | "importance">): { lift: number; radius: number } {
@@ -352,8 +360,31 @@ export default function MapWorkspace({
   /** Last pointer position over the map (client pixels), where Ctrl+V pastes. */
   const pointerRef = useRef<{ x: number; y: number } | null>(null);
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const deepLinkedMarkerId = searchParams.get("marker");
   const deepLinkAppliedRef = useRef(false);
+
+  // "Place on map" from an article (?place=<template>:<id>&placeName=…): the
+  // page opens in add-marker mode, and the next click places a marker linked
+  // to that article as its main one. Any other end of add mode drops it.
+  const [placing, setPlacing] = useState(() => parsePlaceParam(searchParams.get("place"), searchParams.get("placeName")));
+  const [placeArmed, setPlaceArmed] = useState(false);
+  if (placing && !placeArmed) {
+    setPlaceArmed(true);
+    setAddingMarker(true);
+  } else if (placing && placeArmed && !addingMarker) {
+    setPlacing(null);
+  }
+  const placeParam = searchParams.get("place");
+  useEffect(() => {
+    if (placing || !placeParam) return;
+    const rest = new URLSearchParams(searchParams.toString());
+    rest.delete("place");
+    rest.delete("placeName");
+    const query = rest.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }, [placing, placeParam, searchParams, router, pathname]);
 
   useEffect(() => {
     let cancelled = false;
@@ -795,10 +826,16 @@ export default function MapWorkspace({
 
   function placeMarker(u: number, v: number) {
     setAddingMarker(false);
+    const forArticle = placing;
+    // Placed for an article: the server names it after the article and gives it the template's icon.
+    const { iconKey, ...look } = lastChoiceRef.current;
+    const body = forArticle
+      ? { u, v, layerId: activeLayerId, ...look, article: { template: forArticle.template, id: forArticle.id } }
+      : { name: "New marker", u, v, layerId: activeLayerId, iconKey, ...look };
     fetch(`/api/maps/${mapId}/markers`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: "New marker", u, v, layerId: activeLayerId, ...lastChoiceRef.current }),
+      body: JSON.stringify(body),
     })
       .then((r) => json<{ marker: Marker }>(r))
       .then((d) => {
@@ -806,8 +843,9 @@ export default function MapWorkspace({
         setMarkers((prev) => [...prev, d.marker]);
         recordCreate("marker", d.marker.id);
         setSelectedMarkerId(d.marker.id);
-        setAutoFocusName(true);
-        setStartInEdit(true);
+        // An article's marker is already named and linked: open it to read, not to type a name.
+        setAutoFocusName(!forArticle);
+        setStartInEdit(!forArticle);
         ensureIconVisible(d.marker.iconKey);
       });
   }
@@ -1885,7 +1923,7 @@ export default function MapWorkspace({
             onClick={() => setAddingMarker((a) => !a)}
           >
             <MapPin size={15} strokeWidth={2.25} />
-            {addingMarker ? "Click the map…" : "Add marker"}
+            {addingMarker ? (placing ? `Click the map to place “${placing.name}”…` : "Click the map…") : "Add marker"}
           </button>
 
           <select
