@@ -70,6 +70,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ mar
         statusTags: source.statusTags,
         environment: source.environment,
         ownership: source.ownership,
+        labelMode: source.labelMode,
+        importance: source.importance,
         ...(exact ? { locked: source.locked, descriptionDocumentId } : {}),
       })
       .returning();
@@ -104,6 +106,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ mar
             template: l.template,
             articleId: l.articleId,
             label: l.label,
+            isPrimary: l.isPrimary,
           }))
         );
       }

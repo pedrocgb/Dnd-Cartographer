@@ -57,6 +57,8 @@ export interface ExportedMarker {
   statusTags?: string;
   environment?: string | null;
   ownership?: string | null;
+  labelMode?: string;
+  importance?: string;
   deletedAt: string | null;
 }
 

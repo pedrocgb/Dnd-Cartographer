@@ -4,6 +4,8 @@
  * if Lucide renames/removes an export, only this file's `lucide` value
  * needs to change, and every saved marker keeps working.
  */
+import type { ArticleTemplateKey } from "@/server/articles/templates";
+
 /** Picker sections, in display order. */
 export const ICON_GROUPS = ["Settlements", "Structures", "Nature", "Creatures", "Travel", "Adventure", "Combat", "Services", "Magic", "Danger", "Shapes"] as const;
 export type IconGroup = (typeof ICON_GROUPS)[number];
@@ -250,9 +252,13 @@ export function normalizeColor(input: string, fallback: string = DEFAULT_COLOR):
   return trimmed.toUpperCase();
 }
 
+/** The pin's backing, in the order the editor's shape strip shows them. */
 export const BACKGROUND_SHAPES = [
   { key: "circle", label: "Circle" },
+  { key: "pin", label: "Pin" },
   { key: "square", label: "Square" },
+  { key: "diamond", label: "Diamond" },
+  { key: "shield", label: "Shield" },
   { key: "none", label: "None" },
 ] as const;
 
@@ -263,6 +269,40 @@ export const DEFAULT_BACKGROUND_SHAPE: BackgroundShape = "circle";
 
 export function isValidBackgroundShape(key: string): key is BackgroundShape {
   return BACKGROUND_SHAPE_KEYS.has(key);
+}
+
+/** Where the marker's map coordinate sits on its visual: a pin's tip, every other shape's center. */
+export function shapeAnchor(shape: string): "tip" | "center" {
+  return shape === "pin" ? "tip" : "center";
+}
+
+/** When the marker's name shows on the map. */
+export const LABEL_MODES = [
+  { key: "hover", label: "On hover" },
+  { key: "always", label: "Always" },
+  { key: "never", label: "Never" },
+] as const;
+export type LabelMode = (typeof LABEL_MODES)[number]["key"];
+export const DEFAULT_LABEL_MODE: LabelMode = "hover";
+const LABEL_MODE_KEYS = new Set<string>(LABEL_MODES.map((m) => m.key));
+export function isValidLabelMode(key: string): key is LabelMode {
+  return LABEL_MODE_KEYS.has(key);
+}
+
+/** How prominent the pin is on the map: sets its glyph size in pixels. */
+export const IMPORTANCE_LEVELS = [
+  { key: "major", label: "Major", size: 28 },
+  { key: "normal", label: "Normal", size: 22 },
+  { key: "minor", label: "Minor", size: 16 },
+] as const;
+export type Importance = (typeof IMPORTANCE_LEVELS)[number]["key"];
+export const DEFAULT_IMPORTANCE: Importance = "normal";
+const IMPORTANCE_KEYS = new Set<string>(IMPORTANCE_LEVELS.map((l) => l.key));
+export function isValidImportance(key: string): key is Importance {
+  return IMPORTANCE_KEYS.has(key);
+}
+export function importanceSize(key: string): number {
+  return IMPORTANCE_LEVELS.find((l) => l.key === key)?.size ?? 22;
 }
 
 /**
@@ -290,6 +330,31 @@ export function isValidMarkerCategory(key: string): key is MarkerCategory {
   return MARKER_CATEGORY_SET.has(key);
 }
 export const DEFAULT_MARKER_CATEGORY: MarkerCategory = "Point of Interest";
+
+/**
+ * The icon and category a marker is given when it is placed for (or first
+ * linked to) an article of this template. Templates left out keep the
+ * marker's current look.
+ */
+export const TEMPLATE_MARKER_DEFAULTS: Partial<Record<ArticleTemplateKey, { iconKey: string; category: MarkerCategory }>> = {
+  character: { iconKey: "chess-king", category: "Point of Interest" },
+  playerCharacter: { iconKey: "footprints", category: "Point of Interest" },
+  organization: { iconKey: "handshake", category: "Point of Interest" },
+  territory: { iconKey: "flag", category: "Settlement" },
+  settlement: { iconKey: "houses", category: "Settlement" },
+  building: { iconKey: "landmark", category: "Landmark" },
+  geography: { iconKey: "mountain", category: "Natural Feature" },
+  military: { iconKey: "swords", category: "Fortification" },
+  conflict: { iconKey: "crosshair", category: "Danger" },
+  religion: { iconKey: "church", category: "Religious" },
+  species: { iconKey: "paw-print", category: "Natural Feature" },
+  fauna: { iconKey: "rabbit", category: "Natural Feature" },
+  flora: { iconKey: "sprout", category: "Natural Feature" },
+  monster: { iconKey: "skull", category: "Danger" },
+  item: { iconKey: "gem", category: "Point of Interest" },
+  magic: { iconKey: "sparkles", category: "Magical" },
+  document: { iconKey: "scroll", category: "Point of Interest" },
+};
 
 /** Icons whose label, key or synonyms contain the query (case-insensitive), in registry order. */
 export function searchIcons(query: string): IconDefinition[] {

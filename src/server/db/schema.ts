@@ -217,6 +217,10 @@ export const markers = sqliteTable(
     statusTags: text("status_tags").notNull().default("[]"),
     environment: text("environment"),
     ownership: text("ownership"),
+    // When the name shows on the map: hover | always | never (see icon-registry LABEL_MODES).
+    labelMode: text("label_mode").notNull().default("hover"),
+    // Pin size on the map: major | normal | minor (see icon-registry IMPORTANCE_LEVELS).
+    importance: text("importance").notNull().default("normal"),
     visible: integer("visible", { mode: "boolean" }).notNull().default(true),
     locked: integer("locked", { mode: "boolean" }).notNull().default(false),
     revision: integer("revision").notNull().default(0),
@@ -698,9 +702,15 @@ export const markerArticleLinks = sqliteTable(
     articleId: text("article_id").notNull(),
     // Optional relationship to the marker (e.g. "Lord of this keep").
     label: text("label").notNull().default(""),
+    // The marker's main subject: drives its hover card and view-mode card. At most one per marker.
+    isPrimary: integer("is_primary", { mode: "boolean" }).notNull().default(false),
     ...timestamps,
   },
-  (table) => [index("marker_article_links_marker_idx").on(table.markerId)]
+  (table) => [
+    index("marker_article_links_marker_idx").on(table.markerId),
+    index("marker_article_links_article_idx").on(table.articleId),
+    uniqueIndex("marker_article_links_primary_idx").on(table.markerId).where(sql`${table.isPrimary} = 1`),
+  ]
 );
 
 // ---------- Articles ----------

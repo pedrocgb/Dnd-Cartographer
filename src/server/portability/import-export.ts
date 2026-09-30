@@ -7,6 +7,10 @@ import {
   isValidIconKey,
   normalizeColor,
   isValidBackgroundShape,
+  isValidLabelMode,
+  isValidImportance,
+  DEFAULT_LABEL_MODE,
+  DEFAULT_IMPORTANCE,
   DEFAULT_ICON_KEY,
   DEFAULT_COLOR,
   DEFAULT_BACKGROUND_COLOR,
@@ -177,6 +181,8 @@ export async function importBundle(raw: unknown, worldId: string): Promise<Impor
       statusTags: encodeStatusTags(parseJsonArraySafe(marker.statusTags)),
       environment: marker.environment && isValidEnvironmentTag(marker.environment) ? marker.environment : null,
       ownership: marker.ownership && isValidOwnershipTag(marker.ownership) ? marker.ownership : null,
+      labelMode: marker.labelMode && isValidLabelMode(marker.labelMode) ? marker.labelMode : DEFAULT_LABEL_MODE,
+      importance: marker.importance && isValidImportance(marker.importance) ? marker.importance : DEFAULT_IMPORTANCE,
       deletedAt: marker.deletedAt ? new Date(marker.deletedAt) : null,
     });
     markersCreated += 1;

@@ -7,6 +7,8 @@ import {
   normalizeColor,
   isValidBackgroundShape,
   isValidMarkerCategory,
+  isValidLabelMode,
+  isValidImportance,
   DEFAULT_COLOR,
   DEFAULT_BACKGROUND_COLOR,
   DEFAULT_OUTLINE_COLOR,
@@ -39,6 +41,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ma
   if (typeof body.backgroundShape === "string" && isValidBackgroundShape(body.backgroundShape))
     patch.backgroundShape = body.backgroundShape;
   if (typeof body.category === "string" && isValidMarkerCategory(body.category)) patch.category = body.category;
+  if (typeof body.labelMode === "string" && isValidLabelMode(body.labelMode)) patch.labelMode = body.labelMode;
+  if (typeof body.importance === "string" && isValidImportance(body.importance)) patch.importance = body.importance;
   if (typeof body.locked === "boolean") patch.locked = body.locked;
   if (typeof body.visible === "boolean") patch.visible = body.visible;
   if ("descriptionDocumentId" in body) {

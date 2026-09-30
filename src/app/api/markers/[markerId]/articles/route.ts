@@ -1,24 +1,23 @@
 import { NextResponse } from "next/server";
-import { and, asc, eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { markerArticleLinks, markers } from "@/server/db/schema";
 import { ensureDefaultWorld } from "@/server/world/default-world";
-import { findArticleName, genericTemplateOf, resolveArticleNames } from "@/server/articles/lookup";
-import { isArticleTemplate, isRecordTemplate } from "@/server/articles/templates";
+import { resolveArticleNames, verifiedArticleName } from "@/server/articles/lookup";
+import { isArticleTemplate } from "@/server/articles/templates";
+import { linksOfMarker, setPrimaryLink } from "@/server/markers/article-links";
 
 const MAX_LABEL_LENGTH = 80;
 
-/** The marker's linked articles, oldest first; `name` is null once the article is deleted. */
+/** The marker's linked articles, primary first then oldest; `name` is null once the article is deleted. */
 export async function GET(_request: Request, { params }: { params: Promise<{ markerId: string }> }) {
   const { markerId } = await params;
-  const rows = await db.query.markerArticleLinks.findMany({
-    where: eq(markerArticleLinks.markerId, markerId),
-    orderBy: asc(markerArticleLinks.createdAt),
-  });
+  const rows = await linksOfMarker(markerId);
   const names = await resolveArticleNames(rows);
   return NextResponse.json({ links: rows.map((r) => ({ ...r, name: names.get(r.articleId) ?? null })) });
 }
 
+/** Links an article. The marker's first link, or one sent with `primary: true`, becomes its primary article. */
 export async function POST(request: Request, { params }: { params: Promise<{ markerId: string }> }) {
   const { markerId } = await params;
   const marker = await db.query.markers.findFirst({ where: eq(markers.id, markerId) });
@@ -30,11 +29,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ mar
   if (!isArticleTemplate(template)) return NextResponse.json({ error: "Unknown article template." }, { status: 400 });
   if (!articleId) return NextResponse.json({ error: "articleId is required." }, { status: 400 });
 
-  // A generic article's id must belong to that template (the name lookup alone can't tell a law from a settlement).
-  if (!isRecordTemplate(template) && (await genericTemplateOf(articleId)) !== template) {
-    return NextResponse.json({ error: "Article not found." }, { status: 404 });
-  }
-  const name = await findArticleName(template, articleId);
+  const name = await verifiedArticleName(template, articleId);
   if (!name) return NextResponse.json({ error: "Article not found." }, { status: 404 });
 
   const existing = await db.query.markerArticleLinks.findFirst({
@@ -44,6 +39,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ mar
 
   const worldId = await ensureDefaultWorld();
   const label = typeof body?.label === "string" ? body.label.trim().slice(0, MAX_LABEL_LENGTH) : "";
-  const [created] = await db.insert(markerArticleLinks).values({ worldId, markerId, template, articleId, label }).returning();
+  const created = await db.transaction(async (tx) => {
+    const hasPrimary = await tx.query.markerArticleLinks.findFirst({
+      where: and(eq(markerArticleLinks.markerId, markerId), eq(markerArticleLinks.isPrimary, true)),
+    });
+    const [row] = await tx.insert(markerArticleLinks).values({ worldId, markerId, template, articleId, label }).returning();
+    if (!hasPrimary || body?.primary === true) {
+      await setPrimaryLink(tx, markerId, row.id);
+      return { ...row, isPrimary: true };
+    }
+    return row;
+  });
   return NextResponse.json({ link: { ...created, name } }, { status: 201 });
 }

@@ -93,6 +93,8 @@ export async function buildExport(worldId: string): Promise<ExportBundle> {
       statusTags: m.statusTags,
       environment: m.environment,
       ownership: m.ownership,
+      labelMode: m.labelMode,
+      importance: m.importance,
       deletedAt: m.deletedAt ? m.deletedAt.toISOString() : null,
     })),
   };
