@@ -12,7 +12,8 @@ type Pt = { x: number; y: number };
 type PenPt = Pt & { cin?: Pt; cout?: Pt };
 
 export interface HitScene {
-  markers: { id: string; x: number; y: number }[];
+  /** `lift`/`radius` are screen px: how far the drawn marker sits above its anchor, and its half-size. */
+  markers: { id: string; x: number; y: number; lift?: number; radius?: number }[];
   texts: { id: string; x: number; y: number; text: string; fontSize: number; letterSpacing: number; rotation: number }[];
   lines: { id: string; points: PenPt[]; width: number }[];
   /** In paint order: the last one is drawn on top. */
@@ -30,6 +31,14 @@ export interface Hit {
 export const MARKER_HIT_PX = 14;
 export const LINE_HIT_PX = 6;
 const CURVE_SAMPLES = 16;
+
+/** A marker's pickable square in image px, centered on what is drawn (above the anchor for a pin). */
+export function markerHitBox(m: { x: number; y: number; lift?: number; radius?: number }, pxPerImage: number): Rect {
+  const scale = pxPerImage > 0 ? pxPerImage : 1;
+  const r = Math.max(MARKER_HIT_PX, m.radius ?? 0) / scale;
+  const cy = m.y - (m.lift ?? 0) / scale;
+  return { x: m.x - r, y: cy - r, width: 2 * r, height: 2 * r };
+}
 
 function inRect(p: Pt, r: Rect, pad = 0): boolean {
   return p.x >= r.x - pad && p.x <= r.x + r.width + pad && p.y >= r.y - pad && p.y <= r.y + r.height + pad;
@@ -101,12 +110,10 @@ export function inMultiPolygon(polygons: MultiPolygon, p: Pt): boolean {
 /** The topmost item under `p`: markers, then texts, lines, zones (the map's stacking order). */
 export function hitTest(scene: HitScene, p: Pt, pxPerImage: number): Hit | null {
   const scale = pxPerImage > 0 ? pxPerImage : 1;
-  const markerR = MARKER_HIT_PX / scale;
   for (let i = scene.markers.length - 1; i >= 0; i--) {
     const m = scene.markers[i];
-    if (Math.abs(p.x - m.x) <= markerR && Math.abs(p.y - m.y) <= markerR) {
-      return { kind: "marker", id: m.id, bounds: { x: m.x - markerR, y: m.y - markerR, width: 2 * markerR, height: 2 * markerR } };
-    }
+    const bounds = markerHitBox(m, scale);
+    if (inRect(p, bounds)) return { kind: "marker", id: m.id, bounds };
   }
   for (let i = scene.texts.length - 1; i >= 0; i--) {
     const t = scene.texts[i];

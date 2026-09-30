@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import type OpenSeadragonType from "openseadragon";
 import MarkerIcon from "./MarkerIcon";
+import MarkerHoverCard, { invalidateMarkerPreview } from "./MarkerHoverCard";
+import { importanceSize, shapeAnchor } from "@/server/markers/icon-registry";
 import { OVERLAY_Z } from "./osd-overlay-stack";
 import { setOsdNavEnabled } from "./osd-nav";
 
@@ -30,10 +32,16 @@ export interface Marker {
   statusTags: string[];
   environment: string | null;
   ownership: string | null;
+  /** When the name shows on the map: hover | always | never. */
+  labelMode: string;
+  /** Pin size: major | normal | minor. */
+  importance: string;
 }
 
 const DRAG_THRESHOLD_PX = 5;
 const OVERLAP_RADIUS_PX = 16;
+/** Hover wait before the article card opens, so sweeping the pointer across the map doesn't flash cards. */
+const HOVER_CARD_DELAY_MS = 300;
 
 interface Props {
   viewer: OpenSeadragonType.Viewer | null;
@@ -87,6 +95,9 @@ export default function MarkerLayer({
 }: Props) {
   const overlaysRef = useRef<Map<string, { el: HTMLDivElement; root: Root; rendered: Marker | null }>>(new Map());
   const dragRef = useRef<DragState | null>(null);
+  // The marker whose hover card is open, and the element it is anchored to.
+  const [hoverCard, setHoverCard] = useState<{ markerId: string; el: HTMLDivElement } | null>(null);
+  const hoverTimerRef = useRef<number | undefined>(undefined);
   // Overlay mousedown listeners are attached once per marker (when its
   // overlay is first created) and must never close over stale markers/selection
   // state — they read from this ref, kept current on every render, instead.
@@ -193,10 +204,23 @@ export default function MarkerLayer({
         // own wrapper above all the others while hovered — restored on
         // mouseleave — guarantees its tooltip is always on top.
         if (el.parentElement) el.parentElement.style.zIndex = String(OVERLAY_Z.hoveredMarker);
+        window.clearTimeout(hoverTimerRef.current);
+        hoverTimerRef.current = window.setTimeout(() => {
+          if (!dragRef.current) setHoverCard({ markerId, el });
+        }, HOVER_CARD_DELAY_MS);
       });
       el.addEventListener("mouseleave", () => {
         if (!dragRef.current) setOsdNavEnabled(viewer, true);
         if (el.parentElement) el.parentElement.style.zIndex = String(OVERLAY_Z.markers);
+        window.clearTimeout(hoverTimerRef.current);
+        setHoverCard((prev) => (prev?.markerId === markerId ? null : prev));
+      });
+
+      // Keyboard: Tab reaches each marker (see the tabIndex set below), Enter or Space selects it.
+      el.addEventListener("keydown", (e: KeyboardEvent) => {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        e.preventDefault();
+        callbacksRef.current.onSelectMarker(markerId);
       });
 
       // Right-click jumps straight to editing this marker's fields, instead
@@ -208,6 +232,8 @@ export default function MarkerLayer({
 
       el.addEventListener("mousedown", (e: MouseEvent) => {
         if (e.button !== 0) return; // left button only — middle stays free for panning
+        window.clearTimeout(hoverTimerRef.current);
+        setHoverCard(null);
         const { markers: currentMarkers, selectedMarkerId: currentSelected } = latestRef.current;
         const current = currentMarkers.find((m) => m.id === markerId);
         if (!current) return;
@@ -240,6 +266,11 @@ export default function MarkerLayer({
           },
         };
         dragRef.current = drag;
+        // Where on the marker it was grabbed, relative to its anchor: kept while
+        // dragging, so the anchor (a pin's tip) never jumps to the pointer.
+        const anchorAtStart = screenAnchor(current);
+        const grab = { x: e.clientX - anchorAtStart.x, y: e.clientY - anchorAtStart.y };
+        const anchorPoint = (client: { x: number; y: number }) => toViewportPoint(client.x - grab.x, client.y - grab.y);
 
         function onMove(moveEvent: MouseEvent) {
           if (dragRef.current !== drag || drag.cancelled) return;
@@ -251,7 +282,7 @@ export default function MarkerLayer({
             drag.dragging = true;
             el.classList.add("marker-overlay-dragging");
           }
-          viewer!.updateOverlay(el, toViewportPoint(moveEvent.clientX, moveEvent.clientY));
+          viewer!.updateOverlay(el, anchorPoint(drag.lastClient));
         }
 
         function onUp() {
@@ -267,7 +298,7 @@ export default function MarkerLayer({
           }
           if (drag.cancelled) return;
 
-          const finalPoint = toViewportPoint(drag.lastClient.x, drag.lastClient.y);
+          const finalPoint = anchorPoint(drag.lastClient);
           const imagePoint = tiledImage.viewportToImageCoordinates(finalPoint);
           const u = Math.min(1, Math.max(0, imagePoint.x / size.x));
           const v = Math.min(1, Math.max(0, imagePoint.y / size.y));
@@ -312,6 +343,12 @@ export default function MarkerLayer({
       }
 
       const clickable = interactive && (!editableIds || editableIds.has(marker.id));
+      // An open panel may change its links or description: the next hover refetches its card.
+      if (marker.id === selectedMarkerId) invalidateMarkerPreview(marker.id);
+      entry.el.tabIndex = clickable ? 0 : -1;
+      entry.el.setAttribute("role", "button");
+      entry.el.setAttribute("aria-label", marker.name);
+      entry.el.classList.toggle("marker-overlay-tip", shapeAnchor(marker.backgroundShape) === "tip");
       entry.el.classList.toggle("marker-overlay-selected", marker.id === selectedMarkerId);
       entry.el.classList.toggle("marker-overlay-noninteractive", !clickable);
       entry.el.classList.toggle("scene-focus-pulse-marker", marker.id === pulseId);
@@ -339,9 +376,11 @@ export default function MarkerLayer({
             backgroundColor={marker.backgroundColor}
             outlineColor={marker.outlineColor}
             backgroundShape={marker.backgroundShape}
-            size={22}
+            size={importanceSize(marker.importance)}
           />
-          <span className="marker-tooltip">{marker.name}</span>
+          {marker.labelMode !== "never" && (
+            <span className={marker.labelMode === "always" ? "marker-label marker-label-always" : "marker-label"}>{marker.name}</span>
+          )}
         </>
       );
     }
@@ -368,8 +407,12 @@ export default function MarkerLayer({
         queueMicrotask(() => entry.root.unmount());
       }
       overlays.clear();
+      window.clearTimeout(hoverTimerRef.current);
     };
   }, [viewer]);
 
-  return null;
+  // A card whose marker is gone, or became unpickable, closes with it.
+  const cardMarker = hoverCard && interactive ? markers.find((m) => m.id === hoverCard.markerId) : undefined;
+  if (!cardMarker) return null;
+  return <MarkerHoverCard key={cardMarker.id} markerId={cardMarker.id} anchor={hoverCard!.el} />;
 }

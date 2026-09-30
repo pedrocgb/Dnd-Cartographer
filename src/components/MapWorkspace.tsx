@@ -30,7 +30,7 @@ import { useEditHistory } from "./use-edit-history";
 import { patchOverlayPositioning } from "./osd-overlay-position-fix";
 import { clientToImagePoint, screenPxPerImagePx } from "./osd-coords";
 import { centerAt, translateZoneGeometry } from "./paste-geometry";
-import { hitTest, MARKER_HIT_PX, type Hit, type HitScene } from "./hit-test";
+import { hitTest, markerHitBox, type Hit, type HitScene } from "./hit-test";
 import { toMultiPolygon } from "./zone-paint";
 import SelectionLayer from "./SelectionLayer";
 import { useSelection, type ClickMods } from "./multi-select";
@@ -44,9 +44,16 @@ import {
   DEFAULT_BACKGROUND_COLOR,
   DEFAULT_OUTLINE_COLOR,
   DEFAULT_BACKGROUND_SHAPE,
+  markerGeometry,
 } from "@/server/markers/icon-registry";
 
 const ICON_UNIVERSE = ICONS.map((i) => i.key);
+
+/** Where a marker is drawn relative to its anchor, for the selection tool (screen px). */
+function markerHitShape(m: Pick<Marker, "backgroundShape" | "importance">): { lift: number; radius: number } {
+  const g = markerGeometry(m.backgroundShape, m.importance);
+  return { lift: g.lift, radius: g.box / 2 };
+}
 
 // Lucide's "square-dashed-mouse-pointer" glyph, inlined as a cursor — matches
 // the icon's own path data (node_modules/lucide-react .../square-dashed-mouse-pointer.mjs)
@@ -89,7 +96,7 @@ function withFolderLayers(own: readonly string[] | undefined, folder: Pick<MapFo
 
 const ITEM_API: Record<SceneKind, string> = { marker: "/api/markers", zone: "/api/zones", text: "/api/texts", line: "/api/lines" };
 /** Marker fields undo covers: map edits, not its wiki content (name, description, politics). */
-const MARKER_EDIT_KEYS = new Set(["u", "v", "iconKey", "color", "backgroundColor", "outlineColor", "backgroundShape", "layerId", "extraLayerIds"]);
+const MARKER_EDIT_KEYS = new Set(["u", "v", "iconKey", "color", "backgroundColor", "outlineColor", "backgroundShape", "labelMode", "importance", "layerId", "extraLayerIds"]);
 /** Edits made in one gesture: never merged with the next one. */
 const GESTURE_KEYS = new Set(["geometry", "points", "u", "v", "x", "y", "layerId", "extraLayerIds", "regionId"]);
 
@@ -1741,7 +1748,7 @@ export default function MapWorkspace({
     return {
       markers: layerMarkers
         .filter((m) => m.visible && (iconFilter.allOn || iconFilter.selected.has(m.iconKey)))
-        .map((m) => ({ id: m.id, x: m.u * imageWidth, y: m.v * imageHeight })),
+        .map((m) => ({ id: m.id, x: m.u * imageWidth, y: m.v * imageHeight, ...markerHitShape(m) })),
       texts: layerTexts.filter((t) => textShown(t) && !textLocked(t)),
       lines: layerLines.filter((l) => lineShown(l) && !lineLocked(l)).map((l) => ({ id: l.id, points: l.points, width: l.width })),
       zones: zonePaintOrder(layerRegions, layerZones)
@@ -1805,8 +1812,7 @@ export default function MapWorkspace({
     if (kind === "marker") {
       const m = layerMarkers.find((x) => x.id === id);
       if (!m) return null;
-      const r = MARKER_HIT_PX / screenPxPerImagePx(viewer);
-      return { x: m.u * imageWidth - r, y: m.v * imageHeight - r, width: 2 * r, height: 2 * r };
+      return markerHitBox({ x: m.u * imageWidth, y: m.v * imageHeight, ...markerHitShape(m) }, screenPxPerImagePx(viewer));
     }
     if (kind === "zone") {
       const z = layerZones.find((x) => x.id === id);

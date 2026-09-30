@@ -305,6 +305,23 @@ export function importanceSize(key: string): number {
   return IMPORTANCE_LEVELS.find((l) => l.key === key)?.size ?? 22;
 }
 
+/** The pin shape's height relative to its width (its SVG viewBox is 36×46). */
+export const PIN_ASPECT = 46 / 36;
+
+/**
+ * A marker's on-screen box in CSS pixels: `box` is its backing's width,
+ * `height` its full height (taller than `box` only for the pin), and `lift`
+ * how far the visual center sits above the map anchor (0 unless the anchor
+ * is the pin's tip).
+ */
+export function markerGeometry(shape: string, importance: string): { glyph: number; box: number; height: number; lift: number } {
+  const glyph = importanceSize(importance);
+  const box = glyph + 12;
+  if (shapeAnchor(shape) !== "tip") return { glyph, box, height: box, lift: 0 };
+  const height = Math.round(box * PIN_ASPECT);
+  return { glyph, box, height, lift: height - box / 2 };
+}
+
 /**
  * A marker's category is independent of its icon — it defaults to
  * DEFAULT_MARKER_CATEGORY at creation time but is stored on the marker

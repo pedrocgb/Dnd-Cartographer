@@ -3,7 +3,7 @@
 import { createElement } from "react";
 import * as LucideIcons from "lucide-react";
 import type { LucideProps } from "lucide-react";
-import { ICONS, DEFAULT_ICON_KEY } from "@/server/markers/icon-registry";
+import { ICONS, DEFAULT_ICON_KEY, PIN_ASPECT } from "@/server/markers/icon-registry";
 
 type IconComponent = React.ComponentType<LucideProps>;
 
@@ -20,15 +20,31 @@ export function RawIcon({ iconKey, ...props }: { iconKey: string } & LucideProps
 }
 
 /**
- * The full on-map marker visual: a colored backing shape behind a
- * single-color glyph. The backing shape's border uses the outline color;
- * the glyph itself is only ever the icon color. The box is always the same
- * size regardless of shape (only circle/square/none exist, and both circle
- * and square use the same box — just a different border-radius — so the
- * glyph is centered identically for either), and the glyph is a single,
- * unwrapped, unrotated child of the flex-centered box: no transforms, no
- * per-shape offsets, nothing that could pull it off-center. Shape "none"
- * renders the bare glyph with no backing at all.
+ * Backing shapes, drawn in a 36-unit-wide viewBox (the pin is 46 tall; see
+ * PIN_ASPECT). `glyphScale` shrinks the glyph for shapes with less room
+ * inside, and `glyphCy` is the glyph's vertical center in viewBox units —
+ * the pin's round head, the shield's upper body.
+ */
+const SHAPES: Record<string, { d: string; viewH: number; glyphScale: number; glyphCy: number }> = {
+  circle: { d: "M18 1.5a16.5 16.5 0 1 1 0 33a16.5 16.5 0 1 1 0-33z", viewH: 36, glyphScale: 1, glyphCy: 18 },
+  square: {
+    d: "M8 1.5h20a6.5 6.5 0 0 1 6.5 6.5v20a6.5 6.5 0 0 1-6.5 6.5h-20a6.5 6.5 0 0 1-6.5-6.5v-20a6.5 6.5 0 0 1 6.5-6.5z",
+    viewH: 36,
+    glyphScale: 1,
+    glyphCy: 18,
+  },
+  diamond: { d: "M18 1.5L34.5 18L18 34.5L1.5 18Z", viewH: 36, glyphScale: 0.74, glyphCy: 18 },
+  shield: { d: "M18 1.5L33 6.5V17C33 25.5 26.8 31.8 18 34.5C9.2 31.8 3 25.5 3 17V6.5Z", viewH: 36, glyphScale: 0.84, glyphCy: 16.5 },
+  pin: { d: "M18 44.5C13 38.5 2 28.5 2 18A16 16 0 1 1 34 18C34 28.5 23 38.5 18 44.5Z", viewH: 46, glyphScale: 0.92, glyphCy: 18 },
+};
+
+/**
+ * The full on-map marker visual: a colored backing shape (an SVG path with
+ * the outline color as its stroke) behind a single-color glyph. `size` is
+ * the glyph size; the backing is `size + 12` wide, and the pin is taller
+ * (PIN_ASPECT) with its tip as the anchor — MarkerLayer positions it so.
+ * Shape "none" renders the bare glyph, with a halo so it still reads on
+ * any map.
  */
 export default function MarkerIcon({
   iconKey,
@@ -45,26 +61,24 @@ export default function MarkerIcon({
   backgroundShape: string;
   size?: number;
 }) {
-  const icon = createElement(resolveIcon(iconKey), { color, size, strokeWidth: 2.25 });
+  const Icon = resolveIcon(iconKey);
 
   if (backgroundShape === "none") {
-    return icon;
+    return <span className="marker-icon marker-icon-bare">{createElement(Icon, { color, size, strokeWidth: 2.25 })}</span>;
   }
 
-  const boxSize = size + 12;
+  const shape = SHAPES[backgroundShape] ?? SHAPES.circle;
+  const box = size + 12;
+  const height = shape.viewH === 36 ? box : Math.round(box * PIN_ASPECT);
 
   return (
-    <div
-      className="marker-icon-backing"
-      style={{
-        width: boxSize,
-        height: boxSize,
-        background: backgroundColor,
-        borderColor: outlineColor,
-        borderRadius: backgroundShape === "square" ? "20%" : "50%",
-      }}
-    >
-      {icon}
-    </div>
+    <span className="marker-icon" style={{ width: box, height }}>
+      <svg className="marker-shape" viewBox={`0 0 36 ${shape.viewH}`} width={box} height={height} aria-hidden="true">
+        <path d={shape.d} fill={backgroundColor} stroke={outlineColor} strokeWidth={2} strokeLinejoin="round" />
+      </svg>
+      <span className="marker-glyph" style={{ top: (shape.glyphCy / shape.viewH) * height }}>
+        {createElement(Icon, { color, size: Math.round(size * shape.glyphScale), strokeWidth: 2.25 })}
+      </span>
+    </span>
   );
 }

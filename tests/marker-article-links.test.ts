@@ -11,6 +11,7 @@ import {
   isValidLabelMode,
   isValidMarkerCategory,
   shapeAnchor,
+  markerGeometry,
 } from "../src/server/markers/icon-registry";
 import { isArticleTemplate } from "../src/server/articles/templates";
 
@@ -74,5 +75,14 @@ describe("excerptOf", () => {
     expect(out.endsWith("…")).toBe(true);
     expect(out.length).toBeLessThanOrEqual(31);
     expect(out).not.toMatch(/ …$/);
+  });
+});
+
+describe("markerGeometry", () => {
+  it("lifts only the pin, whose tip is the anchor", () => {
+    expect(markerGeometry("circle", "normal")).toEqual({ glyph: 22, box: 34, height: 34, lift: 0 });
+    const pin = markerGeometry("pin", "normal");
+    expect(pin.height).toBeGreaterThan(pin.box);
+    expect(pin.lift).toBe(pin.height - pin.box / 2);
   });
 });

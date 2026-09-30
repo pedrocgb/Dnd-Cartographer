@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hitTest, hitText, inMultiPolygon, lineDistance, type HitScene } from "../src/components/hit-test";
+import { hitTest, markerHitBox, hitText, inMultiPolygon, lineDistance, type HitScene } from "../src/components/hit-test";
 
 const square = (x: number, y: number, s: number): [number, number][] => [
   [x, y],
@@ -62,5 +62,16 @@ describe("hitTest", () => {
   it("scales screen tolerances with zoom", () => {
     // Zoomed out 4×: 14 screen px around the marker is 56 image px.
     expect(hitTest(scene, { x: 100, y: 50 }, 0.25)?.id).toBe("m");
+  });
+});
+
+describe("markerHitBox", () => {
+  it("centers on the anchor for centered shapes", () => {
+    expect(markerHitBox({ x: 100, y: 100 }, 1)).toEqual({ x: 86, y: 86, width: 28, height: 28 });
+  });
+  it("sits above the anchor for a pin, and grows with the marker", () => {
+    const box = markerHitBox({ x: 100, y: 100, lift: 26, radius: 17 }, 1);
+    expect(box).toEqual({ x: 83, y: 57, width: 34, height: 34 });
+    expect(hitTest({ markers: [{ id: "p", x: 100, y: 100, lift: 26, radius: 17 }], texts: [], lines: [], zones: [] }, { x: 100, y: 74 }, 1)?.id).toBe("p");
   });
 });
