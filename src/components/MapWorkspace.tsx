@@ -36,6 +36,9 @@ import { toMultiPolygon } from "./zone-paint";
 import SelectionLayer from "./SelectionLayer";
 import { useSelection, type ClickMods } from "./multi-select";
 import { usePanelInset } from "./use-panel-inset";
+import MapHud from "./map-hud/MapHud";
+import { useMapRoutes, type NewRoute, type RouteControls, type RoutePatch } from "./map-hud/use-map-routes";
+import type { MapRouteData } from "@/server/travel/route-config";
 import { isModalOpen } from "./Modal";
 import { isTypingTarget } from "./keyboard";
 import {
@@ -87,9 +90,9 @@ const ZOOM_PER_CLICK = 1.5;
 const NO_REGIONS: ZoneRegionData[] = [];
 const NO_ZONES: ZoneData[] = [];
 
-type MapItem = Marker | ZoneData | MapTextData | MapLineData;
+type MapItem = Marker | ZoneData | MapTextData | MapLineData | MapRouteData;
 /** Kinds the tool panels multi-select. */
-type ListKind = "zone" | "text" | "line";
+type ListKind = "zone" | "text" | "line" | "route";
 type ItemPatch = Record<string, unknown>;
 const TOGGLE: ClickMods = { toggle: true, range: false };
 const lineGroupUrl = (id: string) => `/api/line-groups/${id}`;
@@ -102,7 +105,7 @@ function withFolderLayers(own: readonly string[] | undefined, folder: Pick<MapFo
   return folder?.extraLayerIds.length ? [...new Set([...mine, ...folder.extraLayerIds])] : [...mine];
 }
 
-const ITEM_API: Record<SceneKind, string> = { marker: "/api/markers", zone: "/api/zones", text: "/api/texts", line: "/api/lines" };
+const ITEM_API: Record<SceneKind, string> = { marker: "/api/markers", zone: "/api/zones", text: "/api/texts", line: "/api/lines", route: "/api/routes" };
 /** Marker fields undo covers: map edits, not its wiki content (name, description, politics). */
 const MARKER_EDIT_KEYS = new Set(["u", "v", "iconKey", "color", "backgroundColor", "outlineColor", "backgroundShape", "labelMode", "importance", "layerId", "extraLayerIds"]);
 /** Edits made in one gesture: never merged with the next one. */
@@ -212,6 +215,14 @@ export default function MapWorkspace({
   onCloseZonesPanel,
   iconFilterPanelOpen,
   onCloseIconFilterPanel,
+  legendPanelOpen,
+  onCloseLegendPanel,
+  scalePanelOpen,
+  onCloseScalePanel,
+  travelPanelOpen,
+  onCloseTravelPanel,
+  onOpenTravelPanel,
+  onOpenScalePanel,
   onFitFrame,
   imageWidth,
   imageHeight,
@@ -260,6 +271,14 @@ export default function MapWorkspace({
   setLineGroups: React.Dispatch<React.SetStateAction<LineGroupData[]>>;
   textGroups: MapFolderData[];
   setTextGroups: React.Dispatch<React.SetStateAction<MapFolderData[]>>;
+  legendPanelOpen: boolean;
+  onCloseLegendPanel: () => void;
+  scalePanelOpen: boolean;
+  onCloseScalePanel: () => void;
+  travelPanelOpen: boolean;
+  onCloseTravelPanel: () => void;
+  onOpenTravelPanel: () => void;
+  onOpenScalePanel: () => void;
   zones: ZoneData[];
   setZones: React.Dispatch<React.SetStateAction<ZoneData[]>>;
   zonesPanelOpen: boolean;
@@ -328,6 +347,13 @@ export default function MapWorkspace({
   const [lineUndo, setLineUndo] = useState<{ line: MapLineData; timer: ReturnType<typeof setTimeout> } | null>(null);
   const linePatchTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const pendingLinePatchesRef = useRef<Map<string, LinePatch>>(new Map());
+  const routesApi = useMapRoutes(mapId);
+  const routes = routesApi.routes;
+  const routeSel = useSelection();
+  /** Folder new routes go into (one of the active layer's), or null: Ungrouped. */
+  const [activeRouteGroupId, setActiveRouteGroupId] = useState<string | null>(null);
+  /** A route being drawn keeps Ctrl+Z to itself (its own Backspace undoes points). */
+  const routeDrawingRef = useRef(false);
   /** The item just picked in the Scene panel, briefly pulsed on the map. */
   const [pulseId, setPulseId] = useState<string | null>(null);
   /** Selection tool: the item under the pointer. */
@@ -351,6 +377,7 @@ export default function MapWorkspace({
     zones: ZoneData[];
     texts: MapTextData[];
     lines: MapLineData[];
+    routes: MapRouteData[];
     apply: (kind: SceneKind, id: string, patch: Record<string, unknown>) => void;
     applyVisible: (kind: SceneKind, ids: string[], visible: boolean) => Promise<unknown>;
     moveLine: (id: string, dx: number, dy: number) => void;
@@ -626,6 +653,9 @@ export default function MapWorkspace({
     onCloseTextPanel();
     onCloseLinePanel();
     onCloseScenePanel();
+    onCloseLegendPanel();
+    onCloseScalePanel();
+    onCloseTravelPanel();
     onCloseSelectTool();
   }
 
@@ -648,12 +678,17 @@ export default function MapWorkspace({
   function findItem(kind: SceneKind, id: string): MapItem | undefined {
     const latest = latestRef.current;
     if (!latest) return undefined;
-    const list: MapItem[] = kind === "marker" ? latest.markers : kind === "zone" ? latest.zones : kind === "text" ? latest.texts : latest.lines;
+    const list: MapItem[] =
+      kind === "marker" ? latest.markers : kind === "zone" ? latest.zones : kind === "text" ? latest.texts : kind === "route" ? latest.routes : latest.lines;
     return list.find((x) => x.id === id);
   }
 
   /** Takes an item off the map and soft-deletes it (undo of a create, redo of a delete). */
   function removeItem(kind: SceneKind, id: string) {
+    if (kind === "route") {
+      routeSel.remove([id]);
+      return routesApi.remove(id);
+    }
     const drop = <T extends { id: string }>(prev: T[]) => prev.filter((x) => x.id !== id);
     if (kind === "marker") {
       setMarkers(drop);
@@ -673,6 +708,7 @@ export default function MapWorkspace({
 
   /** Brings a soft-deleted item back as it was. */
   function restoreItem(kind: SceneKind, item: MapItem) {
+    if (kind === "route") return routesApi.restore(item as MapRouteData);
     return fetch(`${ITEM_API[kind]}/${item.id}/restore`, { method: "POST" }).then(() => {
       const add = <T extends { id: string }>(prev: T[]) => (prev.some((x) => x.id === item.id) ? prev : [...prev, item as unknown as T]);
       if (kind === "marker") setMarkers(add);
@@ -725,16 +761,18 @@ export default function MapWorkspace({
     if (kind === "marker") updateMarker(id, patch as Partial<Marker>);
     else if (kind === "zone") updateZone(id, patch as Partial<ZoneData>);
     else if (kind === "text") updateText(id, patch as TextPatch);
+    else if (kind === "route") updateRoute(id, patch as RoutePatch);
     else updateLine(id, patch as LinePatch);
   }
 
   useEffect(() => {
-    latestRef.current = { markers, zones, texts, lines, apply: applyPatch, applyVisible, moveLine };
+    latestRef.current = { markers, zones, texts, lines, routes, apply: applyPatch, applyVisible, moveLine };
   });
 
   /** Locked items (their own lock or their folder's) keep their settings in a multi-selection edit. */
   function listItemLocked(kind: ListKind, item: MapItem): boolean {
     if (kind === "zone") return zoneLocked(item as ZoneData);
+    if (kind === "route") return routeLocked(item as MapRouteData);
     return kind === "text" ? textLocked(item as MapTextData) : lineLocked(item as MapLineData);
   }
 
@@ -787,7 +825,7 @@ export default function MapWorkspace({
   }
 
   /** The panel's selection of one kind. */
-  const selectionOf = (kind: ListKind) => (kind === "zone" ? zoneSel : kind === "text" ? textSel : lineSel);
+  const selectionOf = (kind: ListKind) => (kind === "zone" ? zoneSel : kind === "text" ? textSel : kind === "route" ? routeSel : lineSel);
 
   /**
    * Scene folder eye: shows or hides every listed item of one kind through
@@ -806,6 +844,10 @@ export default function MapWorkspace({
 
   /** Sets `visible` on the items locally and saves each right away (records nothing). */
   function applyVisible(kind: SceneKind, ids: string[], visible: boolean) {
+    if (kind === "route") {
+      ids.forEach((id) => routesApi.update(id, { visible }));
+      return Promise.resolve();
+    }
     const targets = new Set(ids);
     const set = <T extends { id: string; visible: boolean }>(prev: T[]) =>
       prev.map((x) => (targets.has(x.id) ? { ...x, visible } : x));
@@ -941,6 +983,7 @@ export default function MapWorkspace({
     setPlacingText(false);
     setSelectedLineId(null);
     setDrawingLine(false);
+    routeSel.select(null);
   }
 
   const [lastAddMarkerRequest, setLastAddMarkerRequest] = useState(addMarkerRequest);
@@ -957,6 +1000,13 @@ export default function MapWorkspace({
       setSelectedLineId(null);
       setDrawingLine(false);
     }
+  }
+
+  // Closing the Travel panel deselects its routes (they keep rendering).
+  const [lastTravelPanelOpen, setLastTravelPanelOpen] = useState(travelPanelOpen);
+  if (travelPanelOpen !== lastTravelPanelOpen) {
+    setLastTravelPanelOpen(travelPanelOpen);
+    if (!travelPanelOpen) routeSel.select(null);
   }
 
   // Closing the Text panel ends text authoring (texts keep rendering).
@@ -1015,6 +1065,17 @@ export default function MapWorkspace({
   if (activeLineGroupId && !ownLineGroups.some((g) => g.id === activeLineGroupId)) setActiveLineGroupId(null);
   const activeLineGroup = ownLineGroups.find((g) => g.id === activeLineGroupId) ?? null;
   const selectedLine = layerLines.find((l) => l.id === selectedLineId) ?? null;
+  const routeGroupById = useMemo(() => new Map(routesApi.groups.map((g) => [g.id, g])), [routesApi.groups]);
+  const liveLayerIds = useMemo(() => new Set(layers.map((l) => l.id)), [layers]);
+  const routeExtras = useCallback((r: MapRouteData) => withFolderLayers(r.extraLayerIds, r.groupId ? routeGroupById.get(r.groupId) : undefined), [routeGroupById]);
+  const routeShown = useCallback((r: MapRouteData) => r.visible && (!r.groupId || routeGroupById.get(r.groupId)?.visible !== false), [routeGroupById]);
+  const routeLocked = useCallback((r: MapRouteData) => r.locked || Boolean(r.groupId && routeGroupById.get(r.groupId)?.locked), [routeGroupById]);
+  const layerRoutes = useMemo(
+    () => routes.filter((r) => liveLayerIds.has(r.layerId) && isOnLayer(r.layerId, routeExtras(r), activeLayerId)),
+    [routes, liveLayerIds, routeExtras, activeLayerId]
+  );
+  const ownRouteGroups = useMemo(() => routesApi.groups.filter((g) => g.layerId === activeLayerId), [routesApi.groups, activeLayerId]);
+  if (activeRouteGroupId && !ownRouteGroups.some((g) => g.id === activeRouteGroupId)) setActiveRouteGroupId(null);
 
   // "Always draw": other visible layers flagged per kind are drawn too
   // (display only), stacked by layer order like layer images.
@@ -1022,6 +1083,7 @@ export default function MapWorkspace({
   const markerLayerIds = useMemo(() => drawnLayerIds(layers, activeLayerId, "markersAlwaysVisible"), [layers, activeLayerId]);
   const textLayerIds = useMemo(() => drawnLayerIds(layers, activeLayerId, "textsAlwaysVisible"), [layers, activeLayerId]);
   const lineLayerIds = useMemo(() => drawnLayerIds(layers, activeLayerId, "linesAlwaysVisible"), [layers, activeLayerId]);
+  const routeLayerIds = useMemo(() => drawnLayerIds(layers, activeLayerId, "routesAlwaysVisible"), [layers, activeLayerId]);
   const foreignZones = useMemo(() => {
     const under: PaintedZone[] = [];
     const over: PaintedZone[] = [];
@@ -1048,6 +1110,10 @@ export default function MapWorkspace({
     () => itemsInLayers(lines, (l) => l.layerId, lineLayerIds, { extrasOf: lineExtras, activeLayerId }).filter(lineShown),
     [lines, lineLayerIds, activeLayerId, lineExtras, lineShown]
   );
+  const drawnRoutes = useMemo(
+    () => itemsInLayers(routes, (r) => r.layerId, routeLayerIds, { extrasOf: routeExtras, activeLayerId }).filter(routeShown),
+    [routes, routeLayerIds, activeLayerId, routeExtras, routeShown]
+  );
   const editableMarkerIds = useMemo(() => new Set(layerVisible ? layerMarkers.map((m) => m.id) : []), [layerMarkers, layerVisible]);
   const editableTextIds = useMemo(() => new Set(layerTexts.filter((t) => textShown(t) && !textLocked(t)).map((t) => t.id)), [layerTexts, textShown, textLocked]);
   const editableLineIds = useMemo(() => new Set(layerLines.filter((l) => lineShown(l) && !lineLocked(l)).map((l) => l.id)), [layerLines, lineShown, lineLocked]);
@@ -1060,7 +1126,8 @@ export default function MapWorkspace({
   // Only one lateral tool is ever open at a time — the reverse direction of
   // closeToolPanels() above: opening Grid/Zones/Filter deselects any open
   // marker instead of showing both side by side.
-  const sidePanelOpen = gridPanelOpen || zonesPanelOpen || iconFilterPanelOpen || layersPanelOpen || textPanelOpen || linePanelOpen || scenePanelOpen;
+  const sidePanelOpen =
+    gridPanelOpen || zonesPanelOpen || iconFilterPanelOpen || layersPanelOpen || textPanelOpen || linePanelOpen || scenePanelOpen || legendPanelOpen || scalePanelOpen || travelPanelOpen;
   // The Selection tool has no side panel, but is exclusive with them all the same.
   const anyToolPanelOpen = sidePanelOpen || selectToolOn;
   const [lastAnyToolPanelOpen, setLastAnyToolPanelOpen] = useState(anyToolPanelOpen);
@@ -1474,6 +1541,65 @@ export default function MapWorkspace({
     setLineUndo(null);
   }
 
+  /** Saves a drawn route (one undo step). */
+  async function createRoute(input: NewRoute) {
+    const created = await routesApi.create(input);
+    if (created) recordCreate("route", created.id);
+    return created;
+  }
+
+  /** Optimistic (see useMapRoutes); travel settings are recorded whole so undo/redo restore every one of them. */
+  function updateRoute(id: string, rawPatch: RoutePatch) {
+    const route = routes.find((r) => r.id === id);
+    const patch: RoutePatch = withHomeLayer(rawPatch, route?.extraLayerIds);
+    if (patch.settings && route) patch.settings = { ...route.settings, ...patch.settings };
+    // A folder belongs to one layer: moving the route elsewhere ungroups it (the server does the same).
+    if (patch.layerId && patch.layerId !== route?.layerId && !("groupId" in patch)) patch.groupId = null;
+    recordUpdate("route", id, patch);
+    // Moving it to another layer follows it there (unless it stays shown here), so it stays selected and visible.
+    if (patch.layerId && !isOnLayer(patch.layerId, patch.extraLayerIds, activeLayerId)) onSetActiveLayer(patch.layerId);
+    routesApi.update(id, patch);
+  }
+
+  function deleteRoute(id: string) {
+    const route = routes.find((r) => r.id === id);
+    if (!route || routeLocked(route)) return;
+    recordDelete("route", route);
+    routeSel.remove([id]);
+    void routesApi.remove(id);
+  }
+
+  async function createRouteGroup(name: string) {
+    const group = await routesApi.createGroup(name, activeLayerId);
+    if (group) setActiveRouteGroupId(group.id);
+    return group;
+  }
+
+  function deleteRouteGroup(id: string, cascade: boolean) {
+    if (cascade) routeSel.remove(routes.filter((r) => r.groupId === id).map((r) => r.id));
+    if (activeRouteGroupId === id) setActiveRouteGroupId(null);
+    void routesApi.deleteGroup(id, cascade);
+  }
+
+  const routeControls: RouteControls = {
+    routes: layerRoutes,
+    drawn: drawnRoutes,
+    groups: routesApi.groups,
+    error: routesApi.error,
+    sel: routeSel,
+    activeGroupId: activeRouteGroupId,
+    setActiveGroupId: setActiveRouteGroupId,
+    isLocked: routeLocked,
+    create: createRoute,
+    update: updateRoute,
+    remove: deleteRoute,
+    updateMany: (ids, patchOf, opts) => updateMany("route", ids, (item) => patchOf(item as MapRouteData), opts),
+    deleteMany: (ids) => deleteMany("route", ids),
+    createGroup: createRouteGroup,
+    updateGroup: routesApi.updateGroup,
+    deleteGroup: deleteRouteGroup,
+  };
+
   /**
    * Esc backs out one step at a time: the innermost action first (a drawing
    * in progress, an armed tool, an open item's settings), then the tool's
@@ -1500,6 +1626,7 @@ export default function MapWorkspace({
       if (lineSel.ids.length) return setSelectedLineId(null);
       return onCloseLinePanel();
     }
+    if (travelPanelOpen && routeSel.ids.length) return routeSel.select(null);
     if (sidePanelOpen) return closeToolPanels();
     if (!selectToolOn) onOpenSelectTool();
   }
@@ -1544,14 +1671,14 @@ export default function MapWorkspace({
     const isRedo = key === "y" || (key === "z" && e.shiftKey);
     if (!isUndo && !isRedo) return;
     // A line or polygon being drawn keeps its own gestures (Backspace/Esc).
-    if ((linePanelOpen && drawingLine) || (zonesPanelOpen && activeZoneTool === "polygon")) return;
+    if ((linePanelOpen && drawingLine) || (zonesPanelOpen && activeZoneTool === "polygon") || (travelPanelOpen && routeDrawingRef.current)) return;
     e.preventDefault();
     if (isUndo) history.undo();
     else history.redo();
   }
   /** The tool panel open with a list of items, if any. */
   function openListKind(): ListKind | null {
-    return zonesPanelOpen ? "zone" : textPanelOpen ? "text" : linePanelOpen ? "line" : null;
+    return zonesPanelOpen ? "zone" : textPanelOpen ? "text" : linePanelOpen ? "line" : travelPanelOpen ? "route" : null;
   }
 
   /**
@@ -1570,12 +1697,13 @@ export default function MapWorkspace({
       sel.set(layerZones.filter((z) => z.regionId === regionId).sort(byOrder).map((z) => z.id));
       return true;
     }
-    const items: (MapTextData | MapLineData)[] = kind === "text" ? layerTexts : layerLines;
-    const ownIds = new Set((kind === "text" ? ownTextGroups : ownLineGroups).map((g) => g.id));
+    type Grouped = MapTextData | MapLineData | MapRouteData;
+    const items: Grouped[] = kind === "text" ? layerTexts : kind === "route" ? layerRoutes : layerLines;
+    const ownIds = new Set((kind === "text" ? ownTextGroups : kind === "route" ? ownRouteGroups : ownLineGroups).map((g) => g.id));
     // Items shared from other layers are one list; home items are in a folder or Ungrouped.
-    const folderKey = (item: MapTextData | MapLineData) => (item.layerId !== activeLayerId ? "shared" : item.groupId && ownIds.has(item.groupId) ? item.groupId : "ungrouped");
+    const folderKey = (item: Grouped) => (item.layerId !== activeLayerId ? "shared" : item.groupId && ownIds.has(item.groupId) ? item.groupId : "ungrouped");
     const anchor = items.find((item) => item.id === sel.anchor);
-    const key = anchor ? folderKey(anchor) : ((kind === "text" ? activeTextGroupId : activeLineGroupId) ?? "ungrouped");
+    const key = anchor ? folderKey(anchor) : ((kind === "text" ? activeTextGroupId : kind === "route" ? activeRouteGroupId : activeLineGroupId) ?? "ungrouped");
     sel.set(items.filter((item) => folderKey(item) === key).sort(byOrder).map((item) => item.id));
     return true;
   }
@@ -1629,6 +1757,9 @@ export default function MapWorkspace({
       onOpenTextPanel();
       setPlacingText(false);
       setSelectedTextId(id);
+    } else if (kind === "route") {
+      onOpenTravelPanel();
+      routeSel.select(id);
     } else {
       onOpenLinePanel();
       setDrawingLine(false);
@@ -1767,6 +1898,11 @@ export default function MapWorkspace({
       if (!t) return;
       b = textBounds(t);
       openItem(kind, id);
+    } else if (kind === "route") {
+      const r = layerRoutes.find((x) => x.id === id);
+      if (!r) return;
+      b = lineBounds(r.points);
+      openItem(kind, id);
     } else {
       const l = layerLines.find((x) => x.id === id);
       if (!l) return;
@@ -1789,6 +1925,7 @@ export default function MapWorkspace({
         .map((m) => ({ id: m.id, x: m.u * imageWidth, y: m.v * imageHeight, ...markerHitShape(m) })),
       texts: layerTexts.filter((t) => textShown(t) && !textLocked(t)),
       lines: layerLines.filter((l) => lineShown(l) && !lineLocked(l)).map((l) => ({ id: l.id, points: l.points, width: l.width })),
+      routes: layerRoutes.filter((r) => routeShown(r) && !routeLocked(r)).map((r) => ({ id: r.id, points: r.points, width: r.width })),
       zones: zonePaintOrder(layerRegions, layerZones)
         .filter(({ zone, region }) => zone.visible && region.visible)
         .flatMap(({ zone }) => {
@@ -1797,7 +1934,7 @@ export default function MapWorkspace({
           return bounds ? [{ id: zone.id, bounds, polygons: toMultiPolygon(geometry) }] : [];
         }),
     };
-  }, [selectToolOn, layerVisible, layerMarkers, layerTexts, textShown, textLocked, layerLines, lineShown, lineLocked, layerRegions, layerZones, iconFilter, imageWidth, imageHeight]);
+  }, [selectToolOn, layerVisible, layerMarkers, layerTexts, textShown, textLocked, layerLines, lineShown, lineLocked, layerRoutes, routeShown, routeLocked, layerRegions, layerZones, iconFilter, imageWidth, imageHeight]);
 
   const pickRef = useRef<(hit: Hit) => void>(() => {});
   useEffect(() => {
@@ -1860,6 +1997,10 @@ export default function MapWorkspace({
       const t = layerTexts.find((x) => x.id === id);
       return t ? textBounds(t) : null;
     }
+    if (kind === "route") {
+      const r = layerRoutes.find((x) => x.id === id);
+      return r ? lineBounds(r.points) : null;
+    }
     const l = layerLines.find((x) => x.id === id);
     return l ? lineBounds(l.points) : null;
   }
@@ -1870,8 +2011,9 @@ export default function MapWorkspace({
     if (zoneSel.ids.length > 1) for (const z of layerZones) if (zoneSel.has(z.id)) boxes.push(...[zoneBounds(JSON.parse(z.geometry))].filter((b): b is Rect => Boolean(b)));
     if (textSel.ids.length > 1) for (const t of layerTexts) if (textSel.has(t.id)) boxes.push(textBounds(t));
     if (lineSel.ids.length > 1) for (const l of layerLines) if (lineSel.has(l.id)) boxes.push(...[lineBounds(l.points)].filter((b): b is Rect => Boolean(b)));
+    if (routeSel.ids.length > 1) for (const r of layerRoutes) if (routeSel.has(r.id)) boxes.push(...[lineBounds(r.points)].filter((b): b is Rect => Boolean(b)));
     return boxes;
-  }, [zoneSel, textSel, lineSel, layerZones, layerTexts, layerLines]);
+  }, [zoneSel, textSel, lineSel, routeSel, layerZones, layerTexts, layerLines, layerRoutes]);
 
   // The selection tool's hover wins; otherwise the scene list's.
   const hoverBox = hovered?.bounds ?? (sceneHovered ? sceneItemBounds(sceneHovered.kind, sceneHovered.id) : null);
@@ -2092,6 +2234,29 @@ export default function MapWorkspace({
           />
         )}
 
+        <MapHud
+          mapId={mapId}
+          viewer={viewer}
+          osd={osd}
+          layers={layers}
+          activeLayerId={activeLayerId}
+          layerName={layerLabel}
+          area={canvasArea}
+          inset={panelInset}
+          legendPanelOpen={legendPanelOpen}
+          onCloseLegendPanel={onCloseLegendPanel}
+          scalePanelOpen={scalePanelOpen}
+          onCloseScalePanel={onCloseScalePanel}
+          travelPanelOpen={travelPanelOpen}
+          onCloseTravelPanel={onCloseTravelPanel}
+          onOpenScalePanel={onOpenScalePanel}
+          routes={routeControls}
+          pulseId={pulseId}
+          onRouteDrawingChange={(drawing) => {
+            routeDrawingRef.current = drawing;
+          }}
+        />
+
         {gridPanelOpen && grid && (
           <GridPanel
             layerName={layerLabel}
@@ -2249,6 +2414,7 @@ export default function MapWorkspace({
             zones={layerZones}
             texts={layerTexts}
             lines={layerLines}
+            routes={layerRoutes}
             onPick={focusSceneItem}
             onHover={setSceneHovered}
             onSetVisible={setItemsVisible}

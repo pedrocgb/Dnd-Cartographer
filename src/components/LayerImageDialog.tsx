@@ -19,6 +19,7 @@ const ALWAYS_DRAW_OPTIONS: { flag: AlwaysDrawFlag; noun: string }[] = [
   { flag: "markersAlwaysVisible", noun: "markers" },
   { flag: "textsAlwaysVisible", noun: "texts" },
   { flag: "linesAlwaysVisible", noun: "lines" },
+  { flag: "routesAlwaysVisible", noun: "routes" },
 ];
 
 const round1 = (v: number) => Math.round(v * 10) / 10;

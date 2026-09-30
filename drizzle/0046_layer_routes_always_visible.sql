@@ -1,0 +1,1 @@
+ALTER TABLE `map_layers` ADD `routes_always_visible` integer DEFAULT false NOT NULL;

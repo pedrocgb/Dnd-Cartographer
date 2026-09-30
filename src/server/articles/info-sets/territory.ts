@@ -107,7 +107,7 @@ export const TERRITORY_INFO = defineFieldSet(
       hint: "The titles its rulers hold, like King or High Chancellor.",
     },
     // History
-    { key: "establishedOn", label: "Established On", group: "history", kind: "text", hint: "When the territory was founded or first recognized." },
+    { key: "establishedOn", label: "Established On", group: "history", kind: "date", hint: "When the territory was founded or first recognized." },
     {
       key: "formerRulers",
       label: "Former Rulers",

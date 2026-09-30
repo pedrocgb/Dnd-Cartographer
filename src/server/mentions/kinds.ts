@@ -25,6 +25,15 @@ export interface MentionAttrs {
   campaign: string | null;
 }
 
+/**
+ * What a mention reads as: its custom text (set in the article link dialog)
+ * or, without one, "@" and the target's label.
+ */
+export function mentionDisplayText(attrs: Record<string, unknown>): string {
+  if (typeof attrs.text === "string" && attrs.text.trim()) return attrs.text;
+  return `@${typeof attrs.label === "string" ? attrs.label : ""}`;
+}
+
 /** A search result for the @ menu. */
 export interface MentionOption extends MentionAttrs {
   /** What it is ("Character", "Quest", "Scene", …). */

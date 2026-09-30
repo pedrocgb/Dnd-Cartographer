@@ -17,6 +17,9 @@ import {
   Trash2,
   ChevronsLeft,
   ChevronsRight,
+  LayoutList,
+  Route,
+  Ruler,
 } from "lucide-react";
 import { isModalOpen } from "./Modal";
 import { isTypingTarget } from "./keyboard";
@@ -43,7 +46,7 @@ function savePinned(pinned: boolean) {
 }
 
 /** The sidebar tool whose screen (panel, modal or mode) is currently open. */
-export type SidebarTool = "select" | "scene" | "layers" | "markers" | "zones" | "lines" | "text" | "grid" | "settings";
+export type SidebarTool = "select" | "scene" | "layers" | "markers" | "zones" | "lines" | "text" | "grid" | "legend" | "scale" | "travel" | "settings";
 
 /** Single-key shortcuts (no modifiers) that open each tool, shown in its tooltip. */
 const SHORTCUT_KEYS: Record<SidebarTool, string> = {
@@ -54,6 +57,9 @@ const SHORTCUT_KEYS: Record<SidebarTool, string> = {
   text: "T",
   lines: "P",
   grid: "G",
+  legend: "K",
+  scale: "R",
+  travel: "J",
   layers: "L",
   settings: ",",
 };
@@ -229,6 +235,12 @@ export default function MapSidebar({
   gridDisabled,
   zonesDisabled,
   iconFilterDisabled,
+  legendDisabled,
+  scaleDisabled,
+  onOpenLegend,
+  onOpenScale,
+  travelDisabled,
+  onOpenTravel,
   onOpenSettings,
   onOpenMarkers,
   onOpenGrid,
@@ -253,6 +265,12 @@ export default function MapSidebar({
   gridDisabled: boolean;
   zonesDisabled: boolean;
   iconFilterDisabled: boolean;
+  legendDisabled: boolean;
+  scaleDisabled: boolean;
+  onOpenLegend: () => void;
+  onOpenScale: () => void;
+  travelDisabled: boolean;
+  onOpenTravel: () => void;
   onOpenSettings: () => void;
   onOpenMarkers: () => void;
   onOpenGrid: () => void;
@@ -318,6 +336,9 @@ export default function MapSidebar({
     text: { disabled: textDisabled, run: onOpenText },
     lines: { disabled: linesDisabled, run: onOpenLines },
     grid: { disabled: gridDisabled, run: onOpenGrid },
+    legend: { disabled: legendDisabled, run: onOpenLegend },
+    scale: { disabled: scaleDisabled, run: onOpenScale },
+    travel: { disabled: travelDisabled, run: onOpenTravel },
     layers: { disabled: layersDisabled, run: onOpenLayers },
     settings: { disabled: false, run: onOpenSettings },
   };
@@ -413,6 +434,36 @@ export default function MapSidebar({
           hover={hover}
           onClick={onOpenGrid}
           disabled={gridDisabled}
+        />
+        <SidebarButton
+          icon={<LayoutList size={19} strokeWidth={2.25} />}
+          label="Legend"
+          className={btnClass(activeTool === "legend")}
+          title={upload(legendDisabled, "Map legend")}
+          shortcut={legendDisabled ? undefined : "legend"}
+          hover={hover}
+          onClick={onOpenLegend}
+          disabled={legendDisabled}
+        />
+        <SidebarButton
+          icon={<Ruler size={19} strokeWidth={2.25} />}
+          label="Scale"
+          className={btnClass(activeTool === "scale")}
+          title={upload(scaleDisabled, "Scale bar & measure")}
+          shortcut={scaleDisabled ? undefined : "scale"}
+          hover={hover}
+          onClick={onOpenScale}
+          disabled={scaleDisabled}
+        />
+        <SidebarButton
+          icon={<Route size={19} strokeWidth={2.25} />}
+          label="Travel"
+          className={btnClass(activeTool === "travel")}
+          title={upload(travelDisabled, "Travel time")}
+          shortcut={travelDisabled ? undefined : "travel"}
+          hover={hover}
+          onClick={onOpenTravel}
+          disabled={travelDisabled}
         />
         <SidebarButton
           icon={<Layers size={19} strokeWidth={2.25} />}

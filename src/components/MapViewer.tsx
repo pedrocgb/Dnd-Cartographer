@@ -109,6 +109,9 @@ export default function MapViewer({ mapId }: { mapId: string }) {
   const [texts, setTexts] = useState<MapTextData[]>([]);
   const [linePanelOpen, setLinePanelOpen] = useState(false);
   const [scenePanelOpen, setScenePanelOpen] = useState(false);
+  const [legendPanelOpen, setLegendPanelOpen] = useState(false);
+  const [scalePanelOpen, setScalePanelOpen] = useState(false);
+  const [travelPanelOpen, setTravelPanelOpen] = useState(false);
   const [selectToolOn, setSelectToolOn] = useState(false);
   /** Bumped by the sidebar's "Add marker"; MapWorkspace toggles placing like its own button. */
   const [addMarkerRequest, setAddMarkerRequest] = useState(0);
@@ -257,6 +260,9 @@ export default function MapViewer({ mapId }: { mapId: string }) {
     setTextPanelOpen(false);
     setLinePanelOpen(false);
     setScenePanelOpen(false);
+    setLegendPanelOpen(false);
+    setScalePanelOpen(false);
+    setTravelPanelOpen(false);
     setSelectToolOn(false);
   }
 
@@ -293,6 +299,21 @@ export default function MapViewer({ mapId }: { mapId: string }) {
   function onOpenLines() {
     closeToolPanels();
     setLinePanelOpen(true);
+  }
+
+  function onOpenLegend() {
+    closeToolPanels();
+    setLegendPanelOpen(true);
+  }
+
+  function onOpenScale() {
+    closeToolPanels();
+    setScalePanelOpen(true);
+  }
+
+  function onOpenTravel() {
+    closeToolPanels();
+    setTravelPanelOpen(true);
   }
 
   function onOpenScene() {
@@ -350,7 +371,7 @@ export default function MapViewer({ mapId }: { mapId: string }) {
     if (!layer || !window.confirm(`Delete layer "${layer.name}"?`)) return;
     let res = await layerApi.deleteLayer(id, false);
     if (res.status === 409) {
-      const data: { markerCount?: number; regionCount?: number; textCount?: number; lineCount?: number; hasGrid?: boolean; error?: string } = await res.json();
+      const data: { markerCount?: number; regionCount?: number; textCount?: number; lineCount?: number; hasGrid?: boolean; hasLegend?: boolean; routeCount?: number; error?: string } = await res.json();
       if (data.markerCount === undefined) {
         window.alert(data.error ?? "This layer can't be deleted.");
         return;
@@ -361,6 +382,8 @@ export default function MapViewer({ mapId }: { mapId: string }) {
         data.textCount ? `${data.textCount} text(s)` : null,
         data.lineCount ? `${data.lineCount} line(s)` : null,
         data.hasGrid ? "a grid" : null,
+        data.hasLegend ? "a legend" : null,
+        data.routeCount ? `${data.routeCount} route${data.routeCount === 1 ? "" : "s"}` : null,
       ].filter(Boolean);
       if (!window.confirm(`"${layer.name}" still has ${parts.join(", ")}. Delete the layer and all of it?`)) return;
       res = await layerApi.deleteLayer(id, true);
@@ -399,6 +422,12 @@ export default function MapViewer({ mapId }: { mapId: string }) {
           gridDisabled={!hasFrame}
           zonesDisabled={!hasFrame}
           iconFilterDisabled={!hasFrame}
+          legendDisabled={!hasFrame}
+          scaleDisabled={!hasFrame}
+          onOpenLegend={onOpenLegend}
+          onOpenScale={onOpenScale}
+          travelDisabled={!hasFrame}
+          onOpenTravel={onOpenTravel}
           onOpenSettings={() => setSettingsOpen(true)}
           onOpenMarkers={() => setMarkersListOpen(true)}
           onOpenGrid={onOpenGrid}
@@ -424,6 +453,12 @@ export default function MapViewer({ mapId }: { mapId: string }) {
                         ? "text"
                         : gridPanelOpen
                           ? "grid"
+                          : legendPanelOpen
+                            ? "legend"
+                            : scalePanelOpen
+                              ? "scale"
+                              : travelPanelOpen
+                                ? "travel"
                           : settingsOpen
                             ? "settings"
                             : iconFilterPanelOpen || markersListOpen || markerToolActive
@@ -508,6 +543,14 @@ export default function MapViewer({ mapId }: { mapId: string }) {
               onCloseZonesPanel={() => setZonesPanelOpen(false)}
               iconFilterPanelOpen={iconFilterPanelOpen}
               onCloseIconFilterPanel={() => setIconFilterPanelOpen(false)}
+              legendPanelOpen={legendPanelOpen}
+              onCloseLegendPanel={() => setLegendPanelOpen(false)}
+              scalePanelOpen={scalePanelOpen}
+              onCloseScalePanel={() => setScalePanelOpen(false)}
+              travelPanelOpen={travelPanelOpen}
+              onCloseTravelPanel={() => setTravelPanelOpen(false)}
+              onOpenTravelPanel={onOpenTravel}
+              onOpenScalePanel={onOpenScale}
               onFitFrame={() => void fitFrame()}
               imageWidth={status.map.frameWidth ?? 1}
               imageHeight={status.map.frameHeight ?? 1}

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { usePopover } from "@/components/usePopover";
 import { fromWorldDay, type CalendarDefinition } from "@/server/calendars/engine";
 import { dayLabel, monthBlock, periodsOf, safe, stepPeriod, type MonthCell } from "./evaluate";
@@ -21,6 +21,8 @@ type Shown = { year: number; periodId: string };
  * stepped through like months), days outside the week (a strip under the
  * grid), no weekdays at all (plain rows of 10), and years without a year 0.
  * `min` disables earlier days; `currentDay` marks the world's today.
+ * A null `value` shows `placeholder` and opens on the world's today;
+ * `onClear` adds a clear button (for optional dates).
  */
 export default function WorldDatePicker({
   def,
@@ -29,13 +31,17 @@ export default function WorldDatePicker({
   label,
   currentDay = null,
   min = null,
+  placeholder = "Pick a date",
+  onClear,
 }: {
   def: CalendarDefinition;
-  value: number;
+  value: number | null;
   onChange: (worldDay: number) => void;
   label: string;
   currentDay?: number | null;
   min?: number | null;
+  placeholder?: string;
+  onClear?: () => void;
 }) {
   const { open, setOpen, root, trigger, pop } = usePopover();
   const [shown, setShown] = useState<Shown | null>(null);
@@ -49,7 +55,7 @@ export default function WorldDatePicker({
 
   function toggle() {
     if (!open) {
-      setShown(shownOf(value) ?? (currentDay !== null ? shownOf(currentDay) : null));
+      setShown((value !== null ? shownOf(value) : null) ?? (currentDay !== null ? shownOf(currentDay) : null));
       setYearDraft(null);
     }
     setOpen(!open);
@@ -96,10 +102,23 @@ export default function WorldDatePicker({
   return (
     <div className="dp" ref={root}>
       <div className="dp-field">
-        <button type="button" ref={trigger} className="dp-trigger" aria-label={`${label}: ${dayLabel(def, value)}`} aria-haspopup="dialog" aria-expanded={open} onClick={toggle}>
+        <button
+          type="button"
+          ref={trigger}
+          className="dp-trigger"
+          aria-label={`${label}: ${value !== null ? dayLabel(def, value) : "not set"}`}
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          onClick={toggle}
+        >
           <CalendarDays size={15} aria-hidden />
-          <span>{dayLabel(def, value)}</span>
+          <span className={value !== null ? undefined : "dp-placeholder"}>{value !== null ? dayLabel(def, value) : placeholder}</span>
         </button>
+        {value !== null && onClear && (
+          <button type="button" className="btn btn-ghost btn-icon btn-sm dp-clear" aria-label={`Clear ${label}`} data-tooltip="Clear" onClick={onClear}>
+            <X size={14} />
+          </button>
+        )}
       </div>
       {open &&
         createPortal(
@@ -157,9 +176,11 @@ export default function WorldDatePicker({
                   Today
                 </button>
               )}
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => (setShown(shownOf(value)), setYearDraft(null))}>
-                Selected
-              </button>
+              {value !== null && (
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => (setShown(shownOf(value)), setYearDraft(null))}>
+                  Selected
+                </button>
+              )}
             </div>
           </div>,
           document.body

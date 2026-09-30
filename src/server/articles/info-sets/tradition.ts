@@ -9,7 +9,7 @@ export const TRADITION_INFO = defineFieldSet(
   ],
   [
     // History
-    { key: "firstRecordedOn", label: "First Recorded On", group: "history", kind: "text", hint: "The earliest known record of the tradition." },
+    { key: "firstRecordedOn", label: "First Recorded On", group: "history", kind: "date", hint: "The earliest known record of the tradition." },
     { key: "originStory", label: "Origin Story", group: "history", kind: "text", hint: "How people say it began — the true story may differ." },
     {
       key: "originatingCulture",

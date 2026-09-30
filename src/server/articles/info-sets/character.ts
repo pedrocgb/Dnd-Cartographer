@@ -170,8 +170,8 @@ export const CHARACTER_FIELDS: InfoField[] = [
   },
   // Status
   { key: "age", label: "Age", group: "status", kind: "text", hint: "How old are they? Years, or a feel like \"young adult\" or \"ancient\" if it's unknown." },
-  { key: "dateOfBirth", label: "Date of Birth", group: "status", kind: "text", hint: "When they were born, in your world's calendar. Anchors them on the timeline." },
-  { key: "dateOfDeath", label: "Date of Death", group: "status", kind: "text", hint: "When they died, if they have. Leave empty for the living." },
+  { key: "dateOfBirth", label: "Date of Birth", group: "status", kind: "date", hint: "When they were born, in your world's calendar. Anchors them on the timeline." },
+  { key: "dateOfDeath", label: "Date of Death", group: "status", kind: "date", hint: "When they died, if they have. Leave empty for the living." },
   {
     key: "status",
     label: "Status",

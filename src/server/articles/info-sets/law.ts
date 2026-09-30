@@ -17,7 +17,7 @@ export const LAW_INFO = defineFieldSet(
       link: link(["character", "organization"]),
       hint: "Who made this law. Whoever made it can usually unmake it.",
     },
-    { key: "enactedOn", label: "Enacted On", group: "authority", kind: "text", hint: "When the law was passed or proclaimed, in your world's calendar." },
+    { key: "enactedOn", label: "Enacted On", group: "authority", kind: "date", hint: "When the law was passed or proclaimed, in your world's calendar." },
     {
       key: "legalTradition",
       label: "Legal Tradition",
@@ -90,8 +90,8 @@ export const LAW_INFO = defineFieldSet(
     },
     // Status
     { key: "amendedBy", label: "Amended By", group: "status", kind: "link", link: link(["law"], true), hint: "Later laws that changed this one." },
-    { key: "effectiveFrom", label: "Effective From", group: "status", kind: "text", hint: "When the law took effect, if not when it was enacted." },
-    { key: "expiresOn", label: "Expires On", group: "status", kind: "text", hint: "When the law lapses, if it has an end date." },
+    { key: "effectiveFrom", label: "Effective From", group: "status", kind: "date", hint: "When the law took effect, if not when it was enacted." },
+    { key: "expiresOn", label: "Expires On", group: "status", kind: "date", hint: "When the law lapses, if it has an end date." },
     {
       key: "legalStatus",
       label: "Legal Status",

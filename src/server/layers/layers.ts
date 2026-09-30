@@ -52,6 +52,7 @@ export async function listLayers(mapId: string) {
       markersAlwaysVisible: layer.markersAlwaysVisible,
       textsAlwaysVisible: layer.textsAlwaysVisible,
       linesAlwaysVisible: layer.linesAlwaysVisible,
+      routesAlwaysVisible: layer.routesAlwaysVisible,
       asset: current && current.state === "ready" ? { id: current.id, width: current.width, height: current.height } : null,
       pendingAsset: pending ? { id: pending.id, state: pending.state } : null,
     };

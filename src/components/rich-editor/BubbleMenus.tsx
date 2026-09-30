@@ -5,6 +5,7 @@ import type { Editor } from "@tiptap/react";
 import { BubbleMenu, type BubbleMenuProps } from "@tiptap/react/menus";
 import { NodeSelection } from "@tiptap/pm/state";
 import {
+  AtSign,
   Baseline,
   Bold,
   Captions,
@@ -32,15 +33,14 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import FontPicker from "@/components/FontPicker";
-import ColorWheel from "@/components/ColorWheel";
 import { MAP_FONTS, mapFontFamily, type MapFontKey } from "@/server/texts/fonts";
 import type { ImageAlign } from "./extensions";
+import { DEFAULT_SWATCH, TEXT_COLORS, textColorOf } from "./colors";
 
 /** Marks editor UI rendered outside the card, so the card's "click outside" check ignores it. */
 const FLOATING_CLASS = "rich-floating";
 /** The UI font; picking it clears the font mark instead of storing a family. */
 const DEFAULT_FONT: MapFontKey = "inter";
-const DEFAULT_TEXT_COLOR = "#E6E6E6";
 
 /*
  * BubbleMenu dispatches an editor transaction whenever `options` or
@@ -228,10 +228,12 @@ function BlockStyleMenu({ editor }: { editor: Editor }) {
   );
 }
 
+/** Text color from the preset palette (no free color wheel); White, the default, clears the color. */
 function ColorButton({ editor }: { editor: Editor }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const color: string | undefined = editor.getAttributes("textStyle").color;
+  const current = textColorOf(color);
 
   useEffect(() => {
     if (!open) return;
@@ -247,8 +249,9 @@ function ColorButton({ editor }: { editor: Editor }) {
       <button
         type="button"
         className={color ? "active" : ""}
-        aria-label="Text color"
+        aria-label={`Text color: ${current?.label ?? "Custom"}`}
         data-tooltip="Text color"
+        aria-haspopup="menu"
         aria-expanded={open}
         onMouseDown={keepSelection}
         onClick={() => setOpen((o) => !o)}
@@ -256,19 +259,29 @@ function ColorButton({ editor }: { editor: Editor }) {
         <Baseline size={15} strokeWidth={2.25} style={{ color: color ?? undefined }} />
       </button>
       {open && (
-        <div className="rich-dropdown-list rich-color-popover">
-          <ColorWheel value={color ?? DEFAULT_TEXT_COLOR} onChange={(hex) => editor.chain().setColor(hex).run()} />
-          <button
-            type="button"
-            className="btn btn-sm"
-            onMouseDown={keepSelection}
-            onClick={() => {
-              editor.chain().focus().unsetColor().run();
-              setOpen(false);
-            }}
-          >
-            Default color
-          </button>
+        <div className="rich-dropdown-list rich-color-popover" role="menu" aria-label="Text color">
+          {TEXT_COLORS.map((c) => {
+            const selected = c === current;
+            return (
+              <button
+                key={c.label}
+                type="button"
+                role="menuitemradio"
+                aria-checked={selected}
+                className={selected ? "rich-color-swatch active" : "rich-color-swatch"}
+                aria-label={c.hex ? c.label : `${c.label} (default)`}
+                data-tooltip={c.hex ? c.label : `${c.label} (default)`}
+                onMouseDown={keepSelection}
+                onClick={() => {
+                  if (c.hex) editor.chain().focus().setColor(c.hex).run();
+                  else editor.chain().focus().unsetColor().run();
+                  setOpen(false);
+                }}
+              >
+                <span className="rich-swatch" style={{ background: c.hex ?? DEFAULT_SWATCH }} />
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
@@ -276,7 +289,7 @@ function ColorButton({ editor }: { editor: Editor }) {
 }
 
 /** Formatting toolbar shown over a non-empty text selection. */
-export function TextBubbleMenu({ editor }: { editor: Editor }) {
+export function TextBubbleMenu({ editor, onLinkArticle }: { editor: Editor; onLinkArticle: () => void }) {
   const [linking, setLinking] = useState(false);
   useResetOnSelectionChange(editor, () => setLinking(false));
   const fontFamily: string | undefined = editor.getAttributes("textStyle").fontFamily;
@@ -332,6 +345,7 @@ export function TextBubbleMenu({ editor }: { editor: Editor }) {
           <ToolButton label="Justify" Icon={TextAlignJustify} active={editor.isActive({ textAlign: "justify" })} onClick={() => editor.chain().focus().setTextAlign("justify").run()} />
           <span className="rich-toolbar-divider" aria-hidden />
           <ColorButton editor={editor} />
+          <ToolButton label="Link an article (Ctrl+K)" Icon={AtSign} onClick={onLinkArticle} />
           <ToolButton label="Link" Icon={Link2} active={editor.isActive("link")} onClick={() => setLinking(true)} />
           {editor.isActive("link") && <ToolButton label="Remove link" Icon={Unlink} onClick={() => editor.chain().focus().extendMarkRange("link").unsetLink().run()} />}
         </div>

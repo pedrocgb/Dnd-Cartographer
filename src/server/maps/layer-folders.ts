@@ -1,20 +1,30 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import { lineGroups, mapLines, mapTexts, maps, textGroups } from "@/server/db/schema";
+import { lineGroups, mapLines, mapRoutes, mapTexts, maps, routeGroups, textGroups } from "@/server/db/schema";
 import { sanitizeExtraLayerIds } from "@/server/layers/layers";
 import { parseLayerIds } from "@/server/layers/layer-ids";
 import { sanitizeLinePatch } from "@/server/lines/line-config";
 import { sanitizeTextPatch } from "@/server/texts/text-config";
 import { clampOpacity, clampStrokeWidth, normalizeColor } from "@/server/zones/zone-config";
+import { sanitizeRouteStyle } from "@/server/travel/route-config";
+import { sanitizeTravelSettings } from "@/server/travel/travel";
 
 /**
- * Map folders: zone regions, line groups and text groups share one shape
+ * Map folders: zone regions, line, text and route groups share one shape
  * (name, visible, locked, order, "Also show on" layers, a default style for
  * new items). Hiding or locking a folder hides or locks what's in it; its
  * extra layers add to each item's own.
  */
 
-export type FolderKind = "zone" | "line" | "text";
+export type FolderKind = "zone" | "line" | "text" | "route";
+/** Folder kinds whose items live in their own table with a `groupId`. */
+export type GroupedKind = Exclude<FolderKind, "zone">;
+
+// Same columns in every pair (see schema.ts), so the line tables' types describe them all.
+export const folderTable = (kind: GroupedKind) =>
+  (kind === "line" ? lineGroups : kind === "text" ? textGroups : routeGroups) as unknown as typeof lineGroups;
+export const itemTable = (kind: GroupedKind) =>
+  (kind === "line" ? mapLines : kind === "text" ? mapTexts : mapRoutes) as unknown as typeof mapLines;
 
 export const MAX_FOLDER_NAME = 120;
 
@@ -43,7 +53,10 @@ export function sanitizeDefaultStyle(kind: FolderKind, raw: unknown, frame: Fram
   const body = raw as Record<string, unknown>;
   let style: Record<string, unknown>;
   if (kind === "zone") style = sanitizeZoneStyle(body);
-  else if (!frame) return undefined;
+  else if (kind === "route") {
+    style = { ...sanitizeRouteStyle(body) };
+    if (body.settings && typeof body.settings === "object") style.settings = sanitizeTravelSettings(body.settings);
+  } else if (!frame) return undefined;
   else if (kind === "line") style = { ...sanitizeLinePatch(body, frame) };
   else {
     style = { ...sanitizeTextPatch(body, frame) };
@@ -84,7 +97,7 @@ export async function folderPatch(kind: FolderKind, body: Record<string, unknown
     patch.extraLayerIds = encoded;
   }
   if ("defaultStyle" in body) {
-    const map = kind === "zone" ? null : await db.query.maps.findFirst({ where: eq(maps.id, folder.mapId) });
+    const map = kind === "zone" || kind === "route" ? null : await db.query.maps.findFirst({ where: eq(maps.id, folder.mapId) });
     const frame = map?.frameWidth && map.frameHeight ? { width: map.frameWidth, height: map.frameHeight } : null;
     const style = sanitizeDefaultStyle(kind, body.defaultStyle, frame);
     if (style === undefined) return { error: "defaultStyle must be a style object or null." };
@@ -113,13 +126,11 @@ export function toClientFolder<T extends { extraLayerIds: string; defaultStyle: 
  * otherwise a live folder of the same map and home layer, unlocked for
  * `forWrite`. Returns an error message, or null when valid.
  */
-export async function folderError(kind: "line" | "text", groupId: unknown, mapId: string, layerId: string | null, forWrite = true): Promise<string | null> {
+export async function folderError(kind: GroupedKind, groupId: unknown, mapId: string, layerId: string | null, forWrite = true): Promise<string | null> {
   if (groupId === null) return null;
   if (typeof groupId !== "string") return "groupId must be a folder id or null.";
-  const group =
-    kind === "line"
-      ? await db.query.lineGroups.findFirst({ where: and(eq(lineGroups.id, groupId), isNull(lineGroups.deletedAt)) })
-      : await db.query.textGroups.findFirst({ where: and(eq(textGroups.id, groupId), isNull(textGroups.deletedAt)) });
+  const table = folderTable(kind);
+  const [group] = await db.select().from(table).where(and(eq(table.id, groupId), isNull(table.deletedAt)));
   if (!group || group.mapId !== mapId) return "Folder not found on this map.";
   if (group.layerId !== layerId) return "The folder is on another layer.";
   if (forWrite && group.locked) return "The folder is locked.";
@@ -127,18 +138,16 @@ export async function folderError(kind: "line" | "text", groupId: unknown, mapId
 }
 
 /** True when the item's current folder is live and locked (leaving it is refused). */
-export async function inLockedFolder(kind: "line" | "text", groupId: string | null): Promise<boolean> {
+export async function inLockedFolder(kind: GroupedKind, groupId: string | null): Promise<boolean> {
   if (!groupId) return false;
-  const group =
-    kind === "line"
-      ? await db.query.lineGroups.findFirst({ where: eq(lineGroups.id, groupId) })
-      : await db.query.textGroups.findFirst({ where: eq(textGroups.id, groupId) });
+  const table = folderTable(kind);
+  const [group] = await db.select().from(table).where(eq(table.id, groupId));
   return Boolean(group?.locked && !group.deletedAt);
 }
 
 /** New items go on top of their folder (lowest sort order first). */
-export async function topSortOrder(kind: "line" | "text", mapId: string, groupId: string | null): Promise<number> {
-  const table = kind === "line" ? mapLines : mapTexts;
+export async function topSortOrder(kind: GroupedKind, mapId: string, groupId: string | null): Promise<number> {
+  const table = itemTable(kind);
   const rows = await db
     .select({ sortOrder: table.sortOrder })
     .from(table)

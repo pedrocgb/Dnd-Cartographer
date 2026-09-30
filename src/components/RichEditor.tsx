@@ -6,6 +6,8 @@ import { ImagePlus } from "lucide-react";
 import { buildExtensions } from "./rich-editor/extensions";
 import { TextBubbleMenu, ImageBubbleMenu } from "./rich-editor/BubbleMenus";
 import MentionMenu from "./rich-editor/MentionMenu";
+import SlashMenu, { type SlashActions } from "./rich-editor/SlashMenu";
+import ArticleLinkModal, { type ArticleLinkChoice } from "./rich-editor/ArticleLinkModal";
 import { imageFilesOf, insertImageFiles } from "./rich-editor/images";
 import { SkeletonRegion, SkeletonText } from "./Skeleton";
 
@@ -37,6 +39,14 @@ interface DocumentRecord {
 }
 
 type SaveState = "idle" | "saving" | "saved" | "failed";
+
+/** An open article link dialog: the range the link replaces and what it starts with. */
+interface ArticleLinkTarget {
+  from: number;
+  to: number;
+  query: string;
+  text: string;
+}
 
 /**
  * Last known copy of each document this tab has loaded or saved. Read mode
@@ -89,6 +99,7 @@ export default function RichEditor({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [loaded, setLoaded] = useState(false);
+  const [articleLink, setArticleLink] = useState<ArticleLinkTarget | null>(null);
   // Something to show in read mode: the confirmed copy, or the cached one while it loads.
   const [shown, setShown] = useState(false);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -129,8 +140,17 @@ export default function RichEditor({
     // a plain transaction otherwise.
     shouldRerenderOnTransaction: true,
     editable,
-    extensions: buildExtensions("Write here… type @ to link a character, place or quest; select text to format it."),
+    extensions: buildExtensions("Write here… type / for styles, colors and inserts, @ to link an article; select text to format it."),
     editorProps: {
+      // Ctrl/Cmd+K: link an article in place of the selection (or at the caret).
+      handleKeyDown: (view, event) => {
+        if (!view.editable || !(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.key.toLowerCase() !== "k") return false;
+        event.preventDefault();
+        const { from, to } = view.state.selection;
+        const text = view.state.doc.textBetween(from, to, " ");
+        setArticleLink({ from, to, query: text, text });
+        return true;
+      },
       // Image files dropped or pasted into the text upload and land where they were dropped / at the caret.
       handleDrop: (view, event, _slice, moved) => {
         const files = imageFilesOf(event.dataTransfer);
@@ -323,12 +343,55 @@ export default function RichEditor({
     );
   }
 
+  function openArticleLinkForSelection() {
+    if (!editor) return;
+    const { from, to } = editor.state.selection;
+    const text = editor.state.doc.textBetween(from, to, " ");
+    setArticleLink({ from, to, query: text, text });
+  }
+
+  /** Puts the chosen article's mention where the dialog was opened from. */
+  function insertArticleLink(choice: ArticleLinkChoice) {
+    if (!editor || !articleLink) return;
+    const size = editor.state.doc.content.size;
+    const from = Math.min(articleLink.from, size);
+    const to = Math.min(articleLink.to, size);
+    // A space after the link, unless one already follows.
+    const spaced = /^\s/.test(editor.state.doc.textBetween(to, Math.min(to + 1, size), "", "\ufffc"));
+    editor
+      .chain()
+      .focus()
+      .insertContentAt({ from, to }, [
+        { type: "mention", attrs: { kind: choice.template, id: choice.id, label: choice.name, campaign: null, text: choice.text } },
+        ...(spaced ? [] : [{ type: "text", text: " " }]),
+      ])
+      .run();
+    setArticleLink(null);
+  }
+
+  const slashActions: SlashActions = {
+    linkArticle: (at) => setArticleLink({ from: at, to: at, query: "", text: "" }),
+    insertImage: () => fileInputRef.current?.click(),
+  };
+
   return (
     <div className="rich-editor">
       <EditorContent editor={editor} className="rich-content" />
-      <TextBubbleMenu editor={editor} />
+      <TextBubbleMenu editor={editor} onLinkArticle={openArticleLinkForSelection} />
       <ImageBubbleMenu editor={editor} />
-      <MentionMenu editor={editor} campaignId={mentionCampaignId} />
+      <MentionMenu editor={editor} campaignId={mentionCampaignId} onLinkArticle={(m) => setArticleLink({ from: m.from, to: m.to, query: m.query, text: "" })} />
+      <SlashMenu editor={editor} actions={slashActions} />
+      {articleLink && (
+        <ArticleLinkModal
+          initialQuery={articleLink.query}
+          initialText={articleLink.text}
+          onPick={insertArticleLink}
+          onClose={() => {
+            setArticleLink(null);
+            editor.commands.focus();
+          }}
+        />
+      )}
       <div className="rich-editor-footer">
         <button
           type="button"

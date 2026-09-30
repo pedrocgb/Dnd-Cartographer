@@ -125,7 +125,7 @@ export const BUILDING_INFO = defineFieldSet(
       kind: "text",
       hint: "What it looks like: soaring gothic spires, squat dwarven stone, elven living wood?",
     },
-    { key: "builtOn", label: "Built On", group: "construction", kind: "text", hint: "When it was built, in your world's calendar." },
+    { key: "builtOn", label: "Built On", group: "construction", kind: "date", hint: "When it was built, in your world's calendar." },
     {
       key: "constructionMaterials",
       label: "Construction Materials",

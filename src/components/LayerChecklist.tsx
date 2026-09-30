@@ -27,7 +27,8 @@ export default function LayerChecklist({
   layers: MapLayerData[];
   homeLayerId: string | null;
   value: readonly string[];
-  alwaysDrawFlag: AlwaysDrawFlag;
+  /** The home layer's "always draw" flag for this kind of item (none for kinds without one, e.g. legends). */
+  alwaysDrawFlag?: AlwaysDrawFlag;
   /** Layers it's already shown on through its folder: listed as checked and fixed. */
   inherited?: { ids: readonly string[]; from: string };
   /** Several items edited at once: layers only some of them are on (shown half-ticked). */
@@ -56,7 +57,7 @@ export default function LayerChecklist({
   if (others.length === 0) return null;
   const home = layers.find((l) => l.id === homeLayerId);
   // Drawn everywhere already: its home layer draws this kind on every layer.
-  const homeAlwaysDraws = Boolean(home?.[alwaysDrawFlag]);
+  const homeAlwaysDraws = alwaysDrawFlag ? Boolean(home?.[alwaysDrawFlag]) : false;
   const viaFolder = (id: string) => Boolean(inherited?.ids.includes(id));
   const isMixed = (id: string) => Boolean(mixedIds?.includes(id)) && !value.includes(id) && !viaFolder(id);
   const chosen = others.filter((l) => value.includes(l.id) || viaFolder(l.id));

@@ -1,20 +1,17 @@
 import { NextResponse } from "next/server";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import { lineGroups, mapLines, mapTexts, maps, textGroups } from "@/server/db/schema";
+import { maps } from "@/server/db/schema";
 import { isLayerOfMap } from "@/server/layers/layers";
-import { folderPatch, sanitizeFolderName, toClientFolder } from "./layer-folders";
+import { folderPatch, folderTable, itemTable, sanitizeFolderName, toClientFolder, type GroupedKind } from "./layer-folders";
 
 /**
- * Route handlers for line and text folders (zone regions keep their own
- * routes). The two folder tables and their item tables have the same
- * columns, so one implementation serves both.
+ * Route handlers for line, text and route folders (zone regions keep their
+ * own routes). The folder tables and their item tables have the same
+ * columns, so one implementation serves them all.
  */
 
-type Kind = "line" | "text";
-// Same columns in both pairs (see schema.ts), so the line tables' types describe either.
-const folderTable = (kind: Kind) => (kind === "line" ? lineGroups : (textGroups as unknown as typeof lineGroups));
-const itemTable = (kind: Kind) => (kind === "line" ? mapLines : (mapTexts as unknown as typeof mapLines));
+type Kind = GroupedKind;
 
 type MapContext = { params: Promise<{ mapId: string }> };
 type FolderContext = { params: Promise<{ id: string }> };

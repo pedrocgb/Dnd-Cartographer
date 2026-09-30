@@ -2,7 +2,7 @@
 
 import { useContext, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { CirclePlus, Footprints, Info, PanelRightClose, TextAlignStart, Trash2, type LucideIcon } from "lucide-react";
+import { CirclePlus, Footprints, Info, PanelRightClose, Pencil, TextAlignStart, Trash2, type LucideIcon } from "lucide-react";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import RichEditor from "@/components/RichEditor";
 import CalendarBacklinks from "@/components/calendars/CalendarBacklinks";
@@ -53,14 +53,15 @@ function CardHeader({ Icon, label, hint, children }: { Icon: LucideIcon; label: 
 }
 
 const CARD_KIND = {
-  body: { Icon: TextAlignStart, label: "Body", placeholder: "Click to start writing this article…" },
-  sidebar: { Icon: PanelRightClose, label: "Sidebar", placeholder: "Click to add sidebar notes…" },
-  footer: { Icon: Footprints, label: "Footer", placeholder: "Click to write the footer…" },
+  body: { Icon: TextAlignStart, label: "Body", placeholder: "Start writing this article…", empty: "Nothing written yet. Use the edit button to write the article." },
+  sidebar: { Icon: PanelRightClose, label: "Sidebar", placeholder: "Add sidebar notes…", empty: "No sidebar notes yet. Use the edit button to add some." },
+  footer: { Icon: Footprints, label: "Footer", placeholder: "Write the footer…", empty: "The footer is empty. Use the edit button to write it." },
 } as const;
 
 /**
- * One text card (body, sidebar or footer). Read-only until clicked; Escape
- * or a click outside returns it to reading. The editor stays mounted across
+ * One text card (body, sidebar or footer). Read-only (its links open on
+ * click) until its edit button is pressed; Escape or a click outside
+ * returns it to reading. The editor stays mounted across
  * the switch — only `editable` changes — so an in-flight autosave can never
  * race a remount (see RichEditor).
  */
@@ -82,7 +83,8 @@ function ArticleCard({
   const [editing, setEditing] = useState(initiallyEditing);
   const [creating, setCreating] = useState(false);
   const ref = useRef<HTMLElement>(null);
-  const { Icon, label, placeholder } = CARD_KIND[variant];
+  const editButtonRef = useRef<HTMLButtonElement>(null);
+  const { Icon, label, placeholder, empty } = CARD_KIND[variant];
 
   useEffect(() => {
     if (!editing) return;
@@ -95,6 +97,16 @@ function ArticleCard({
     return () => document.removeEventListener("pointerdown", onPointerDown);
   }, [editing]);
 
+  // The edit button starts editing: the caret goes into the text once the editor is editable (a new document loads first).
+  const focusOnEditRef = useRef(false);
+  useEffect(() => {
+    if (!editing || !focusOnEditRef.current) return;
+    const field = ref.current?.querySelector<HTMLElement>('[contenteditable="true"]');
+    if (!field) return;
+    field.focus();
+    focusOnEditRef.current = false;
+  });
+
   async function beginEditing() {
     if (editing || creating) return;
     if (!doc.documentId) {
@@ -105,6 +117,7 @@ function ArticleCard({
         setCreating(false);
       }
     }
+    focusOnEditRef.current = true;
     setEditing(true);
   }
 
@@ -113,26 +126,35 @@ function ArticleCard({
       ref={ref}
       className={`article-card article-card-${variant}${editing ? " editing" : ""}`}
       aria-label={label}
-      tabIndex={editing ? -1 : 0}
-      onClick={beginEditing}
       onKeyDown={(e) => {
         if (e.key === "Escape" && editing) {
           e.stopPropagation();
           setEditing(false);
-          ref.current?.focus();
-        } else if (e.key === "Enter" && !editing && e.target === ref.current) {
-          e.preventDefault();
-          void beginEditing();
+          // Back to the edit button, which is shown again once reading.
+          requestAnimationFrame(() => editButtonRef.current?.focus());
         }
       }}
     >
-      <CardHeader Icon={Icon} label={label} hint={editing ? "Esc to finish" : "Click to edit"}>
+      <CardHeader Icon={Icon} label={label} hint={editing ? "Esc to finish" : undefined}>
         {headerActions}
+        {!editing && (
+          <button
+            ref={editButtonRef}
+            type="button"
+            className="btn btn-ghost btn-icon btn-sm article-card-edit"
+            onClick={() => void beginEditing()}
+            disabled={creating}
+            aria-label={`Edit ${label.toLowerCase()}`}
+            data-tooltip={`Edit ${label.toLowerCase()}`}
+          >
+            <Pencil size={14} strokeWidth={2.25} />
+          </button>
+        )}
       </CardHeader>
       {doc.documentId ? (
-        <RichEditor documentId={doc.documentId} editable={editing} placeholder={placeholder} footerActions={footerActions} />
+        <RichEditor documentId={doc.documentId} editable={editing} placeholder={editing ? placeholder : empty} footerActions={footerActions} />
       ) : (
-        <p className="article-card-placeholder">{creating ? "Creating…" : placeholder}</p>
+        <p className="article-card-placeholder">{creating ? "Creating…" : empty}</p>
       )}
     </section>
   );
@@ -318,10 +340,7 @@ export default function ArticleView({
             doc={footer}
             startEditing={footerJustAdded}
             headerActions={
-              <button type="button" className="btn btn-sm btn-ghost article-card-remove" onClick={(e) => {
-                  e.stopPropagation(); // don't also start editing the card
-                  setConfirmingFooterRemoval(true);
-                }}
+              <button type="button" className="btn btn-sm btn-ghost article-card-remove" onClick={() => setConfirmingFooterRemoval(true)}
                 data-tooltip="Remove the footer"
               >
                 <Trash2 size={13} strokeWidth={2.25} />

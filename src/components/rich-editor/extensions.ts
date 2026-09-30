@@ -1,10 +1,12 @@
-import { Node, mergeAttributes, type Extensions } from "@tiptap/core";
+import { Extension, Node, mergeAttributes, type Extensions } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import TextAlign from "@tiptap/extension-text-align";
 import { Color, FontFamily, TextStyle } from "@tiptap/extension-text-style";
 import Image from "@tiptap/extension-image";
 import { Mention } from "./mention";
+import { MenuKeys } from "./menu-keys";
+import { TableOfContents } from "./TableOfContents";
 import { IMAGE_ALIGNS, HEADING_LEVELS, TEXT_ALIGNS } from "@/server/documents/rich-attrs";
 
 declare module "@tiptap/core" {
@@ -77,6 +79,31 @@ export const ArticleImage = Image.extend({
   },
 });
 
+/**
+ * Word-processor shortcuts on top of TipTap's own (Ctrl+B/I/U, Ctrl+Shift+S
+ * strike, Ctrl+Alt+0–5 paragraph/headings, Ctrl+Shift+7/8 lists,
+ * Ctrl+Shift+B quote, Ctrl+Shift+L/E/R/J align, and Tab / Shift+Tab to
+ * nest and un-nest a list item, as in Google Docs and Notion):
+ * - Tab in a list never leaves the editor: on an item that can't nest
+ *   further (the first one) it does nothing instead of moving focus.
+ * - Ctrl+Alt+T turns the line into the Title style.
+ * - Ctrl+\ clears the selection's formatting (Google Docs).
+ */
+export const EditingShortcuts = Extension.create({
+  name: "editingShortcuts",
+  // Below the list items' own Tab/Shift+Tab (priority 100), which run first.
+  priority: 50,
+  addKeyboardShortcuts() {
+    const inList = () => this.editor.isActive("bulletList") || this.editor.isActive("orderedList");
+    return {
+      Tab: () => inList(),
+      "Shift-Tab": () => inList(),
+      "Mod-Alt-t": () => this.editor.chain().focus().clearNodes().setTitle().run(),
+      "Mod-\\": () => this.editor.chain().focus().unsetAllMarks().run(),
+    };
+  },
+});
+
 export function buildExtensions(placeholder: string): Extensions {
   return [
     StarterKit.configure({
@@ -91,6 +118,9 @@ export function buildExtensions(placeholder: string): Extensions {
     ArticleImage,
     // Always loaded, so a document with mentions keeps them in every editor.
     Mention,
+    TableOfContents,
+    MenuKeys,
+    EditingShortcuts,
     Placeholder.configure({ placeholder }),
   ];
 }

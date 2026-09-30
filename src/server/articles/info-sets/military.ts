@@ -219,7 +219,7 @@ export const MILITARY_INFO = defineFieldSet(
       link: link(["territory", "organization", "character"], true),
       hint: "Who it serves. Loyalty can be bought, sworn or inherited.",
     },
-    { key: "establishedOn", label: "Established On", group: "identity", kind: "text", hint: "When it was raised." },
+    { key: "establishedOn", label: "Established On", group: "identity", kind: "date", hint: "When it was raised." },
     {
       key: "formationType",
       label: "Formation Type",

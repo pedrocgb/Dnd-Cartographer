@@ -74,8 +74,8 @@ export const GENERIC_INFO = defineFieldSet(
       kind: "text",
       hint: "What changed because of it. Consequences are what make a subject matter to the present day.",
     },
-    { key: "dateOfOrigin", label: "Date of Origin", group: "history", kind: "text", hint: "When it began or first appeared, in your world's calendar." },
-    { key: "dateOfResolution", label: "Date of Resolution", group: "history", kind: "text", hint: "When it ended or was resolved, if it has been." },
+    { key: "dateOfOrigin", label: "Date of Origin", group: "history", kind: "date", hint: "When it began or first appeared, in your world's calendar." },
+    { key: "dateOfResolution", label: "Date of Resolution", group: "history", kind: "date", hint: "When it ended or was resolved, if it has been." },
     { key: "origin", label: "Origin", group: "history", kind: "text", hint: "How or where it started. The seed of the story." },
     {
       key: "precedingSubject",

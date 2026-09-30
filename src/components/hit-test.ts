@@ -16,6 +16,8 @@ export interface HitScene {
   markers: { id: string; x: number; y: number; lift?: number; radius?: number }[];
   texts: { id: string; x: number; y: number; text: string; fontSize: number; letterSpacing: number; rotation: number }[];
   lines: { id: string; points: PenPt[]; width: number }[];
+  /** Travel routes; `width` is screen px (a route keeps its width on screen at any zoom). */
+  routes?: { id: string; points: Pt[]; width: number }[];
   /** In paint order: the last one is drawn on top. */
   zones: { id: string; bounds: Rect; polygons: MultiPolygon }[];
 }
@@ -107,13 +109,21 @@ export function inMultiPolygon(polygons: MultiPolygon, p: Pt): boolean {
   return inside;
 }
 
-/** The topmost item under `p`: markers, then texts, lines, zones (the map's stacking order). */
+/** The topmost item under `p`: markers, then routes, texts, lines, zones (the map's stacking order). */
 export function hitTest(scene: HitScene, p: Pt, pxPerImage: number): Hit | null {
   const scale = pxPerImage > 0 ? pxPerImage : 1;
   for (let i = scene.markers.length - 1; i >= 0; i--) {
     const m = scene.markers[i];
     const bounds = markerHitBox(m, scale);
     if (inRect(p, bounds)) return { kind: "marker", id: m.id, bounds };
+  }
+  const routes = scene.routes ?? [];
+  for (let i = routes.length - 1; i >= 0; i--) {
+    const r = routes[i];
+    const tolerance = Math.max(r.width / 2, LINE_HIT_PX) / scale;
+    const b = lineBounds(r.points);
+    if (!b || !inRect(p, b, tolerance)) continue;
+    if (lineDistance(r.points, p) <= tolerance) return { kind: "route", id: r.id, bounds: b };
   }
   for (let i = scene.texts.length - 1; i >= 0; i--) {
     const t = scene.texts[i];

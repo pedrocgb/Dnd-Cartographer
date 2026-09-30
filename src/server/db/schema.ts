@@ -137,6 +137,7 @@ export const mapLayers = sqliteTable(
     markersAlwaysVisible: integer("markers_always_visible", { mode: "boolean" }).notNull().default(false),
     textsAlwaysVisible: integer("texts_always_visible", { mode: "boolean" }).notNull().default(false),
     linesAlwaysVisible: integer("lines_always_visible", { mode: "boolean" }).notNull().default(false),
+    routesAlwaysVisible: integer("routes_always_visible", { mode: "boolean" }).notNull().default(false),
     deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
     ...timestamps,
   },
@@ -250,6 +251,46 @@ export const mapGrids = sqliteTable(
     ...timestamps,
   },
   (table) => [index("map_grids_map_idx").on(table.mapId), uniqueIndex("map_grids_layer_idx").on(table.layerId)]
+);
+
+/**
+ * A layer's map legend (one per layer): a screen-pinned key of items
+ * (small image + short text). `extraLayerIds` also shows it while those
+ * layers are active; `config` is JSON (see server/legends/legend-config.ts).
+ */
+export const mapLegends = sqliteTable(
+  "map_legends",
+  {
+    id: id(),
+    mapId: text("map_id")
+      .notNull()
+      .references(() => maps.id),
+    layerId: text("layer_id").notNull(),
+    extraLayerIds: text("extra_layer_ids").notNull().default("[]"),
+    visible: integer("visible", { mode: "boolean" }).notNull().default(true),
+    config: text("config").notNull().default("{}"),
+    ...timestamps,
+  },
+  (table) => [index("map_legends_map_idx").on(table.mapId), uniqueIndex("map_legends_layer_idx").on(table.layerId)]
+);
+
+/**
+ * A map's scale bar (one per map; layers share the frame): its calibration
+ * (frame pixels per unit, which also drives the measure tool) and look, as
+ * JSON (see server/scale/scale-config.ts).
+ */
+export const mapScaleBars = sqliteTable(
+  "map_scale_bars",
+  {
+    id: id(),
+    mapId: text("map_id")
+      .notNull()
+      .references(() => maps.id),
+    visible: integer("visible", { mode: "boolean" }).notNull().default(false),
+    config: text("config").notNull().default("{}"),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex("map_scale_bars_map_idx").on(table.mapId)]
 );
 
 /**
@@ -417,6 +458,58 @@ export const lineGroups = sqliteTable(
     ...timestamps,
   },
   (table) => [index("line_groups_map_idx").on(table.mapId)]
+);
+
+/** Folders of travel routes: same shape as line_groups (see server/maps/layer-folders.ts). */
+export const routeGroups = sqliteTable(
+  "route_groups",
+  {
+    id: id(),
+    mapId: text("map_id")
+      .notNull()
+      .references(() => maps.id),
+    layerId: text("layer_id").notNull(),
+    name: text("name").notNull(),
+    visible: integer("visible", { mode: "boolean" }).notNull().default(true),
+    locked: integer("locked", { mode: "boolean" }).notNull().default(false),
+    sortOrder: integer("sort_order").notNull().default(0),
+    extraLayerIds: text("extra_layer_ids").notNull().default("[]"),
+    defaultStyle: text("default_style"),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+    ...timestamps,
+  },
+  (table) => [index("route_groups_map_idx").on(table.mapId)]
+);
+
+/**
+ * A saved travel route (Travel tool): a polyline in frame pixels on a
+ * layer, with its look and the travel settings its trip time is worked
+ * out with (JSON, see server/travel/travel.ts).
+ */
+export const mapRoutes = sqliteTable(
+  "map_routes",
+  {
+    id: id(),
+    mapId: text("map_id")
+      .notNull()
+      .references(() => maps.id),
+    layerId: text("layer_id").notNull(),
+    extraLayerIds: text("extra_layer_ids").notNull().default("[]"),
+    groupId: text("group_id"),
+    name: text("name").notNull().default(""),
+    // JSON [{x,y}] in frame pixels.
+    points: text("points").notNull(),
+    color: text("color").notNull().default("#FACC15"),
+    width: real("width").notNull().default(3),
+    style: text("style").notNull().default("dashed"),
+    settings: text("settings").notNull().default("{}"),
+    visible: integer("visible", { mode: "boolean" }).notNull().default(true),
+    locked: integer("locked", { mode: "boolean" }).notNull().default(false),
+    sortOrder: integer("sort_order").notNull().default(0),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+    ...timestamps,
+  },
+  (table) => [index("map_routes_map_idx").on(table.mapId), index("map_routes_layer_idx").on(table.layerId)]
 );
 
 /**

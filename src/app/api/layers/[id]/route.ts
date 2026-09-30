@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import { lineGroups, mapGrids, mapLayers, mapLines, textGroups, mapTexts, markers, zoneRegions, zones } from "@/server/db/schema";
+import { lineGroups, mapGrids, mapLayers, mapLegends, mapLines, mapRoutes, routeGroups, textGroups, mapTexts, markers, zoneRegions, zones } from "@/server/db/schema";
 import { findLayer, listLayerRows } from "@/server/layers/layers";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -16,7 +16,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (typeof body.name === "string" && body.name.trim()) patch.name = body.name.trim().slice(0, 120);
   if (typeof body.visible === "boolean") patch.visible = body.visible;
   if (typeof body.imageAlwaysVisible === "boolean") patch.imageAlwaysVisible = body.imageAlwaysVisible;
-  for (const key of ["zonesAlwaysVisible", "markersAlwaysVisible", "textsAlwaysVisible", "linesAlwaysVisible"] as const) {
+  for (const key of ["zonesAlwaysVisible", "markersAlwaysVisible", "textsAlwaysVisible", "linesAlwaysVisible", "routesAlwaysVisible"] as const) {
     if (typeof body[key] === "boolean") patch[key] = body[key];
   }
   if (typeof body.imageOpacity === "number" && Number.isFinite(body.imageOpacity)) {
@@ -51,18 +51,20 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     return NextResponse.json({ error: "A map needs at least one layer." }, { status: 409 });
   }
 
-  const [markerRows, regionRows, textRows, lineRows, grid] = await Promise.all([
+  const [markerRows, regionRows, textRows, lineRows, grid, legend, routeRows] = await Promise.all([
     db.select({ id: markers.id }).from(markers).where(and(eq(markers.layerId, id), isNull(markers.deletedAt))),
     db.select({ id: zoneRegions.id }).from(zoneRegions).where(and(eq(zoneRegions.layerId, id), isNull(zoneRegions.deletedAt))),
     db.select({ id: mapTexts.id }).from(mapTexts).where(and(eq(mapTexts.layerId, id), isNull(mapTexts.deletedAt))),
     db.select({ id: mapLines.id }).from(mapLines).where(and(eq(mapLines.layerId, id), isNull(mapLines.deletedAt))),
     db.query.mapGrids.findFirst({ where: eq(mapGrids.layerId, id) }),
+    db.query.mapLegends.findFirst({ where: eq(mapLegends.layerId, id) }),
+    db.select({ id: mapRoutes.id }).from(mapRoutes).where(and(eq(mapRoutes.layerId, id), isNull(mapRoutes.deletedAt))),
   ]);
-  const hasContent = markerRows.length > 0 || regionRows.length > 0 || textRows.length > 0 || lineRows.length > 0 || Boolean(grid);
+  const hasContent = markerRows.length > 0 || regionRows.length > 0 || textRows.length > 0 || lineRows.length > 0 || Boolean(grid) || Boolean(legend) || routeRows.length > 0;
   const mode = new URL(request.url).searchParams.get("mode");
   if (hasContent && mode !== "cascade") {
     return NextResponse.json(
-      { error: "This layer still has content.", markerCount: markerRows.length, regionCount: regionRows.length, textCount: textRows.length, lineCount: lineRows.length, hasGrid: Boolean(grid) },
+      { error: "This layer still has content.", markerCount: markerRows.length, regionCount: regionRows.length, textCount: textRows.length, lineCount: lineRows.length, hasGrid: Boolean(grid), hasLegend: Boolean(legend), routeCount: routeRows.length },
       { status: 409 }
     );
   }
@@ -82,6 +84,9 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     await tx.update(lineGroups).set({ deletedAt: now, updatedAt: now }).where(and(eq(lineGroups.layerId, id), isNull(lineGroups.deletedAt)));
     await tx.update(textGroups).set({ deletedAt: now, updatedAt: now }).where(and(eq(textGroups.layerId, id), isNull(textGroups.deletedAt)));
     await tx.delete(mapGrids).where(eq(mapGrids.layerId, id));
+    await tx.delete(mapLegends).where(eq(mapLegends.layerId, id));
+    await tx.update(mapRoutes).set({ deletedAt: now, updatedAt: now }).where(and(eq(mapRoutes.layerId, id), isNull(mapRoutes.deletedAt)));
+    await tx.update(routeGroups).set({ deletedAt: now, updatedAt: now }).where(and(eq(routeGroups.layerId, id), isNull(routeGroups.deletedAt)));
     await tx.update(mapLayers).set({ deletedAt: now, updatedAt: now }).where(eq(mapLayers.id, id));
   });
   return NextResponse.json({ ok: true });

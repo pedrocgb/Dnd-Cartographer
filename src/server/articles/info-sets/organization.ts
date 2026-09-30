@@ -11,7 +11,7 @@ export const ORGANIZATION_INFO = defineFieldSet(
   ],
   [
     // Identity
-    { key: "foundedOn", label: "Founded On", group: "identity", kind: "text", hint: "When the organization was founded, in your world's calendar." },
+    { key: "foundedOn", label: "Founded On", group: "identity", kind: "date", hint: "When the organization was founded, in your world's calendar." },
     {
       key: "founders",
       label: "Founders",

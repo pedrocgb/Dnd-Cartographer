@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "../db/client";
-import { mapAssets, mapGrids, mapLayers, mapLines, mapTexts, maps, markers, zones } from "../db/schema";
+import { mapAssets, mapGrids, mapLayers, mapLines, mapRoutes, mapTexts, maps, markers, zones } from "../db/schema";
 import { MAX_GRID_LINES } from "../grid/grid-config";
 import { translateZoneGeometry } from "@/components/paste-geometry";
 import { growGrid, growImagePlacement, growMarkerUV, planFrameGrowth, type Frame } from "./frame-growth";
@@ -66,6 +66,9 @@ export async function fitFrameToImages(mapId: string): Promise<Frame | null> {
       }
       for (const l of await tx.select({ id: mapLines.id, points: mapLines.points }).from(mapLines).where(eq(mapLines.mapId, mapId))) {
         await tx.update(mapLines).set({ points: shiftLinePoints(l.points, g.dx, g.dy) }).where(eq(mapLines.id, l.id));
+      }
+      for (const r of await tx.select({ id: mapRoutes.id, points: mapRoutes.points }).from(mapRoutes).where(eq(mapRoutes.mapId, mapId))) {
+        await tx.update(mapRoutes).set({ points: shiftLinePoints(r.points, g.dx, g.dy) }).where(eq(mapRoutes.id, r.id));
       }
       for (const z of await tx.select({ id: zones.id, geometry: zones.geometry }).from(zones).where(eq(zones.mapId, mapId))) {
         await tx.update(zones).set({ geometry: shiftZoneGeometry(z.geometry, g.dx, g.dy) }).where(eq(zones.id, z.id));

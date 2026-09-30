@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { MAX_INFO_TEXT_LENGTH, addedInfo, columnPatch, defineFieldSet, emptyRequiredInfo, sanitizeColor, sanitizeInfo, sanitizeUrl } from "../src/server/articles/info-fields";
+import { MAX_INFO_TEXT_LENGTH, addedInfo, columnPatch, defineFieldSet, emptyRequiredInfo, encodeWorldDay, parseWorldDay, sanitizeColor, sanitizeInfo, sanitizeUrl } from "../src/server/articles/info-fields";
 import { CHARACTER_INFO, FAUNA_INFO, GEOGRAPHY_INFO, INFO_FIELD_SETS, MONSTER_INFO, ORGANIZATION_INFO, PLAYER_CHARACTER_INFO, TERRITORY_INFO, TITLE_INFO, personInfoSet } from "../src/server/articles/info-sets";
 import { ARTICLE_TEMPLATE_GROUPS, ARTICLE_TEMPLATE_KEYS, isArticleTemplate, type ArticleTemplateKey } from "../src/server/articles/templates";
 import { relationFieldValues } from "../src/server/relations/info-backing";
@@ -12,6 +12,16 @@ describe("ARTICLE_TEMPLATE_GROUPS", () => {
 
   it("gives every template a field set", () => {
     expect(ARTICLE_TEMPLATE_KEYS.filter((k) => !INFO_FIELD_SETS[k])).toEqual([]);
+  });
+});
+
+describe("date fields", () => {
+  it("store a world day, keep older free text, and drop bad days", () => {
+    const out = sanitizeInfo(CHARACTER_INFO, { dateOfBirth: encodeWorldDay(-1234), dateOfDeath: "  Year 402 of the Third Age " });
+    expect(out).toMatchObject({ dateOfBirth: "wd:-1234", dateOfDeath: "Year 402 of the Third Age" });
+    expect(parseWorldDay(out!.dateOfBirth)).toBe(-1234);
+    expect(parseWorldDay("Year 402")).toBeNull();
+    expect(sanitizeInfo(CHARACTER_INFO, { dateOfBirth: "wd:1.5", dateOfDeath: "wd:999999999999" })).toMatchObject({ dateOfBirth: null, dateOfDeath: null });
   });
 });
 

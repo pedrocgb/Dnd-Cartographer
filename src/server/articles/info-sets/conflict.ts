@@ -257,8 +257,8 @@ export const CONFLICT_INFO = defineFieldSet(
     { key: "territorialChanges", label: "Territorial Changes", group: "resolution", kind: "text", hint: "Lands that changed hands." },
     { key: "unresolvedIssues", label: "Unresolved Issues", group: "resolution", kind: "text", hint: "What was left unsettled — the seeds of the next conflict." },
     // Timeline
-    { key: "beganOn", label: "Began On", group: "timeline", kind: "text", hint: "When it started." },
-    { key: "endedOn", label: "Ended On", group: "timeline", kind: "text", hint: "When it ended, if it has." },
+    { key: "beganOn", label: "Began On", group: "timeline", kind: "date", hint: "When it started." },
+    { key: "endedOn", label: "Ended On", group: "timeline", kind: "date", hint: "When it ended, if it has." },
     { key: "periodsOfTruce", label: "Periods of Truce", group: "timeline", kind: "text", hint: "Pauses in the fighting." },
     { key: "precedingConflicts", label: "Preceding Conflicts", group: "timeline", kind: "link", link: CONFLICTS(), hint: "Conflicts that led to this one." },
     { key: "subsequentConflicts", label: "Subsequent Conflicts", group: "timeline", kind: "link", link: CONFLICTS(), hint: "Conflicts that followed from it." },

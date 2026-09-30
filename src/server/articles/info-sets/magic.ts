@@ -123,7 +123,7 @@ export const MAGIC_INFO = defineFieldSet(
     { key: "targetRequirements", label: "Target Requirements", group: "effects", kind: "text", hint: "What a target must be for it to work." },
     { key: "targets", label: "Targets", group: "effects", kind: "text", hint: "Who or what it can affect." },
     // History and Teaching
-    { key: "dateOfDiscovery", label: "Date of Discovery", group: "historyAndTeaching", kind: "text", hint: "When it was first discovered or created." },
+    { key: "dateOfDiscovery", label: "Date of Discovery", group: "historyAndTeaching", kind: "date", hint: "When it was first discovered or created." },
     {
       key: "discoverersOrCreators",
       label: "Discoverers or Creators",

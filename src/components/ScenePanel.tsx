@@ -1,17 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { X, ListTree, ChevronRight, ChevronDown, MapPin, Shapes, Type, PenTool, Eye, EyeOff } from "lucide-react";
+import { X, ListTree, ChevronRight, ChevronDown, MapPin, Shapes, Type, PenTool, Route, Eye, EyeOff } from "lucide-react";
 import type { Marker } from "./MarkerLayer";
 import type { ZoneData, ZoneRegionData } from "./ZoneLayer";
 import type { MapTextData } from "./TextLayer";
 import type { MapLineData } from "./LineLayer";
+import type { MapRouteData } from "@/server/travel/route-config";
 
-export type SceneKind = "marker" | "zone" | "text" | "line";
+export type SceneKind = "marker" | "zone" | "text" | "line" | "route";
 
 const LINE_STYLE_LABEL = { solid: "Solid", dot: "Dotted", dashed: "Dashed" } as const;
 
-const SCENE_KINDS: SceneKind[] = ["marker", "zone", "text", "line"];
+const SCENE_KINDS: SceneKind[] = ["marker", "zone", "text", "line", "route"];
 /** Which sections are expanded, remembered per browser across visits to the panel. */
 const OPEN_STORAGE_KEY = "scene-panel-open";
 
@@ -110,6 +111,7 @@ export default function ScenePanel({
   zones,
   texts,
   lines,
+  routes,
   onPick,
   onHover,
   onSetVisible,
@@ -121,6 +123,7 @@ export default function ScenePanel({
   zones: ZoneData[];
   texts: MapTextData[];
   lines: MapLineData[];
+  routes: MapRouteData[];
   onPick: (kind: SceneKind, id: string) => void;
   /** The item under the pointer (or focused) in the list; null when none. */
   onHover: (item: { kind: SceneKind; id: string } | null) => void;
@@ -191,6 +194,12 @@ export default function ScenePanel({
       <Section title="Lines" icon={<PenTool size={14} strokeWidth={2.25} />} count={lines.length} open={open.has("line")} onToggle={() => toggle("line")} {...eye("line", lines)}>
         {lines.map((l, i) => (
           <Item key={l.id} label={`Line ${i + 1} · ${LINE_STYLE_LABEL[l.style]}`} muted={!l.visible} onClick={() => onPick("line", l.id)} onHover={(on) => onHover(on ? { kind: "line", id: l.id } : null)} />
+        ))}
+      </Section>
+
+      <Section title="Routes" icon={<Route size={14} strokeWidth={2.25} />} count={routes.length} open={open.has("route")} onToggle={() => toggle("route")} {...eye("route", routes)}>
+        {routes.map((r, i) => (
+          <Item key={r.id} label={r.name || `Route ${i + 1}`} muted={!r.visible} onClick={() => onPick("route", r.id)} onHover={(on) => onHover(on ? { kind: "route", id: r.id } : null)} />
         ))}
       </Section>
     </div>

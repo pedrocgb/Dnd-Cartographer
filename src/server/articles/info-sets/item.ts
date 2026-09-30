@@ -81,7 +81,7 @@ export const ITEM_INFO = defineFieldSet(
       link: link(["generic"], true),
       hint: "Events it played a part in.",
     },
-    { key: "createdOn", label: "Created On", group: "provenance", kind: "text", hint: "When it was made." },
+    { key: "createdOn", label: "Created On", group: "provenance", kind: "date", hint: "When it was made." },
     {
       key: "creators",
       label: "Creators",

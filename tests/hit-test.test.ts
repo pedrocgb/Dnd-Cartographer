@@ -63,6 +63,13 @@ describe("hitTest", () => {
     // Zoomed out 4×: 14 screen px around the marker is 56 image px.
     expect(hitTest(scene, { x: 100, y: 50 }, 0.25)?.id).toBe("m");
   });
+  it("picks routes above lines, with a screen-sized width", () => {
+    const withRoute: HitScene = { ...scene, routes: [{ id: "r", points: [{ x: 0, y: 200 }, { x: 200, y: 200 }], width: 4 }] };
+    expect(hitTest(withRoute, { x: 100, y: 204 }, 1)).toMatchObject({ kind: "route", id: "r" });
+    // Zoomed out 4×: its 6 screen px of tolerance reach 24 image px off the path.
+    expect(hitTest(withRoute, { x: 100, y: 222 }, 0.25)?.id).toBe("r");
+    expect(hitTest(withRoute, { x: 100, y: 222 }, 1)?.id).toBe("bottom");
+  });
 });
 
 describe("markerHitBox", () => {

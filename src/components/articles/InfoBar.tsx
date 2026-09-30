@@ -5,6 +5,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   ArrowDownWideNarrow,
+  CalendarDays,
   ChevronDown,
   ChevronRight,
   CircleQuestionMark,
@@ -23,7 +24,9 @@ import {
 import {
   MAX_INFO_TEXT_LENGTH,
   MAX_INFO_URL_LENGTH,
+  encodeWorldDay,
   isListField,
+  parseWorldDay,
   sanitizeUrl,
   type InfoField,
   type InfoFieldKind,
@@ -35,6 +38,9 @@ import {
 } from "@/server/articles/info-fields";
 import { TEMPLATE_LABELS } from "@/server/articles/templates";
 import { COLOR_PRESETS } from "@/server/markers/icon-registry";
+import WorldDatePicker from "@/components/calendars/WorldDatePicker";
+import { dayLabel } from "@/components/calendars/evaluate";
+import { useDefaultCalendarStatus } from "@/components/relations/use-default-calendar";
 import InfoPicker, { type PickerOption } from "./InfoPicker";
 import type { OpenArticle } from "./types";
 
@@ -55,6 +61,7 @@ const KIND: Record<InfoFieldKind, { Icon: LucideIcon; hint: string }> = {
   link: { Icon: ExternalLink, hint: "Link" },
   color: { Icon: Palette, hint: "Color" },
   url: { Icon: Link2, hint: "Web address" },
+  date: { Icon: CalendarDays, hint: "Date" },
 };
 
 const isEmpty = (v: InfoValue | undefined) => v === null || v === undefined || v === "" || (Array.isArray(v) && v.length === 0);
@@ -180,6 +187,8 @@ export function InfoView({
   extra?: React.ReactNode;
 }) {
   const fields = fieldsInOrder(set, values);
+  // Dates are world days, shown in the world's default calendar.
+  const { calendar, loading } = useDefaultCalendarStatus(fields.some((f) => f.kind === "date"));
 
   function linkButton(targets: readonly InfoLinkTarget[], id: string) {
     const found = findLinked(targets, lookups, id);
@@ -223,6 +232,13 @@ export function InfoView({
               <span className="info-color-swatch" style={{ background: String(value) }} aria-hidden />
               {String(value)}
             </span>
+          );
+        } else if (field.kind === "date" && parseWorldDay(value) !== null) {
+          const day = parseWorldDay(value)!;
+          shown = calendar ? (
+            <span className="info-value">{dayLabel(calendar.def, day, { weekday: false })}</span>
+          ) : (
+            <span className="field-label">{loading ? "…" : "Needs a calendar (create one in Calendars)"}</span>
           );
         } else if (field.kind === "url") {
           shown = (
@@ -423,6 +439,37 @@ function Dropdown({
   );
 }
 
+/**
+ * A "date" field: the world's default calendar's date picker. Free text
+ * written before the field was a date is shown until a date replaces it.
+ */
+function DateFieldEditor({ field, value, onChange }: { field: InfoField; value: InfoValue; onChange: (value: InfoValue) => void }) {
+  const { calendar, loading } = useDefaultCalendarStatus();
+  const day = parseWorldDay(value);
+  const oldText = day === null && typeof value === "string" && value.trim() ? value : null;
+  return (
+    <div className="info-date-editor" data-field={field.key}>
+      {calendar ? (
+        <WorldDatePicker
+          def={calendar.def}
+          label={field.label}
+          value={day}
+          currentDay={calendar.currentDay}
+          onChange={(d) => onChange(encodeWorldDay(d))}
+          onClear={field.required ? undefined : () => onChange(null)}
+        />
+      ) : (
+        <span className="field-label">{loading ? "Loading the calendar…" : "Create a calendar in Calendars to pick dates."}</span>
+      )}
+      {oldText && (
+        <span className="field-label info-date-old">
+          Written as &ldquo;{oldText}&rdquo;. {calendar ? "Pick a date to replace it." : ""}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function FieldEditor({
   field,
   value,
@@ -446,6 +493,8 @@ function FieldEditor({
       />
     );
   }
+
+  if (field.kind === "date") return <DateFieldEditor field={field} value={value} onChange={onChange} />;
 
   if (field.kind === "url") {
     const text = (value as string | null) ?? "";

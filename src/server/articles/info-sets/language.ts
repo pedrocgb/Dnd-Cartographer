@@ -13,7 +13,7 @@ export const LANGUAGE_INFO = defineFieldSet(
   ],
   [
     // History
-    { key: "dateOfOrigin", label: "Date of Origin", group: "history", kind: "text", hint: "When the language first appeared." },
+    { key: "dateOfOrigin", label: "Date of Origin", group: "history", kind: "date", hint: "When the language first appeared." },
     {
       key: "developedBy",
       label: "Developed By",

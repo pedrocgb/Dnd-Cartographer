@@ -16,11 +16,12 @@ export interface MapLayerData {
   imageY: number;
   imageScale: number;
   imageAlwaysVisible: boolean;
-  /** Draw this layer's zones/markers/texts/lines even while another layer is active (display only). */
+  /** Draw this layer's zones/markers/texts/lines/routes even while another layer is active (display only). */
   zonesAlwaysVisible: boolean;
   markersAlwaysVisible: boolean;
   textsAlwaysVisible: boolean;
   linesAlwaysVisible: boolean;
+  routesAlwaysVisible: boolean;
   /** The layer's current (tiled, ready) image, if any. */
   asset: { id: string; width: number | null; height: number | null } | null;
   /** A newer upload still being processed (or that failed). */
@@ -30,11 +31,11 @@ export interface MapLayerData {
 export type LayerPatch = Partial<
   Pick<
     MapLayerData,
-    "name" | "visible" | "imageOpacity" | "imageX" | "imageY" | "imageScale" | "imageAlwaysVisible" | "zonesAlwaysVisible" | "markersAlwaysVisible" | "textsAlwaysVisible" | "linesAlwaysVisible"
+    "name" | "visible" | "imageOpacity" | "imageX" | "imageY" | "imageScale" | "imageAlwaysVisible" | "zonesAlwaysVisible" | "markersAlwaysVisible" | "textsAlwaysVisible" | "linesAlwaysVisible" | "routesAlwaysVisible"
   >
 >;
 
-export type AlwaysDrawFlag = "zonesAlwaysVisible" | "markersAlwaysVisible" | "textsAlwaysVisible" | "linesAlwaysVisible";
+export type AlwaysDrawFlag = "zonesAlwaysVisible" | "markersAlwaysVisible" | "textsAlwaysVisible" | "linesAlwaysVisible" | "routesAlwaysVisible";
 
 /**
  * Layers whose items of one kind are drawn, in paint order (first = bottom):

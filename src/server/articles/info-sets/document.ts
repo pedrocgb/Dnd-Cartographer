@@ -80,7 +80,7 @@ export const DOCUMENT_INFO = defineFieldSet(
     // Provenance
     { key: "authors", label: "Authors", group: "provenance", kind: "link", link: PEOPLE_LIST(), hint: "Who wrote it." },
     { key: "commissionedBy", label: "Commissioned By", group: "provenance", kind: "link", link: PEOPLE(), hint: "Who ordered it written." },
-    { key: "dateWritten", label: "Date Written", group: "provenance", kind: "text", hint: "When it was written." },
+    { key: "dateWritten", label: "Date Written", group: "provenance", kind: "date", hint: "When it was written." },
     { key: "intendedRecipients", label: "Intended Recipients", group: "provenance", kind: "link", link: PEOPLE_LIST(), hint: "Who it was meant for." },
     {
       key: "originalDocument",

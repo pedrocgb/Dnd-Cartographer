@@ -19,6 +19,7 @@ export default function Modal({
   size = "normal",
   minimized = false,
   onMinimize,
+  className,
   children,
 }: {
   open: boolean;
@@ -30,6 +31,8 @@ export default function Modal({
   minimized?: boolean;
   /** Adds a minimize button; called with true to minimize, false to restore. */
   onMinimize?: (minimized: boolean) => void;
+  /** Extra class on the backdrop (e.g. to mark it as part of the editor's floating UI). */
+  className?: string;
   children: React.ReactNode;
 }) {
   const token = useRef({});
@@ -74,7 +77,7 @@ export default function Modal({
 
   return createPortal(
     <div
-      className="modal-backdrop"
+      className={className ? `modal-backdrop ${className}` : "modal-backdrop"}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}

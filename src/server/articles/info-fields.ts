@@ -11,7 +11,7 @@ import type { ArticleTemplateKey } from "./templates";
  * query it), and `info` holds only the key as a presence marker.
  */
 
-export type InfoFieldKind = "text" | "select" | "link" | "color" | "url";
+export type InfoFieldKind = "text" | "select" | "link" | "color" | "url" | "date";
 /**
  * A link points at articles of these templates (ids are unique across all
  * of them), or at a Calendars season profile ("seasonProfile") — the
@@ -114,6 +114,24 @@ export function parseInfo(raw: unknown): InfoValues {
   }
 }
 
+/**
+ * A "date" field stores a world day ("wd:<day>"): physical days from the
+ * world's epoch, so every calendar can show it. Free text written before the
+ * field was a date is kept as it is until a date is picked.
+ */
+const WORLD_DAY_PREFIX = "wd:";
+/** Same range the world's current day allows. */
+const MAX_WORLD_DAY = 100_000_000;
+
+export const encodeWorldDay = (day: number) => `${WORLD_DAY_PREFIX}${day}`;
+
+/** The world day a "date" value holds, or null (empty, or older free text). */
+export function parseWorldDay(value: unknown): number | null {
+  if (typeof value !== "string" || !value.startsWith(WORLD_DAY_PREFIX)) return null;
+  const day = Number(value.slice(WORLD_DAY_PREFIX.length));
+  return Number.isSafeInteger(day) && Math.abs(day) <= MAX_WORLD_DAY ? day : null;
+}
+
 const isId = (v: unknown): v is string => typeof v === "string" && v.length > 0 && v.length <= 64;
 
 /** A "color" field's value: #RRGGBB (uppercased), or null. */
@@ -140,6 +158,14 @@ function sanitizeValue(field: InfoField, value: unknown): InfoValue {
   if (field.kind === "text") return typeof value === "string" ? value.trim().slice(0, MAX_INFO_TEXT_LENGTH) || null : null;
   if (field.kind === "color") return sanitizeColor(value);
   if (field.kind === "url") return sanitizeUrl(value);
+  if (field.kind === "date") {
+    if (typeof value !== "string") return null;
+    if (value.startsWith(WORLD_DAY_PREFIX)) {
+      const day = parseWorldDay(value);
+      return day === null ? null : encodeWorldDay(day);
+    }
+    return value.trim().slice(0, MAX_INFO_TEXT_LENGTH) || null;
+  }
   if (field.kind === "select") {
     const valid = (v: unknown): v is string => typeof v === "string" && Boolean(field.options?.includes(v));
     if (list) return Array.isArray(value) ? [...new Set(value.filter(valid))] : [];

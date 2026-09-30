@@ -309,6 +309,27 @@
       "when": 1790767206202,
       "tag": "0043_marker_links_primary",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "6",
+      "when": 1790789480259,
+      "tag": "0044_map_legends_scale",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "6",
+      "when": 1790795203450,
+      "tag": "0045_map_routes",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "6",
+      "when": 1790796683434,
+      "tag": "0046_layer_routes_always_visible",
+      "breakpoints": true
     }
   ]
 }

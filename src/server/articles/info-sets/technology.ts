@@ -83,7 +83,7 @@ export const TECHNOLOGY_INFO = defineFieldSet(
       link: link(["technology"], true),
       hint: "Rival approaches to the same problem.",
     },
-    { key: "dateOfInvention", label: "Date of Invention", group: "development", kind: "text", hint: "When it was invented." },
+    { key: "dateOfInvention", label: "Date of Invention", group: "development", kind: "date", hint: "When it was invented." },
     {
       key: "developmentStatus",
       label: "Development Status",

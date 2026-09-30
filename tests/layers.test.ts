@@ -17,6 +17,7 @@ function layer(id: string, sortOrder: number, extra: Partial<MapLayerData> = {})
     markersAlwaysVisible: false,
     textsAlwaysVisible: false,
     linesAlwaysVisible: false,
+    routesAlwaysVisible: false,
     asset: { id: `asset-${id}`, width: 100, height: 50 },
     pendingAsset: null,
     ...extra,

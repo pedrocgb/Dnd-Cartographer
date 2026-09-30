@@ -5,6 +5,7 @@ import { Archive, ArchiveRestore, CalendarRange, Check, ListOrdered, Plus, Star,
 import Modal from "@/components/Modal";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import ColorWheel from "@/components/ColorWheel";
+import Toggle from "@/components/Toggle";
 import { annualInterval } from "@/server/calendars/celestial";
 import { activeSeasons, effectiveMemberships, profileIssues, type MonthDay, type SeasonMembership, type SeasonProfileData } from "@/server/calendars/seasons";
 import { api, newId } from "./api";
@@ -262,18 +263,6 @@ const MODES = [
   { mode: "sequential", Icon: ListOrdered, label: "One after another", detail: "Pick only the day each season starts; it lasts until the next one begins." },
   { mode: "manual", Icon: CalendarRange, label: "Custom dates", detail: "Pick the first and last day of each season; gaps or overlaps only if you allow them." },
 ] as const;
-
-function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
-  return (
-    <label className="cel-toggle cel-toggle-inline">
-      <input type="checkbox" role="switch" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-      <span className="cel-toggle-track" aria-hidden>
-        <span className="cel-toggle-thumb" />
-      </span>
-      <span>{label}</span>
-    </label>
-  );
-}
 
 function ProfileForm({ world, calendar, profile, onSaved, onDeleted }: { world: WorldCalendars; calendar: ClientCalendar; profile: ClientProfile | null; onSaved: (p: ClientProfile) => void; onDeleted: () => void }) {
   const seasons = seasonsFor(world.seasons, calendar.id).filter((s) => !s.archived || profile?.data.memberships.some((m) => m.seasonId === s.id));

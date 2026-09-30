@@ -96,3 +96,27 @@ describe("deriveText", () => {
     expect(deriveText({ type: "doc", content: [{ type: "paragraph" }] })).toBe("");
   });
 });
+
+describe("mention link text", () => {
+  const withMention = (attrs: Record<string, unknown>) => ({
+    type: "doc",
+    content: [{ type: "paragraph", content: [{ type: "text", text: "See " }, { type: "mention", attrs: { kind: "character", id: "c1", label: "Aldric", campaign: null, ...attrs } }] }],
+  });
+
+  it("accepts a mention with or without custom text", () => {
+    expect(() => validateDocument(withMention({}))).not.toThrow();
+    expect(() => validateDocument(withMention({ text: null }))).not.toThrow();
+    expect(() => validateDocument(withMention({ text: "the old king" }))).not.toThrow();
+  });
+
+  it("rejects non-string or oversized text", () => {
+    expect(() => validateDocument(withMention({ text: 42 }))).toThrow(DocumentValidationError);
+    expect(() => validateDocument(withMention({ text: "x".repeat(201) }))).toThrow(DocumentValidationError);
+  });
+
+  it("derives the custom text, else @label", () => {
+    expect(deriveText(withMention({ text: "the old king" }))).toBe("See the old king");
+    expect(deriveText(withMention({}))).toBe("See @Aldric");
+    expect(deriveText(withMention({ text: "  " }))).toBe("See @Aldric");
+  });
+});

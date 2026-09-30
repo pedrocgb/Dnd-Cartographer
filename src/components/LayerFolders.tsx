@@ -265,7 +265,7 @@ export function FolderSettings({
   /** "zone", "line", "text". */
   noun: string;
   layers: MapLayerData[];
-  alwaysDrawFlag: AlwaysDrawFlag;
+  alwaysDrawFlag?: AlwaysDrawFlag;
   /** The style a newly turned-on default starts from (the tool's current one). */
   captureStyle: () => Record<string, unknown>;
   renderStyle: (style: Record<string, unknown>, onChange: (patch: Record<string, unknown>) => void) => React.ReactNode;
