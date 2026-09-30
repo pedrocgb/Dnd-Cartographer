@@ -6,6 +6,7 @@ import MarkerIcon, { RawIcon, ShapeSilhouette } from "../MarkerIcon";
 import IconPicker from "../IconPicker";
 import ColorWheel from "../ColorWheel";
 import SegmentedControl from "./SegmentedControl";
+import MarkerCard from "./MarkerCard";
 import { BACKGROUND_SHAPES, COLOR_PRESETS, ICONS, IMPORTANCE_LEVELS, LABEL_MODES, importanceSize } from "@/server/markers/icon-registry";
 import type { Marker } from "../MarkerLayer";
 import type { MarkerPatch, MarkerUpdate } from "./types";
@@ -117,10 +118,7 @@ export default function MarkerAppearance({ marker, onUpdate }: { marker: Marker;
   const bare = marker.backgroundShape === "none";
 
   return (
-    <section className="marker-card" aria-labelledby="marker-appearance-title">
-      <h3 id="marker-appearance-title" className="marker-card-title">
-        Appearance
-      </h3>
+    <MarkerCard title="Appearance">
       <Preview marker={marker} />
 
       <Row label="Shape">
@@ -174,6 +172,6 @@ export default function MarkerAppearance({ marker, onUpdate }: { marker: Marker;
           segments={LABEL_MODES.map((m) => ({ key: m.key, label: m.key === "hover" ? "Hover" : m.label }))}
         />
       </Row>
-    </section>
+    </MarkerCard>
   );
 }

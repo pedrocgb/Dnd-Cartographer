@@ -1,7 +1,5 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronRight } from "lucide-react";
 import InfoPicker, { type PickerOption } from "@/components/articles/InfoPicker";
 import LayerChecklist from "../LayerChecklist";
 import { MARKER_CATEGORIES, DEFAULT_MARKER_CATEGORY } from "@/server/markers/icon-registry";
@@ -9,6 +7,7 @@ import { STATUS_TAGS, ENVIRONMENT_TAGS, OWNERSHIP_TAGS } from "@/server/markers/
 import type { Marker } from "../MarkerLayer";
 import type { MapLayerData } from "../layer-images";
 import type { MarkerUpdate } from "./types";
+import MarkerCard from "./MarkerCard";
 
 const toOptions = (values: readonly string[]): PickerOption[] => values.map((v) => ({ value: v, label: v }));
 const ENVIRONMENT_OPTIONS = toOptions(ENVIRONMENT_TAGS);
@@ -43,7 +42,6 @@ export default function MarkerDetails({
 }) {
   const category = marker.category ?? DEFAULT_MARKER_CATEGORY;
   const filled = category !== DEFAULT_MARKER_CATEGORY || !!marker.environment || !!marker.ownership || marker.statusTags.length > 0 || !!marker.linkedMapId;
-  const [open, setOpen] = useState(filled);
   // Covers a category saved under an older list — shown as-is instead of silently becoming another.
   const categoryOptions = toOptions((MARKER_CATEGORIES as readonly string[]).includes(category) ? MARKER_CATEGORIES : [category, ...MARKER_CATEGORIES]);
 
@@ -53,87 +51,80 @@ export default function MarkerDetails({
   }
 
   return (
-    <section className="marker-card">
-      <button type="button" className="marker-card-toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-        <ChevronRight size={14} strokeWidth={2.25} className={open ? "marker-collapsible-chevron open" : "marker-collapsible-chevron"} />
-        <span className="marker-card-title">Details</span>
-      </button>
-      {/* Hidden, not unmounted, like every other marker panel section. */}
-      <div className={open ? "marker-card-body" : "marker-card-body marker-collapsible-body-hidden"}>
-        <Field label="Category">
-          <InfoPicker
-            options={categoryOptions}
-            value={category}
-            placeholder="Category"
-            ariaLabel="Category"
-            searchable={false}
-            onChange={(v) => v && onUpdate({ category: v })}
-          />
-        </Field>
-        <Field label="Environment">
-          <InfoPicker
-            options={ENVIRONMENT_OPTIONS}
-            value={marker.environment}
-            placeholder="None"
-            clearLabel="None"
-            ariaLabel="Environment"
-            onChange={(environment) => onUpdate({ environment })}
-          />
-        </Field>
-        <Field label="Ownership">
-          <InfoPicker
-            options={OWNERSHIP_OPTIONS}
-            value={marker.ownership}
-            placeholder="None"
-            clearLabel="None"
-            ariaLabel="Ownership"
-            onChange={(ownership) => onUpdate({ ownership })}
-          />
-        </Field>
-        <Field label="Linked map">
-          <InfoPicker
-            options={maps.map((m) => ({ value: m.id, label: m.name }))}
-            value={marker.linkedMapId}
-            placeholder="No linked map"
-            clearLabel="No linked map"
-            ariaLabel="Linked map"
-            onChange={(linkedMapId) => onUpdate({ linkedMapId })}
-          />
-        </Field>
-        <Field label="Layer">
-          <InfoPicker
-            options={layers.map((l) => ({ value: l.id, label: l.name }))}
-            value={marker.layerId}
-            placeholder="Layer"
-            ariaLabel="Layer"
-            searchable={layers.length > 8}
-            onChange={(layerId) => layerId && onUpdate({ layerId })}
-          />
-        </Field>
-        <LayerChecklist
-          layers={layers}
-          homeLayerId={marker.layerId}
-          value={marker.extraLayerIds ?? []}
-          alwaysDrawFlag="markersAlwaysVisible"
-          onChange={(extraLayerIds) => onUpdate({ extraLayerIds })}
+    <MarkerCard title="Details" defaultOpen={filled}>
+      <Field label="Category">
+        <InfoPicker
+          options={categoryOptions}
+          value={category}
+          placeholder="Category"
+          ariaLabel="Category"
+          searchable={false}
+          onChange={(v) => v && onUpdate({ category: v })}
         />
-        <div className="marker-field">
-          <span className="field-label">Status</span>
-          <div className="tag-toggle-grid">
-            {STATUS_TAGS.map((tag) => (
-              <button
-                key={tag}
-                type="button"
-                className={marker.statusTags.includes(tag) ? "tag-toggle active" : "tag-toggle"}
-                aria-pressed={marker.statusTags.includes(tag)}
-                onClick={() => toggleStatus(tag)}
-              >
-                {tag}
-              </button>
-            ))}
-          </div>
+      </Field>
+      <Field label="Environment">
+        <InfoPicker
+          options={ENVIRONMENT_OPTIONS}
+          value={marker.environment}
+          placeholder="None"
+          clearLabel="None"
+          ariaLabel="Environment"
+          onChange={(environment) => onUpdate({ environment })}
+        />
+      </Field>
+      <Field label="Ownership">
+        <InfoPicker
+          options={OWNERSHIP_OPTIONS}
+          value={marker.ownership}
+          placeholder="None"
+          clearLabel="None"
+          ariaLabel="Ownership"
+          onChange={(ownership) => onUpdate({ ownership })}
+        />
+      </Field>
+      <Field label="Linked map">
+        <InfoPicker
+          options={maps.map((m) => ({ value: m.id, label: m.name }))}
+          value={marker.linkedMapId}
+          placeholder="No linked map"
+          clearLabel="No linked map"
+          ariaLabel="Linked map"
+          onChange={(linkedMapId) => onUpdate({ linkedMapId })}
+        />
+      </Field>
+      <Field label="Layer">
+        <InfoPicker
+          options={layers.map((l) => ({ value: l.id, label: l.name }))}
+          value={marker.layerId}
+          placeholder="Layer"
+          ariaLabel="Layer"
+          searchable={layers.length > 8}
+          onChange={(layerId) => layerId && onUpdate({ layerId })}
+        />
+      </Field>
+      <LayerChecklist
+        layers={layers}
+        homeLayerId={marker.layerId}
+        value={marker.extraLayerIds ?? []}
+        alwaysDrawFlag="markersAlwaysVisible"
+        onChange={(extraLayerIds) => onUpdate({ extraLayerIds })}
+      />
+      <div className="marker-field">
+        <span className="field-label">Status</span>
+        <div className="tag-toggle-grid">
+          {STATUS_TAGS.map((tag) => (
+            <button
+              key={tag}
+              type="button"
+              className={marker.statusTags.includes(tag) ? "tag-toggle active" : "tag-toggle"}
+              aria-pressed={marker.statusTags.includes(tag)}
+              onClick={() => toggleStatus(tag)}
+            >
+              {tag}
+            </button>
+          ))}
         </div>
       </div>
-    </section>
+    </MarkerCard>
   );
 }

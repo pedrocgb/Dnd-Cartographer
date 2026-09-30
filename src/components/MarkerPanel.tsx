@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { X, Lock, Unlock, Copy, Check, ExternalLink, Trash2, Pencil, ChevronLeft, ChevronRight } from "lucide-react";
+import { X, Lock, Unlock, Copy, Check, ExternalLink, Trash2, Pencil, ChevronLeft } from "lucide-react";
 import DescriptionSection from "./DescriptionSection";
 import MarkerIcon from "./MarkerIcon";
 import { DEFAULT_MARKER_CATEGORY } from "@/server/markers/icon-registry";
@@ -13,6 +13,7 @@ import MarkerLinksPanel from "./MarkerLinksPanel";
 import MarkerArticlesPanel from "./MarkerArticlesPanel";
 import MarkerAppearance from "./marker-panel/MarkerAppearance";
 import MarkerDetails from "./marker-panel/MarkerDetails";
+import MarkerCard from "./marker-panel/MarkerCard";
 import { MarkerSubjectEdit, MarkerSubjectView } from "./marker-panel/MarkerSubject";
 import { useMarkerArticleLinks } from "./marker-panel/use-marker-article-links";
 import type { MarkerUpdate } from "./marker-panel/types";
@@ -22,62 +23,6 @@ export type MarkerSection = "basic" | "politics" | "articles" | "links";
 interface MapOption {
   id: string;
   name: string;
-}
-
-/** A collapsible settings block, expanding on click with the arrow rotating
- * from pointing right to pointing down.
- *
- * The body is always mounted and merely hidden via CSS when collapsed
- * (never conditionally rendered) — conditionally rendering it would
- * unmount/remount its children (e.g. Description's RichEditor) every time
- * the section toggles, which for a stateful child means: a fresh mount
- * refetches from scratch, briefly shows empty content, and can race with
- * autosave into overwriting real data with that empty draft. Confirmed as
- * a real, reported bug — not a theoretical concern.
- *
- * `forceOpen`, when set, pins the section open/closed and hides the
- * header entirely (used for Description in view mode, which must always
- * be visible with no arrow at all, while still reusing the exact same
- * wrapper/child position as the editable, collapsible version). */
-function CollapsibleSection({
-  title,
-  children,
-  forceOpen,
-  defaultOpen = false,
-}: {
-  title: string;
-  children: React.ReactNode;
-  forceOpen?: boolean;
-  defaultOpen?: boolean;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  const isOpen = forceOpen ?? open;
-  return (
-    <div className={forceOpen !== undefined ? "marker-collapsible marker-collapsible-noheader" : "marker-collapsible"}>
-      {forceOpen === undefined && (
-        <button
-          type="button"
-          className="marker-collapsible-header"
-          onClick={() => setOpen((o) => !o)}
-          aria-expanded={open}
-        >
-          <ChevronRight size={14} strokeWidth={2.25} className={isOpen ? "marker-collapsible-chevron open" : "marker-collapsible-chevron"} />
-          <span className="field-label">{title}</span>
-        </button>
-      )}
-      <div
-        className={[
-          "marker-collapsible-body",
-          forceOpen !== undefined && "marker-collapsible-body-noheader",
-          !isOpen && "marker-collapsible-body-hidden",
-        ]
-          .filter(Boolean)
-          .join(" ")}
-      >
-        {children}
-      </div>
-    </div>
-  );
 }
 
 /** View mode's classification chips and, apart from them, the accepted territory chain. */
@@ -256,7 +201,7 @@ export default function MarkerPanel({
 
       {/* All four sections stay mounted and are only hidden via CSS when
           inactive — never conditionally rendered — for the same reason
-          CollapsibleSection's body does: an unmount/remount would drop
+          MarkerCard's body does: an unmount/remount would drop
           Basic Information's in-progress edits (name draft, editing mode)
           and would refetch Politics/Links from scratch on every switch.
           Within Basic Information, Description keeps its slot in both
@@ -269,13 +214,13 @@ export default function MarkerPanel({
           <MarkerSubjectView markerId={marker.id} links={links} />
         )}
 
-        <CollapsibleSection title="Description" forceOpen={editing ? undefined : true} defaultOpen>
+        <MarkerCard title="Description" bare={!editing}>
           <DescriptionSection
             documentId={marker.descriptionDocumentId}
             editable={editing}
             onDocumentCreated={(id) => onUpdate({ descriptionDocumentId: id })}
           />
-        </CollapsibleSection>
+        </MarkerCard>
 
         {editing && (
           <>

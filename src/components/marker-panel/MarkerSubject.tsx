@@ -13,6 +13,7 @@ import { loadPreview, type MarkerPreview } from "../MarkerHoverCard";
 import { useArticleCandidates, type MarkerArticleLink, type MarkerArticleLinks } from "./use-marker-article-links";
 import type { Marker } from "../MarkerLayer";
 import type { MarkerUpdate } from "./types";
+import MarkerCard from "./MarkerCard";
 
 /** The name a freshly placed marker gets (MapWorkspace.placeMarker); linking an article replaces it. */
 const PLACEHOLDER_NAME = "New marker";
@@ -188,10 +189,7 @@ export function MarkerSubjectEdit({
   }
 
   return (
-    <section className="marker-card" aria-labelledby="marker-subject-title">
-      <h3 id="marker-subject-title" className="marker-card-title">
-        Main article
-      </h3>
+    <MarkerCard title="Main article">
       {primary && (
         <div className="marker-article-row marker-subject-row">
           <TemplateIcon template={primary.template} />
@@ -240,6 +238,6 @@ export function MarkerSubjectEdit({
       {primary && <p className="field-label marker-card-hint">A replaced article stays linked in the Articles tab.</p>}
       {suggestLook && <LookSuggestion template={suggestLook} marker={marker} onUpdate={onUpdate} onDismiss={() => setSuggestLook(null)} />}
       {error && <p className="form-error">{error}</p>}
-    </section>
+    </MarkerCard>
   );
 }
