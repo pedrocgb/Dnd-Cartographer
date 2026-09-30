@@ -26,8 +26,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 /**
  * The marker panel's Details card: classification and placement — category,
  * environment, ownership, status, linked map and layers. Searchable pickers
- * for the long lists, chips for status. Open by default once any of it is
- * filled in, collapsed while it's all still empty.
+ * for the long lists, chips for status.
  */
 export default function MarkerDetails({
   marker,
@@ -41,7 +40,6 @@ export default function MarkerDetails({
   onUpdate: MarkerUpdate;
 }) {
   const category = marker.category ?? DEFAULT_MARKER_CATEGORY;
-  const filled = category !== DEFAULT_MARKER_CATEGORY || !!marker.environment || !!marker.ownership || marker.statusTags.length > 0 || !!marker.linkedMapId;
   // Covers a category saved under an older list — shown as-is instead of silently becoming another.
   const categoryOptions = toOptions((MARKER_CATEGORIES as readonly string[]).includes(category) ? MARKER_CATEGORIES : [category, ...MARKER_CATEGORIES]);
 
@@ -51,7 +49,7 @@ export default function MarkerDetails({
   }
 
   return (
-    <MarkerCard title="Details" defaultOpen={filled}>
+    <MarkerCard title="Details">
       <Field label="Category">
         <InfoPicker
           options={categoryOptions}

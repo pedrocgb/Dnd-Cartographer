@@ -6,7 +6,7 @@ import { ChevronRight } from "lucide-react";
 /**
  * A marker panel card: a header with an arrow that collapses/expands it,
  * the same for every card in the panel (Main article, Description,
- * Appearance, Details).
+ * Appearance, Details). Cards start collapsed unless `defaultOpen`.
  *
  * The body is always mounted and merely hidden when collapsed (never
  * conditionally rendered) — conditionally rendering it would unmount and
@@ -22,7 +22,7 @@ import { ChevronRight } from "lucide-react";
  */
 export default function MarkerCard({
   title,
-  defaultOpen = true,
+  defaultOpen = false,
   bare = false,
   children,
 }: {
