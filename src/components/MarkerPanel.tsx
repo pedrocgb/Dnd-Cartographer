@@ -3,16 +3,19 @@
 import Link from "next/link";
 import { useState } from "react";
 import { X, Lock, Unlock, Copy, Check, ExternalLink, Trash2, Pencil, ChevronLeft, ChevronRight } from "lucide-react";
-import IconPicker from "./IconPicker";
 import DescriptionSection from "./DescriptionSection";
-import { COLOR_PRESETS, BACKGROUND_SHAPES, MARKER_CATEGORIES, DEFAULT_MARKER_CATEGORY } from "@/server/markers/icon-registry";
-import { STATUS_TAGS, ENVIRONMENT_TAGS, OWNERSHIP_TAGS } from "@/server/markers/tag-registry";
+import MarkerIcon from "./MarkerIcon";
+import { DEFAULT_MARKER_CATEGORY } from "@/server/markers/icon-registry";
 import type { Marker } from "./MarkerLayer";
 import type { MapLayerData } from "./layer-images";
-import LayerChecklist from "./LayerChecklist";
 import PoliticalReferencesPanel from "./PoliticalReferencesPanel";
 import MarkerLinksPanel from "./MarkerLinksPanel";
 import MarkerArticlesPanel from "./MarkerArticlesPanel";
+import MarkerAppearance from "./marker-panel/MarkerAppearance";
+import MarkerDetails from "./marker-panel/MarkerDetails";
+import { MarkerSubjectEdit, MarkerSubjectView } from "./marker-panel/MarkerSubject";
+import { useMarkerArticleLinks } from "./marker-panel/use-marker-article-links";
+import type { MarkerUpdate } from "./marker-panel/types";
 
 export type MarkerSection = "basic" | "politics" | "articles" | "links";
 
@@ -21,9 +24,8 @@ interface MapOption {
   name: string;
 }
 
-/** A collapsible settings block — collapsed by default, expanding on click
- * with the arrow rotating from pointing right to pointing down. Used for
- * every editable marker setting except the name (always shown, no arrow).
+/** A collapsible settings block, expanding on click with the arrow rotating
+ * from pointing right to pointing down.
  *
  * The body is always mounted and merely hidden via CSS when collapsed
  * (never conditionally rendered) — conditionally rendering it would
@@ -41,12 +43,14 @@ function CollapsibleSection({
   title,
   children,
   forceOpen,
+  defaultOpen = false,
 }: {
   title: string;
   children: React.ReactNode;
   forceOpen?: boolean;
+  defaultOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const isOpen = forceOpen ?? open;
   return (
     <div className={forceOpen !== undefined ? "marker-collapsible marker-collapsible-noheader" : "marker-collapsible"}>
@@ -76,6 +80,94 @@ function CollapsibleSection({
   );
 }
 
+/** View mode's classification chips and, apart from them, the accepted territory chain. */
+function TagChips({ marker, layer, chain }: { marker: Marker; layer: MapLayerData | null; chain: { id: string; name: string }[] | null }) {
+  const tags = [
+    marker.category ?? DEFAULT_MARKER_CATEGORY,
+    marker.environment,
+    marker.ownership,
+    ...marker.statusTags,
+  ].filter((t): t is string => !!t);
+  return (
+    <div className="marker-view-tags">
+      <div className="marker-chip-row">
+        {tags.map((t) => (
+          <span key={t} className="marker-chip">
+            {t}
+          </span>
+        ))}
+        {layer && (
+          <span className="marker-chip marker-chip-muted" data-tooltip="Layer">
+            {layer.name}
+          </span>
+        )}
+      </div>
+      {chain && chain.length > 0 && (
+        <div className="politics-breadcrumb" aria-label="Territory">
+          {chain.map((t, i) => (
+            <span key={t.id}>
+              {i > 0 && <span className="politics-breadcrumb-sep">›</span>}
+              {t.name}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MarkerActions({
+  marker,
+  onUpdate,
+  onDuplicate,
+  onDelete,
+  onDone,
+}: {
+  marker: Marker;
+  onUpdate: MarkerUpdate;
+  onDuplicate: () => void;
+  onDelete: () => void;
+  onDone: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  function copyLink() {
+    const target = `${window.location.origin}${window.location.pathname}?marker=${marker.id}`;
+    navigator.clipboard.writeText(target).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  }
+
+  return (
+    <>
+      <h3 className="marker-section-title">Actions</h3>
+      <div className="marker-panel-actions">
+        <button className="btn btn-sm" onClick={() => onUpdate({ locked: !marker.locked })}>
+          {marker.locked ? <Unlock size={14} strokeWidth={2.25} /> : <Lock size={14} strokeWidth={2.25} />}
+          {marker.locked ? "Unlock" : "Lock"}
+        </button>
+        <button className="btn btn-sm" onClick={onDuplicate}>
+          <Copy size={14} strokeWidth={2.25} />
+          Duplicate
+        </button>
+        <button className="btn btn-sm" onClick={copyLink}>
+          {copied ? <Check size={14} strokeWidth={2.25} /> : <Copy size={14} strokeWidth={2.25} />}
+          {copied ? "Copied!" : "Copy link"}
+        </button>
+        <button className="btn btn-sm btn-danger" onClick={onDelete}>
+          <Trash2 size={14} strokeWidth={2.25} />
+          Delete
+        </button>
+        <button className="btn btn-sm btn-primary" onClick={onDone}>
+          <ChevronLeft size={14} strokeWidth={2.25} />
+          Done
+        </button>
+      </div>
+    </>
+  );
+}
+
 export default function MarkerPanel({
   marker,
   maps,
@@ -94,28 +186,7 @@ export default function MarkerPanel({
   section: MarkerSection;
   autoFocusName: boolean;
   startInEdit: boolean;
-  onUpdate: (
-    patch: Partial<
-      Pick<
-        Marker,
-        | "name"
-        | "iconKey"
-        | "color"
-        | "backgroundColor"
-        | "outlineColor"
-        | "backgroundShape"
-        | "category"
-        | "locked"
-        | "linkedMapId"
-        | "layerId"
-        | "extraLayerIds"
-        | "descriptionDocumentId"
-        | "statusTags"
-        | "environment"
-        | "ownership"
-      >
-    >
-  ) => void;
+  onUpdate: MarkerUpdate;
   onDuplicate: () => void;
   onDelete: () => void;
   onClose: () => void;
@@ -124,7 +195,8 @@ export default function MarkerPanel({
   // whenever the selected marker changes, so neither of these go stale across selections.
   const [name, setName] = useState(() => marker.name);
   const [editing, setEditing] = useState(startInEdit);
-  const [copied, setCopied] = useState(false);
+  // Shared by the Main article card and the Articles tab, so a change in one shows in the other.
+  const links = useMarkerArticleLinks(marker.id);
 
   // A right-click on an already-selected marker (see MarkerLayer's
   // contextmenu handler) asks for edit mode without changing which marker is
@@ -138,7 +210,6 @@ export default function MarkerPanel({
     setPrevStartInEdit(startInEdit);
     if (startInEdit) setEditing(true);
   }
-  const category = marker.category ?? DEFAULT_MARKER_CATEGORY;
   const linkedMap = marker.linkedMapId ? maps.find((m) => m.id === marker.linkedMapId) : null;
   const layer = layers.find((l) => l.id === marker.layerId) ?? null;
 
@@ -148,19 +219,9 @@ export default function MarkerPanel({
   // rather than issuing a second, duplicate /affiliation request here.
   const [affiliationChain, setAffiliationChain] = useState<{ id: string; name: string }[] | null>(null);
 
-  function toggleStatus(tag: string) {
-    const next = marker.statusTags.includes(tag)
-      ? marker.statusTags.filter((t) => t !== tag)
-      : [...marker.statusTags, tag];
-    onUpdate({ statusTags: next });
-  }
-
-  function copyLink() {
-    const target = `${window.location.origin}${window.location.pathname}?marker=${marker.id}`;
-    navigator.clipboard.writeText(target).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    });
+  function rename(next: string) {
+    setName(next);
+    onUpdate({ name: next });
   }
 
   return (
@@ -176,251 +237,67 @@ export default function MarkerPanel({
             onBlur={() => name.trim() && name !== marker.name && onUpdate({ name })}
           />
         ) : (
-          <h2>{marker.name}</h2>
+          <div className="marker-view-title">
+            <MarkerIcon
+              iconKey={marker.iconKey}
+              color={marker.color}
+              backgroundColor={marker.backgroundColor}
+              outlineColor={marker.outlineColor}
+              backgroundShape={marker.backgroundShape}
+              size={16}
+            />
+            <h2>{marker.name}</h2>
+          </div>
         )}
         <button className="btn btn-ghost btn-icon" onClick={onClose} aria-label="Close marker panel">
           <X size={16} strokeWidth={2.25} />
         </button>
       </div>
 
-      {/* All three sections stay mounted and are only hidden via CSS when
+      {/* All four sections stay mounted and are only hidden via CSS when
           inactive — never conditionally rendered — for the same reason
           CollapsibleSection's body does: an unmount/remount would drop
           Basic Information's in-progress edits (name draft, editing mode)
-          and would refetch Politics/Links from scratch on every switch. */}
+          and would refetch Politics/Links from scratch on every switch.
+          Within Basic Information, Description keeps its slot in both
+          modes (the conditional siblings around it hold their positions). */}
       <div className={section === "basic" ? "marker-section-body" : "marker-section-body marker-section-body-hidden"}>
-      <div className="marker-tag-summary">
-        <div className="marker-tag-summary-left">
-          {layer && <span>Layer: {layer.name}</span>}
-          <span>Category: {category}</span>
-          {marker.environment && <span>Environment: {marker.environment}</span>}
-          {marker.ownership && <span>Ownership: {marker.ownership}</span>}
-          {marker.statusTags.length > 0 && <span>Status: {marker.statusTags.join(", ")}</span>}
-        </div>
-        {affiliationChain && affiliationChain.length > 0 && (
+        {editing ? null : <TagChips marker={marker} layer={layer} chain={affiliationChain} />}
+        {editing ? (
+          <MarkerSubjectEdit marker={{ ...marker, name }} links={links} onUpdate={onUpdate} onRename={rename} />
+        ) : (
+          <MarkerSubjectView markerId={marker.id} links={links} />
+        )}
+
+        <CollapsibleSection title="Description" forceOpen={editing ? undefined : true} defaultOpen>
+          <DescriptionSection
+            documentId={marker.descriptionDocumentId}
+            editable={editing}
+            onDocumentCreated={(id) => onUpdate({ descriptionDocumentId: id })}
+          />
+        </CollapsibleSection>
+
+        {editing && (
           <>
-            <div className="marker-tag-summary-divider" />
-            <div className="marker-tag-summary-right">
-              {affiliationChain.map((t) => (
-                <span key={t.id}>{t.name}</span>
-              ))}
-            </div>
+            <MarkerAppearance marker={marker} onUpdate={onUpdate} />
+            <MarkerDetails marker={marker} maps={maps} layers={layers} onUpdate={onUpdate} />
+            <MarkerActions marker={marker} onUpdate={onUpdate} onDuplicate={onDuplicate} onDelete={onDelete} onDone={() => setEditing(false)} />
           </>
         )}
-      </div>
 
-      <CollapsibleSection title="Description" forceOpen={editing ? undefined : true}>
-        <DescriptionSection
-          documentId={marker.descriptionDocumentId}
-          editable={editing}
-          onDocumentCreated={(id) => onUpdate({ descriptionDocumentId: id })}
-        />
-      </CollapsibleSection>
+        {!editing && linkedMap && (
+          <Link href={`/maps/${linkedMap.id}`} className="btn">
+            <ExternalLink size={15} strokeWidth={2.25} />
+            Open {linkedMap.name}
+          </Link>
+        )}
 
-      {editing && (
-        <>
-          <CollapsibleSection title="Icons">
-            <IconPicker value={marker.iconKey} onChange={(iconKey) => onUpdate({ iconKey })} />
-          </CollapsibleSection>
-
-          <CollapsibleSection title="Icon Color">
-            <div className="color-swatch-row">
-              {COLOR_PRESETS.map((color) => (
-                <button
-                  key={color}
-                  className={color === marker.color ? "color-swatch active" : "color-swatch"}
-                  style={{ background: color }}
-                  onClick={() => onUpdate({ color })}
-                  aria-label={`Icon color ${color}`}
-                  aria-pressed={color === marker.color}
-                />
-              ))}
-            </div>
-          </CollapsibleSection>
-
-          <CollapsibleSection title="Background shape">
-            <select
-              aria-label="Background shape"
-              value={marker.backgroundShape}
-              onChange={(e) => onUpdate({ backgroundShape: e.target.value })}
-            >
-              {BACKGROUND_SHAPES.map((shape) => (
-                <option key={shape.key} value={shape.key}>
-                  {shape.label}
-                </option>
-              ))}
-            </select>
-          </CollapsibleSection>
-
-          {marker.backgroundShape !== "none" && (
-            <>
-              <CollapsibleSection title="Background color">
-                <div className="color-swatch-row">
-                  {COLOR_PRESETS.map((color) => (
-                    <button
-                      key={color}
-                      className={color === marker.backgroundColor ? "color-swatch active" : "color-swatch"}
-                      style={{ background: color }}
-                      onClick={() => onUpdate({ backgroundColor: color })}
-                      aria-label={`Background color ${color}`}
-                      aria-pressed={color === marker.backgroundColor}
-                    />
-                  ))}
-                </div>
-              </CollapsibleSection>
-
-              <CollapsibleSection title="Outline color">
-                <div className="color-swatch-row">
-                  {COLOR_PRESETS.map((color) => (
-                    <button
-                      key={color}
-                      className={color === marker.outlineColor ? "color-swatch active" : "color-swatch"}
-                      style={{ background: color }}
-                      onClick={() => onUpdate({ outlineColor: color })}
-                      aria-label={`Outline color ${color}`}
-                      aria-pressed={color === marker.outlineColor}
-                    />
-                  ))}
-                </div>
-              </CollapsibleSection>
-            </>
-          )}
-
-          <CollapsibleSection title="Category">
-            <select aria-label="Category" value={category} onChange={(e) => onUpdate({ category: e.target.value })}>
-              {/* Covers a category value saved under an older category list —
-                  shown as-is instead of silently jumping to some other option. */}
-              {!(MARKER_CATEGORIES as readonly string[]).includes(category) && (
-                <option value={category}>{category}</option>
-              )}
-              {MARKER_CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </CollapsibleSection>
-
-          <CollapsibleSection title="Status">
-            <div className="tag-toggle-grid">
-              {STATUS_TAGS.map((tag) => (
-                <button
-                  key={tag}
-                  className={marker.statusTags.includes(tag) ? "tag-toggle active" : "tag-toggle"}
-                  aria-pressed={marker.statusTags.includes(tag)}
-                  onClick={() => toggleStatus(tag)}
-                >
-                  {tag}
-                </button>
-              ))}
-            </div>
-          </CollapsibleSection>
-
-          <CollapsibleSection title="Environment">
-            <select
-              aria-label="Environment"
-              value={marker.environment ?? ""}
-              onChange={(e) => onUpdate({ environment: e.target.value || null })}
-            >
-              <option value="">None</option>
-              {ENVIRONMENT_TAGS.map((tag) => (
-                <option key={tag} value={tag}>
-                  {tag}
-                </option>
-              ))}
-            </select>
-          </CollapsibleSection>
-
-          <CollapsibleSection title="Ownership">
-            <select
-              aria-label="Ownership"
-              value={marker.ownership ?? ""}
-              onChange={(e) => onUpdate({ ownership: e.target.value || null })}
-            >
-              <option value="">None</option>
-              {OWNERSHIP_TAGS.map((tag) => (
-                <option key={tag} value={tag}>
-                  {tag}
-                </option>
-              ))}
-            </select>
-          </CollapsibleSection>
-
-          <CollapsibleSection title="Linked map">
-            <select
-              aria-label="Linked map"
-              value={marker.linkedMapId ?? ""}
-              onChange={(e) => onUpdate({ linkedMapId: e.target.value || null })}
-            >
-              <option value="">No linked map</option>
-              {maps.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
-          </CollapsibleSection>
-
-          <CollapsibleSection title="Layer">
-            <select
-              aria-label="Layer"
-              value={marker.layerId ?? ""}
-              onChange={(e) => e.target.value && onUpdate({ layerId: e.target.value })}
-            >
-              {layers.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.name}
-                </option>
-              ))}
-            </select>
-            <LayerChecklist
-              layers={layers}
-              homeLayerId={marker.layerId}
-              value={marker.extraLayerIds ?? []}
-              alwaysDrawFlag="markersAlwaysVisible"
-              onChange={(extraLayerIds) => onUpdate({ extraLayerIds })}
-            />
-          </CollapsibleSection>
-
-          <h3 className="marker-section-title">Actions</h3>
-          <div className="marker-panel-actions">
-            <button className="btn btn-sm" onClick={() => onUpdate({ locked: !marker.locked })}>
-              {marker.locked ? <Unlock size={14} strokeWidth={2.25} /> : <Lock size={14} strokeWidth={2.25} />}
-              {marker.locked ? "Unlock" : "Lock"}
-            </button>
-            <button className="btn btn-sm" onClick={onDuplicate}>
-              <Copy size={14} strokeWidth={2.25} />
-              Duplicate
-            </button>
-            <button className="btn btn-sm" onClick={copyLink}>
-              {copied ? <Check size={14} strokeWidth={2.25} /> : <Copy size={14} strokeWidth={2.25} />}
-              {copied ? "Copied!" : "Copy link"}
-            </button>
-            <button className="btn btn-sm btn-danger" onClick={onDelete}>
-              <Trash2 size={14} strokeWidth={2.25} />
-              Delete
-            </button>
-            <button className="btn btn-sm btn-primary" onClick={() => setEditing(false)}>
-              <ChevronLeft size={14} strokeWidth={2.25} />
-              Done
-            </button>
-          </div>
-        </>
-      )}
-
-      {!editing && linkedMap && (
-        <Link href={`/maps/${linkedMap.id}`} className="btn">
-          <ExternalLink size={15} strokeWidth={2.25} />
-          Open {linkedMap.name}
-        </Link>
-      )}
-
-      {!editing && (
-        <button className="btn btn-primary marker-edit-fab" onClick={() => setEditing(true)}>
-          <Pencil size={14} strokeWidth={2.25} />
-          Edit
-        </button>
-      )}
+        {!editing && (
+          <button className="btn btn-primary marker-edit-fab" onClick={() => setEditing(true)}>
+            <Pencil size={14} strokeWidth={2.25} />
+            Edit
+          </button>
+        )}
       </div>
 
       <div className={section === "politics" ? "marker-section-body" : "marker-section-body marker-section-body-hidden"}>
@@ -431,7 +308,7 @@ export default function MarkerPanel({
       </div>
 
       <div className={section === "articles" ? "marker-section-body" : "marker-section-body marker-section-body-hidden"}>
-        <MarkerArticlesPanel markerId={marker.id} />
+        <MarkerArticlesPanel links={links} markerName={name.trim() || marker.name} />
       </div>
       <div className={section === "links" ? "marker-section-body" : "marker-section-body marker-section-body-hidden"}>
         <MarkerLinksPanel markerId={marker.id} />

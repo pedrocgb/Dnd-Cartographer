@@ -30,7 +30,7 @@ export function invalidateMarkerPreview(markerId: string) {
   cache.delete(markerId);
 }
 
-function loadPreview(markerId: string): Promise<MarkerPreview | null> {
+export function loadPreview(markerId: string): Promise<MarkerPreview | null> {
   let pending = cache.get(markerId);
   if (!pending) {
     pending = fetch(`/api/markers/${markerId}/preview`)

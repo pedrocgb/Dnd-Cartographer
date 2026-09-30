@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { ExternalLink, X, Plus } from "lucide-react";
 import { SkeletonList } from "@/components/Skeleton";
+import InfoPicker, { type PickerOption } from "@/components/articles/InfoPicker";
+import { loadCandidates, type Candidate } from "@/components/articles/candidates";
+import SegmentedControl from "./marker-panel/SegmentedControl";
 
 interface ConsolidatedLink {
   key: string;
@@ -20,17 +23,95 @@ async function json<T>(res: Response): Promise<T> {
   return res.json();
 }
 
+type TargetType = "map" | "marker" | "territory" | "person" | "organization";
+
+const TARGET_TYPES: { key: TargetType; label: string }[] = [
+  { key: "marker", label: "Marker" },
+  { key: "map", label: "Map" },
+  { key: "territory", label: "Territory" },
+  { key: "person", label: "Person" },
+  { key: "organization", label: "Organization" },
+];
+
+/** Picker rows for a link target of `type` (markers are searched instead: there can be thousands). */
+async function loadTargets(type: Exclude<TargetType, "marker">): Promise<PickerOption[]> {
+  if (type === "map") {
+    const d = await json<{ maps: { id: string; name: string }[] }>(await fetch("/api/maps"));
+    return d.maps.map((m) => ({ value: m.id, label: m.name })).sort((x, y) => x.label.localeCompare(y.label));
+  }
+  const all = await loadCandidates();
+  const wanted = (c: Candidate) => (type === "person" ? c.template === "character" || c.template === "playerCharacter" : c.template === type);
+  return all
+    .filter(wanted)
+    .map((c) => ({ value: c.id, label: c.name }))
+    .sort((x, y) => x.label.localeCompare(y.label));
+}
+
+/** Search-as-you-type over every marker, by name (grouped by map). */
+function MarkerTargetSearch({ exclude, value, onChange }: { exclude: string; value: string | null; onChange: (id: string | null) => void }) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<{ q: string; options: PickerOption[] } | null>(null);
+  const q = query.trim();
+
+  useEffect(() => {
+    if (q.length < 2) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      fetch(`/api/search?q=${encodeURIComponent(q)}`)
+        .then((r) => json<{ results: { type: string; id: string; name: string; mapName: string }[] }>(r))
+        .then((d) => {
+          if (cancelled) return;
+          const options = d.results.filter((r) => r.type === "marker" && r.id !== exclude).map((r) => ({ value: r.id, label: r.name, group: r.mapName }));
+          setResults({ q, options });
+        })
+        .catch(() => !cancelled && setResults({ q, options: [] }));
+    }, 200);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [q, exclude]);
+
+  const options = results?.q === q ? results.options : [];
+  return (
+    <>
+      <input type="text" placeholder="Search markers by name…" aria-label="Search markers" value={query} onChange={(e) => setQuery(e.target.value)} />
+      <InfoPicker
+        options={options}
+        value={value}
+        placeholder={q.length < 2 ? "Type 2+ letters above" : options.length ? `${options.length} matching marker${options.length === 1 ? "" : "s"}…` : "No marker matches"}
+        ariaLabel="Target marker"
+        disabled={options.length === 0}
+        onChange={onChange}
+      />
+    </>
+  );
+}
+
 function AddLinkForm({ markerId, onAdded }: { markerId: string; onAdded: () => void }) {
   const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState<"internal" | "external">("external");
-  const [targetType, setTargetType] = useState<"map" | "marker" | "territory" | "person" | "organization">("marker");
-  const [targetId, setTargetId] = useState("");
+  const [mode, setMode] = useState<"internal" | "external">("internal");
+  const [targetType, setTargetType] = useState<TargetType>("marker");
+  const [targetId, setTargetId] = useState<string | null>(null);
+  const [targets, setTargets] = useState<{ type: TargetType; options: PickerOption[] } | null>(null);
   const [externalUrl, setExternalUrl] = useState("");
   const [label, setLabel] = useState("");
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!open || mode !== "internal" || targetType === "marker") return;
+    let cancelled = false;
+    loadTargets(targetType)
+      .then((options) => !cancelled && setTargets({ type: targetType, options }))
+      .catch(() => !cancelled && setTargets({ type: targetType, options: [] }));
+    return () => {
+      cancelled = true;
+    };
+  }, [open, mode, targetType]);
+
   async function submit() {
     setError(null);
+    if (mode === "internal" && !targetId) return setError("Choose what to link to.");
     const body =
       mode === "external"
         ? { ownerType: "marker", ownerId: markerId, externalUrl, label }
@@ -41,13 +122,13 @@ function AddLinkForm({ markerId, onAdded }: { markerId: string; onAdded: () => v
       body: JSON.stringify(body),
     });
     if (!res.ok) {
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       setError(data.error ?? "Could not add link.");
       return;
     }
     setOpen(false);
     setExternalUrl("");
-    setTargetId("");
+    setTargetId(null);
     setLabel("");
     onAdded();
   }
@@ -61,27 +142,49 @@ function AddLinkForm({ markerId, onAdded }: { markerId: string; onAdded: () => v
     );
   }
 
+  const options = targets?.type === targetType ? targets.options : null;
   return (
     <div className="politics-picker">
-      <select value={mode} onChange={(e) => setMode(e.target.value as "internal" | "external")}>
-        <option value="external">External URL</option>
-        <option value="internal">Internal record</option>
-      </select>
+      <SegmentedControl
+        ariaLabel="Link to"
+        value={mode}
+        onChange={setMode}
+        segments={[
+          { key: "internal", label: "In this world" },
+          { key: "external", label: "Web address" },
+        ]}
+      />
       {mode === "external" ? (
-        <input type="text" placeholder="https://…" value={externalUrl} onChange={(e) => setExternalUrl(e.target.value)} />
+        <input type="text" placeholder="https://…" aria-label="Web address" value={externalUrl} onChange={(e) => setExternalUrl(e.target.value)} />
       ) : (
         <>
-          <select value={targetType} onChange={(e) => setTargetType(e.target.value as typeof targetType)}>
-            <option value="map">Map</option>
-            <option value="marker">Marker</option>
-            <option value="territory">Territory</option>
-            <option value="person">Person</option>
-            <option value="organization">Organization</option>
-          </select>
-          <input type="text" placeholder="Target ID" value={targetId} onChange={(e) => setTargetId(e.target.value)} />
+          <InfoPicker
+            options={TARGET_TYPES.map((t) => ({ value: t.key, label: t.label }))}
+            value={targetType}
+            placeholder="Kind"
+            ariaLabel="Kind of target"
+            searchable={false}
+            onChange={(v) => {
+              if (!v) return;
+              setTargetType(v as TargetType);
+              setTargetId(null);
+            }}
+          />
+          {targetType === "marker" ? (
+            <MarkerTargetSearch exclude={markerId} value={targetId} onChange={setTargetId} />
+          ) : (
+            <InfoPicker
+              options={options ?? []}
+              value={targetId}
+              placeholder={options === null ? "Loading…" : options.length ? "Choose…" : "Nothing to link yet"}
+              ariaLabel="Target"
+              disabled={!options?.length}
+              onChange={setTargetId}
+            />
+          )}
         </>
       )}
-      <input type="text" placeholder="Label (optional)" value={label} onChange={(e) => setLabel(e.target.value)} />
+      <input type="text" placeholder="Label (optional)" aria-label="Label" value={label} onChange={(e) => setLabel(e.target.value)} />
       {error && <p className="form-error">{error}</p>}
       <div className="marker-panel-actions">
         <button type="button" className="btn btn-sm btn-primary" onClick={submit}>

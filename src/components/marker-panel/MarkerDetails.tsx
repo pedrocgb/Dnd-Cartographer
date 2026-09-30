@@ -1,0 +1,139 @@
+"use client";
+
+import { useState } from "react";
+import { ChevronRight } from "lucide-react";
+import InfoPicker, { type PickerOption } from "@/components/articles/InfoPicker";
+import LayerChecklist from "../LayerChecklist";
+import { MARKER_CATEGORIES, DEFAULT_MARKER_CATEGORY } from "@/server/markers/icon-registry";
+import { STATUS_TAGS, ENVIRONMENT_TAGS, OWNERSHIP_TAGS } from "@/server/markers/tag-registry";
+import type { Marker } from "../MarkerLayer";
+import type { MapLayerData } from "../layer-images";
+import type { MarkerUpdate } from "./types";
+
+const toOptions = (values: readonly string[]): PickerOption[] => values.map((v) => ({ value: v, label: v }));
+const ENVIRONMENT_OPTIONS = toOptions(ENVIRONMENT_TAGS);
+const OWNERSHIP_OPTIONS = toOptions(OWNERSHIP_TAGS);
+
+/** A labelled field: label on the left, control on the right. */
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="marker-detail-field">
+      <span className="field-label">{label}</span>
+      <div className="marker-detail-control">{children}</div>
+    </div>
+  );
+}
+
+/**
+ * The marker panel's Details card: classification and placement — category,
+ * environment, ownership, status, linked map and layers. Searchable pickers
+ * for the long lists, chips for status. Open by default once any of it is
+ * filled in, collapsed while it's all still empty.
+ */
+export default function MarkerDetails({
+  marker,
+  maps,
+  layers,
+  onUpdate,
+}: {
+  marker: Marker;
+  maps: { id: string; name: string }[];
+  layers: MapLayerData[];
+  onUpdate: MarkerUpdate;
+}) {
+  const category = marker.category ?? DEFAULT_MARKER_CATEGORY;
+  const filled = category !== DEFAULT_MARKER_CATEGORY || !!marker.environment || !!marker.ownership || marker.statusTags.length > 0 || !!marker.linkedMapId;
+  const [open, setOpen] = useState(filled);
+  // Covers a category saved under an older list — shown as-is instead of silently becoming another.
+  const categoryOptions = toOptions((MARKER_CATEGORIES as readonly string[]).includes(category) ? MARKER_CATEGORIES : [category, ...MARKER_CATEGORIES]);
+
+  function toggleStatus(tag: string) {
+    const next = marker.statusTags.includes(tag) ? marker.statusTags.filter((t) => t !== tag) : [...marker.statusTags, tag];
+    onUpdate({ statusTags: next });
+  }
+
+  return (
+    <section className="marker-card">
+      <button type="button" className="marker-card-toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        <ChevronRight size={14} strokeWidth={2.25} className={open ? "marker-collapsible-chevron open" : "marker-collapsible-chevron"} />
+        <span className="marker-card-title">Details</span>
+      </button>
+      {/* Hidden, not unmounted, like every other marker panel section. */}
+      <div className={open ? "marker-card-body" : "marker-card-body marker-collapsible-body-hidden"}>
+        <Field label="Category">
+          <InfoPicker
+            options={categoryOptions}
+            value={category}
+            placeholder="Category"
+            ariaLabel="Category"
+            searchable={false}
+            onChange={(v) => v && onUpdate({ category: v })}
+          />
+        </Field>
+        <Field label="Environment">
+          <InfoPicker
+            options={ENVIRONMENT_OPTIONS}
+            value={marker.environment}
+            placeholder="None"
+            clearLabel="None"
+            ariaLabel="Environment"
+            onChange={(environment) => onUpdate({ environment })}
+          />
+        </Field>
+        <Field label="Ownership">
+          <InfoPicker
+            options={OWNERSHIP_OPTIONS}
+            value={marker.ownership}
+            placeholder="None"
+            clearLabel="None"
+            ariaLabel="Ownership"
+            onChange={(ownership) => onUpdate({ ownership })}
+          />
+        </Field>
+        <Field label="Linked map">
+          <InfoPicker
+            options={maps.map((m) => ({ value: m.id, label: m.name }))}
+            value={marker.linkedMapId}
+            placeholder="No linked map"
+            clearLabel="No linked map"
+            ariaLabel="Linked map"
+            onChange={(linkedMapId) => onUpdate({ linkedMapId })}
+          />
+        </Field>
+        <Field label="Layer">
+          <InfoPicker
+            options={layers.map((l) => ({ value: l.id, label: l.name }))}
+            value={marker.layerId}
+            placeholder="Layer"
+            ariaLabel="Layer"
+            searchable={layers.length > 8}
+            onChange={(layerId) => layerId && onUpdate({ layerId })}
+          />
+        </Field>
+        <LayerChecklist
+          layers={layers}
+          homeLayerId={marker.layerId}
+          value={marker.extraLayerIds ?? []}
+          alwaysDrawFlag="markersAlwaysVisible"
+          onChange={(extraLayerIds) => onUpdate({ extraLayerIds })}
+        />
+        <div className="marker-field">
+          <span className="field-label">Status</span>
+          <div className="tag-toggle-grid">
+            {STATUS_TAGS.map((tag) => (
+              <button
+                key={tag}
+                type="button"
+                className={marker.statusTags.includes(tag) ? "tag-toggle active" : "tag-toggle"}
+                aria-pressed={marker.statusTags.includes(tag)}
+                onClick={() => toggleStatus(tag)}
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
