@@ -4,6 +4,8 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { CalendarDays, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { usePopover } from "./usePopover";
+import { formatRealDate } from "@/server/settings/date-format";
+import { activeSettings } from "@/server/settings/active";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
@@ -23,11 +25,8 @@ const todayYmd = (): Ymd => {
 };
 const same = (a: Ymd | null, b: Ymd) => !!a && a.y === b.y && a.m === b.m && a.d === b.d;
 
-/** "27 September 2026". */
-export const formatIsoDate = (v: string | null) => {
-  const x = parseIso(v);
-  return x ? `${x.d} ${MONTHS[x.m]} ${x.y}` : "";
-};
+/** An ISO day in the user's real-world date format, e.g. "27/09/2026". */
+export const formatIsoDate = (v: string | null) => (parseIso(v) ? formatRealDate(v, activeSettings().realDateFormat) : "");
 
 /**
  * A real-world date picker (ISO YYYY-MM-DD in and out): a button showing

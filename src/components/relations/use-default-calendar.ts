@@ -19,7 +19,7 @@ export function useDefaultCalendarStatus(enabled = true): { calendar: DefaultCal
     loadWorldCalendars()
       .then((world) => {
         if (cancelled) return;
-        const c = world && (world.calendars.find((x) => x.id === world.chronology.defaultCalendarId) ?? world.calendars.find((x) => !x.archived));
+        const c = world && (world.calendars.find((x) => x.id === world.chronology.defaultCalendarId) ?? world.calendars.find((x) => !x.trashed));
         setState({ calendar: c && world ? { def: c.definition, currentDay: world.chronology.currentDay } : null, loading: false });
       })
       .catch(() => !cancelled && setState({ calendar: null, loading: false }));

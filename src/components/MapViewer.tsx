@@ -8,7 +8,6 @@ import MapSidebar from "./MapSidebar";
 import MapSettingsModal from "./MapSettingsModal";
 import DeleteMapDialog from "./maps/DeleteMapDialog";
 import MapHeader from "./maps/MapHeader";
-import MarkersListModal from "./MarkersListModal";
 import type { Marker } from "./MarkerLayer";
 import type { MapGrid } from "./GridLayer";
 import type { ZoneData, ZoneRegionData } from "./ZoneLayer";
@@ -16,6 +15,7 @@ import type { MapTextData } from "./TextLayer";
 import type { LineGroupData, MapLineData } from "./LineLayer";
 import type { MapFolderData } from "./LayerFolders";
 import { useMapLayers } from "./use-map-layers";
+import { MapPageSkeleton, Skeleton, SkeletonRegion } from "./Skeleton";
 
 interface MapAsset {
   id: string;
@@ -92,10 +92,12 @@ export default function MapViewer({ mapId }: { mapId: string }) {
   const [status, setStatus] = useState<MapStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [markers, setMarkers] = useState<Marker[]>([]);
+  // The map whose markers, zones, texts, lines and grids have arrived (the tool panels show skeletons until then).
+  const [itemsLoadedFor, setItemsLoadedFor] = useState<string | null>(null);
+  const itemsLoaded = itemsLoadedFor === mapId;
   const [uploading, setUploading] = useState(false);
   const [deletingMap, setDeletingMap] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [markersListOpen, setMarkersListOpen] = useState(false);
   const [externalFocusMarkerId, setExternalFocusMarkerId] = useState<string | null>(null);
   const [grids, setGrids] = useState<MapGrid[]>([]);
   const [gridPanelOpen, setGridPanelOpen] = useState(false);
@@ -103,7 +105,7 @@ export default function MapViewer({ mapId }: { mapId: string }) {
   const [zoneRegions, setZoneRegions] = useState<ZoneRegionData[]>([]);
   const [zones, setZones] = useState<ZoneData[]>([]);
   const [zonesPanelOpen, setZonesPanelOpen] = useState(false);
-  const [iconFilterPanelOpen, setIconFilterPanelOpen] = useState(false);
+  const [markersPanelOpen, setMarkersPanelOpen] = useState(false);
   const [layersPanelOpen, setLayersPanelOpen] = useState(false);
   const [textPanelOpen, setTextPanelOpen] = useState(false);
   const [texts, setTexts] = useState<MapTextData[]>([]);
@@ -111,10 +113,9 @@ export default function MapViewer({ mapId }: { mapId: string }) {
   const [scenePanelOpen, setScenePanelOpen] = useState(false);
   const [legendPanelOpen, setLegendPanelOpen] = useState(false);
   const [scalePanelOpen, setScalePanelOpen] = useState(false);
+  const [areaPanelOpen, setAreaPanelOpen] = useState(false);
   const [travelPanelOpen, setTravelPanelOpen] = useState(false);
   const [selectToolOn, setSelectToolOn] = useState(false);
-  /** Bumped by the sidebar's "Add marker"; MapWorkspace toggles placing like its own button. */
-  const [addMarkerRequest, setAddMarkerRequest] = useState(0);
   /** Placing or editing a marker in MapWorkspace (highlights the sidebar's Markers). */
   const [markerToolActive, setMarkerToolActive] = useState(false);
   const [lines, setLines] = useState<MapLineData[]>([]);
@@ -161,34 +162,38 @@ export default function MapViewer({ mapId }: { mapId: string }) {
 
   /** Everything placed on the map (reloaded after the frame grows, which rewrites their coordinates). */
   function loadItems() {
-    fetch(`/api/maps/${mapId}/markers`)
-      .then((r) => r.json())
-      .then((d) => setMarkers(d.markers));
-    fetch(`/api/maps/${mapId}/grids`)
-      .then((r) => r.json())
-      .then((d) => setGrids(d.grids));
-    fetch(`/api/maps/${mapId}/zone-regions`)
-      .then((r) => r.json())
-      .then((d) => setZoneRegions(d.regions));
-    fetch(`/api/maps/${mapId}/zones`)
-      .then((r) => r.json())
-      .then((d) => setZones(d.zones));
-    fetch(`/api/maps/${mapId}/texts`)
-      .then((r) => r.json())
-      .then((d) => setTexts(d.texts));
-    fetch(`/api/maps/${mapId}/lines`)
-      .then((r) => r.json())
-      .then((d) => setLines(d.lines));
-    fetch(`/api/maps/${mapId}/line-groups`)
-      .then((r) => r.json())
-      .then((d) => setLineGroups(d.groups));
-    fetch(`/api/maps/${mapId}/text-groups`)
-      .then((r) => r.json())
-      .then((d) => setTextGroups(d.groups));
+    return Promise.all([
+      fetch(`/api/maps/${mapId}/markers`)
+        .then((r) => r.json())
+        .then((d) => setMarkers(d.markers)),
+      fetch(`/api/maps/${mapId}/grids`)
+        .then((r) => r.json())
+        .then((d) => setGrids(d.grids)),
+      fetch(`/api/maps/${mapId}/zone-regions`)
+        .then((r) => r.json())
+        .then((d) => setZoneRegions(d.regions)),
+      fetch(`/api/maps/${mapId}/zones`)
+        .then((r) => r.json())
+        .then((d) => setZones(d.zones)),
+      fetch(`/api/maps/${mapId}/texts`)
+        .then((r) => r.json())
+        .then((d) => setTexts(d.texts)),
+      fetch(`/api/maps/${mapId}/lines`)
+        .then((r) => r.json())
+        .then((d) => setLines(d.lines)),
+      fetch(`/api/maps/${mapId}/line-groups`)
+        .then((r) => r.json())
+        .then((d) => setLineGroups(d.groups)),
+      fetch(`/api/maps/${mapId}/text-groups`)
+        .then((r) => r.json())
+        .then((d) => setTextGroups(d.groups)),
+    ]);
   }
 
   useEffect(() => {
-    loadItems();
+    void loadItems()
+      .catch(() => {}) // a failed list just stays empty, as before
+      .then(() => setItemsLoadedFor(mapId));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- loadItems is re-created each render but always closes over the current mapId.
   }, [mapId]);
 
@@ -248,32 +253,30 @@ export default function MapViewer({ mapId }: { mapId: string }) {
     else window.alert((await res.json()).error ?? "Upload failed.");
   }
 
-  function onDeleteMap() {
-    setDeletingMap(true);
-  }
-
   function closeToolPanels() {
     setGridPanelOpen(false);
     setZonesPanelOpen(false);
-    setIconFilterPanelOpen(false);
+    setMarkersPanelOpen(false);
     setLayersPanelOpen(false);
     setTextPanelOpen(false);
     setLinePanelOpen(false);
     setScenePanelOpen(false);
     setLegendPanelOpen(false);
     setScalePanelOpen(false);
+    setAreaPanelOpen(false);
     setTravelPanelOpen(false);
     setSelectToolOn(false);
   }
 
   async function onOpenGrid() {
     closeToolPanels();
+    // Open at once (a skeleton until the layer's grid exists); the request returns the grid if it already does.
+    setGridPanelOpen(true);
     if (!grid && activeLayerId) {
       const res = await fetch(`/api/layers/${activeLayerId}/grid`, { method: "POST" });
       const data: { grid?: MapGrid } = await res.json();
       if (data.grid) setGrids((prev) => [...prev.filter((g) => g.layerId !== activeLayerId), data.grid!]);
     }
-    setGridPanelOpen(true);
   }
 
   function onOpenZones() {
@@ -281,9 +284,9 @@ export default function MapViewer({ mapId }: { mapId: string }) {
     setZonesPanelOpen(true);
   }
 
-  function onOpenIconFilter() {
+  function onOpenMarkers() {
     closeToolPanels();
-    setIconFilterPanelOpen(true);
+    setMarkersPanelOpen(true);
   }
 
   function onOpenLayers() {
@@ -309,6 +312,11 @@ export default function MapViewer({ mapId }: { mapId: string }) {
   function onOpenScale() {
     closeToolPanels();
     setScalePanelOpen(true);
+  }
+
+  function onOpenArea() {
+    closeToolPanels();
+    setAreaPanelOpen(true);
   }
 
   function onOpenTravel() {
@@ -404,7 +412,7 @@ export default function MapViewer({ mapId }: { mapId: string }) {
   }
 
   if (error) return <div className="map-status">Error: {error}</div>;
-  if (!status) return <LoadingScreen message="Loading map…" />;
+  if (!status) return <MapPageSkeleton />;
 
   const { asset, job } = status;
 
@@ -421,18 +429,18 @@ export default function MapViewer({ mapId }: { mapId: string }) {
           markersDisabled={!hasFrame}
           gridDisabled={!hasFrame}
           zonesDisabled={!hasFrame}
-          iconFilterDisabled={!hasFrame}
           legendDisabled={!hasFrame}
           scaleDisabled={!hasFrame}
           onOpenLegend={onOpenLegend}
           onOpenScale={onOpenScale}
+          areaDisabled={!hasFrame}
+          onOpenArea={onOpenArea}
           travelDisabled={!hasFrame}
           onOpenTravel={onOpenTravel}
           onOpenSettings={() => setSettingsOpen(true)}
-          onOpenMarkers={() => setMarkersListOpen(true)}
+          onOpenMarkers={onOpenMarkers}
           onOpenGrid={onOpenGrid}
           onOpenZones={onOpenZones}
-          onOpenIconFilter={onOpenIconFilter}
           onOpenLayers={onOpenLayers}
           onOpenText={onOpenText}
           onOpenLines={onOpenLines}
@@ -457,18 +465,17 @@ export default function MapViewer({ mapId }: { mapId: string }) {
                             ? "legend"
                             : scalePanelOpen
                               ? "scale"
+                              : areaPanelOpen
+                                ? "area"
                               : travelPanelOpen
                                 ? "travel"
                           : settingsOpen
                             ? "settings"
-                            : iconFilterPanelOpen || markersListOpen || markerToolActive
+                            : markersPanelOpen || markerToolActive
                               ? "markers"
                               : null
           }
           onToggleSelectTool={onToggleSelectTool}
-          onOpenMarkersMenu={closeToolPanels}
-          onAddMarker={() => setAddMarkerRequest((n) => n + 1)}
-          onDeleteMap={onDeleteMap}
         />
 
         {!asset && !hasFrame && (
@@ -492,12 +499,19 @@ export default function MapViewer({ mapId }: { mapId: string }) {
           </div>
         )}
 
+        {hasFrame && !activeLayerId && (
+          <SkeletonRegion label="Loading the map…" className="map-skeleton-canvas-region">
+            <Skeleton className="map-skeleton-canvas" height="auto" radius={0} />
+          </SkeletonRegion>
+        )}
+
         {hasFrame && activeLayerId && (
           <div className="spike-root">
             <MapWorkspace
               // A grown frame rewrote every stored coordinate: start over (undo history included).
               key={`${status.map.frameWidth}x${status.map.frameHeight}`}
               mapId={mapId}
+              itemsLoaded={itemsLoaded}
               layerApi={layerApi}
               activeLayerId={activeLayerId}
               onSetActiveLayer={setActiveLayer}
@@ -521,7 +535,6 @@ export default function MapViewer({ mapId }: { mapId: string }) {
               selectToolOn={selectToolOn}
               onOpenSelectTool={onOpenSelectTool}
               onCloseSelectTool={() => setSelectToolOn(false)}
-              addMarkerRequest={addMarkerRequest}
               onMarkerToolChange={setMarkerToolActive}
               onOpenZonesPanel={onOpenZones}
               onOpenTextPanel={onOpenText}
@@ -530,6 +543,11 @@ export default function MapViewer({ mapId }: { mapId: string }) {
               setMarkers={setMarkers}
               externalFocusMarkerId={externalFocusMarkerId}
               onExternalFocusHandled={() => setExternalFocusMarkerId(null)}
+              onFocusMarker={(id) => {
+                const layerId = markers.find((m) => m.id === id)?.layerId;
+                if (layerId) setActiveLayer(layerId);
+                setExternalFocusMarkerId(id);
+              }}
               grid={grid}
               gridPanelOpen={gridPanelOpen}
               onCloseGridPanel={() => setGridPanelOpen(false)}
@@ -541,12 +559,14 @@ export default function MapViewer({ mapId }: { mapId: string }) {
               setZones={setZones}
               zonesPanelOpen={zonesPanelOpen}
               onCloseZonesPanel={() => setZonesPanelOpen(false)}
-              iconFilterPanelOpen={iconFilterPanelOpen}
-              onCloseIconFilterPanel={() => setIconFilterPanelOpen(false)}
+              markersPanelOpen={markersPanelOpen}
+              onCloseMarkersPanel={() => setMarkersPanelOpen(false)}
               legendPanelOpen={legendPanelOpen}
               onCloseLegendPanel={() => setLegendPanelOpen(false)}
               scalePanelOpen={scalePanelOpen}
               onCloseScalePanel={() => setScalePanelOpen(false)}
+              areaPanelOpen={areaPanelOpen}
+              onCloseAreaPanel={() => setAreaPanelOpen(false)}
               travelPanelOpen={travelPanelOpen}
               onCloseTravelPanel={() => setTravelPanelOpen(false)}
               onOpenTravelPanel={onOpenTravel}
@@ -587,16 +607,9 @@ export default function MapViewer({ mapId }: { mapId: string }) {
         status={status}
         mapId={mapId}
         onChanged={refresh}
-      />
-      <MarkersListModal
-        open={markersListOpen}
-        onClose={() => setMarkersListOpen(false)}
-        markers={markers}
-        layers={layerApi.layers}
-        onSelect={(id) => {
-          const layerId = markers.find((m) => m.id === id)?.layerId;
-          if (layerId) setActiveLayer(layerId);
-          setExternalFocusMarkerId(id);
+        onDelete={() => {
+          setSettingsOpen(false);
+          setDeletingMap(true);
         }}
       />
     </div>

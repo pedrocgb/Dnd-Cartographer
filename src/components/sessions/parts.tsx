@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDecimal } from "@/server/settings/number-format";
 import { inCoins } from "@/server/sessions/totals";
 import { PARTY, type Currency } from "@/server/sessions/types";
 import { portraitSrc, type RosterMember } from "./types";
@@ -30,13 +31,13 @@ export function formatCoins(amounts: Readonly<Record<string, number>>, currencie
   const parts = [...currencies]
     .sort((a, b) => b.value - a.value)
     .filter((c) => amounts[c.id])
-    .map((c) => `${amounts[c.id].toLocaleString()} ${c.short}`);
+    .map((c) => `${formatDecimal(amounts[c.id])} ${c.short}`);
   return parts.length ? parts.join(" ") : "—";
 }
 
 /** A smallest-unit total in the fewest coins ("≈ 1 pp 2 gp"). */
 export function formatBase(base: number, currencies: readonly Currency[]): string {
-  const parts = inCoins(base, currencies).map((c) => `${c.count.toLocaleString()} ${c.currency.short}`);
+  const parts = inCoins(base, currencies).map((c) => `${formatDecimal(c.count)} ${c.currency.short}`);
   return parts.length ? parts.join(" ") : "0";
 }
 

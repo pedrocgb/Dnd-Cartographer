@@ -151,8 +151,8 @@ export const CHARACTER_FIELDS: InfoField[] = [
   // Appearance
   { key: "hair", label: "Hair", group: "appearance", kind: "text", hint: "Color, length, style? Braided, shaved, greying at the temples?" },
   { key: "eyes", label: "Eyes", group: "appearance", kind: "text", hint: "Eye color, size, shape? Anything striking, like a scar or a glow?" },
-  { key: "height", label: "Height", group: "appearance", kind: "text", hint: "How tall are they? A number, or a comparison like \"towers over most men\"." },
-  { key: "weight", label: "Weight", group: "appearance", kind: "text", hint: "How heavy are they? Slight, stocky, a number — whatever reads best at the table." },
+  { key: "height", label: "Height", group: "appearance", kind: "text", measure: "height", hint: "How tall are they? A number, or a comparison like \"towers over most men\"." },
+  { key: "weight", label: "Weight", group: "appearance", kind: "text", measure: "weight", hint: "How heavy are they? Slight, stocky, a number — whatever reads best at the table." },
   {
     key: "ethnicity",
     label: "Ethnicity",

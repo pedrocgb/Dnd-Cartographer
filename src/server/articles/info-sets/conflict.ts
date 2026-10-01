@@ -146,6 +146,22 @@ export const CONFLICT_INFO = defineFieldSet(
       hint: "Communities caught up in it.",
     },
     {
+      key: "attackersAllies",
+      label: "Attacker's Allies",
+      group: "participants",
+      kind: "link",
+      link: link(["territory", "organization", "character", "playerCharacter"], true),
+      hint: "Allies of the attackers who joined the war.",
+    },
+    {
+      key: "defendersAllies",
+      label: "Defender's Allies",
+      group: "participants",
+      kind: "link",
+      link: link(["territory", "organization", "character", "playerCharacter"], true),
+      hint: "Allies of the defenders who joined the war.",
+    },
+    {
       key: "commandersAndLeaders",
       label: "Commanders and Leaders",
       group: "participants",
@@ -186,7 +202,6 @@ export const CONFLICT_INFO = defineFieldSet(
       link: link(["territory"], true),
       hint: "Territories taking part.",
     },
-    { key: "sidesAndAllegiances", label: "Sides and Allegiances", group: "participants", kind: "text", hint: "Who stands with whom." },
     // Resources and Methods
     { key: "balanceOfPower", label: "Balance of Power", group: "resourcesAndMethods", kind: "text", hint: "Which side holds the advantage, and why." },
     { key: "fundingAndSupplies", label: "Funding and Supplies", group: "resourcesAndMethods", kind: "text", hint: "How each side pays for and feeds its fight." },

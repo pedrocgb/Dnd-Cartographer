@@ -106,6 +106,7 @@ export const GEOGRAPHY_INFO = defineFieldSet(
       label: "Elevation or Depth",
       group: "features",
       kind: "text",
+      measure: "elevation",
       hint: "How high it rises or how deep it goes.",
     },
     {
@@ -123,7 +124,7 @@ export const GEOGRAPHY_INFO = defineFieldSet(
       kind: "text",
       hint: "Timber, ore, game, herbs, gems? Resources are what people fight over.",
     },
-    { key: "sizeOrExtent", label: "Size or Extent", group: "features", kind: "text", hint: "How large it is, or how far it stretches." },
+    { key: "sizeOrExtent", label: "Size or Extent", group: "features", kind: "text", measure: "distance", hint: "How large it is, or how far it stretches." },
     {
       key: "unusualProperties",
       label: "Unusual Properties",

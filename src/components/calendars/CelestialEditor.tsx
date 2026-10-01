@@ -38,7 +38,7 @@ function starterConfig(type: CelestialType, today: number, calendars: ClientCale
   return { states: [visible] };
 }
 
-/** Which calendars show the object: All (new ones included) or a chosen few. Ids of archived calendars are kept. */
+/** Which calendars show the object: All (new ones included) or a chosen few. Ids of trashed calendars are kept. */
 function CalendarsSection({ calendars, value, onChange }: { calendars: ClientCalendar[]; value: string[] | null; onChange: (ids: string[] | null) => void }) {
   const all = value === null;
   const toggle = (id: string, on: boolean) => onChange(on ? [...(value ?? []), id] : (value ?? []).filter((x) => x !== id));

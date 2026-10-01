@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
-import { X, Lock, Unlock, Copy, Check, ExternalLink, Trash2, Pencil, ChevronLeft } from "lucide-react";
+import { X, Lock, Unlock, Copy, Check, Trash2, Pencil, ChevronLeft } from "lucide-react";
 import DescriptionSection from "./DescriptionSection";
 import MarkerIcon from "./MarkerIcon";
 import { DEFAULT_MARKER_CATEGORY } from "@/server/markers/icon-registry";
@@ -15,6 +14,7 @@ import MarkerAppearance from "./marker-panel/MarkerAppearance";
 import MarkerDetails from "./marker-panel/MarkerDetails";
 import MarkerCard from "./marker-panel/MarkerCard";
 import { MarkerSubjectEdit, MarkerSubjectView } from "./marker-panel/MarkerSubject";
+import { MarkerLinkedMapEdit, MarkerLinkedMapView } from "./marker-panel/MarkerLinkedMap";
 import { useMarkerArticleLinks } from "./marker-panel/use-marker-article-links";
 import type { MarkerUpdate } from "./marker-panel/types";
 
@@ -155,7 +155,7 @@ export default function MarkerPanel({
     setPrevStartInEdit(startInEdit);
     if (startInEdit) setEditing(true);
   }
-  const linkedMap = marker.linkedMapId ? maps.find((m) => m.id === marker.linkedMapId) : null;
+  const linkedMap = marker.linkedMapId ? (maps.find((m) => m.id === marker.linkedMapId) ?? null) : null;
   const layer = layers.find((l) => l.id === marker.layerId) ?? null;
 
   // View-mode summary only shows the accepted (not draft) chain, root-first
@@ -209,9 +209,15 @@ export default function MarkerPanel({
       <div className={section === "basic" ? "marker-section-body" : "marker-section-body marker-section-body-hidden"}>
         {editing ? null : <TagChips marker={marker} layer={layer} chain={affiliationChain} />}
         {editing ? (
-          <MarkerSubjectEdit marker={{ ...marker, name }} links={links} onUpdate={onUpdate} onRename={rename} />
+          <>
+            <MarkerLinkedMapEdit marker={marker} maps={maps} onUpdate={onUpdate} />
+            <MarkerSubjectEdit marker={{ ...marker, name }} links={links} onUpdate={onUpdate} onRename={rename} />
+          </>
         ) : (
-          <MarkerSubjectView markerId={marker.id} links={links} />
+          <>
+            <MarkerLinkedMapView map={linkedMap} />
+            <MarkerSubjectView markerId={marker.id} links={links} />
+          </>
         )}
 
         <MarkerCard title="Description" bare={!editing}>
@@ -225,16 +231,9 @@ export default function MarkerPanel({
         {editing && (
           <>
             <MarkerAppearance marker={marker} onUpdate={onUpdate} />
-            <MarkerDetails marker={marker} maps={maps} layers={layers} onUpdate={onUpdate} />
+            <MarkerDetails marker={marker} layers={layers} onUpdate={onUpdate} />
             <MarkerActions marker={marker} onUpdate={onUpdate} onDuplicate={onDuplicate} onDelete={onDelete} onDone={() => setEditing(false)} />
           </>
-        )}
-
-        {!editing && linkedMap && (
-          <Link href={`/maps/${linkedMap.id}`} className="btn">
-            <ExternalLink size={15} strokeWidth={2.25} />
-            Open {linkedMap.name}
-          </Link>
         )}
 
         {!editing && (

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 /** The lateral panels pinned to the canvas's left edge (tool panels, marker panel). */
-const PANEL_SELECTOR = ":scope > .marker-side-panel, :scope > .zones-panel, :scope > .grid-panel, :scope > .layers-panel, :scope > .icon-filter-panel";
+const PANEL_SELECTOR = ":scope > .marker-side-panel, :scope > .zones-panel, :scope > .grid-panel, :scope > .layers-panel, :scope > .markers-panel";
 
 /**
  * How far the open lateral panel reaches into the canvas area (px), so the

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { calendars } from "@/server/db/schema";
 import { ensureDefaultWorld } from "@/server/world/default-world";
@@ -14,7 +14,7 @@ const stale = () => NextResponse.json({ error: "This calendar was changed elsewh
 
 /**
  * Edits a calendar: `expectedVersion` is required (stale edits get 409).
- * Name/description/articleLinks/archived change freely; a new `definition`
+ * Name/description/articleLinks change freely; a new `definition`
  * goes through the impact review (`migration` = { mode, keepPhysical,
  * acknowledgeReferences }) and leaves a restorable revision.
  */
@@ -36,13 +36,6 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     }
     if ("description" in body) extra.description = cleanName(body.description, 4000);
     if ("articleLinks" in body) extra.articleLinks = JSON.stringify(parseArticleLinks(body.articleLinks));
-    if ("archived" in body) {
-      if (body.archived === true) {
-        const chronology = await chronologyOf(worldId);
-        if (chronology.defaultCalendarId === id) return badRequest("This is the default calendar. Make another calendar the default before archiving it.");
-      }
-      extra.archivedAt = body.archived === true ? new Date() : null;
-    }
 
     if ("definition" in body) {
       const definition = parseDefinition(body.definition);
@@ -61,4 +54,24 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   } catch (error) {
     return calendarErrorResponse(error);
   }
+}
+
+/**
+ * Moves a calendar to the Trash (restored or purged from there). Its rows
+ * stay, so campaigns, season profiles and repeat rules that use it keep
+ * reading their dates; the default calendar can't go.
+ */
+export async function DELETE(_request: Request, { params }: RouteContext) {
+  const { id } = await params;
+  const worldId = await ensureDefaultWorld();
+  const row = await calendarOf(worldId, id);
+  if (!row) return notFound("Calendar not found.");
+  const chronology = await chronologyOf(worldId);
+  if (chronology.defaultCalendarId === id) return badRequest("This is the default calendar. Make another calendar the default before deleting it.");
+  const now = new Date();
+  await db
+    .update(calendars)
+    .set({ deletedAt: now, updatedAt: now })
+    .where(and(eq(calendars.id, id), isNull(calendars.deletedAt)));
+  return NextResponse.json({ ok: true });
 }

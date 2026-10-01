@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Trash2 } from "lucide-react";
 import Modal from "./Modal";
 import DescriptionSection from "./DescriptionSection";
 
@@ -25,12 +26,15 @@ export default function MapSettingsModal({
   status,
   mapId,
   onChanged,
+  onDelete,
 }: {
   open: boolean;
   onClose: () => void;
   status: MapSettingsStatus;
   mapId: string;
   onChanged: () => void;
+  /** Asks to delete the map (the confirm dialog takes it from there). */
+  onDelete: () => void;
 }) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [allMaps, setAllMaps] = useState<{ id: string; name: string }[]>([]);
@@ -109,6 +113,13 @@ export default function MapSettingsModal({
         editable
         onDocumentCreated={(id) => patch({ descriptionDocumentId: id })}
       />
+
+      <div className="map-settings-danger">
+        <button type="button" className="btn btn-danger" onClick={onDelete}>
+          <Trash2 size={15} strokeWidth={2.25} />
+          Delete map
+        </button>
+      </div>
     </Modal>
   );
 }

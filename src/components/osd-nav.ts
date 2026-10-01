@@ -23,5 +23,10 @@ import type OpenSeadragonType from "openseadragon";
  * mirroring the same bypass approach already used for middle-mouse pan.
  */
 export function setOsdNavEnabled(viewer: OpenSeadragonType.Viewer | null | undefined, enabled: boolean) {
-  viewer?.setMouseNavEnabled(enabled);
+  // A tool's cleanup can run after the viewer was destroyed (leaving for
+  // another map: the workspace's own cleanup destroys it first), when it no
+  // longer has a mouse tracker to switch.
+  // isDestroyed is public OpenSeadragon API missing from its type definitions.
+  if (!viewer || (viewer as OpenSeadragonType.Viewer & { isDestroyed(): boolean }).isDestroyed()) return;
+  viewer.setMouseNavEnabled(enabled);
 }

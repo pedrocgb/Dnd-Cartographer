@@ -13,11 +13,13 @@ import ArticleMapPresence from "./ArticleMapPresence";
 import type { ArticleTemplateKey } from "@/server/articles/templates";
 import { templateOf } from "./templates";
 import TagEditor from "./TagEditor";
+import ArticleFoldersControl from "./ArticleFoldersControl";
 import { CreateArticleContext } from "./create-context";
 import RelationshipsCard from "@/components/relations/RelationshipsCard";
 
 /** Floating editor UI (bubble menus, popovers) lives outside the card; clicks there keep it editing. */
-const FLOATING_EDITOR_UI = ".rich-floating";
+// Editor UI outside the card: menus, dialogs, and the date picker popover they can open (.dp-pop).
+const FLOATING_EDITOR_UI = ".rich-floating, .dp-pop";
 
 export interface CardDocument {
   documentId: string | null;
@@ -299,6 +301,7 @@ export default function ArticleView({
         )}
       </header>
       <TagEditor templateTag={label} tags={tags} suggestions={tagSuggestions} onChange={onChangeTags} />
+      {articleId && <ArticleFoldersControl articleId={articleId} />}
 
       <div className="article-top">
         <section className="article-card article-image-card" aria-label="Image">

@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { isArticleTemplate, type ArticleTemplateKey } from "@/server/articles/templates";
-import { MapPin, ZoomIn, ZoomOut, Home, Maximize, Minimize, Undo2, Redo2 } from "lucide-react";
+import { Grid3x3, ListTree, MapPin, MapPinned, PenTool, Shapes, Type as TypeIcon, ZoomIn, ZoomOut, Home, Maximize, Minimize, Undo2, Redo2 } from "lucide-react";
+import { PanelSkeleton } from "./Skeleton";
 import type OpenSeadragonType from "openseadragon";
 import MarkerLayer, { type Marker } from "./MarkerLayer";
 import MarkerPanel, { type MarkerSection } from "./MarkerPanel";
@@ -12,7 +13,7 @@ import GridLayer, { type MapGrid } from "./GridLayer";
 import GridPanel from "./GridPanel";
 import ZoneLayer, { DEFAULT_BRUSH_SIZE, isPaintTool, zonePaintOrder, type PaintedZone, type ZoneData, type ZoneRegionData, type ZoneTool } from "./ZoneLayer";
 import ZonesPanel from "./ZonesPanel";
-import MarkerIconFilterPanel from "./MarkerIconFilterPanel";
+import MarkersPanel from "./MarkersPanel";
 import LayersPanel from "./LayersPanel";
 import TextLayer, { type MapTextData } from "./TextLayer";
 import TextPanel, { type TextDraft, type TextPatch } from "./TextPanel";
@@ -37,6 +38,7 @@ import SelectionLayer from "./SelectionLayer";
 import { useSelection, type ClickMods } from "./multi-select";
 import { usePanelInset } from "./use-panel-inset";
 import MapHud from "./map-hud/MapHud";
+import { useMapScaleBar } from "./map-hud/use-map-scale-bar";
 import { useMapRoutes, type NewRoute, type RouteControls, type RoutePatch } from "./map-hud/use-map-routes";
 import type { MapRouteData } from "@/server/travel/route-config";
 import { isModalOpen } from "./Modal";
@@ -170,6 +172,7 @@ function saveZoneStyle(style: ZoneStyle) {
 
 export default function MapWorkspace({
   mapId,
+  itemsLoaded,
   layerApi,
   activeLayerId,
   onSetActiveLayer,
@@ -189,7 +192,6 @@ export default function MapWorkspace({
   selectToolOn,
   onOpenSelectTool,
   onCloseSelectTool,
-  addMarkerRequest,
   onMarkerToolChange,
   onOpenZonesPanel,
   onOpenTextPanel,
@@ -198,6 +200,7 @@ export default function MapWorkspace({
   setMarkers,
   externalFocusMarkerId,
   onExternalFocusHandled,
+  onFocusMarker,
   grid,
   gridPanelOpen,
   onCloseGridPanel,
@@ -213,12 +216,14 @@ export default function MapWorkspace({
   setZones,
   zonesPanelOpen,
   onCloseZonesPanel,
-  iconFilterPanelOpen,
-  onCloseIconFilterPanel,
+  markersPanelOpen,
+  onCloseMarkersPanel,
   legendPanelOpen,
   onCloseLegendPanel,
   scalePanelOpen,
   onCloseScalePanel,
+  areaPanelOpen,
+  onCloseAreaPanel,
   travelPanelOpen,
   onCloseTravelPanel,
   onOpenTravelPanel,
@@ -228,6 +233,8 @@ export default function MapWorkspace({
   imageHeight,
 }: {
   mapId: string;
+  /** False until the map's markers, zones, texts, lines and grids have arrived: their panels show skeletons. */
+  itemsLoaded: boolean;
   layerApi: MapLayersApi;
   activeLayerId: string;
   onSetActiveLayer: (id: string) => void;
@@ -249,8 +256,6 @@ export default function MapWorkspace({
   /** Esc's last step: back to the Selection tool once nothing else is open. */
   onOpenSelectTool: () => void;
   onCloseSelectTool: () => void;
-  /** Changes each time the sidebar's "Add marker" is picked: same toggle as the toolbar button. */
-  addMarkerRequest: number;
   /** Tells the sidebar whether a marker is being placed or edited. */
   onMarkerToolChange: (active: boolean) => void;
   onOpenZonesPanel: () => void;
@@ -260,6 +265,8 @@ export default function MapWorkspace({
   setMarkers: React.Dispatch<React.SetStateAction<Marker[]>>;
   externalFocusMarkerId: string | null;
   onExternalFocusHandled: () => void;
+  /** A Markers panel row: jump to that marker (same as externalFocusMarkerId, set by the parent). */
+  onFocusMarker: (markerId: string) => void;
   grid: MapGrid | null;
   gridPanelOpen: boolean;
   onCloseGridPanel: () => void;
@@ -275,6 +282,8 @@ export default function MapWorkspace({
   onCloseLegendPanel: () => void;
   scalePanelOpen: boolean;
   onCloseScalePanel: () => void;
+  areaPanelOpen: boolean;
+  onCloseAreaPanel: () => void;
   travelPanelOpen: boolean;
   onCloseTravelPanel: () => void;
   onOpenTravelPanel: () => void;
@@ -283,8 +292,8 @@ export default function MapWorkspace({
   setZones: React.Dispatch<React.SetStateAction<ZoneData[]>>;
   zonesPanelOpen: boolean;
   onCloseZonesPanel: () => void;
-  iconFilterPanelOpen: boolean;
-  onCloseIconFilterPanel: () => void;
+  markersPanelOpen: boolean;
+  onCloseMarkersPanel: () => void;
   /** Grows the map frame to cover every layer image (after one is placed). */
   onFitFrame: () => void;
   imageWidth: number;
@@ -348,12 +357,15 @@ export default function MapWorkspace({
   const linePatchTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const pendingLinePatchesRef = useRef<Map<string, LinePatch>>(new Map());
   const routesApi = useMapRoutes(mapId);
+  // Owned here (not by MapHud) so the Zones panel can read zone areas through the same calibration.
+  const scaleApi = useMapScaleBar(mapId);
   const routes = routesApi.routes;
   const routeSel = useSelection();
   /** Folder new routes go into (one of the active layer's), or null: Ungrouped. */
   const [activeRouteGroupId, setActiveRouteGroupId] = useState<string | null>(null);
-  /** A route being drawn keeps Ctrl+Z to itself (its own Backspace undoes points). */
-  const routeDrawingRef = useRef(false);
+  /** A route being drawn keeps Ctrl+Z to itself (its own Backspace undoes points)
+   *  and the map's markers out of the way of its clicks. */
+  const [routeDrawing, setRouteDrawing] = useState(false);
   /** The item just picked in the Scene panel, briefly pulsed on the map. */
   const [pulseId, setPulseId] = useState<string | null>(null);
   /** Selection tool: the item under the pointer. */
@@ -526,44 +538,60 @@ export default function MapWorkspace({
       ? "crosshair"
       : zonesPanelOpen && isPaintTool(activeZoneTool)
         ? "crosshair" // the brush-size ring drawn by ZoneLayer marks the exact spot
-        : zonesPanelOpen && activeZoneTool !== "select"
+        : (zonesPanelOpen && activeZoneTool !== "select") || areaPanelOpen
           ? ZONE_DRAW_CURSOR
           : "";
-  }, [addingMarker, zonesPanelOpen, activeZoneTool, textPanelOpen, placingText, linePanelOpen, drawingLine, selectToolOn, hovered]);
+  }, [addingMarker, zonesPanelOpen, activeZoneTool, areaPanelOpen, textPanelOpen, placingText, linePanelOpen, drawingLine, selectToolOn, hovered]);
 
   // Middle-mouse-button drag also pans the map, same as OpenSeadragon's own
   // left-drag pan — implemented independently of OSD's built-in navigation
   // (viewport.panBy, not viewer.setMouseNavEnabled) so it keeps working even
-  // while that's deliberately disabled during zone drawing/editing, giving
-  // the user a way to pan without leaving the active tool.
+  // while that's deliberately disabled during zone drawing/editing or route
+  // drawing, giving the user a way to pan without leaving the active tool.
+  // Listens to pointerdown in the capture phase: OSD preventDefaults its own
+  // non-primary pointerdown on the bare canvas, which suppresses the
+  // compatibility mousedown a mouse listener would wait for.
   useEffect(() => {
     if (!viewer || !osd) return;
     const container = viewer.container;
 
-    function onMouseDown(e: MouseEvent) {
-      if (e.button !== 1) return;
+    function onPointerDown(e: PointerEvent) {
+      if (e.button !== 1 || e.pointerType !== "mouse") return;
       e.preventDefault();
+      const pointerId = e.pointerId;
       let last = { x: e.clientX, y: e.clientY };
 
-      function onMove(moveEvent: MouseEvent) {
+      function onMove(moveEvent: PointerEvent) {
+        if (moveEvent.pointerId !== pointerId) return;
         const dx = moveEvent.clientX - last.x;
         const dy = moveEvent.clientY - last.y;
         last = { x: moveEvent.clientX, y: moveEvent.clientY };
         const delta = viewer!.viewport.deltaPointsFromPixels(new osd!.Point(-dx, -dy));
         viewer!.viewport.panBy(delta, true);
       }
-      function onUp() {
-        window.removeEventListener("mousemove", onMove);
-        window.removeEventListener("mouseup", onUp);
+      function onUp(upEvent: PointerEvent) {
+        if (upEvent.pointerId !== pointerId) return;
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        window.removeEventListener("pointercancel", onUp);
       }
-      window.addEventListener("mousemove", onMove);
-      window.addEventListener("mouseup", onUp);
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+      window.addEventListener("pointercancel", onUp);
     }
 
     // Chrome/Firefox show their own autoscroll UI on a middle-button press
-    // unless it's prevented right on mousedown.
-    container.addEventListener("mousedown", onMouseDown);
-    return () => container.removeEventListener("mousedown", onMouseDown);
+    // unless it's prevented right on mousedown (when one still fires).
+    function onMouseDown(e: MouseEvent) {
+      if (e.button === 1) e.preventDefault();
+    }
+
+    container.addEventListener("pointerdown", onPointerDown, true);
+    container.addEventListener("mousedown", onMouseDown, true);
+    return () => {
+      container.removeEventListener("pointerdown", onPointerDown, true);
+      container.removeEventListener("mousedown", onMouseDown, true);
+    };
   }, [viewer, osd]);
 
   // Scroll-wheel zoom, implemented independently of OSD's own gated
@@ -615,8 +643,7 @@ export default function MapWorkspace({
     queueMicrotask(() => selectMarker(marker.id));
   }, [viewer, osd, markers, deepLinkedMarkerId]);
 
-  // Jump-to-marker requests from outside this component (the Markers List
-  // modal, rendered by the parent) — same pan/zoom/select as the deep-link
+  // Jump-to-marker requests (a Markers panel row, routed through the parent) — same pan/zoom/select as the deep-link
   // effect above, but re-armable: the parent clears the id after each use, so
   // clicking the same list row twice in a row still re-triggers this.
   useEffect(() => {
@@ -642,19 +669,20 @@ export default function MapWorkspace({
   // so there's no "restore after navigating back" state to manage here —
   // the map/marker/section simply never went anywhere.
   // Only one lateral tool is ever open at a time — selecting/placing a
-  // marker closes whichever Grid/Zones/Filter panel was open, and (see the
+  // marker closes whichever Grid/Zones/Markers panel was open, and (see the
   // render-time adjustment below) opening one of those panels deselects any
   // open marker the same way.
   function closeToolPanels() {
     onCloseGridPanel();
     onCloseZonesPanel();
-    onCloseIconFilterPanel();
+    onCloseMarkersPanel();
     onCloseLayersPanel();
     onCloseTextPanel();
     onCloseLinePanel();
     onCloseScenePanel();
     onCloseLegendPanel();
     onCloseScalePanel();
+    onCloseAreaPanel();
     onCloseTravelPanel();
     onCloseSelectTool();
   }
@@ -986,12 +1014,6 @@ export default function MapWorkspace({
     routeSel.select(null);
   }
 
-  const [lastAddMarkerRequest, setLastAddMarkerRequest] = useState(addMarkerRequest);
-  if (addMarkerRequest !== lastAddMarkerRequest) {
-    setLastAddMarkerRequest(addMarkerRequest);
-    setAddingMarker((a) => !a);
-  }
-
   // Closing the Lines panel ends line authoring (lines keep rendering).
   const [lastLinePanelOpen, setLastLinePanelOpen] = useState(linePanelOpen);
   if (linePanelOpen !== lastLinePanelOpen) {
@@ -1124,10 +1146,10 @@ export default function MapWorkspace({
   }
 
   // Only one lateral tool is ever open at a time — the reverse direction of
-  // closeToolPanels() above: opening Grid/Zones/Filter deselects any open
+  // closeToolPanels() above: opening Grid/Zones/Markers deselects any open
   // marker instead of showing both side by side.
   const sidePanelOpen =
-    gridPanelOpen || zonesPanelOpen || iconFilterPanelOpen || layersPanelOpen || textPanelOpen || linePanelOpen || scenePanelOpen || legendPanelOpen || scalePanelOpen || travelPanelOpen;
+    gridPanelOpen || zonesPanelOpen || markersPanelOpen || layersPanelOpen || textPanelOpen || linePanelOpen || scenePanelOpen || legendPanelOpen || scalePanelOpen || areaPanelOpen || travelPanelOpen;
   // The Selection tool has no side panel, but is exclusive with them all the same.
   const anyToolPanelOpen = sidePanelOpen || selectToolOn;
   const [lastAnyToolPanelOpen, setLastAnyToolPanelOpen] = useState(anyToolPanelOpen);
@@ -1582,6 +1604,7 @@ export default function MapWorkspace({
   }
 
   const routeControls: RouteControls = {
+    loaded: routesApi.loaded,
     routes: layerRoutes,
     drawn: drawnRoutes,
     groups: routesApi.groups,
@@ -1671,7 +1694,7 @@ export default function MapWorkspace({
     const isRedo = key === "y" || (key === "z" && e.shiftKey);
     if (!isUndo && !isRedo) return;
     // A line or polygon being drawn keeps its own gestures (Backspace/Esc).
-    if ((linePanelOpen && drawingLine) || (zonesPanelOpen && activeZoneTool === "polygon") || (travelPanelOpen && routeDrawingRef.current)) return;
+    if ((linePanelOpen && drawingLine) || (zonesPanelOpen && activeZoneTool === "polygon") || (travelPanelOpen && routeDrawing)) return;
     e.preventDefault();
     if (isUndo) history.undo();
     else history.redo();
@@ -2219,7 +2242,9 @@ export default function MapWorkspace({
             !selectToolOn &&
             !(zonesPanelOpen && (activeZoneTool !== "select" || zoneSel.ids.length > 0)) &&
             !(textPanelOpen && (placingText || textSel.ids.length > 0)) &&
-            !(linePanelOpen && (drawingLine || lineSel.ids.length > 0))
+            !(linePanelOpen && (drawingLine || lineSel.ids.length > 0)) &&
+            !(travelPanelOpen && routeDrawing) &&
+            !areaPanelOpen
           }
         />
 
@@ -2247,16 +2272,18 @@ export default function MapWorkspace({
           onCloseLegendPanel={onCloseLegendPanel}
           scalePanelOpen={scalePanelOpen}
           onCloseScalePanel={onCloseScalePanel}
+          areaPanelOpen={areaPanelOpen}
+          onCloseAreaPanel={onCloseAreaPanel}
+          scale={scaleApi}
           travelPanelOpen={travelPanelOpen}
           onCloseTravelPanel={onCloseTravelPanel}
           onOpenScalePanel={onOpenScalePanel}
           routes={routeControls}
           pulseId={pulseId}
-          onRouteDrawingChange={(drawing) => {
-            routeDrawingRef.current = drawing;
-          }}
+          onRouteDrawingChange={setRouteDrawing}
         />
 
+        {gridPanelOpen && !grid && <PanelSkeleton className="grid-panel" title="Grid" Icon={Grid3x3} onClose={onCloseGridPanel} rows={4} />}
         {gridPanelOpen && grid && (
           <GridPanel
             layerName={layerLabel}
@@ -2269,9 +2296,11 @@ export default function MapWorkspace({
           />
         )}
 
-        {zonesPanelOpen && (
+        {zonesPanelOpen && !itemsLoaded && <PanelSkeleton className="zones-panel" mainClassName="zones-panel-main" title="Zones" Icon={Shapes} onClose={onCloseZonesPanel} />}
+        {zonesPanelOpen && itemsLoaded && (
           <ZonesPanel
             layerName={layerLabel}
+            scaleConfig={scaleApi.loaded ? scaleApi.scaleBar.config : null}
             regions={layerRegions}
             zones={layerZones}
             activeRegionId={activeZoneRegionId}
@@ -2316,7 +2345,8 @@ export default function MapWorkspace({
           />
         )}
 
-        {textPanelOpen && (
+        {textPanelOpen && !itemsLoaded && <PanelSkeleton className="zones-panel zones-panel-editing text-panel" mainClassName="zones-panel-main" title="Text" Icon={TypeIcon} onClose={onCloseTextPanel} />}
+        {textPanelOpen && itemsLoaded && (
           <TextPanel
             layerName={layerLabel}
             selected={selectedText}
@@ -2358,7 +2388,8 @@ export default function MapWorkspace({
           />
         )}
 
-        {linePanelOpen && (
+        {linePanelOpen && !itemsLoaded && <PanelSkeleton className="zones-panel zones-panel-editing line-panel" mainClassName="zones-panel-main" title="Lines" Icon={PenTool} onClose={onCloseLinePanel} />}
+        {linePanelOpen && itemsLoaded && (
           <LinePanel
             layerName={layerLabel}
             selected={selectedLine}
@@ -2406,7 +2437,8 @@ export default function MapWorkspace({
           />
         )}
 
-        {scenePanelOpen && (
+        {scenePanelOpen && !itemsLoaded && <PanelSkeleton className="layers-panel scene-panel" title="Scene" Icon={ListTree} onClose={onCloseScenePanel} />}
+        {scenePanelOpen && itemsLoaded && (
           <ScenePanel
             layerName={layerLabel}
             markers={layerMarkers}
@@ -2422,16 +2454,8 @@ export default function MapWorkspace({
           />
         )}
 
-        {iconFilterPanelOpen && (
-          <MarkerIconFilterPanel
-            selected={iconFilter.selected}
-            allOn={iconFilter.allOn}
-            onToggle={iconFilter.toggle}
-            onSelectAll={iconFilter.selectAll}
-            onClearAll={iconFilter.clearAll}
-            onClose={onCloseIconFilterPanel}
-          />
-        )}
+        {markersPanelOpen && !itemsLoaded && <PanelSkeleton className="markers-panel" mainClassName="markers-panel-col" title="Markers on this map" Icon={MapPinned} onClose={onCloseMarkersPanel} rows={6} />}
+        {markersPanelOpen && itemsLoaded && <MarkersPanel markers={markers} layers={layerApi.layers} onSelectMarker={onFocusMarker} iconFilter={iconFilter} onClose={onCloseMarkersPanel} />}
 
         {saveError && (
           <div className="undo-toast save-error-toast" role="alert">

@@ -16,8 +16,12 @@ import { isModalOpen } from "@/components/Modal";
 import { isTypingTarget } from "@/components/keyboard";
 import { formatDuration, planTravel, unitToMiles, type TravelSettings } from "@/server/travel/travel";
 import { DEFAULT_ROUTE_STYLE, sanitizeRouteStyle, type MapRouteData, type RoutePt, type RouteStyle } from "@/server/travel/route-config";
+import { LandPlot, LayoutList, Route, Ruler } from "lucide-react";
+import AreaLayer, { type AreaTool, type MeasuredShape } from "./AreaLayer";
+import AreaPanel from "./AreaPanel";
+import { PanelSkeleton } from "../Skeleton";
 import { useMapLegends } from "./use-map-legends";
-import { useMapScaleBar } from "./use-map-scale-bar";
+import type { MapScaleBarApi } from "./use-map-scale-bar";
 
 /** The legend shown on `layerId`: its own, else one set to also show there (visible ones only). */
 export function legendForLayer(legends: ClientLegend[], layerId: string): ClientLegend | null {
@@ -46,6 +50,9 @@ export default function MapHud({
   onCloseLegendPanel,
   scalePanelOpen,
   onCloseScalePanel,
+  areaPanelOpen,
+  onCloseAreaPanel,
+  scale,
   travelPanelOpen,
   onCloseTravelPanel,
   onOpenScalePanel,
@@ -65,6 +72,10 @@ export default function MapHud({
   onCloseLegendPanel: () => void;
   scalePanelOpen: boolean;
   onCloseScalePanel: () => void;
+  areaPanelOpen: boolean;
+  onCloseAreaPanel: () => void;
+  /** The map's scale bar (MapWorkspace owns it: the Zones panel reads zone areas through it too). */
+  scale: MapScaleBarApi;
   travelPanelOpen: boolean;
   onCloseTravelPanel: () => void;
   onOpenScalePanel: () => void;
@@ -75,7 +86,15 @@ export default function MapHud({
   onRouteDrawingChange: (drawing: boolean) => void;
 }) {
   const legendApi = useMapLegends(mapId);
-  const { scaleBar, update: updateScale, error: scaleError } = useMapScaleBar(mapId);
+  const { scaleBar, loaded: scaleLoaded, update: updateScale, error: scaleError } = scale;
+  // The Area tool: shapes measured while its panel is open (never saved).
+  const [areaTool, setAreaTool] = useState<AreaTool>("polygon");
+  const [areaShapes, setAreaShapes] = useState<MeasuredShape[]>([]);
+  const [areaSelectedId, setAreaSelectedId] = useState<string | null>(null);
+  if (!areaPanelOpen && areaShapes.length > 0) {
+    setAreaShapes([]);
+    setAreaSelectedId(null);
+  }
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [measureMode, setMeasureMode] = useState<MeasureMode | null>(null);
   // The ruler belongs to the Scale panel: closing it ends measuring.
@@ -210,7 +229,8 @@ export default function MapHud({
           }}
         />
       )}
-      {legendPanelOpen && (
+      {legendPanelOpen && !legendApi.loaded && <PanelSkeleton className="zones-panel legend-panel" mainClassName="zones-panel-main" title="Legend" Icon={LayoutList} onClose={onCloseLegendPanel} rows={4} />}
+      {legendPanelOpen && legendApi.loaded && (
         <LegendPanel
           layerName={layerName}
           layerId={activeLayerId}
@@ -225,7 +245,8 @@ export default function MapHud({
           onClose={onCloseLegendPanel}
         />
       )}
-      {travelPanelOpen && (
+      {travelPanelOpen && !(routes.loaded && scaleLoaded) && <PanelSkeleton className="zones-panel travel-panel" mainClassName="zones-panel-main" title="Travel" Icon={Route} onClose={onCloseTravelPanel} />}
+      {travelPanelOpen && routes.loaded && scaleLoaded && (
         <TravelPanel
           config={scaleBar.config}
           layers={layers}
@@ -256,7 +277,40 @@ export default function MapHud({
           onClose={onCloseTravelPanel}
         />
       )}
-      {scalePanelOpen && (
+      {areaPanelOpen && scaleLoaded && (
+        <AreaLayer
+          viewer={viewer}
+          osd={osd}
+          tool={areaTool}
+          shapes={areaShapes}
+          selectedId={areaSelectedId}
+          config={scaleBar.config}
+          onAdd={(shape) => setAreaShapes((prev) => [...prev, { id: crypto.randomUUID(), shape }])}
+        />
+      )}
+      {areaPanelOpen && !scaleLoaded && <PanelSkeleton className="grid-panel area-panel" title="Area" Icon={LandPlot} onClose={onCloseAreaPanel} rows={4} />}
+      {areaPanelOpen && scaleLoaded && (
+        <AreaPanel
+          tool={areaTool}
+          onSetTool={setAreaTool}
+          shapes={areaShapes}
+          selectedId={areaSelectedId}
+          onSelect={setAreaSelectedId}
+          onRemove={(id) => {
+            setAreaShapes((prev) => prev.filter((s) => s.id !== id));
+            if (areaSelectedId === id) setAreaSelectedId(null);
+          }}
+          onClear={() => {
+            setAreaShapes([]);
+            setAreaSelectedId(null);
+          }}
+          config={scaleBar.config}
+          onOpenScale={onOpenScalePanel}
+          onClose={onCloseAreaPanel}
+        />
+      )}
+      {scalePanelOpen && !scaleLoaded && <PanelSkeleton className="grid-panel scale-panel" title="Scale & measure" Icon={Ruler} onClose={onCloseScalePanel} rows={4} />}
+      {scalePanelOpen && scaleLoaded && (
         <ScalePanel scaleBar={scaleBar} error={scaleError} measureMode={measureMode} onSetMeasureMode={setMeasureMode} onUpdate={updateScale} onClose={onCloseScalePanel} />
       )}
     </>

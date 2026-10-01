@@ -67,11 +67,11 @@ export default function DeleteArticleButton({
         onCancel={close}
       >
         <p>
-          <strong>&ldquo;{name}&rdquo;</strong> will be deleted, together with its body, sidebar, footer and informations.
+          <strong>&ldquo;{name}&rdquo;</strong> moves to the Trash, together with its body, sidebar, footer and informations.
         </p>
         <ul>
-          <li>Links to it from other articles will show as &ldquo;(removed)&rdquo;.</li>
-          <li>This can&rsquo;t be undone.</li>
+          <li>Links to it from other articles will show as &ldquo;(removed)&rdquo; while it&rsquo;s there.</li>
+          <li>You can restore it from Settings → Trash.</li>
         </ul>
       </ConfirmDialog>
     </>

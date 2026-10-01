@@ -45,6 +45,7 @@ export function TerritoryTreeRow({
   onToggleExpand,
   onSelect,
   selectedId,
+  onDragRow,
 }: {
   node: TerritoryNode;
   depth: number;
@@ -52,12 +53,14 @@ export function TerritoryTreeRow({
   onToggleExpand: (id: string) => void;
   onSelect: (id: string) => void;
   selectedId?: string | null;
+  /** Makes rows draggable (the Articles sidebar, onto a user folder). */
+  onDragRow?: (e: React.DragEvent, id: string) => void;
 }) {
   const hasChildren = node.children.length > 0;
   const isExpanded = expanded.has(node.id);
   return (
     <>
-      <li className="politics-list-row politics-tree-row" style={{ paddingLeft: depth * 18 }}>
+      <li className="politics-list-row politics-tree-row" style={{ paddingLeft: depth * 18 }} draggable={Boolean(onDragRow)} onDragStart={onDragRow && ((e) => onDragRow(e, node.id))}>
         {hasChildren ? (
           <button
             type="button"
@@ -90,6 +93,7 @@ export function TerritoryTreeRow({
             onToggleExpand={onToggleExpand}
             onSelect={onSelect}
             selectedId={selectedId}
+            onDragRow={onDragRow}
           />
         ))}
     </>

@@ -1,5 +1,6 @@
 "use client";
 
+import { formatInteger } from "@/server/settings/number-format";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Link2, type LucideIcon } from "lucide-react";
@@ -16,7 +17,7 @@ export function relative(day: number, from: number): string {
   if (n === 0) return "today";
   if (n === 1) return "tomorrow";
   if (n === -1) return "yesterday";
-  return n > 0 ? `in ${n.toLocaleString()} days` : `${(-n).toLocaleString()} days ago`;
+  return n > 0 ? `in ${formatInteger(n)} days` : `${formatInteger(-n)} days ago`;
 }
 
 export function Block({ title, Icon, children }: { title: string; Icon: LucideIcon; children: React.ReactNode }) {

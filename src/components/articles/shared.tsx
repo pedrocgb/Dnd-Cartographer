@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ChevronRight, ChevronDown } from "lucide-react";
 import { TERRITORY_TYPE_CATALOG } from "@/server/politics/hierarchy-config";
+import { writeArticleDrag } from "./article-drag";
 
 export async function json<T>(res: Response): Promise<T> {
   return res.json();
@@ -87,7 +88,13 @@ export function PickRow({
   children?: React.ReactNode;
 }) {
   return (
-    <li className="politics-list-row politics-tree-row" style={depth ? { paddingLeft: depth * 18 } : undefined}>
+    <li
+      className="politics-list-row politics-tree-row"
+      style={depth ? { paddingLeft: depth * 18 } : undefined}
+      // Draggable onto a folder of the sidebar's Folders tab.
+      draggable
+      onDragStart={(e) => writeArticleDrag(e, { kind: "article", id: item.id, from: null })}
+    >
       <span className="politics-tree-spacer" />
       <button className={item.id === selectedId ? "politics-list-pick selected" : "politics-list-pick"} onClick={() => onSelect(item.id)}>
         {item.name}

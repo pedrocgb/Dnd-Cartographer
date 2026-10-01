@@ -14,6 +14,8 @@ export interface LegendPatch {
 
 export interface MapLegendsApi {
   legends: ClientLegend[];
+  /** False until this map's legends have arrived. */
+  loaded: boolean;
   create: (layerId: string) => Promise<void>;
   /** Applies at once on screen; saves shortly after (rapid edits — drags, sliders, typing — go out as one request). */
   update: (layerId: string, patch: LegendPatch) => void;
@@ -25,12 +27,16 @@ export interface MapLegendsApi {
 export function useMapLegends(mapId: string): MapLegendsApi {
   const [legends, setLegends] = useState<ClientLegend[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // The map whose legends have arrived (the Legend panel shows a skeleton until then).
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
   const pending = useRef(new Map<string, { patch: LegendPatch; timer: ReturnType<typeof setTimeout> }>());
 
   useEffect(() => {
     let cancelled = false;
     void api<{ legends: ClientLegend[] }>("GET", `/api/maps/${mapId}/legends`).then((res) => {
-      if (!cancelled && res.ok) setLegends(res.data.legends);
+      if (cancelled) return;
+      if (res.ok) setLegends(res.data.legends);
+      setLoadedFor(mapId);
     });
     return () => {
       cancelled = true;
@@ -83,5 +89,5 @@ export function useMapLegends(mapId: string): MapLegendsApi {
     setLegends((prev) => prev.filter((l) => l.layerId !== layerId));
   }, []);
 
-  return { legends, create, update, remove, error };
+  return { legends, loaded: loadedFor === mapId, create, update, remove, error };
 }

@@ -31,6 +31,11 @@ export const ALLOWED_NODE_TYPES = new Set([
   "image",
   "mention",
   "tableOfContents",
+  "calendarDate",
+  "table",
+  "tableRow",
+  "tableCell",
+  "tableHeader",
 ]);
 
 export const ALLOWED_MARK_TYPES = new Set(["bold", "italic", "strike", "underline", "link", "textStyle"]);
@@ -40,6 +45,12 @@ export const ALLOWED_LINK_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
 export const LIMITS = {
   maxJsonBytes: 200_000,
   maxNestingDepth: 16,
+  /** Merged-cell span and saved column width (px) caps. */
+  maxCellSpan: 100,
+  maxColumnWidth: 4000,
+  maxRowHeight: 2000,
+  /** Same range the world's current day allows (see info-fields' world days). */
+  maxWorldDay: 100_000_000,
 };
 
 export class DocumentValidationError extends Error {}
@@ -70,6 +81,11 @@ const isArticleImageSrc = (src: unknown) =>
 const MAX_ALT_LENGTH = 500;
 
 const isNullish = (v: unknown) => v === null || v === undefined;
+const MAX_DATE_LABEL = 200;
+const TABLE_CELLS = new Set(["tableCell", "tableHeader"]);
+const CELL_ALIGNS = ["left", "center", "right"] as const;
+const isSpan = (v: unknown) => Number.isInteger(v) && (v as number) >= 1 && (v as number) <= LIMITS.maxCellSpan;
+const isColumnWidth = (v: unknown) => Number.isFinite(v) && (v as number) > 0 && (v as number) <= LIMITS.maxColumnWidth;
 const oneOf = (list: readonly (string | number)[], v: unknown) => (list as readonly unknown[]).includes(v);
 
 function fail(message: string): never {
@@ -83,6 +99,23 @@ function checkNodeAttrs(node: JsonNode): void {
   }
   if (node.type === "heading" && !oneOf(HEADING_LEVELS, attrs.level)) {
     fail(`Unsupported heading level: ${String(attrs.level)}`);
+  }
+  if (node.type === "calendarDate") {
+    if (!(Number.isSafeInteger(attrs.day) && Math.abs(attrs.day as number) <= LIMITS.maxWorldDay)) fail("Invalid calendar date.");
+    if (!isNullish(attrs.label) && !(typeof attrs.label === "string" && attrs.label.length <= MAX_DATE_LABEL)) fail("Invalid calendar date label.");
+    return;
+  }
+  if (node.type === "tableRow") {
+    if (!isNullish(attrs.height) && !(Number.isInteger(attrs.height) && (attrs.height as number) > 0 && (attrs.height as number) <= LIMITS.maxRowHeight)) fail("Invalid table row height.");
+    return;
+  }
+  if (TABLE_CELLS.has(node.type!)) {
+    for (const key of ["colspan", "rowspan"] as const) {
+      if (!isNullish(attrs[key]) && !isSpan(attrs[key])) fail(`Invalid table cell ${key}.`);
+    }
+    if (!isNullish(attrs.colwidth) && !(Array.isArray(attrs.colwidth) && attrs.colwidth.every((w) => w === 0 || isColumnWidth(w)))) fail("Invalid table column width.");
+    if (!isNullish(attrs.align) && !oneOf(CELL_ALIGNS, attrs.align)) fail(`Unsupported cell alignment: ${String(attrs.align)}`);
+    return;
   }
   if (node.type === "tableOfContents") {
     if (!isNullish(attrs.maxLevel) && !oneOf(HEADING_LEVELS, attrs.maxLevel)) fail("Invalid table of contents depth.");
@@ -164,6 +197,10 @@ export function deriveText(json: unknown): string {
     }
     if (node.type === "mention") {
       current += mentionDisplayText(node.attrs ?? {});
+      return;
+    }
+    if (node.type === "calendarDate") {
+      current += typeof node.attrs?.label === "string" ? node.attrs.label : "";
       return;
     }
     const blockTypes = new Set(["paragraph", "heading", "title", "listItem", "blockquote"]);

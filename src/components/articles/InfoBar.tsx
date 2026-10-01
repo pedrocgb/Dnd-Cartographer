@@ -43,6 +43,8 @@ import { dayLabel } from "@/components/calendars/evaluate";
 import { useDefaultCalendarStatus } from "@/components/relations/use-default-calendar";
 import InfoPicker, { type PickerOption } from "./InfoPicker";
 import type { OpenArticle } from "./types";
+import { useSettings } from "@/components/settings/SettingsProvider";
+import { measureExample } from "@/server/settings/units";
 
 /** Articles a link field can point at, by template (season profiles carry their current season as `detail`). */
 export type InfoLookups = Partial<Record<InfoLinkTarget, { id: string; name: string; detail?: string }[]>>;
@@ -236,7 +238,11 @@ export function InfoView({
         } else if (field.kind === "date" && parseWorldDay(value) !== null) {
           const day = parseWorldDay(value)!;
           shown = calendar ? (
-            <span className="info-value">{dayLabel(calendar.def, day, { weekday: false })}</span>
+            <span className="info-value">
+              <Link className="politics-link-button" href={`/calendars?day=${day}`} data-tooltip="Open this day in Calendars">
+                {dayLabel(calendar.def, day, { weekday: false })}
+              </Link>
+            </span>
           ) : (
             <span className="field-label">{loading ? "…" : "Needs a calendar (create one in Calendars)"}</span>
           );
@@ -481,6 +487,7 @@ function FieldEditor({
   lookups: InfoLookups;
   onChange: (value: InfoValue) => void;
 }) {
+  const { settings } = useSettings();
   if (field.kind === "text") {
     return (
       <input
@@ -488,6 +495,7 @@ function FieldEditor({
         data-field={field.key}
         aria-label={field.label}
         value={(value as string | null) ?? ""}
+        placeholder={field.measure ? measureExample(field.measure, settings) : undefined}
         maxLength={MAX_INFO_TEXT_LENGTH}
         onChange={(e) => onChange(e.target.value)}
       />

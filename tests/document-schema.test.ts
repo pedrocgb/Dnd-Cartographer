@@ -120,3 +120,62 @@ describe("mention link text", () => {
     expect(deriveText(withMention({ text: "  " }))).toBe("See @Aldric");
   });
 });
+
+describe("tables", () => {
+  const cell = (type: string, attrs: Record<string, unknown> = {}, text = "x") => ({
+    type,
+    attrs: { colspan: 1, rowspan: 1, colwidth: null, align: null, ...attrs },
+    content: [{ type: "paragraph", content: [{ type: "text", text }] }],
+  });
+  const table = (cells: object[]) => ({ type: "doc", content: [{ type: "table", content: [{ type: "tableRow", content: cells }] }] });
+
+  it("accepts header and body cells with spans, widths and alignment", () => {
+    expect(() => validateDocument(table([cell("tableHeader", { colwidth: [120] }), cell("tableCell", { colspan: 2, colwidth: [80, 0], align: "center" })]))).not.toThrow();
+  });
+
+  it("rejects bad spans, widths and alignment", () => {
+    expect(() => validateDocument(table([cell("tableCell", { colspan: 0 })]))).toThrow(DocumentValidationError);
+    expect(() => validateDocument(table([cell("tableCell", { rowspan: 1.5 })]))).toThrow(DocumentValidationError);
+    expect(() => validateDocument(table([cell("tableCell", { colwidth: ["100px"] })]))).toThrow(DocumentValidationError);
+    expect(() => validateDocument(table([cell("tableCell", { colwidth: 100 })]))).toThrow(DocumentValidationError);
+    expect(() => validateDocument(table([cell("tableCell", { align: "justify; color: red" })]))).toThrow(DocumentValidationError);
+  });
+
+  it("puts each cell's text on its own line", () => {
+    expect(deriveText(table([cell("tableHeader", {}, "Name"), cell("tableCell", {}, "Aldric")]))).toBe("Name\nAldric");
+  });
+});
+
+describe("table row heights", () => {
+  const withRow = (attrs: Record<string, unknown>) => ({
+    type: "doc",
+    content: [{ type: "table", content: [{ type: "tableRow", attrs, content: [{ type: "tableCell", content: [{ type: "paragraph" }] }] }] }],
+  });
+
+  it("accepts no height or a whole number of pixels", () => {
+    expect(() => validateDocument(withRow({ height: null }))).not.toThrow();
+    expect(() => validateDocument(withRow({ height: 64 }))).not.toThrow();
+  });
+
+  it("rejects anything else", () => {
+    for (const height of [0, -5, 12.5, "40px", 5000]) {
+      expect(() => validateDocument(withRow({ height }))).toThrow(DocumentValidationError);
+    }
+  });
+});
+
+describe("calendar dates", () => {
+  const withDate = (attrs: Record<string, unknown>) => ({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "On " }, { type: "calendarDate", attrs }] }] });
+
+  it("accepts a world day with its label, and searches by the label", () => {
+    expect(() => validateDocument(withDate({ day: 1234, label: "3 Hammer 1492" }))).not.toThrow();
+    expect(() => validateDocument(withDate({ day: -50, label: "" }))).not.toThrow();
+    expect(deriveText(withDate({ day: 1234, label: "3 Hammer 1492" }))).toBe("On 3 Hammer 1492");
+  });
+
+  it("rejects a bad day or label", () => {
+    for (const attrs of [{ day: 1.5, label: "x" }, { day: "12", label: "x" }, { day: 1e12, label: "x" }, { day: 1, label: "x".repeat(201) }]) {
+      expect(() => validateDocument(withDate(attrs))).toThrow(DocumentValidationError);
+    }
+  });
+});

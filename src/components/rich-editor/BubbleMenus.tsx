@@ -4,10 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/react";
 import { BubbleMenu, type BubbleMenuProps } from "@tiptap/react/menus";
 import { NodeSelection } from "@tiptap/pm/state";
+import { CellSelection } from "@tiptap/pm/tables";
 import {
   AtSign,
   Baseline,
   Bold,
+  CalendarDays,
   Captions,
   ChevronDown,
   Heading1,
@@ -55,7 +57,7 @@ type ShouldShow = NonNullable<BubbleMenuProps["shouldShow"]>;
 const hasFocus = (editor: Editor, menu: HTMLElement) => editor.view.hasFocus() || menu.contains(document.activeElement);
 
 const showTextMenu: ShouldShow = ({ editor, state, from, to, element }) =>
-  editor.isEditable && from !== to && !(state.selection instanceof NodeSelection) && hasFocus(editor, element);
+  editor.isEditable && from !== to && !(state.selection instanceof NodeSelection) && !(state.selection instanceof CellSelection) && hasFocus(editor, element);
 
 const showImageMenu: ShouldShow = ({ editor, state, element }) =>
   editor.isEditable &&
@@ -289,7 +291,7 @@ function ColorButton({ editor }: { editor: Editor }) {
 }
 
 /** Formatting toolbar shown over a non-empty text selection. */
-export function TextBubbleMenu({ editor, onLinkArticle }: { editor: Editor; onLinkArticle: () => void }) {
+export function TextBubbleMenu({ editor, onLinkArticle, onLinkDate }: { editor: Editor; onLinkArticle: () => void; onLinkDate: () => void }) {
   const [linking, setLinking] = useState(false);
   useResetOnSelectionChange(editor, () => setLinking(false));
   const fontFamily: string | undefined = editor.getAttributes("textStyle").fontFamily;
@@ -346,6 +348,7 @@ export function TextBubbleMenu({ editor, onLinkArticle }: { editor: Editor; onLi
           <span className="rich-toolbar-divider" aria-hidden />
           <ColorButton editor={editor} />
           <ToolButton label="Link an article (Ctrl+K)" Icon={AtSign} onClick={onLinkArticle} />
+          <ToolButton label="Link a calendar date" Icon={CalendarDays} onClick={onLinkDate} />
           <ToolButton label="Link" Icon={Link2} active={editor.isActive("link")} onClick={() => setLinking(true)} />
           {editor.isActive("link") && <ToolButton label="Remove link" Icon={Unlink} onClick={() => editor.chain().focus().extendMarkRange("link").unsetLink().run()} />}
         </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDecimal, formatInteger } from "@/server/settings/number-format";
 import { useState } from "react";
 import { BookOpen, Flame, Gem, GitBranch, History, KeyRound, ListChecks, Pencil, Plus, ScrollText, Timer, Trash2, UserRound, Users } from "lucide-react";
 import Modal from "@/components/Modal";
@@ -199,10 +200,10 @@ export default function QuestView({
           {hasRewards(quest.rewards) && quest.rewards && (
             <Block title="Rewards" Icon={Gem}>
               <ul className="cv-articles qs-rewards">
-                {quest.rewards.xp !== null && <li className="cv-chip">{quest.rewards.xp.toLocaleString()} XP</li>}
+                {quest.rewards.xp !== null && <li className="cv-chip">{formatInteger(quest.rewards.xp)} XP</li>}
                 {quest.rewards.coins.map((c, i) => (
                   <li key={i} className="cv-chip">
-                    {c.amount.toLocaleString()} {currencies.find((x) => x.id === c.currencyId)?.short ?? "?"}
+                    {formatDecimal(c.amount)} {currencies.find((x) => x.id === c.currencyId)?.short ?? "?"}
                   </li>
                 ))}
                 {quest.rewards.items.map((it) => (

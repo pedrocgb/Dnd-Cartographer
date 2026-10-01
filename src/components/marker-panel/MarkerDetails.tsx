@@ -25,17 +25,15 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 /**
  * The marker panel's Details card: classification and placement — category,
- * environment, ownership, status, linked map and layers. Searchable pickers
+ * environment, ownership, status and layers (the linked map has its own card). Searchable pickers
  * for the long lists, chips for status.
  */
 export default function MarkerDetails({
   marker,
-  maps,
   layers,
   onUpdate,
 }: {
   marker: Marker;
-  maps: { id: string; name: string }[];
   layers: MapLayerData[];
   onUpdate: MarkerUpdate;
 }) {
@@ -78,16 +76,6 @@ export default function MarkerDetails({
           clearLabel="None"
           ariaLabel="Ownership"
           onChange={(ownership) => onUpdate({ ownership })}
-        />
-      </Field>
-      <Field label="Linked map">
-        <InfoPicker
-          options={maps.map((m) => ({ value: m.id, label: m.name }))}
-          value={marker.linkedMapId}
-          placeholder="No linked map"
-          clearLabel="No linked map"
-          ariaLabel="Linked map"
-          onChange={(linkedMapId) => onUpdate({ linkedMapId })}
         />
       </Field>
       <Field label="Layer">

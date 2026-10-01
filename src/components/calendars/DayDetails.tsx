@@ -402,11 +402,11 @@ function DeleteEntryDialog({ item, onCancel, onOccurrence, onAll }: { item: DayO
             <input type="radio" checked={scope === "one"} onChange={() => setScope("one")} /> Only this occurrence (the series continues)
           </label>
           <label className="cal-check">
-            <input type="radio" checked={scope === "all"} onChange={() => setScope("all")} /> The entire series, every occurrence
+            <input type="radio" checked={scope === "all"} onChange={() => setScope("all")} /> The entire series, every occurrence (moves to the Trash)
           </label>
         </fieldset>
       ) : (
-        <p>This removes it from the calendar.</p>
+        <p>This removes it from the calendar. You can restore it from Settings → Trash.</p>
       )}
     </ConfirmDialog>
   );

@@ -143,7 +143,7 @@ function SeasonsSection({ world, calendar, onChanged }: { world: WorldCalendars;
   const mine = seasonsFor(world.seasons, calendar.id);
   const archivedCount = mine.filter((s) => s.archived).length;
   const shown = mine.filter((s) => showArchived || !s.archived);
-  const calendars = world.calendars.filter((c) => !c.archived || c.id === calendar.id);
+  const calendars = world.calendars.filter((c) => !c.trashed || c.id === calendar.id);
   const usedBy = (id: string) => world.profiles.filter((p) => !p.archived && p.data.memberships.some((m) => m.seasonId === id)).map((p) => p.name);
 
   async function patch(id: string, body: Record<string, unknown>) {
@@ -525,7 +525,7 @@ function ProfilesSection({ world, calendar, onChanged }: { world: WorldCalendars
 
 /** Authoring for each calendar's seasons and season profiles (one tab per calendar). `onChanged` reloads the world data. */
 export default function SeasonsEditor({ world, calendarId, onChanged, onClose }: { world: WorldCalendars; calendarId: string | null; onChanged: () => void; onClose: () => void }) {
-  const calendars = world.calendars.filter((c) => !c.archived);
+  const calendars = world.calendars.filter((c) => !c.trashed);
   const [tab, setTab] = useState(calendars.find((c) => c.id === calendarId)?.id ?? calendars[0]?.id ?? null);
   const calendar = calendars.find((c) => c.id === tab) ?? null;
   const count = (c: ClientCalendar) => world.profiles.filter((p) => !p.archived && p.data.calendarId === c.id).length;

@@ -45,7 +45,7 @@ export async function PATCH(request: Request) {
   if (patch.currentDay !== undefined && Math.abs(patch.currentDay) > MAX_DAY) return badRequest("That date is outside the supported range.");
   if ("defaultCalendarId" in body) {
     const calendar = typeof body.defaultCalendarId === "string" ? await calendarOf(worldId, body.defaultCalendarId) : null;
-    if (!calendar || calendar.archivedAt) return badRequest("Pick an active calendar of this world.");
+    if (!calendar) return badRequest("Pick an active calendar of this world.");
     patch.defaultCalendarId = calendar.id;
   }
   if (Object.keys(patch).length === 0) return badRequest("Nothing to change.");

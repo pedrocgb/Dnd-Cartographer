@@ -6,6 +6,8 @@
  * under prefers-reduced-motion).
  */
 
+import { X, type LucideIcon } from "lucide-react";
+
 type Size = number | string;
 const px = (v: Size | undefined) => (typeof v === "number" ? `${v}px` : v);
 
@@ -112,4 +114,65 @@ export function PageSkeleton({ label, main }: { label: string; main: "cards" | "
       </div>
     </div>
   );
+}
+
+/** The map page still loading: header, the tool rail (its five groups) and the canvas. */
+export function MapPageSkeleton() {
+  return (
+    <SkeletonRegion label="Loading the map…" className="map-page-root">
+      <div className="map-header" aria-hidden>
+        <Skeleton width={220} height={14} />
+      </div>
+      <div className="map-page-body map-skeleton-body">
+        <div className="map-skeleton-rail" aria-hidden>
+          {[3, 4, 3, 2, 1].map((count, group) => (
+            <span key={group} className="map-skeleton-group">
+              {Array.from({ length: count }, (_, i) => (
+                <Skeleton key={i} width={40} height={40} radius={8} />
+              ))}
+            </span>
+          ))}
+        </div>
+        <Skeleton className="map-skeleton-canvas" height="auto" radius={0} />
+      </div>
+    </SkeletonRegion>
+  );
+}
+
+/**
+ * A map tool panel whose data is still on its way: the real header (title,
+ * close) in the panel's own box (`className`), list rows below.
+ */
+export function PanelSkeleton({
+  className,
+  mainClassName,
+  title,
+  Icon,
+  onClose,
+  rows = 5,
+}: {
+  className: string;
+  /** The panel's inner column, for panels that have one ("zones-panel-main"). */
+  mainClassName?: string;
+  title: string;
+  /** The panel's own header icon. */
+  Icon?: LucideIcon;
+  onClose: () => void;
+  rows?: number;
+}) {
+  const body = (
+    <>
+      <div className="marker-side-panel-header">
+        <h2>
+          {Icon && <Icon size={16} strokeWidth={2.25} style={{ verticalAlign: "-2px", marginRight: "6px" }} />}
+          {title}
+        </h2>
+        <button className="btn btn-ghost btn-icon" onClick={onClose} aria-label={`Close ${title.toLowerCase()} panel`}>
+          <X size={16} strokeWidth={2.25} />
+        </button>
+      </div>
+      <SkeletonList rows={rows} label={`Loading ${title.toLowerCase()}…`} />
+    </>
+  );
+  return <div className={className}>{mainClassName ? <div className={mainClassName}>{body}</div> : body}</div>;
 }

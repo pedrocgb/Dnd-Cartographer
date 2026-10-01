@@ -65,7 +65,7 @@ export const ITEM_INFO = defineFieldSet(
     // Properties
     { key: "activationMethod", label: "Activation Method", group: "properties", kind: "text", hint: "How its power is used: a command word, a drop of blood, attunement?" },
     { key: "appearance", label: "Appearance", group: "properties", kind: "text", hint: "What it looks like, feels like, sounds like." },
-    { key: "dimensionsAndWeight", label: "Dimensions and Weight", group: "properties", kind: "text", hint: "How big and heavy it is." },
+    { key: "dimensionsAndWeight", label: "Dimensions and Weight", group: "properties", kind: "text", measure: "size", hint: "How big and heavy it is." },
     { key: "limitations", label: "Limitations", group: "properties", kind: "text", hint: "Charges, cooldowns or conditions that limit it." },
     { key: "magicalEffects", label: "Magical Effects", group: "properties", kind: "text", hint: "What it can do beyond the mundane." },
     { key: "materials", label: "Materials", group: "properties", kind: "text", hint: "What it's made of." },

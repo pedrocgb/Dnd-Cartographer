@@ -3,15 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Compass, Trash2, Download, Upload, Book, CalendarDays, Swords, ChevronDown, Ellipsis, Waypoints, GitFork, LayoutDashboard, type LucideIcon } from "lucide-react";
+import { Compass, Book, CalendarDays, Swords, ChevronDown, Settings, Waypoints, GitFork, LayoutDashboard, type LucideIcon } from "lucide-react";
 import SearchBox from "./SearchBox";
 
 interface MenuItem {
   href: string;
   label: string;
   icon: LucideIcon;
-  /** A plain link (not client navigation): the export download. */
-  download?: boolean;
 }
 
 /** Articles and the views built from them (pinned pseudo-views of /articles). */
@@ -20,13 +18,6 @@ const ARTICLE_VIEWS: MenuItem[] = [
   { href: "/articles?type=relationships", label: "Relationships", icon: Waypoints },
   { href: "/articles?type=family", label: "Family trees", icon: GitFork },
   { href: "/articles?type=boards", label: "Boards", icon: LayoutDashboard },
-];
-
-/** Rarely used: kept out of the bar. */
-const DATA_ITEMS: MenuItem[] = [
-  { href: "/maps/trash", label: "Trash", icon: Trash2 },
-  { href: "/import", label: "Import", icon: Upload },
-  { href: "/api/export", label: "Export", icon: Download, download: true },
 ];
 
 /** A small dropdown of links: click to open, Esc or a click outside closes it. */
@@ -65,19 +56,12 @@ function NavMenu({ label, items, triggerClass, children }: { label: string; item
       </button>
       {open && (
         <div className="app-nav-menu-popup" role="menu">
-          {items.map(({ href, label: itemLabel, icon: Icon, download }) =>
-            download ? (
-              <a key={href} href={href} role="menuitem" className="app-nav-menu-item" onClick={() => setOpen(false)}>
-                <Icon size={15} strokeWidth={2.25} aria-hidden />
-                {itemLabel}
-              </a>
-            ) : (
-              <Link key={href} href={href} role="menuitem" className="app-nav-menu-item" onClick={() => setOpen(false)}>
-                <Icon size={15} strokeWidth={2.25} aria-hidden />
-                {itemLabel}
-              </Link>
-            )
-          )}
+          {items.map(({ href, label: itemLabel, icon: Icon }) => (
+            <Link key={href} href={href} role="menuitem" className="app-nav-menu-item" onClick={() => setOpen(false)}>
+              <Icon size={15} strokeWidth={2.25} aria-hidden />
+              {itemLabel}
+            </Link>
+          ))}
         </div>
       )}
     </div>
@@ -86,7 +70,7 @@ function NavMenu({ label, items, triggerClass, children }: { label: string; item
 
 /**
  * The top bar: Maps, Articles (and its views), the Campaign area (Sessions,
- * Writer), Calendars and a Data menu (Trash, Import, Export).
+ * Writer), Calendars and Settings (which also holds Trash, Import and Export).
  */
 export default function AppNav() {
   const pathname = usePathname();
@@ -98,7 +82,7 @@ export default function AppNav() {
         <Compass size={20} strokeWidth={2.25} />
         World Wiki
       </Link>
-      <Link href="/maps" className={linkClass(pathname === "/maps" || (pathname.startsWith("/maps/") && !pathname.startsWith("/maps/trash")))}>
+      <Link href="/maps" className={linkClass(pathname === "/maps" || pathname.startsWith("/maps/"))}>
         <Compass size={16} strokeWidth={2.25} />
         Maps
       </Link>
@@ -119,10 +103,10 @@ export default function AppNav() {
         <CalendarDays size={16} strokeWidth={2.25} />
         Calendars
       </Link>
-      <NavMenu label="Trash, import and export" items={DATA_ITEMS} triggerClass={linkClass(pathname.startsWith("/maps/trash") || pathname.startsWith("/import"))}>
-        <Ellipsis size={16} strokeWidth={2.25} aria-hidden />
-        Data
-      </NavMenu>
+      <Link href="/settings" className={linkClass(pathname.startsWith("/settings"))} data-tooltip="Settings, data and trash">
+        <Settings size={16} strokeWidth={2.25} />
+        Settings
+      </Link>
       <SearchBox />
     </nav>
   );

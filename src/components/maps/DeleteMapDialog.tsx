@@ -72,7 +72,7 @@ export default function DeleteMapDialog({
         </fieldset>
       )}
       <ul>
-        <li>You can restore it from the Trash page.</li>
+        <li>You can restore it from Settings → Trash.</li>
       </ul>
     </ConfirmDialog>
   );

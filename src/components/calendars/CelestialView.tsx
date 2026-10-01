@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDecimal } from "@/server/settings/number-format";
 import type { CSSProperties } from "react";
 import { CalendarClock, CalendarDays, Pencil, Sparkles } from "lucide-react";
 import Modal from "@/components/Modal";
@@ -44,7 +45,7 @@ function MoonCycle({ object, def, day }: { object: ClientCelestial; def: Calenda
       <p className="cv-lead">
         {lunations > 1 ? (
           <>
-            Each lunation lasts about <strong>{(total / lunations).toFixed(1)} days</strong> across {distinct} phases; the pattern repeats every {total} days ({lunations} lunations).
+            Each lunation lasts about <strong>{formatDecimal(total / lunations, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} days</strong> across {distinct} phases; the pattern repeats every {total} days ({lunations} lunations).
           </>
         ) : (
           <>

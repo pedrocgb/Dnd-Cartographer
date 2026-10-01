@@ -23,8 +23,8 @@ export const FAUNA_INFO = defineFieldSet(
     },
     { key: "coloration", label: "Coloration", group: "appearance", kind: "text", hint: "Its colors and markings. Does it blend in, warn off, or change with the seasons?" },
     { key: "size", label: "Size", group: "appearance", kind: "select", options: CREATURE_SIZES, hint: "Its size category. Decides the space it takes and what it can carry or swallow." },
-    { key: "typicalHeight", label: "Typical Height", group: "appearance", kind: "text", hint: "How tall (or long) a grown adult is." },
-    { key: "typicalWeight", label: "Typical Weight", group: "appearance", kind: "text", hint: "How much a grown adult weighs. Handy when someone tries to carry one." },
+    { key: "typicalHeight", label: "Typical Height", group: "appearance", kind: "text", measure: "height", hint: "How tall (or long) a grown adult is." },
+    { key: "typicalWeight", label: "Typical Weight", group: "appearance", kind: "text", measure: "weight", hint: "How much a grown adult weighs. Handy when someone tries to carry one." },
     // Behavior
     {
       key: "activityCycle",

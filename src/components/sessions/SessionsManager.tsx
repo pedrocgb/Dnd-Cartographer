@@ -1,5 +1,6 @@
 "use client";
 
+import { formatInteger } from "@/server/settings/number-format";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { PageSkeleton, Skeleton } from "@/components/Skeleton";
@@ -212,7 +213,7 @@ export default function SessionsManager() {
   if (loadError) return <p className="form-error ss-page-error">{loadError}</p>;
   if (!calendars || !campaigns || !chronology) return <PageSkeleton label="Loading sessions…" main="cards" />;
 
-  const liveCalendars = calendars.filter((c) => !c.archived);
+  const liveCalendars = calendars.filter((c) => !c.trashed);
   const listed = campaigns.filter((c) => showArchived || !c.archived || c.id === activeId);
   const archivedCount = campaigns.filter((c) => c.archived).length;
   const viewed = visibleSessions.find((s) => s.id === viewing) ?? null;
@@ -262,7 +263,7 @@ export default function SessionsManager() {
                         {[m.playerName, m.status !== "active" && STATUS_LABELS[m.status]].filter(Boolean).join(" · ") || " "}
                       </span>
                       <span className="ss-party-stats">
-                        <span>{(totals[m.personId]?.xp ?? 0).toLocaleString()} XP</span>
+                        <span>{formatInteger(totals[m.personId]?.xp ?? 0)} XP</span>
                         <span>{formatCoins(totals[m.personId]?.coins ?? {}, campaign.currencies)}</span>
                       </span>
                     </span>
@@ -450,7 +451,7 @@ export default function SessionsManager() {
                           ))}
                         </span>
                         <span className="ss-card-stats">
-                        {s.xpTotal !== null && <span className="cv-chip">{s.xpTotal.toLocaleString()} XP</span>}
+                        {s.xpTotal !== null && <span className="cv-chip">{formatInteger(s.xpTotal)} XP</span>}
                         {s.loot.length > 0 && (
                           <span className="cv-chip">
                             <Gem size={11} aria-hidden /> {s.loot.length}

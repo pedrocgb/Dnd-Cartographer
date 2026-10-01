@@ -37,8 +37,8 @@ export const SPECIES_INFO = defineFieldSet(
       options: ["Tiny", "Small", "Medium", "Large", "Huge", "Gargantuan"],
       hint: "Their size categories. Pick every size individuals commonly reach.",
     },
-    { key: "typicalHeight", label: "Typical Height", group: "anatomy", kind: "text", hint: "How tall an average adult stands." },
-    { key: "typicalWeight", label: "Typical Weight", group: "anatomy", kind: "text", hint: "How much an average adult weighs." },
+    { key: "typicalHeight", label: "Typical Height", group: "anatomy", kind: "text", measure: "height", hint: "How tall an average adult stands." },
+    { key: "typicalWeight", label: "Typical Weight", group: "anatomy", kind: "text", measure: "weight", hint: "How much an average adult weighs." },
     // Habitat
     { key: "adaptations", label: "Adaptations", group: "habitat", kind: "text", hint: "How they've adapted to where they live." },
     { key: "diet", label: "Diet", group: "habitat", kind: "text", hint: "What they eat — and whether the party is on the menu." },

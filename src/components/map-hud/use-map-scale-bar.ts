@@ -20,12 +20,16 @@ export interface ScaleBarPatch {
 export function useMapScaleBar(mapId: string) {
   const [scaleBar, setScaleBar] = useState<ScaleBarState>({ visible: false, config: DEFAULT_SCALE });
   const [error, setError] = useState<string | null>(null);
+  // The map whose scale bar has arrived (the Scale panel shows a skeleton until then).
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
   const pending = useRef<{ patch: ScaleBarPatch; timer: ReturnType<typeof setTimeout> } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     void api<{ scaleBar: ScaleBarState }>("GET", `/api/maps/${mapId}/scale-bar`).then((res) => {
-      if (!cancelled && res.ok) setScaleBar(res.data.scaleBar);
+      if (cancelled) return;
+      if (res.ok) setScaleBar(res.data.scaleBar);
+      setLoadedFor(mapId);
     });
     return () => {
       cancelled = true;
@@ -54,5 +58,7 @@ export function useMapScaleBar(mapId: string) {
     [mapId]
   );
 
-  return { scaleBar, update, error };
+  return { scaleBar, loaded: loadedFor === mapId, update, error };
 }
+
+export type MapScaleBarApi = ReturnType<typeof useMapScaleBar>;

@@ -12,6 +12,8 @@ import ImpactDialog, { type MigrationChoice } from "./ImpactDialog";
 import { MonthsFields, WeekdaysFields, YearFields } from "./DefinitionFields";
 import type { ClientCalendar, Impact, WorldCalendars } from "./types";
 import { SkeletonList } from "@/components/Skeleton";
+import { formatRealDate } from "@/server/settings/date-format";
+import { activeSettings } from "@/server/settings/active";
 
 const TABS = [
   { key: "basics", label: "Name" },
@@ -105,7 +107,7 @@ export default function CalendarEditor({
   };
   const def = draft.definition;
   const issues = validateDefinition(def);
-  const others = world.calendars.filter((c) => c.id !== id && !c.archived);
+  const others = world.calendars.filter((c) => c.id !== id && !c.trashed);
   const tabIndex = TABS.findIndex((t) => t.key === tab);
 
   async function save(migration?: MigrationChoice) {
@@ -340,7 +342,7 @@ function RevisionsDialog({ calendar, onClose, onRestored }: { calendar: ClientCa
         {revisions?.map((r) => (
           <li key={r.id}>
             <span>
-              Version {r.version} · {r.reason} · {new Date(r.createdAt).toLocaleString()}
+              Version {r.version} · {r.reason} · {formatRealDate(r.createdAt, activeSettings().realDateFormat, { withTime: true })}
             </span>
             <button type="button" className="btn btn-sm" disabled={busy} onClick={() => restore(r.id)}>
               Restore

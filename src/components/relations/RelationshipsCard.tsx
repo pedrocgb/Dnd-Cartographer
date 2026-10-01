@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import { ArrowLeftRight, ChevronDown, ChevronRight, Eye, EyeOff, GitFork, Lock, Network, Pin, Plus, Trash2, Waypoints } from "lucide-react";
+import { ArrowLeftRight, ArrowRight, CalendarDays, ChevronDown, ChevronRight, Eye, EyeOff, GitFork, Lock, Network, Pin, Plus, Trash2, Waypoints, X } from "lucide-react";
 import InfoPicker, { type PickerOption } from "@/components/articles/InfoPicker";
 import WorldDatePicker from "@/components/calendars/WorldDatePicker";
 import { dayLabel } from "@/components/calendars/evaluate";
@@ -277,76 +277,114 @@ function RelationRow({
       </div>
       {open && type && (
         <div className="rel-row-editor">
-          <label className="cal-check">
-            <input type="checkbox" checked={r.secret} onChange={(e) => onPatch({ secret: e.target.checked })} /> Secret
-          </label>
-          <label className="cal-check">
-            <input type="checkbox" checked={r.pinned} onChange={(e) => onPatch({ pinned: e.target.checked })} /> Pinned
-          </label>
-          {type.symmetric && (
-            <label className="cal-check" data-tooltip="Only one side holds this tie (e.g. an ally who isn't allied back): drawn as an arrow">
-              <input type="checkbox" checked={r.oneWay} onChange={(e) => onPatch({ oneWay: e.target.checked })} /> One-way
-            </label>
-          )}
-          <label className="rel-field">
-            <span className="field-label">{r.type === "custom" ? "Label" : "Extra wording"}</span>
-            <input type="text" value={label} maxLength={MAX_RELATION_LABEL} placeholder={r.type === "custom" ? "Owes a debt to" : "optional"} onChange={(e) => setLabel(e.target.value)} onBlur={() => label !== r.label && onPatch({ label })} />
-          </label>
-          {type.attrs?.includes("parentKind") && (
-            <label className="rel-field">
-              <span className="field-label">Parent</span>
-              <InfoPicker options={PARENT_KINDS.map((k) => ({ value: k, label: cap(k) }))} value={r.parentKind} placeholder="Biological" ariaLabel="Kind of parent" searchable={false} onChange={(v) => v && onPatch({ parentKind: v })} />
-            </label>
-          )}
-          {type.attrs?.includes("spouseStatus") && (
-            <label className="rel-field">
-              <span className="field-label">Status</span>
-              <InfoPicker options={SPOUSE_STATUSES.map((k) => ({ value: k, label: cap(k) }))} value={r.spouseStatus} placeholder="Unknown" ariaLabel="Status" searchable={false} onChange={(v) => v && onPatch({ spouseStatus: v })} />
-            </label>
-          )}
-          <label className="rel-field">
-            <span className="field-label">Attitude: {r.attitude === null ? "not set" : `${r.attitude > 0 ? "+" : ""}${r.attitude}`}</span>
-            <input type="range" min={ATTITUDE_MIN} max={ATTITUDE_MAX} value={r.attitude ?? 0} onChange={(e) => onPatch({ attitude: Number(e.target.value) })} />
-          </label>
-          {r.attitude !== null && (
-            <button type="button" className="btn btn-sm btn-ghost" onClick={() => onPatch({ attitude: null })}>
-              Clear attitude
-            </button>
-          )}
-          {calendar && (
-            <div className="rel-dates">
-              {(["sinceDay", "untilDay"] as const).map((key) => (
-                <div key={key} className="rel-field">
-                  <span className="field-label">{key === "sinceDay" ? "Since" : "Until"}</span>
-                  {r[key] === null ? (
-                    <button type="button" className="btn btn-sm" onClick={() => onPatch({ [key]: calendar.currentDay })}>
-                      Set date
-                    </button>
-                  ) : (
-                    <span className="rel-date">
-                      <WorldDatePicker def={calendar.def} label={key === "sinceDay" ? "Since" : "Until"} value={r[key]!} currentDay={calendar.currentDay} onChange={(d) => onPatch({ [key]: d })} />
-                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => onPatch({ [key]: null })} aria-label="Clear date" data-tooltip="No date: open-ended">
-                        ✕
-                      </button>
-                    </span>
-                  )}
-                </div>
-              ))}
+          <section className="rel-editor-section">
+            <h4>Details</h4>
+            <div className="rel-editor-grid">
+              <label className="rel-field">
+                <span className="field-label">{r.type === "custom" ? "Label" : "Extra wording"}</span>
+                <input
+                  type="text"
+                  value={label}
+                  maxLength={MAX_RELATION_LABEL}
+                  placeholder={r.type === "custom" ? "Owes a debt to" : "e.g. in secret, by marriage"}
+                  onChange={(e) => setLabel(e.target.value)}
+                  onBlur={() => label !== r.label && onPatch({ label })}
+                />
+                {r.type !== "custom" && <span className="rel-field-hint">Reads as “{labelFor(r, recordId)}{label ? ` · ${label}` : " · …"}”</span>}
+              </label>
+              {type.attrs?.includes("parentKind") && (
+                <label className="rel-field">
+                  <span className="field-label">Parent</span>
+                  <InfoPicker options={PARENT_KINDS.map((k) => ({ value: k, label: cap(k) }))} value={r.parentKind} placeholder="Biological" ariaLabel="Kind of parent" searchable={false} onChange={(v) => v && onPatch({ parentKind: v })} />
+                </label>
+              )}
+              {type.attrs?.includes("spouseStatus") && (
+                <label className="rel-field">
+                  <span className="field-label">Status</span>
+                  <InfoPicker options={SPOUSE_STATUSES.map((k) => ({ value: k, label: cap(k) }))} value={r.spouseStatus} placeholder="Unknown" ariaLabel="Status" searchable={false} onChange={(v) => v && onPatch({ spouseStatus: v })} />
+                </label>
+              )}
             </div>
-          )}
-          <label className="rel-field rel-notes">
-            <span className="field-label">Notes</span>
-            <textarea value={notes} maxLength={MAX_RELATION_NOTES} rows={2} onChange={(e) => setNotes(e.target.value)} onBlur={() => notes !== r.notes && onPatch({ notes })} />
-          </label>
-          <div className="rel-row-actions">
-            {!type.symmetric && r.type !== "custom" && (
-              <button type="button" className="btn btn-sm" onClick={() => onPatch({ reverse: true })} data-tooltip="Swap the two ends (Parent of ⇄ Child of)">
-                <ArrowLeftRight size={13} /> Reverse
-              </button>
+          </section>
+
+          <section className="rel-editor-section">
+            <h4>
+              Attitude
+              {r.attitude !== null && <span className={r.attitude < 0 ? "rel-attitude neg" : "rel-attitude"}>{`${r.attitude > 0 ? "+" : ""}${r.attitude}`}</span>}
+            </h4>
+            {r.attitude === null ? (
+              <div className="rel-editor-empty">
+                <span className="field-label">How they feel about each other, from hostile to friendly.</span>
+                <button type="button" className="btn btn-sm" onClick={() => onPatch({ attitude: 0 })}>
+                  Set attitude
+                </button>
+              </div>
+            ) : (
+              <div className="rel-attitude-scale">
+                <span className="field-label">Hostile</span>
+                <input type="range" min={ATTITUDE_MIN} max={ATTITUDE_MAX} step={1} value={r.attitude} aria-label="Attitude" onChange={(e) => onPatch({ attitude: Number(e.target.value) })} />
+                <span className="field-label">Friendly</span>
+                <button type="button" className="btn btn-ghost btn-icon btn-sm" onClick={() => onPatch({ attitude: null })} aria-label="Clear attitude" data-tooltip="Clear attitude">
+                  <X size={13} />
+                </button>
+              </div>
             )}
-            <button type="button" className="btn btn-sm btn-danger" onClick={onDelete}>
-              <Trash2 size={13} /> Delete
-            </button>
+          </section>
+
+          {calendar && (
+            <section className="rel-editor-section">
+              <h4>When</h4>
+              <div className="rel-dates">
+                {(["sinceDay", "untilDay"] as const).map((key) => (
+                  <div key={key} className="rel-field">
+                    <span className="field-label">{key === "sinceDay" ? "Since" : "Until"}</span>
+                    {r[key] === null ? (
+                      <button type="button" className="btn btn-sm rel-date-empty" onClick={() => onPatch({ [key]: calendar.currentDay })} data-tooltip="Starts at today's in-world date; change it after">
+                        <CalendarDays size={13} /> {key === "sinceDay" ? "No start date" : "Ongoing"}
+                      </button>
+                    ) : (
+                      <span className="rel-date">
+                        <WorldDatePicker def={calendar.def} label={key === "sinceDay" ? "Since" : "Until"} value={r[key]!} currentDay={calendar.currentDay} onChange={(d) => onPatch({ [key]: d })} />
+                        <button type="button" className="btn btn-ghost btn-icon btn-sm" onClick={() => onPatch({ [key]: null })} aria-label="Clear date" data-tooltip="No date: open-ended">
+                          <X size={13} />
+                        </button>
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <section className="rel-editor-section">
+            <h4>Notes</h4>
+            <textarea className="rel-notes" value={notes} maxLength={MAX_RELATION_NOTES} rows={2} aria-label="Notes" placeholder="How it began, what each side wants…" onChange={(e) => setNotes(e.target.value)} onBlur={() => notes !== r.notes && onPatch({ notes })} />
+          </section>
+
+          <div className="rel-row-actions">
+            <div className="rel-flags" role="group" aria-label="Options">
+              <button type="button" className={r.secret ? "rel-flag active" : "rel-flag"} aria-pressed={r.secret} onClick={() => onPatch({ secret: !r.secret })} data-tooltip="A secret tie: hidden whenever secrets are hidden (e.g. while showing players)">
+                <EyeOff size={13} /> Secret
+              </button>
+              <button type="button" className={r.pinned ? "rel-flag active" : "rel-flag"} aria-pressed={r.pinned} onClick={() => onPatch({ pinned: !r.pinned })} data-tooltip="Listed first">
+                <Pin size={13} /> Pinned
+              </button>
+              {type.symmetric && (
+                <button type="button" className={r.oneWay ? "rel-flag active" : "rel-flag"} aria-pressed={r.oneWay} onClick={() => onPatch({ oneWay: !r.oneWay })} data-tooltip="Only one side holds this tie (e.g. an ally who isn't allied back): drawn as an arrow">
+                  <ArrowRight size={13} /> One-way
+                </button>
+              )}
+            </div>
+            <div className="rel-row-buttons">
+              {!type.symmetric && r.type !== "custom" && (
+                <button type="button" className="btn btn-sm" onClick={() => onPatch({ reverse: true })} data-tooltip="Swap the two ends (Parent of ⇄ Child of)">
+                  <ArrowLeftRight size={13} /> Reverse
+                </button>
+              )}
+              <button type="button" className="btn btn-sm btn-ghost rel-delete" onClick={onDelete}>
+                <Trash2 size={13} /> Delete
+              </button>
+            </div>
           </div>
         </div>
       )}

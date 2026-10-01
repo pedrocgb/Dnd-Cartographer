@@ -14,6 +14,7 @@ export const TERRITORY_INFO = defineFieldSet(
     { key: "hierarchy", label: "Hierarchy" },
     { key: "geography", label: "Geography" },
     { key: "government", label: "Government" },
+    { key: "diplomacy", label: "Diplomacy" },
     { key: "history", label: "History" },
     { key: "society", label: "Society" },
     WILDLIFE_GROUP,
@@ -38,7 +39,7 @@ export const TERRITORY_INFO = defineFieldSet(
       link: link(["seasonProfile"]),
       hint: "Which season schedule (from Calendars) this territory follows, so its current season shows here. Leave it out when seasons don't matter.",
     },
-    { key: "area", label: "Area", group: "geography", kind: "text", hint: "How large the territory is — a figure, or a feel like \"three days' ride across\"." },
+    { key: "area", label: "Area", group: "geography", kind: "text", measure: "area", hint: "How large the territory is — a figure, or a feel like \"three days' ride across\"." },
     {
       key: "borders",
       label: "Borders",
@@ -73,6 +74,14 @@ export const TERRITORY_INFO = defineFieldSet(
     },
     // Government
     {
+      key: "claimants",
+      label: "Claimants",
+      group: "government",
+      kind: "link",
+      link: link(["character", "playerCharacter"], true),
+      hint: "Those who say the land is rightfully theirs, ruling or not. A rival claim is a war waiting to happen.",
+    },
+    {
       key: "capital",
       label: "Capital",
       group: "government",
@@ -105,6 +114,25 @@ export const TERRITORY_INFO = defineFieldSet(
       kind: "link",
       link: link(["title"], true),
       hint: "The titles its rulers hold, like King or High Chancellor.",
+    },
+    // Diplomacy (relation-backed: the other side lists this territory too)
+    {
+      key: "allies",
+      label: "Allies",
+      group: "diplomacy",
+      kind: "link",
+      link: link(["territory", "organization", "character", "playerCharacter"], true),
+      relation: { type: "ally", side: "any" },
+      hint: "Realms, organizations and characters it can count on when war comes.",
+    },
+    {
+      key: "enemies",
+      label: "Enemies",
+      group: "diplomacy",
+      kind: "link",
+      link: link(["territory", "organization", "character", "playerCharacter"], true),
+      relation: { type: "enemy", side: "any" },
+      hint: "Realms, organizations and characters that want it weakened or gone.",
     },
     // History
     { key: "establishedOn", label: "Established On", group: "history", kind: "date", hint: "When the territory was founded or first recognized." },

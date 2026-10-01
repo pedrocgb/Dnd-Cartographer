@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDecimal, formatInteger } from "@/server/settings/number-format";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { BookOpen, CalendarDays, Coins, Gem, Link2, ListChecks, Pencil, ScrollText, Swords, Trash2, Users, Waypoints } from "lucide-react";
@@ -206,7 +207,7 @@ export default function SessionView({
                       <strong>{m.name ?? "(deleted character)"}</strong>
                       {m.playerName && <span className="cal-help">{m.playerName}</span>}
                     </span>
-                    {session.xpTotal !== null || m.personId in session.xpOverrides ? <span className="cv-chip">{(shares[m.personId] ?? 0).toLocaleString()} XP</span> : null}
+                    {session.xpTotal !== null || m.personId in session.xpOverrides ? <span className="cv-chip">{formatInteger(shares[m.personId] ?? 0)} XP</span> : null}
                   </li>
                 ))}
               </ul>
@@ -227,7 +228,7 @@ export default function SessionView({
                       </strong>
                       <span className="cal-help">
                         {recipientName(l.recipient, roster)}
-                        {l.value ? ` · ${l.value.amount.toLocaleString()} ${coinName(l.value.currencyId)} each` : ""}
+                        {l.value ? ` · ${formatDecimal(l.value.amount)} ${coinName(l.value.currencyId)} each` : ""}
                       </span>
                     </span>
                   </li>
@@ -245,7 +246,7 @@ export default function SessionView({
                     <span className="cv-list-main">
                       <strong className={c.amount < 0 ? "ss-spent" : "ss-gained"}>
                         {c.amount > 0 ? "+" : ""}
-                        {c.amount.toLocaleString()} {coinName(c.currencyId)}
+                        {formatDecimal(c.amount)} {coinName(c.currencyId)}
                       </strong>
                       <span className="cal-help">{recipientName(c.recipient, roster)}</span>
                     </span>

@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import type { Editor } from "@tiptap/react";
 import {
   AtSign,
+  CalendarDays,
   Heading1,
   Heading2,
   Heading3,
@@ -14,6 +15,7 @@ import {
   List,
   ListOrdered,
   ListTree,
+  Table,
   Minus,
   Pilcrow,
   TextQuote,
@@ -33,6 +35,10 @@ export interface SlashActions {
   linkArticle: (at: number) => void;
   /** Opens the image file picker (the image lands at the caret). */
   insertImage: () => void;
+  /** Opens the calendar date dialog, the date going where the "/" was. */
+  linkCalendarDate: (at: number) => void;
+  /** Opens the table size picker at `at` (the table lands at the caret). */
+  insertTable: (at: number) => void;
 }
 
 interface SlashItem {
@@ -70,7 +76,9 @@ const ITEMS: SlashItem[] = [
   { key: "quote", label: "Quote", group: "Blocks", keywords: ["blockquote", ">", "citation"], Icon: TextQuote, shortcut: "> space", run: (e) => e.chain().focus().clearNodes().setBlockquote().run() },
   { key: "divider", label: "Divider", group: "Blocks", keywords: ["hr", "rule", "line", "separator", "---"], Icon: Minus, shortcut: "---", run: (e) => e.chain().focus().setHorizontalRule().run() },
   { key: "article", label: "Article link", group: "Insert", keywords: ["link", "mention", "@", "reference"], Icon: AtSign, shortcut: `${MOD}+K`, run: (_e, a, at) => a.linkArticle(at) },
+  { key: "date", label: "Calendar date", group: "Insert", keywords: ["date", "day", "calendar", "when", "event"], Icon: CalendarDays, run: (_e, a, at) => a.linkCalendarDate(at) },
   { key: "toc", label: "Table of contents", group: "Insert", keywords: ["toc", "contents", "index", "outline", "summary"], Icon: ListTree, run: (e) => e.chain().focus().insertTableOfContents().run() },
+  { key: "table", label: "Table", group: "Insert", keywords: ["grid", "rows", "columns", "cells", "spreadsheet"], Icon: Table, run: (_e, a, at) => a.insertTable(at) },
   { key: "image", label: "Image", group: "Insert", keywords: ["picture", "photo", "img"], Icon: ImagePlus, run: (_e, a) => a.insertImage() },
   ...TEXT_COLORS.map(
     (c): SlashItem => ({

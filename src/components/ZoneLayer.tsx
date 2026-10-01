@@ -655,9 +655,9 @@ export default function ZoneLayer({
   return null;
 }
 
-// ---------- geometry helpers ----------
+// ---------- geometry helpers (drag ones shared with the Area tool) ----------
 
-function rectFromDrag(start: Pt, end: Pt, shift: boolean, size: { w: number; h: number }): RectGeom | null {
+export function rectFromDrag(start: Pt, end: Pt, shift: boolean, size: { w: number; h: number }): RectGeom | null {
   let x0 = Math.min(start.x, end.x);
   let y0 = Math.min(start.y, end.y);
   let x1 = Math.max(start.x, end.x);
@@ -679,7 +679,7 @@ function rectFromDrag(start: Pt, end: Pt, shift: boolean, size: { w: number; h: 
   return { x: x0, y: y0, width, height };
 }
 
-function circleFromDrag(center: Pt, edge: Pt, size: { w: number; h: number }): CircleGeom | null {
+export function circleFromDrag(center: Pt, edge: Pt, size: { w: number; h: number }): CircleGeom | null {
   const maxR = Math.max(0, Math.min(center.x, center.y, size.w - center.x, size.h - center.y));
   const radius = Math.min(maxR, Math.hypot(edge.x - center.x, edge.y - center.y));
   if (radius < 2) return null;

@@ -19,6 +19,7 @@ import InfoPicker from "./InfoPicker";
 import { InfoEditLabel, InfoForm, InfoRow, InfoView, type InfoLookups } from "./InfoBar";
 import { CollapsibleBlock, TypeSelect, json, patchRecord, useEditingResetOnSelect } from "./shared";
 import type { AffiliatedMarker, Authority, HierarchyProfile, OpenArticle, Territory } from "./types";
+import { writeArticleDrag } from "./article-drag";
 
 const recordUrl = (id: string) => `/api/politics/territories/${id}`;
 
@@ -48,6 +49,7 @@ export function TerritoryFolder({
           onToggleExpand={onToggleExpand}
           onSelect={onSelect}
           selectedId={selectedId}
+          onDragRow={(e, id) => writeArticleDrag(e, { kind: "article", id, from: null })}
         />
       ))}
     </>

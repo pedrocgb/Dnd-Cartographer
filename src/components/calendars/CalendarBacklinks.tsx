@@ -35,7 +35,7 @@ export default function CalendarBacklinks({ articleId }: { articleId: string }) 
 
   if (!data || data.entries.length === 0) return null;
   const { world } = data;
-  const calendar = world.calendars.find((c) => c.id === world.chronology.defaultCalendarId) ?? world.calendars.find((c) => !c.archived);
+  const calendar = world.calendars.find((c) => c.id === world.chronology.defaultCalendarId) ?? world.calendars.find((c) => !c.trashed);
   if (!calendar) return null;
   const ctx = { calendar: (id: string) => world.calendars.find((c) => c.id === id)?.definition ?? null };
 

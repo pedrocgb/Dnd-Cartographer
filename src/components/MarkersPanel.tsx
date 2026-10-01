@@ -1,10 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, ArrowDownAZ, ArrowUpZA } from "lucide-react";
-import Modal from "./Modal";
+import { ChevronDown, ChevronUp, ArrowDownAZ, ArrowUpZA, Filter, MapPinned, Search, X } from "lucide-react";
 import { RawIcon } from "./MarkerIcon";
-import { ICONS, MARKER_CATEGORIES, DEFAULT_MARKER_CATEGORY } from "@/server/markers/icon-registry";
+import { ICONS, MARKER_CATEGORIES, DEFAULT_MARKER_CATEGORY, groupIcons, searchIcons } from "@/server/markers/icon-registry";
 import { STATUS_TAGS, ENVIRONMENT_TAGS, OWNERSHIP_TAGS } from "@/server/markers/tag-registry";
 import { useToggleSet } from "./useToggleSet";
 import type { Marker } from "./MarkerLayer";
@@ -105,19 +104,8 @@ function FilterSection({
 
 type SortOrder = "default" | "az" | "za";
 
-export default function MarkersListModal({
-  open,
-  onClose,
-  markers,
-  layers,
-  onSelect,
-}: {
-  open: boolean;
-  onClose: () => void;
-  markers: Marker[];
-  layers: MapLayerData[];
-  onSelect: (markerId: string) => void;
-}) {
+/** Left column: every marker of the map, searchable and filterable; a row jumps to its marker. */
+function MarkersList({ markers, layers, onSelect }: { markers: Marker[]; layers: MapLayerData[]; onSelect: (markerId: string) => void }) {
   const [search, setSearch] = useState("");
   const [sortOrder, setSortOrder] = useState<SortOrder>("default");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -134,7 +122,8 @@ export default function MarkersListModal({
   const layerUniverse = useMemo(() => layers.map((l) => l.id), [layers]);
   const layerSelected = useMemo(() => new Set(layerUniverse.filter((id) => !excludedLayers.has(id))), [layerUniverse, excludedLayers]);
   const layerAllOn = layerSelected.size === layerUniverse.length;
-  const layerName = (id: string) => layers.find((l) => l.id === id)?.name ?? "";
+  const layerNames = useMemo(() => new Map(layers.map((l) => [l.id, l.name])), [layers]);
+  const layerName = (id: string) => layerNames.get(id) ?? "";
   function toggleLayer(id: string) {
     setExcludedLayers((prev) => {
       const next = new Set(prev);
@@ -190,7 +179,7 @@ export default function MarkersListModal({
   ]);
 
   return (
-    <Modal open={open} onClose={onClose} title="Markers on this map">
+    <>
       <div className="marker-search-row">
         <input
           type="text"
@@ -198,7 +187,6 @@ export default function MarkersListModal({
           aria-label="Search markers"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          autoFocus
         />
         <button
           type="button"
@@ -290,7 +278,7 @@ export default function MarkersListModal({
       </div>
 
       {filtered.length === 0 ? (
-        <p style={{ color: "var(--text-tertiary)", fontSize: "var(--text-sm)" }}>
+        <p className="field-label">
           {markers.length === 0 ? "No markers on this map yet." : "No markers match your search/filters."}
         </p>
       ) : (
@@ -299,10 +287,7 @@ export default function MarkersListModal({
             <li key={m.id}>
               <button
                 className="marker-list-row"
-                onClick={() => {
-                  onSelect(m.id);
-                  onClose();
-                }}
+                onClick={() => onSelect(m.id)}
               >
                 <span className="marker-list-icon" style={{ color: m.color }}>
                   <RawIcon iconKey={m.iconKey} size={16} />
@@ -314,6 +299,112 @@ export default function MarkersListModal({
           ))}
         </ul>
       )}
-    </Modal>
+    </>
+  );
+}
+
+/** Right column: which icons show on the map (never changes marker data). */
+function IconFilter({
+  selected,
+  allOn,
+  onToggle,
+  onSelectAll,
+  onClearAll,
+}: {
+  selected: Set<string>;
+  allOn: boolean;
+  onToggle: (iconKey: string) => void;
+  onSelectAll: () => void;
+  onClearAll: () => void;
+}) {
+  const [query, setQuery] = useState("");
+  const groups = groupIcons(searchIcons(query));
+  return (
+    <>
+      <p className="field-label">Toggle an icon off to hide every marker using it. This never changes marker data.</p>
+
+      <button
+        type="button"
+        className={allOn ? "icon-filter-row active" : "icon-filter-row"}
+        aria-pressed={allOn}
+        onClick={() => (allOn ? onClearAll() : onSelectAll())}
+      >
+        <span className="icon-filter-row-label">All</span>
+      </button>
+
+      <label className="icon-picker-search">
+        <Search size={14} strokeWidth={2.25} aria-hidden />
+        <input type="text" value={query} placeholder="Search icons" aria-label="Search icons" onChange={(e) => setQuery(e.target.value)} />
+      </label>
+
+      {groups.map(({ group, icons }) => (
+        <section key={group} className="icon-picker-group" aria-label={group}>
+          <h4>{group}</h4>
+          <ul className="icon-filter-list">
+            {icons.map((icon) => {
+              const active = selected.has(icon.key);
+              return (
+                <li key={icon.key}>
+                  <button
+                    type="button"
+                    className={active ? "icon-filter-row active" : "icon-filter-row"}
+                    aria-pressed={active}
+                    onClick={() => onToggle(icon.key)}
+                  >
+                    <RawIcon iconKey={icon.key} size={16} />
+                    <span className="icon-filter-row-label">{icon.label}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ))}
+    </>
+  );
+}
+
+/**
+ * The Markers tool: a lateral panel with the map's markers (left) beside
+ * the icon filter (right), both open together like the other tools'
+ * list-and-settings panels.
+ */
+export default function MarkersPanel({
+  markers,
+  layers,
+  onSelectMarker,
+  iconFilter,
+  onClose,
+}: {
+  markers: Marker[];
+  layers: MapLayerData[];
+  onSelectMarker: (markerId: string) => void;
+  iconFilter: { selected: Set<string>; allOn: boolean; toggle: (iconKey: string) => void; selectAll: () => void; clearAll: () => void };
+  onClose: () => void;
+}) {
+  return (
+    <div className="markers-panel" aria-label="Markers">
+      <section className="markers-panel-col" aria-labelledby="markers-panel-list-title">
+        <div className="marker-side-panel-header">
+          <h2 id="markers-panel-list-title">
+            <MapPinned size={16} strokeWidth={2.25} aria-hidden />
+            Markers on this map
+          </h2>
+        </div>
+        <MarkersList markers={markers} layers={layers} onSelect={onSelectMarker} />
+      </section>
+      <section className="markers-panel-col markers-panel-filter" aria-labelledby="markers-panel-filter-title">
+        <div className="marker-side-panel-header">
+          <h2 id="markers-panel-filter-title">
+            <Filter size={16} strokeWidth={2.25} aria-hidden />
+            Filter markers
+          </h2>
+          <button type="button" className="btn btn-ghost btn-icon" onClick={onClose} aria-label="Close the markers panel" data-tooltip="Close">
+            <X size={16} strokeWidth={2.25} />
+          </button>
+        </div>
+        <IconFilter selected={iconFilter.selected} allOn={iconFilter.allOn} onToggle={iconFilter.toggle} onSelectAll={iconFilter.selectAll} onClearAll={iconFilter.clearAll} />
+      </section>
+    </div>
   );
 }

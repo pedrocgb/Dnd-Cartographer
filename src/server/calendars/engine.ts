@@ -20,6 +20,9 @@
  * still counts as physical days for moons, durations and synchronization.
  */
 
+import { applyDateFormat } from "../settings/date-format";
+import type { WorldDateFormat } from "../settings/settings";
+
 export interface Weekday {
   id: string;
   name: string;
@@ -373,11 +376,16 @@ export function validateDefinition(def: CalendarDefinition): DefinitionIssue[] {
   return issues;
 }
 
-/** Display label of a local date, e.g. "12 Alder 1024 AR". */
-export function formatDate(def: CalendarDefinition, date: LocalDate, { short = false } = {}): string {
-  const period = def.periods.find((p) => p.id === date.periodId);
+/**
+ * Display label of a local date, "12 Alder 1024 AR" by default; `format`
+ * reorders it or uses the period's number (its place in the year's list).
+ */
+export function formatDate(def: CalendarDefinition, date: LocalDate, { short = false, format = "D MMMM YYYY" as WorldDateFormat } = {}): string {
+  const index = def.periods.findIndex((p) => p.id === date.periodId);
+  const period = index >= 0 ? def.periods[index] : null;
   const name = period ? (short ? period.short || period.name : period.name) : "?";
-  return `${date.day} ${name} ${date.year}${def.year.suffix ? ` ${def.year.suffix}` : ""}`;
+  const year = `${date.year}${def.year.suffix ? ` ${def.year.suffix}` : ""}`;
+  return applyDateFormat(format, { day: date.day, month: index + 1, monthName: name, year });
 }
 
 /** The year-level summary a preview needs: total days, periods with their lengths, leap years in a range. */

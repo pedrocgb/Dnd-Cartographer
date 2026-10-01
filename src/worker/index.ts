@@ -5,6 +5,8 @@ import { and, eq, lt, or } from "drizzle-orm";
 import { db } from "../server/db/client";
 import { mapAssets, mapLayers, maps, processingJobs } from "../server/db/schema";
 import { originalPath, tilesBasenamePath, tilesDzKey, thumbnailPath, thumbnailKey } from "../server/assets/paths";
+import { ensureDefaultWorld } from "../server/world/default-world";
+import { maybeAutoPurge } from "../server/trash/auto-purge";
 
 const LEASE_MS = 60_000;
 const POLL_INTERVAL_MS = 1_000;
@@ -204,6 +206,12 @@ function sleep(ms: number): Promise<void> {
 
 process.on("SIGINT", () => (stopping = true));
 process.on("SIGTERM", () => (stopping = true));
+
+// Trash retention: on start, then every few hours (also run, at most hourly, when the Trash page loads).
+const AUTO_PURGE_EVERY_MS = 6 * 3_600_000;
+const autoPurge = () => void ensureDefaultWorld().then((worldId) => maybeAutoPurge(worldId)).catch((err) => console.error("[worker] auto-purge failed:", err));
+autoPurge();
+setInterval(autoPurge, AUTO_PURGE_EVERY_MS).unref();
 
 // Final safety net: if something still escapes every try/catch above and
 // the loop throws, restart it rather than exiting the process — a crashed

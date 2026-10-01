@@ -5,8 +5,10 @@ import TextAlign from "@tiptap/extension-text-align";
 import { Color, FontFamily, TextStyle } from "@tiptap/extension-text-style";
 import Image from "@tiptap/extension-image";
 import { Mention } from "./mention";
+import { CalendarDate } from "./calendar-date";
 import { MenuKeys } from "./menu-keys";
 import { TableOfContents } from "./TableOfContents";
+import { TABLE_EXTENSIONS } from "./tables";
 import { IMAGE_ALIGNS, HEADING_LEVELS, TEXT_ALIGNS } from "@/server/documents/rich-attrs";
 
 declare module "@tiptap/core" {
@@ -118,7 +120,9 @@ export function buildExtensions(placeholder: string): Extensions {
     ArticleImage,
     // Always loaded, so a document with mentions keeps them in every editor.
     Mention,
+    CalendarDate,
     TableOfContents,
+    ...TABLE_EXTENSIONS,
     MenuKeys,
     EditingShortcuts,
     Placeholder.configure({ placeholder }),

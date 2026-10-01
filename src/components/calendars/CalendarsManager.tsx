@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { PageSkeleton } from "@/components/Skeleton";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import { useSearchParams } from "next/navigation";
-import { CalendarPlus, ChevronLeft, ChevronRight, LocateFixed, Undo2 } from "lucide-react";
+import { CalendarPlus, ChevronLeft, ChevronRight, LocateFixed, Sun, Undo2 } from "lucide-react";
 import { toWorldDay, weekLength, type LocalDate } from "@/server/calendars/engine";
 import { api } from "./api";
 import { byDay, dayLabel, evalContext, inCalendar, localOf, occurrencesIn, periodRange, periodsOf, safe, stepPeriod, stepYear, yearRange } from "./evaluate";
@@ -67,7 +68,7 @@ export default function CalendarsManager() {
   const [selectedDay, setSelectedDay] = useState<number | null>(linkedDay);
   const [previewProfileId, setPreviewProfileId] = useState<string | null | undefined>(linkedProfile ?? undefined);
   const [filters, setFilters] = useState<Filters>({ kinds: new Set(["note", "event", "link"]), category: "" });
-  const [showArchived, setShowArchived] = useState(false);
+  const [deleting, setDeleting] = useState<{ calendar: ClientCalendar; busy: boolean; error: string | null } | null>(null);
   const [hiddenObjects, setHiddenObjects] = useState<Set<string>>(new Set());
   const [entries, setEntries] = useState<ClientEntry[]>([]);
   const [articleNames, setArticleNames] = useState<Record<string, string>>({});
@@ -102,7 +103,7 @@ export default function CalendarsManager() {
       }
       setWorld(res.data);
       const saved = stored(ACTIVE_KEY);
-      const live = res.data.calendars.filter((c) => !c.archived);
+      const live = res.data.calendars.filter((c) => !c.trashed);
       setActiveId(live.find((c) => c.id === saved)?.id ?? res.data.chronology.defaultCalendarId ?? live[0]?.id ?? null);
       const v = stored(VIEW_KEY);
       if (v === "month" || v === "year" || v === "agenda") setView(v);
@@ -270,10 +271,24 @@ export default function CalendarsManager() {
     }
   }
 
-  async function patchCalendar(c: ClientCalendar, body: Record<string, unknown>) {
-    const res = await api<{ calendar: ClientCalendar }>("PATCH", `/api/calendars/${c.id}`, { ...body, expectedVersion: c.version });
-    if (res.ok) await reload();
-    else setNotice(res.data.error ?? "Could not change the calendar.");
+  /** Moves the calendar to the Trash; the default calendar takes over the view when it was open. */
+  async function deleteCalendar() {
+    if (!deleting) return;
+    const { calendar: target } = deleting;
+    setDeleting({ ...deleting, busy: true, error: null });
+    const res = await api<{ ok: true }>("DELETE", `/api/calendars/${target.id}`);
+    if (!res.ok) {
+      setDeleting({ calendar: target, busy: false, error: res.data.error ?? "Could not delete the calendar." });
+      return;
+    }
+    setDeleting(null);
+    const next = await reload();
+    if (next && activeId === target.id) {
+      const live = next.calendars.filter((c) => !c.trashed);
+      const fallback = live.find((c) => c.id === next.chronology.defaultCalendarId) ?? live[0];
+      if (fallback) selectCalendar(fallback.id);
+      else setActiveId(null);
+    }
   }
 
   async function makeDefault(c: ClientCalendar) {
@@ -305,18 +320,16 @@ export default function CalendarsManager() {
       world={world}
       activeId={activeId}
       def={def}
-      showArchived={showArchived}
       hiddenObjects={hiddenObjects}
       filters={filters}
       categories={categories}
       previewProfile={previewProfile}
-      onShowArchived={setShowArchived}
       onSelectCalendar={selectCalendar}
       onNewCalendar={() => setCalendarEditor("new")}
       onEditCalendar={setCalendarEditor}
       onDuplicate={duplicate}
       onMakeDefault={makeDefault}
-      onArchive={(c) => patchCalendar(c, { archived: !c.archived })}
+      onDelete={(c) => setDeleting({ calendar: c, busy: false, error: null })}
       onToggleObject={toggleObject}
       onEditObject={setCelestialEditor}
       onNewObject={() => setCelestialEditor("new")}
@@ -333,6 +346,20 @@ export default function CalendarsManager() {
 
   const editors = (
     <>
+      <ConfirmDialog
+        open={deleting !== null}
+        title="Delete calendar?"
+        confirmLabel="Move to Trash"
+        busyLabel="Deleting…"
+        busy={deleting?.busy}
+        error={deleting?.error}
+        onConfirm={deleteCalendar}
+        onCancel={() => setDeleting(null)}
+      >
+        <p>
+          <strong>{deleting?.calendar.name}</strong> goes to the Trash (Settings → Trash), where you can restore it. Its entries stay on the world&apos;s timeline, and campaigns or season profiles that use it keep their dates.
+        </p>
+      </ConfirmDialog>
       {calendarEditor && (
         <CalendarEditor
           world={world}
@@ -353,7 +380,7 @@ export default function CalendarsManager() {
           def={def}
           calendarId={calendar.id}
           today={selectedDay ?? currentDay}
-          calendars={world.calendars.filter((c) => !c.archived)}
+          calendars={world.calendars.filter((c) => !c.trashed)}
           onClose={() => {
             setCelestialEditor(null);
             void reload();
@@ -369,7 +396,7 @@ export default function CalendarsManager() {
           object={viewedObject}
           def={def}
           day={selectedDay ?? currentDay}
-          calendars={world.calendars}
+          calendars={world.calendars.filter((c) => !c.trashed)}
           onClose={() => setCelestialView(null)}
           onEdit={() => {
             setCelestialView(null);
@@ -444,27 +471,39 @@ export default function CalendarsManager() {
       {sidebar}
       <main className="articles-main cal-main">
         <header className="cal-header">
-          <div className="cal-now" aria-live="polite">
-            <span className="field-label">Current date</span>
-            <strong>{dayLabel(def, currentDay)}</strong>
-            <button type="button" className="btn btn-sm" disabled={busy} onClick={() => changeDay({ advanceDays: 1 }, "Advance 1 day")}>
-              +1 day
+          <section className="cal-now" aria-label="Current date">
+            <button type="button" className="cal-now-date" onClick={() => showDay(currentDay)} data-tooltip="Show this day">
+              <span className="cal-now-icon" aria-hidden>
+                <Sun size={20} strokeWidth={2} />
+              </span>
+              <span className="cal-now-text">
+                <span className="cal-now-label">Current date</span>
+                <strong aria-live="polite">{dayLabel(def, currentDay)}</strong>
+              </span>
             </button>
-            <button type="button" className="btn btn-sm" disabled={busy} onClick={() => changeDay({ advanceDays: week }, `Advance 1 week`)} data-tooltip={`One week of this calendar is ${week} physical days`}>
-              +1 week ({week} days)
-            </button>
-            <span className="cal-inline">
-              <input type="number" aria-label="Days to advance (negative goes back)" value={advanceBy} onChange={(e) => setAdvanceBy(Math.trunc(Number(e.target.value)) || 0)} />
-              <button type="button" className="btn btn-sm" disabled={busy || advanceBy === 0} onClick={() => changeDay({ advanceDays: advanceBy }, `Advance ${advanceBy} days`)}>
-                {advanceBy < 0 ? `Go back ${-advanceBy} days` : `+${advanceBy} days`}
-              </button>
-            </span>
-            {undo.length > 0 && (
-              <button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={undoLast} data-tooltip={`Undo: ${undo.at(-1)!.label}`}>
-                <Undo2 size={14} /> Undo
-              </button>
-            )}
-          </div>
+            <div className="cal-now-advance" role="group" aria-label="Advance time">
+              <span className="cal-now-label">Advance</span>
+              <div className="cal-now-steps">
+                <button type="button" disabled={busy} onClick={() => changeDay({ advanceDays: 1 }, "Advance 1 day")}>
+                  +1 day
+                </button>
+                <button type="button" disabled={busy} onClick={() => changeDay({ advanceDays: week }, `Advance 1 week`)} data-tooltip={`One week of this calendar is ${week} days`}>
+                  +1 week
+                </button>
+                <span className="cal-now-custom">
+                  <input type="number" aria-label="Days to advance (negative goes back)" value={advanceBy} onChange={(e) => setAdvanceBy(Math.trunc(Number(e.target.value)) || 0)} />
+                  <button type="button" disabled={busy || advanceBy === 0} onClick={() => changeDay({ advanceDays: advanceBy }, `Advance ${advanceBy} days`)}>
+                    {advanceBy < 0 ? "days back" : "days"}
+                  </button>
+                </span>
+              </div>
+              {undo.length > 0 && (
+                <button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={undoLast} data-tooltip={`Undo: ${undo.at(-1)!.label}`}>
+                  <Undo2 size={14} /> Undo
+                </button>
+              )}
+            </div>
+          </section>
           {notice && (
             <p className="form-error" role="alert">
               {notice}
@@ -500,7 +539,7 @@ export default function CalendarsManager() {
               }}
             />
             <button type="button" className="btn btn-sm" onClick={() => showDay(currentDay)}>
-              <LocateFixed size={14} /> Current date
+              <LocateFixed size={14} /> Today
             </button>
             <div className="cal-jump">
               <button type="button" className="btn btn-sm" aria-expanded={jumpOpen} onClick={() => { setJumpDate(localOf(def, selectedDay ?? currentDay)); setJumpOpen(!jumpOpen); }}>

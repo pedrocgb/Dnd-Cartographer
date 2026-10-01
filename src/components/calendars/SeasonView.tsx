@@ -1,5 +1,6 @@
 "use client";
 
+import { formatInteger } from "@/server/settings/number-format";
 import type { CSSProperties } from "react";
 import { CalendarDays, CalendarRange, Leaf, Pencil } from "lucide-react";
 import Modal from "@/components/Modal";
@@ -10,7 +11,7 @@ import { dayLabel, safe, yearRange } from "./evaluate";
 import { Block, LinkedArticles, relative } from "./view-parts";
 import type { ClientProfile, ClientSeason, WorldCalendars } from "./types";
 
-const plural = (n: number) => `${n.toLocaleString()} day${n === 1 ? "" : "s"}`;
+const plural = (n: number) => `${formatInteger(n)} day${n === 1 ? "" : "s"}`;
 
 /** This season's span in one profile: its dates, length, and the current/next occurrence around `day`. */
 function ProfileRow({ season, profile, world, def, day }: { season: ClientSeason; profile: ClientProfile; world: WorldCalendars; def: CalendarDefinition; day: number }) {

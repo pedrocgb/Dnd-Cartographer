@@ -843,6 +843,48 @@ export const schemaCheck = sql`PRAGMA foreign_keys = ON;`;
 // offset from an arbitrary epoch ("worldDay"). Calendars only label it.
 
 /** The world's shared current day and default calendar; `revision` rejects stale writes. */
+/**
+ * The user's own folders on the Articles page (the "Folders" tab), beside the
+ * by-type view. Purely organizational: articles are never changed by them.
+ * Folders nest through `parentId`; deleting one removes its subfolders and
+ * their memberships, never an article.
+ */
+export const articleFolders = sqliteTable(
+  "article_folders",
+  {
+    id: id(),
+    worldId: text("world_id")
+      .notNull()
+      .references(() => worlds.id),
+    parentId: text("parent_id"),
+    name: text("name").notNull(),
+    /** Icon tint (#RRGGBB); null uses the default folder color. */
+    color: text("color"),
+    ...timestamps,
+  },
+  (table) => [index("article_folders_world_idx").on(table.worldId)]
+);
+
+/**
+ * An article filed in a folder; one article can be in several. `articleId`
+ * is any of the four article tables' ids (UUIDs, unique across them; no FK),
+ * its template is read from the record itself, so a character turned player
+ * character stays filed.
+ */
+export const articleFolderItems = sqliteTable(
+  "article_folder_items",
+  {
+    folderId: text("folder_id")
+      .notNull()
+      .references(() => articleFolders.id),
+    articleId: text("article_id").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [uniqueIndex("article_folder_items_pk").on(table.folderId, table.articleId), index("article_folder_items_article_idx").on(table.articleId)]
+);
+
 export const worldChronology = sqliteTable("world_chronology", {
   worldId: text("world_id")
     .primaryKey()
@@ -850,6 +892,17 @@ export const worldChronology = sqliteTable("world_chronology", {
   currentDay: integer("current_day").notNull().default(0),
   defaultCalendarId: text("default_calendar_id"),
   revision: integer("revision").notNull().default(0),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+/** The app-wide preferences (units, date formats, trash retention…): one JSON blob per world, see server/settings. */
+export const appSettings = sqliteTable("app_settings", {
+  worldId: text("world_id")
+    .primaryKey()
+    .references(() => worlds.id),
+  data: text("data").notNull().default("{}"),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" })
     .notNull()
     .$defaultFn(() => new Date()),
@@ -870,7 +923,8 @@ export const calendars = sqliteTable(
     articleLinks: text("article_links").notNull().default("[]"),
     version: integer("version").notNull().default(1),
     sortOrder: integer("sort_order").notNull().default(0),
-    archivedAt: integer("archived_at", { mode: "timestamp_ms" }),
+    /** In the Trash (restorable there); trashed calendars still resolve for the dates that use them. */
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
     ...timestamps,
   },
   (table) => [index("calendars_world_idx").on(table.worldId)]

@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDecimal } from "@/server/settings/number-format";
 import { useEffect, useMemo, useState } from "react";
 import { Coins, Plus, ScrollText, Trash2, Users } from "lucide-react";
 import Modal from "@/components/Modal";
@@ -18,7 +19,7 @@ type Tab = "general" | "coins" | "party";
 function exchangeLine(coin: Currency, coins: readonly Currency[]): string | null {
   const smallest = [...coins].sort((a, b) => a.value - b.value)[0];
   if (!smallest || smallest.id === coin.id || !coin.value) return null;
-  return `1 ${coin.short || coin.name} = ${coin.value.toLocaleString()} ${smallest.short || smallest.name}`;
+  return `1 ${coin.short || coin.name} = ${formatDecimal(coin.value)} ${smallest.short || smallest.name}`;
 }
 
 function CoinsTab({ coins, onChange }: { coins: Currency[]; onChange: (c: Currency[]) => void }) {
@@ -168,7 +169,7 @@ function PartyTab({ campaign, onChanged }: { campaign: ClientCampaign; onChanged
  * opens once it exists.
  */
 export default function CampaignEditor({ campaign, calendars, defaultCalendarId, onSaved, onChanged, onDeleted, onClose }: { campaign: ClientCampaign | null; calendars: ClientCalendar[]; defaultCalendarId: string | null; onSaved: (c: ClientCampaign) => void; onChanged: () => void; onDeleted: () => void; onClose: () => void }) {
-  const live = calendars.filter((c) => !c.archived || c.id === campaign?.calendarId);
+  const live = calendars.filter((c) => !c.trashed || c.id === campaign?.calendarId);
   const [tab, setTab] = useState<Tab>("general");
   const [name, setName] = useState(campaign?.name ?? "");
   const [description, setDescription] = useState(campaign?.description ?? "");

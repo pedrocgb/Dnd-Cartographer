@@ -21,6 +21,9 @@ export type InfoLinkTarget = ArticleTemplateKey | "seasonProfile";
 
 export const SEASON_PROFILE_TARGET = "seasonProfile" as const;
 
+/** What a measurement field measures; see MEASURE_EXAMPLES in server/settings/units. */
+export type InfoMeasure = "height" | "weight" | "size" | "elevation" | "distance" | "area";
+
 export interface InfoGroup {
   key: string;
   label: string;
@@ -35,6 +38,8 @@ export interface InfoField {
   kind: InfoFieldKind;
   /** Shown from the ? button in edit mode: what goes here, and why it matters. */
   hint: string;
+  /** A "text" field holding a measurement: its placeholder shows an example in the user's units. */
+  measure?: InfoMeasure;
   /** Choices of a "select" field. */
   options?: readonly string[];
   /** A "select" storing several of its options. */

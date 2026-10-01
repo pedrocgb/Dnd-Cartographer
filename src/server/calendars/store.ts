@@ -57,11 +57,11 @@ export const toClientCalendar = (row: CalendarRow) => ({
   definition: safeJson<CalendarDefinition | null>(row.definition, null),
   articleLinks: safeJson<{ template: string; articleId: string }[]>(row.articleLinks, []),
   version: row.version,
-  archived: row.archivedAt !== null,
+  trashed: row.deletedAt !== null,
   sortOrder: row.sortOrder,
 });
 
-/** Throws unless every id is a calendar of this world (archived ones included). */
+/** Throws unless every id is a calendar of this world (trashed ones included: what already uses one keeps it). */
 export async function checkCalendarIds(worldId: string, ids: string[] | null) {
   if (!ids) return;
   const known = new Set((await db.select({ id: calendars.id }).from(calendars).where(eq(calendars.worldId, worldId))).map((r) => r.id));
@@ -142,8 +142,9 @@ export async function loadWorldCalendars(worldId: string) {
   };
 }
 
+/** A live calendar of this world (a trashed one can't be edited, duplicated or picked). */
 export async function calendarOf(worldId: string, id: string) {
-  const [row] = await db.select().from(calendars).where(and(eq(calendars.id, id), eq(calendars.worldId, worldId)));
+  const [row] = await db.select().from(calendars).where(and(eq(calendars.id, id), eq(calendars.worldId, worldId), isNull(calendars.deletedAt)));
   return row ?? null;
 }
 

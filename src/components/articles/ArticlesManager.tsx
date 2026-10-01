@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import { useRouter, useSearchParams } from "next/navigation";
 import { CirclePlus, GitFork, LayoutDashboard, Network, Waypoints } from "lucide-react";
 import { ancestorsOf } from "@/components/TerritoryTree";
+import ScrollToTopButton from "@/components/ScrollToTopButton";
+import { parseIdList, readStored, subscribeToStorage, writeStored } from "@/components/stored";
 import {
   ARTICLE_TEMPLATE_KEYS,
   isArticleTemplate,
@@ -16,7 +18,13 @@ import { emptyRequiredInfo } from "@/server/articles/info-fields";
 import { INFO_FIELD_SETS } from "@/server/articles/info-sets";
 import { templateOf } from "./templates";
 import { json, toggleInSet } from "./shared";
-import ArticlesSidebar, { type ArticleLists } from "./ArticlesSidebar";
+import ArticlesSidebar, { type ArticleLists, type SidebarTab } from "./ArticlesSidebar";
+import ArticleFoldersTree from "./ArticleFoldersTree";
+import ArticleFolderView from "./ArticleFolderView";
+import NameDialog from "@/components/maps/NameDialog";
+import { MAX_FOLDER_NAME_LENGTH } from "@/server/maps/folders";
+import { ArticleFoldersContext, useArticleFolderStore } from "./article-folders";
+import { articleCatalog, buildArticleFolderTree, findNode, folderPath } from "./folder-tree";
 import CreateArticleModal from "./CreateArticleModal";
 import GenericArticle from "./GenericArticle";
 import HierarchyProfiles from "./HierarchyProfiles";
@@ -41,7 +49,9 @@ type View =
   | { kind: "profiles"; id: string | null }
   | { kind: "relationships"; focus: string | null }
   | { kind: "family"; id: string | null; bloodline: boolean }
-  | { kind: "boards"; id: string | null };
+  | { kind: "boards"; id: string | null }
+  /** One of the user's folders (the sidebar's Folders tab). */
+  | { kind: "folder"; id: string };
 
 /** Views that aren't an article folder (their sidebar entries are pinned tools). */
 const isToolView = (view: View): view is Exclude<View, { kind: "template" | "article" }> => view.kind !== "template" && view.kind !== "article";
@@ -55,13 +65,14 @@ function viewFromParams(params: URLSearchParams): View {
   if (type === "relationships") return { kind: "relationships", focus: params.get("focus") };
   if (type === "family") return { kind: "family", id, bloodline: params.get("mode") === "bloodline" };
   if (type === "boards") return { kind: "boards", id };
+  if (type === "folder" && id) return { kind: "folder", id };
   if (isArticleTemplate(type)) return id ? { kind: "article", template: type, id } : { kind: "template", template: type };
   return { kind: "template", template: "generic" };
 }
 
 function urlOf(view: View): string {
   const params = new URLSearchParams();
-  if (view.kind === "profiles" || view.kind === "boards") {
+  if (view.kind === "profiles" || view.kind === "boards" || view.kind === "folder") {
     params.set("type", view.kind);
     if (view.id) params.set("id", view.id);
   } else if (view.kind === "relationships") {
@@ -79,43 +90,18 @@ function urlOf(view: View): string {
 }
 
 const OPEN_FOLDERS_KEY = "articles-open-folders";
-
-/*
- * The remembered open folders are read through useSyncExternalStore: the
- * server (and hydration) render sees none, then React re-renders with the
- * stored value. Reading localStorage in a useState initializer instead makes
- * the first client render differ from the server HTML (hydration error).
- */
-function subscribeToStorage(onChange: () => void) {
-  window.addEventListener("storage", onChange);
-  return () => window.removeEventListener("storage", onChange);
-}
-
-function readStoredOpenFolders(): string | null {
-  try {
-    return window.localStorage.getItem(OPEN_FOLDERS_KEY);
-  } catch {
-    return null; // storage unavailable: start collapsed
-  }
-}
+const SIDEBAR_TAB_KEY = "articles-sidebar-tab";
+const OPEN_USER_FOLDERS_KEY = "article-folders-open";
 
 function parseOpenFolders(raw: string | null): Set<ArticleTemplateKey> {
-  try {
-    const parsed: unknown = JSON.parse(raw ?? "[]");
-    if (Array.isArray(parsed)) return new Set(ARTICLE_TEMPLATE_KEYS.filter((k) => parsed.includes(k)));
-  } catch {
-    // corrupt: start collapsed
-  }
-  return new Set();
+  const ids = parseIdList(raw);
+  return new Set(ARTICLE_TEMPLATE_KEYS.filter((k) => ids.has(k)));
 }
 
-function saveOpenFolders(open: Set<ArticleTemplateKey>) {
-  try {
-    window.localStorage.setItem(OPEN_FOLDERS_KEY, JSON.stringify([...open]));
-  } catch {
-    // storage unavailable: the choice just isn't remembered
-  }
-}
+const saveOpenFolders = (open: Set<ArticleTemplateKey>) => writeStored(OPEN_FOLDERS_KEY, JSON.stringify([...open]));
+const readStoredOpenFolders = () => readStored(OPEN_FOLDERS_KEY);
+const readStoredTab = () => readStored(SIDEBAR_TAB_KEY);
+const readStoredUserFolders = () => readStored(OPEN_USER_FOLDERS_KEY);
 
 const EMPTY_LISTS: ArticleLists = { territories: [], people: [], organizations: [], articles: [] };
 
@@ -139,12 +125,25 @@ export default function ArticlesManager() {
   const [seasonProfiles, setSeasonProfiles] = useState<{ id: string; name: string; detail: string }[]>([]);
   const [relationData, setRelationData] = useState<{ relations: Relation[]; derived: ServerDerived[] }>({ relations: [], derived: [] });
   const [query, setQuery] = useState("");
+  // The scrolling main pane, for the floating "back to top" button.
+  const [mainEl, setMainEl] = useState<HTMLDivElement | null>(null);
   const storedOpenFolders = useSyncExternalStore(subscribeToStorage, readStoredOpenFolders, () => null);
   // Null until the user (or a deep link) changes which folders are open.
   const [changedOpenFolders, setOpenFolders] = useState<Set<ArticleTemplateKey> | null>(null);
   const openFolders = useMemo(() => changedOpenFolders ?? parseOpenFolders(storedOpenFolders), [changedOpenFolders, storedOpenFolders]);
   const [territoryExpanded, setTerritoryExpanded] = useState<Set<string>>(new Set());
-  const [creating, setCreating] = useState<{ template: ArticleTemplateKey | null } | null>(null);
+  /** The create chooser; `folderId`: the new article is also filed in that folder. */
+  const [creating, setCreating] = useState<{ template: ArticleTemplateKey | null; folderId?: string } | null>(null);
+  const folderStore = useArticleFolderStore();
+  const storedTab = useSyncExternalStore(subscribeToStorage, readStoredTab, () => null);
+  const [changedTab, setChangedTab] = useState<SidebarTab | null>(null);
+  const sidebarTab: SidebarTab = changedTab ?? (storedTab === "folders" ? "folders" : "type");
+  const storedUserFolders = useSyncExternalStore(subscribeToStorage, readStoredUserFolders, () => null);
+  const [changedUserFolders, setChangedUserFolders] = useState<Set<string> | null>(null);
+  const openUserFolders = useMemo(() => changedUserFolders ?? parseIdList(storedUserFolders), [changedUserFolders, storedUserFolders]);
+  /** "New folder" / "New subfolder": the parent (null: top level). */
+  const [namingFolder, setNamingFolder] = useState<{ parentId: string | null } | null>(null);
+  const [folderError, setFolderError] = useState<string | null>(null);
   // Characters and player characters share one table: an older link (or one saved before a
   // character became a player character) opens under the template its record has now.
   const view = useMemo<View>(() => {
@@ -177,10 +176,12 @@ export default function ArticlesManager() {
       .then((d) => setProfiles(d.profiles));
   }, []);
 
+  const refreshFolders = folderStore.refresh;
   useEffect(() => {
     void refreshLists();
+    void refreshFolders();
     refreshProfiles();
-  }, [refreshLists, refreshProfiles]);
+  }, [refreshLists, refreshFolders, refreshProfiles]);
 
   function go(next: View) {
     setView(next);
@@ -236,6 +237,12 @@ export default function ArticlesManager() {
     setTerritoryExpanded((prev) => toggleInSet(prev, id));
   }
 
+  /** A new article made from a folder's "Create article here" is filed in it too. */
+  async function fileInCreatingFolder(id: string) {
+    const folderId = creating?.folderId;
+    if (folderId) setFolderError(await folderStore.addArticles(folderId, [id]));
+  }
+
   async function createGeneric(template: GenericTemplateKey, title: string): Promise<string | null> {
     const res = await fetch("/api/articles", {
       method: "POST",
@@ -244,6 +251,7 @@ export default function ArticlesManager() {
     });
     const data = await res.json();
     if (!res.ok) return data.error ?? "Could not create the article.";
+    await fileInCreatingFolder(data.article.id);
     await refreshLists();
     setCreating(null);
     openArticle(template, data.article.id);
@@ -253,7 +261,63 @@ export default function ArticlesManager() {
   /** An article was just saved from its create form (in the create modal). */
   function recordCreated(template: ArticleTemplateKey, id: string) {
     setCreating(null);
-    void refreshLists().then(() => openArticle(template, id));
+    void fileInCreatingFolder(id)
+      .then(refreshLists)
+      .then(() => openArticle(template, id));
+  }
+
+  // ---- The Folders tab ----
+
+  const folderCatalog = useMemo(() => articleCatalog(lists), [lists]);
+  const fullFolderTree = useMemo(() => buildArticleFolderTree(folderStore.folders, folderStore.items, folderCatalog), [folderStore.folders, folderStore.items, folderCatalog]);
+  const needle = query.trim().toLowerCase();
+  const shownFolderTree = useMemo(
+    () => (needle ? buildArticleFolderTree(folderStore.folders, folderStore.items, folderCatalog, needle) : fullFolderTree),
+    [needle, folderStore.folders, folderStore.items, folderCatalog, fullFolderTree],
+  );
+
+  function changeTab(tab: SidebarTab) {
+    setChangedTab(tab);
+    writeStored(SIDEBAR_TAB_KEY, tab);
+  }
+
+  function saveUserFolders(next: Set<string>) {
+    setChangedUserFolders(next);
+    writeStored(OPEN_USER_FOLDERS_KEY, JSON.stringify([...next]));
+  }
+
+  function setUserFolderOpen(id: string, open: boolean) {
+    if (openUserFolders.has(id) === open) return;
+    const next = new Set(openUserFolders);
+    if (open) next.add(id);
+    else next.delete(id);
+    saveUserFolders(next);
+  }
+
+  /** Shows a folder's page, with the folder (and its parents) open in the tree. */
+  function openUserFolder(id: string) {
+    saveUserFolders(new Set([...openUserFolders, ...folderPath(folderStore.folders, id).map((f) => f.id), id]));
+    go({ kind: "folder", id });
+  }
+
+  async function createUserFolder(name: string, parentId: string | null): Promise<string | null> {
+    const { error, folder } = await folderStore.createFolder(name, parentId);
+    if (error || !folder) return error ?? "Could not create the folder.";
+    setNamingFolder(null);
+    changeTab("folders");
+    if (parentId) setUserFolderOpen(parentId, true);
+    go({ kind: "folder", id: folder.id });
+    return null;
+  }
+
+  async function dropArticle(articleId: string, from: string | null, to: string, copy: boolean) {
+    const problem = from && !copy ? await folderStore.moveArticle(articleId, from, to) : await folderStore.addArticles(to, [articleId]);
+    setFolderError(problem);
+    if (!problem) setUserFolderOpen(to, true);
+  }
+
+  async function moveUserFolder(id: string, parentId: string | null) {
+    setFolderError(await folderStore.patchFolder(id, { parentId }));
   }
 
   // What a character's link info fields can point at.
@@ -372,6 +436,26 @@ export default function ArticlesManager() {
     if (view.kind === "relationships") return <RelationsPage focusId={view.focus} onFocus={(focus) => go({ kind: "relationships", focus })} />;
     if (view.kind === "family") return <FamilyTreePage personId={view.id} bloodline={view.bloodline} onChange={(id, bloodline) => go({ kind: "family", id, bloodline })} />;
     if (view.kind === "boards") return <BoardsPage boardId={view.id} onOpenBoard={(id) => go({ kind: "boards", id })} />;
+    if (view.kind === "folder") {
+      const node = findNode(fullFolderTree, view.id);
+      if (!node) return loaded ? <p className="field-label">This folder doesn&rsquo;t exist anymore.</p> : <ArticleSkeleton />;
+      const path = folderPath(folderStore.folders, view.id);
+      return (
+        <ArticleFolderView
+          key={view.id}
+          node={node}
+          path={path}
+          folders={folderStore.folders}
+          catalog={folderCatalog}
+          store={folderStore}
+          onOpenFolder={openUserFolder}
+          onOpenArticle={openArticle}
+          onCreateArticle={() => setCreating({ template: null, folderId: view.id })}
+          onNewSubfolder={() => setNamingFolder({ parentId: view.id })}
+          onDeleted={() => (path.length > 0 ? openUserFolder(path[path.length - 1].id) : go({ kind: "template", template: "generic" }))}
+        />
+      );
+    }
     if (view.kind === "article") {
       const content = renderArticle(view.template, view.id);
       if (content) return content;
@@ -392,8 +476,35 @@ export default function ArticlesManager() {
     );
   }
 
+  const userFolders = (
+    <>
+      <ArticleFoldersTree
+        tree={shownFolderTree}
+        searching={needle.length > 0}
+        query={query}
+        openFolders={openUserFolders}
+        selectedArticleId={view.kind === "article" ? view.id : null}
+        selectedFolderId={view.kind === "folder" ? view.id : null}
+        actions={{
+          onToggleFolder: (id) => setUserFolderOpen(id, !openUserFolders.has(id)),
+          onOpenFolder: openUserFolder,
+          onOpenArticle: openArticle,
+          onNewFolder: () => setNamingFolder({ parentId: null }),
+          onMoveFolder: (id, parentId) => void moveUserFolder(id, parentId),
+          onDropArticle: (articleId, from, to, copy) => void dropArticle(articleId, from, to, copy),
+        }}
+      />
+      {folderError && (
+        <p className="form-error" role="alert">
+          {folderError}
+        </p>
+      )}
+    </>
+  );
+
   return (
     <RelationsContext.Provider value={relationsState}>
+    <ArticleFoldersContext.Provider value={folderStore}>
     <div className="articles-page">
       <ArticlesSidebar
         lists={lists}
@@ -409,10 +520,14 @@ export default function ArticlesManager() {
         territoryExpanded={territoryExpanded}
         onToggleTerritory={toggleTerritory}
         loading={!loaded}
+        tab={sidebarTab}
+        onTabChange={changeTab}
+        userFolders={userFolders}
       />
-      <div className={view.kind === "relationships" || view.kind === "family" || view.kind === "boards" ? "articles-main articles-main-tool" : "articles-main"}>
+      <div ref={setMainEl} className={view.kind === "relationships" || view.kind === "family" || view.kind === "boards" ? "articles-main articles-main-tool" : "articles-main articles-main-centered"}>
         <CreateArticleContext.Provider value={openCreate}>{renderMiddle()}</CreateArticleContext.Provider>
       </div>
+      <ScrollToTopButton container={mainEl} />
       {creating && (
         <CreateArticleModal
           initialTemplate={creating.template}
@@ -421,7 +536,18 @@ export default function ArticlesManager() {
           renderForm={renderCreateForm}
         />
       )}
+      {namingFolder && (
+        <NameDialog
+          title={namingFolder.parentId ? "New subfolder" : "New folder"}
+          label="Folder name"
+          saveLabel="Create folder"
+          maxLength={MAX_FOLDER_NAME_LENGTH}
+          onSave={(name) => createUserFolder(name, namingFolder.parentId)}
+          onCancel={() => setNamingFolder(null)}
+        />
+      )}
     </div>
+    </ArticleFoldersContext.Provider>
     </RelationsContext.Provider>
   );
 }

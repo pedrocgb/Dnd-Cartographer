@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDecimal } from "@/server/settings/number-format";
 import { useEffect, useState } from "react";
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Crosshair, ImageOff, ImageUp, LoaderCircle, Minus, Plus, RotateCcw } from "lucide-react";
 import ConfirmDialog from "./ConfirmDialog";
@@ -79,7 +80,7 @@ function parseNumber(text: string): number | null {
  */
 function NumberField({ value, decimals, step, label, onCommit }: { value: number; decimals: number; step: number; label: string; onCommit: (value: number) => void }) {
   const [draft, setDraft] = useState<string | null>(null);
-  const shown = value.toLocaleString(undefined, { maximumFractionDigits: decimals, useGrouping: false });
+  const shown = formatDecimal(value, { maximumFractionDigits: decimals, grouping: false });
   return (
     <input
       type="text"

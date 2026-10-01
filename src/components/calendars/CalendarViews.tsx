@@ -43,6 +43,8 @@ function DayCell({ cell, props, dense }: { cell: MonthCell; props: ViewProps; de
   const daySessions = dense ? [] : (props.sessionsOn?.(cell.worldDay) ?? []);
   const dayQuests = dense ? [] : (props.questsOn?.(cell.worldDay) ?? []);
   // Deadlines of open quests get a chip; every quest date is in the day panel.
+  // The year overview marks a day with something on it by a dot instead of chips.
+  const marked = dense && (items.length > 0 || (props.sessionsOn?.(cell.worldDay).length ?? 0) > 0);
   const deadlines = dayQuests.filter((q) => q.kind === "deadline" && !isClosed(q.quest.status));
   // Sessions come first, then deadlines; they share the chip budget with entries.
   const questChips = Math.max(0, MAX_CHIPS - daySessions.length);
@@ -59,7 +61,7 @@ function DayCell({ cell, props, dense }: { cell: MonthCell; props: ViewProps; de
   ]
     .filter(Boolean)
     .join(", ");
-  const className = ["cal-day", current && "current", selected && "selected", dense && "dense"].filter(Boolean).join(" ");
+  const className = ["cal-day", current && "current", selected && "selected", dense && "dense", marked && "marked"].filter(Boolean).join(" ");
   return (
     <button type="button" className={className} aria-label={label} aria-pressed={selected} onClick={() => props.onSelect(cell.worldDay)}>
       {seasons.length > 0 && (
@@ -71,7 +73,6 @@ function DayCell({ cell, props, dense }: { cell: MonthCell; props: ViewProps; de
       )}
       <span className="cal-day-head">
         <span className="cal-day-number">{cell.day}</span>
-        {current && !dense && <span className="cal-day-today">Today</span>}
         {!dense && (
           <span className="cal-day-moons" aria-hidden>
             {states.slice(0, MAX_MOONS).map(({ object, state }) => (
@@ -107,13 +108,13 @@ function DayCell({ cell, props, dense }: { cell: MonthCell; props: ViewProps; de
   );
 }
 
-function Weekheads({ def }: { def: CalendarDefinition }) {
+function Weekheads({ def, dense, column }: { def: CalendarDefinition; dense: boolean; column: string }) {
   if (!def.weekdays.length) return null;
   return (
-    <div className="cal-weekheads" aria-hidden>
+    <div className="cal-weekheads" style={{ gridTemplateColumns: `repeat(${def.weekdays.length}, ${column})` }} aria-hidden>
       {def.weekdays.map((w) => (
         <span key={w.id} data-tooltip={w.name}>
-          {w.short || w.name}
+          {dense ? (w.short || w.name).slice(0, 2) : w.short || w.name}
         </span>
       ))}
     </div>
@@ -124,16 +125,17 @@ function Grid({ def, periodId, props, dense }: { def: CalendarDefinition; period
   const block = monthBlock(def, props.year, periodId);
   if (!block) return <p className="cal-help">This month doesn&apos;t occur in year {props.year}.</p>;
   const cols = def.weekdays.length || 10;
+  const column = dense ? "minmax(0, 1fr)" : "minmax(96px, 1fr)";
   return (
     <div className="cal-grid-wrap">
-      {!dense && <Weekheads def={def} />}
-      <div className="cal-grid" style={{ gridTemplateColumns: `repeat(${cols}, minmax(${dense ? 22 : 64}px, 1fr))` }}>
+      <Weekheads def={def} dense={dense} column={column} />
+      <div className="cal-grid" style={{ gridTemplateColumns: `repeat(${cols}, ${column})` }}>
         {block.rows.flatMap((row, r) => row.map((cell, c) => (cell ? <DayCell key={cell.worldDay} cell={cell} props={props} dense={dense} /> : <span key={`pad-${r}-${c}`} className="cal-day-pad" />)))}
       </div>
       {block.outOfWeek.length > 0 && (
         <div className="cal-outside-week">
-          {!dense && <span className="field-label">Outside the week</span>}
-          <div className="cal-grid" style={{ gridTemplateColumns: `repeat(${Math.min(block.outOfWeek.length, cols)}, minmax(${dense ? 22 : 64}px, 1fr))` }}>
+          <span className="field-label">Outside the week</span>
+          <div className="cal-grid" style={{ gridTemplateColumns: `repeat(${dense ? cols : Math.min(block.outOfWeek.length, cols)}, ${column})` }}>
             {block.outOfWeek.map((cell) => (
               <DayCell key={cell.worldDay} cell={cell} props={props} dense={dense} />
             ))}
@@ -157,7 +159,7 @@ export function YearView({ onOpenMonth, ...props }: ViewProps & { onOpenMonth: (
         <section key={p.period.id} className={p.period.kind === "special" ? "cal-year-month special" : "cal-year-month"}>
           <button type="button" className="cal-year-title" onClick={() => onOpenMonth(p.period.id)}>
             {p.period.name}
-            <span className="cal-help">{p.days}d</span>
+            <span className="cal-year-days">{p.days} days</span>
           </button>
           <Grid def={props.def} periodId={p.period.id} props={props} dense />
         </section>

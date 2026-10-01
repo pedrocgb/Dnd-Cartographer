@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { api } from "./api";
+import { formatRealDate } from "@/server/settings/date-format";
+import { activeSettings } from "@/server/settings/active";
 
 interface Revision {
   id: string;
@@ -38,7 +40,7 @@ export default function RevisionsList({ subjectType, subjectId, version, onResto
         {revisions?.map((r) => (
           <li key={r.id}>
             <span>
-              Version {r.version} · {r.reason} · {new Date(r.createdAt).toLocaleString()}
+              Version {r.version} · {r.reason} · {formatRealDate(r.createdAt, activeSettings().realDateFormat, { withTime: true })}
             </span>
             <button type="button" className="btn btn-sm" disabled={busy} onClick={() => restore(r.id)}>
               Restore

@@ -51,6 +51,7 @@ async function main() {
   const orphans = await cleanupOrphans();
   if (orphans.removed > 0) console.log(`Removed ${orphans.removed} orphaned asset director(ies).`);
   if (orphans.relations > 0) console.log(`Removed ${orphans.relations} orphaned relation(s).`);
+  if (orphans.portraits > 0) console.log(`Removed ${orphans.portraits} orphaned portrait file(s).`);
 
   if (mode === "start") {
     await run("npm", ["run", "build"]);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { SkeletonList } from "../Skeleton";
 import { Search, X } from "lucide-react";
 import Modal from "@/components/Modal";
 import { loadCandidates, type Candidate } from "@/components/articles/candidates";
@@ -204,7 +205,7 @@ export default function ArticleLinkModal({
         )}
 
         {failed && <p className="form-error">Couldn&rsquo;t load the articles.</p>}
-        {!failed && !candidates && <p className="field-label">Loading articles…</p>}
+        {!failed && !candidates && <SkeletonList rows={5} avatar label="Loading articles…" />}
         {candidates && results.length === 0 && <p className="field-label">No articles match{query ? ` "${query}"` : ""}.</p>}
         {results.length > 0 && (
           <ul className="article-link-results" id="article-link-results" role="listbox" aria-label="Articles" ref={listRef}>

@@ -34,6 +34,8 @@ import { formatNumber, unitSuffix, type ScaleConfig } from "@/server/scale/scale
 import { DEFAULT_ROUTE_STYLE, ROUTE_STYLES, ROUTE_WIDTH, type MapRouteData, type RouteStyle, type RouteStyleKind } from "@/server/travel/route-config";
 import { DEFAULT_TRAVEL, formatDuration, milesToUnit, modeOf, PACES, TRAVEL_MODES, type Pace, type TravelGroup, type TravelPlan, type TravelSettings } from "@/server/travel/travel";
 import type { RouteControls, RoutePatch } from "./use-map-routes";
+import { useSettings } from "@/components/settings/SettingsProvider";
+import { distanceUnit, fromFeet, fromKg, fromLitres, fromMiles, roundForInput, shortLengthUnit, speedUnit, toFeet, toMiles, volumeUnit, weightUnit } from "@/server/settings/units";
 
 const PACE_LABELS: Record<Pace, string> = { slow: "Slow", normal: "Normal", fast: "Fast" };
 const STYLE_LABELS: Record<RouteStyleKind, string> = { solid: "Solid", dashed: "Dashed", dotted: "Dotted" };
@@ -115,6 +117,10 @@ function TravelSettingsFields({ settings, config, idPrefix, onChange }: { settin
   const mode = modeOf(settings.mode);
   const paced = mode.fixedMph === null && mode.key !== "custom";
   const canUseCreatureSpeed = paced && mode.key !== "flying-mount" && mode.speedFt !== null && mode.key !== "foot";
+  const length = useSettings().settings.lengthSystem;
+  const speed = (mph: number) => `${formatNumber(fromMiles(mph, length))} ${speedUnit(length)}`;
+  /** Inputs show the user's units; settings keep mph, feet and miles. */
+  const milesInput = (mph: number) => roundForInput(fromMiles(mph, length));
   return (
     <>
       <ToolSection id="travel-by" title="Travelling by">
@@ -124,7 +130,7 @@ function TravelSettingsFields({ settings, config, idPrefix, onChange }: { settin
               {TRAVEL_MODES.filter((m) => m.group === group).map((m) => (
                 <option key={m.key} value={m.key}>
                   {m.label}
-                  {m.fixedMph !== null ? ` (${m.fixedMph} mph)` : ""}
+                  {m.fixedMph !== null ? ` (${speed(m.fixedMph)})` : ""}
                 </option>
               ))}
             </optgroup>
@@ -138,18 +144,48 @@ function TravelSettingsFields({ settings, config, idPrefix, onChange }: { settin
         )}
         {canUseCreatureSpeed && (
           <>
-            <Toggle checked={settings.useCreatureSpeed} onChange={(useCreatureSpeed) => onChange({ useCreatureSpeed })} label={`Faster with its own speed (${mode.speedFt} ft.)`} />
+            <Toggle checked={settings.useCreatureSpeed} onChange={(useCreatureSpeed) => onChange({ useCreatureSpeed })} label={`Faster with its own speed (${formatNumber(fromFeet(mode.speedFt ?? 0, length))} ${shortLengthUnit(length)})`} />
             <p className="field-label">Off: animals and wagons keep the walkers&rsquo; pace. On: speed ÷ 10 = mph at a normal pace.</p>
           </>
         )}
-        {mode.key === "flying-mount" && <NumberField id={`${idPrefix}-fly`} label="Fly speed" value={settings.speedFt} min={5} max={300} suffix="ft." onChange={(speedFt) => onChange({ speedFt })} />}
-        {mode.key === "custom" && <NumberField id={`${idPrefix}-mph`} label="Speed" value={settings.customMph} min={0.1} max={500} suffix="mph" onChange={(customMph) => onChange({ customMph })} />}
-        {mode.group === "Water" && <NumberField id={`${idPrefix}-current`} label="Current or wind (+ with, − against)" value={settings.currentMph} min={-20} max={20} suffix="mph" onChange={(currentMph) => onChange({ currentMph })} />}
+        {mode.key === "flying-mount" && (
+          <NumberField
+            id={`${idPrefix}-fly`}
+            label="Fly speed"
+            value={roundForInput(fromFeet(settings.speedFt, length))}
+            min={roundForInput(fromFeet(5, length))}
+            max={roundForInput(fromFeet(300, length))}
+            suffix={shortLengthUnit(length)}
+            onChange={(v) => onChange({ speedFt: toFeet(v, length) })}
+          />
+        )}
+        {mode.key === "custom" && (
+          <NumberField
+            id={`${idPrefix}-mph`}
+            label="Speed"
+            value={milesInput(settings.customMph)}
+            min={milesInput(0.1)}
+            max={milesInput(500)}
+            suffix={speedUnit(length)}
+            onChange={(v) => onChange({ customMph: toMiles(v, length) })}
+          />
+        )}
+        {mode.group === "Water" && (
+          <NumberField
+            id={`${idPrefix}-current`}
+            label="Current or wind (+ with, − against)"
+            value={milesInput(settings.currentMph)}
+            min={milesInput(-20)}
+            max={milesInput(20)}
+            suffix={speedUnit(length)}
+            onChange={(v) => onChange({ currentMph: toMiles(v, length) })}
+          />
+        )}
       </ToolSection>
       <ToolSection id="travel-day" title="Each day">
         <SliderField label="Hours of travel" value={settings.hoursPerDay} min={1} max={24} suffix="h" defaultValue={mode.defaultHours} onChange={(hoursPerDay) => onChange({ hoursPerDay })} />
         {mode.mount && mode.group !== "Air" && !settings.useCreatureSpeed && (
-          <Toggle checked={settings.gallop} onChange={(gallop) => onChange({ gallop })} label="Gallop for an hour a day (8 mph)" />
+          <Toggle checked={settings.gallop} onChange={(gallop) => onChange({ gallop })} label={`Gallop for an hour a day (${speed(8)})`} />
         )}
         {!mode.ignoresTerrain && (
           <>
@@ -162,7 +198,15 @@ function TravelSettingsFields({ settings, config, idPrefix, onChange }: { settin
         <NumberField id={`${idPrefix}-party`} label="Travellers" value={settings.partySize} min={0} max={1000} onChange={(partySize) => onChange({ partySize: Math.round(partySize) })} />
         <Toggle checked={settings.hotWeather} onChange={(hotWeather) => onChange({ hotWeather })} label="Hot weather (double water)" />
         {config.unit === "custom" && (
-          <NumberField id={`${idPrefix}-unit`} label={`1 ${unitSuffix(config)} is`} value={settings.customUnitMiles} min={0.0001} max={100000} suffix="mi" onChange={(customUnitMiles) => onChange({ customUnitMiles })} />
+          <NumberField
+            id={`${idPrefix}-unit`}
+            label={`1 ${unitSuffix(config)} is`}
+            value={roundForInput(fromMiles(settings.customUnitMiles, length))}
+            min={0.01}
+            max={roundForInput(fromMiles(100000, length))}
+            suffix={distanceUnit(length)}
+            onChange={(v) => onChange({ customUnitMiles: toMiles(v, length) })}
+          />
         )}
       </ToolSection>
     </>
@@ -210,8 +254,11 @@ function RouteStyleFields({ v, mixed = NO_MIXED, onChange }: { v: RouteStyle; mi
 
 /** The trip: time, speed, distance per day and supplies. */
 export function Journey({ plan, settings, config }: { plan: TravelPlan | null; settings: TravelSettings; config: ScaleConfig }) {
+  const { lengthSystem: length, weightSystem: weight } = useSettings().settings;
   const unit = unitSuffix(config);
-  const inUnit = (miles: number) => (config.unit === "mi" ? `${formatNumber(miles)} mi` : `${formatNumber(milesToUnit(miles, config, settings))} ${unit} (${formatNumber(miles)} mi)`);
+  const distance = (miles: number) => `${formatNumber(fromMiles(miles, length))} ${distanceUnit(length)}`;
+  // The map's own unit first, then the user's units when they differ.
+  const inUnit = (miles: number) => (config.unit === distanceUnit(length) ? distance(miles) : `${formatNumber(milesToUnit(miles, config, settings))} ${unit} (${distance(miles)})`);
   if (!plan) return <p className="field-label">This way of travel doesn&rsquo;t move (check its speed).</p>;
   return (
     <div className="travel-journey">
@@ -219,7 +266,7 @@ export function Journey({ plan, settings, config }: { plan: TravelPlan | null; s
         <span className="field-label">Travel time</span>
         <strong>{formatDuration(plan.fullDays, plan.extraHours)}</strong>
         <span className="field-label">
-          {modeOf(settings.mode).label} · {formatNumber(plan.mph)} mph · {settings.hoursPerDay} h a day
+          {modeOf(settings.mode).label} · {formatNumber(fromMiles(plan.mph, length))} {speedUnit(length)} · {settings.hoursPerDay} h a day
         </span>
       </div>
       <div className="travel-stats">
@@ -228,11 +275,11 @@ export function Journey({ plan, settings, config }: { plan: TravelPlan | null; s
         <Stat label="Days on the road" value={String(plan.daysOnRoad)} />
         <Stat label="Hours travelling" value={formatNumber(plan.totalHours)} />
       </div>
-      {plan.gallopMiles > 0 && <p className="travel-note">Includes a one-hour gallop each day ({formatNumber(plan.gallopMiles)} mi).</p>}
+      {plan.gallopMiles > 0 && <p className="travel-note">Includes a one-hour gallop each day ({distance(plan.gallopMiles)}).</p>}
       {settings.partySize > 0 && (
         <div className="travel-stats">
-          <Stat label="Food" value={`${formatNumber(plan.foodKg)} kg`} />
-          <Stat label={settings.hotWeather ? "Water (hot)" : "Water"} value={`${formatNumber(plan.waterL)} L`} />
+          <Stat label="Food" value={`${formatNumber(fromKg(plan.foodKg, weight))} ${weightUnit(weight)}`} />
+          <Stat label={settings.hotWeather ? "Water (hot)" : "Water"} value={`${formatNumber(fromLitres(plan.waterL, weight))} ${volumeUnit(weight)}`} />
         </div>
       )}
     </div>

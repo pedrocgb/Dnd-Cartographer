@@ -1,0 +1,1 @@
+ALTER TABLE `calendars` DROP COLUMN `archived_at`;

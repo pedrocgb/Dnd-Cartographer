@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Archive, CalendarDays, CalendarPlus, ChevronDown, ChevronRight, Copy, Eye, EyeOff, Leaf, Moon, Pencil, Plus, Search, Star } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { CalendarDays, ChevronDown, ChevronRight, Copy, Ellipsis, Eye, EyeOff, Leaf, Pencil, Plus, Search, Star, Trash2 } from "lucide-react";
 import type { CalendarDefinition } from "@/server/calendars/engine";
 import { api } from "./api";
 import { dayLabel, inCalendar } from "./evaluate";
@@ -15,22 +15,108 @@ export interface Filters {
 
 const KIND_LABELS: Record<EntryKind, string> = { note: "Notes", event: "Events", link: "Article links" };
 
+/** A sidebar section's title, with an optional icon action at its right. */
+function SideHead({ title, action }: { title: string; action?: { label: string; Icon: typeof Plus; onClick: () => void } }) {
+  return (
+    <div className="cal-side-head">
+      <h2 className="field-label">{title}</h2>
+      {action && (
+        <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={action.label} data-tooltip={action.label} onClick={action.onClick}>
+          <action.Icon size={15} />
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** A calendar's actions behind one "…" button; a pick, Esc or a click elsewhere closes it. */
+function CalendarMenu({
+  calendar,
+  isDefault,
+  onEdit,
+  onDuplicate,
+  onMakeDefault,
+  onDelete,
+}: {
+  calendar: ClientCalendar;
+  isDefault: boolean;
+  onEdit: () => void;
+  onDuplicate: () => void;
+  onMakeDefault: () => void;
+  onDelete: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: PointerEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const esc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", away);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("pointerdown", away);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [open]);
+  const pick = (fn: () => void) => () => {
+    setOpen(false);
+    fn();
+  };
+  return (
+    <div ref={ref} className={open ? "cal-row-menu open" : "cal-row-menu"}>
+      <button
+        type="button"
+        className="btn btn-ghost btn-icon btn-sm"
+        aria-label={`${calendar.name} actions`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        data-tooltip={open ? undefined : "Actions"}
+        onClick={() => setOpen(!open)}
+      >
+        <Ellipsis size={15} />
+      </button>
+      {open && (
+        <div className="cal-row-menu-pop" role="menu">
+          <button type="button" role="menuitem" onClick={pick(onEdit)}>
+            <Pencil size={14} /> Edit
+          </button>
+          <button type="button" role="menuitem" onClick={pick(onDuplicate)}>
+            <Copy size={14} /> Duplicate
+          </button>
+          {!isDefault && (
+            <>
+              <button type="button" role="menuitem" onClick={pick(onMakeDefault)}>
+                <Star size={14} /> Make default
+              </button>
+              <button type="button" role="menuitem" className="danger" onClick={pick(onDelete)}>
+                <Trash2 size={14} /> Delete
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CalendarsSidebar({
   world,
   activeId,
   def,
-  showArchived,
   hiddenObjects,
   filters,
   categories,
   previewProfile,
-  onShowArchived,
   onSelectCalendar,
   onNewCalendar,
   onEditCalendar,
   onDuplicate,
   onMakeDefault,
-  onArchive,
+  onDelete,
   onToggleObject,
   onEditObject,
   onNewObject,
@@ -42,18 +128,16 @@ export default function CalendarsSidebar({
   world: WorldCalendars;
   activeId: string | null;
   def: CalendarDefinition | null;
-  showArchived: boolean;
   hiddenObjects: Set<string>;
   filters: Filters;
   categories: string[];
   previewProfile: ClientProfile | null;
-  onShowArchived: (v: boolean) => void;
   onSelectCalendar: (id: string) => void;
   onNewCalendar: () => void;
   onEditCalendar: (c: ClientCalendar) => void;
   onDuplicate: (c: ClientCalendar) => void;
   onMakeDefault: (c: ClientCalendar) => void;
-  onArchive: (c: ClientCalendar) => void;
+  onDelete: (c: ClientCalendar) => void;
   onToggleObject: (id: string) => void;
   onEditObject: (o: ClientCelestial) => void;
   onNewObject: () => void;
@@ -74,8 +158,8 @@ export default function CalendarsSidebar({
       else next.add(type);
       return next;
     });
-  const calendars = world.calendars.filter((c) => showArchived || !c.archived);
-  const archivedCount = world.calendars.filter((c) => c.archived).length;
+  const calendars = world.calendars.filter((c) => !c.trashed);
+  const skyHere = world.celestial.filter((o) => !o.archived && activeId !== null && inCalendar(o, activeId));
 
   async function search(q: string) {
     setQuery(q);
@@ -93,83 +177,33 @@ export default function CalendarsSidebar({
   return (
     <aside className="articles-sidebar cal-sidebar" aria-label="Calendars">
       <section className="cal-side-section">
-        <h2 className="field-label">Calendars</h2>
+        <SideHead title="Calendars" action={{ label: "New calendar", Icon: Plus, onClick: onNewCalendar }} />
         <ul className="cal-side-list">
-          {calendars.map((c) => (
-            <li key={c.id} className="cal-side-item">
-              <button type="button" className={c.id === activeId ? "articles-folder active" : "articles-folder"} aria-current={c.id === activeId} onClick={() => onSelectCalendar(c.id)}>
-                <CalendarDays size={16} />
-                <span className="articles-folder-name">{c.name}</span>
-                {world.chronology.defaultCalendarId === c.id && (
-                  <span className="cal-default-badge" data-tooltip="The world's default calendar">
-                    <Star size={11} aria-hidden /> Default
-                  </span>
-                )}
-                {c.archived && <span className="articles-folder-count">archived</span>}
-              </button>
-              {c.id === activeId && (
-                <div className="cal-side-toolbar" role="group" aria-label={`${c.name} actions`}>
-                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => onEditCalendar(c)}>
-                    <Pencil size={13} /> Edit
-                  </button>
-                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => onDuplicate(c)}>
-                    <Copy size={13} /> Duplicate
-                  </button>
-                  {world.chronology.defaultCalendarId !== c.id && !c.archived && (
-                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => onMakeDefault(c)}>
-                      <Star size={13} /> Make default
-                    </button>
+          {calendars.map((c) => {
+            const isDefault = world.chronology.defaultCalendarId === c.id;
+            return (
+              <li key={c.id} className="cal-side-row cal-calendar-row">
+                <button type="button" className={c.id === activeId ? "articles-folder active" : "articles-folder"} aria-current={c.id === activeId} onClick={() => onSelectCalendar(c.id)}>
+                  <CalendarDays size={16} />
+                  <span className="articles-folder-name">{c.name}</span>
+                  {isDefault && (
+                    <span className="cal-default-star" data-tooltip="The world's default calendar">
+                      <Star size={13} fill="currentColor" aria-label="Default" />
+                    </span>
                   )}
-                  {world.chronology.defaultCalendarId !== c.id && (
-                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => onArchive(c)}>
-                      <Archive size={13} /> {c.archived ? "Unarchive" : "Archive"}
-                    </button>
-                  )}
-                </div>
-              )}
-            </li>
-          ))}
+                </button>
+                <CalendarMenu calendar={c} isDefault={isDefault} onEdit={() => onEditCalendar(c)} onDuplicate={() => onDuplicate(c)} onMakeDefault={() => onMakeDefault(c)} onDelete={() => onDelete(c)} />
+              </li>
+            );
+          })}
         </ul>
-        {archivedCount > 0 && (
-          <label className="cal-check cal-help">
-            <input type="checkbox" checked={showArchived} onChange={(e) => onShowArchived(e.target.checked)} /> Show archived ({archivedCount})
-          </label>
-        )}
-        <button type="button" className="articles-folder articles-create" onClick={onNewCalendar}>
-          <CalendarPlus size={16} />
-          <span className="articles-folder-name">New calendar</span>
-        </button>
+        {calendars.length === 0 && <p className="cal-help">No calendars yet.</p>}
       </section>
 
       {def && (
         <>
           <section className="cal-side-section">
-            <h2 className="field-label">Show</h2>
-            {(Object.keys(KIND_LABELS) as EntryKind[]).map((k) => (
-              <label key={k} className="cal-check">
-                <input
-                  type="checkbox"
-                  checked={filters.kinds.has(k)}
-                  onChange={(e) => {
-                    const kinds = new Set(filters.kinds);
-                    if (e.target.checked) kinds.add(k);
-                    else kinds.delete(k);
-                    onFilters({ ...filters, kinds });
-                  }}
-                />
-                {KIND_LABELS[k]}
-              </label>
-            ))}
-            {categories.length > 0 && (
-              <select aria-label="Category filter" value={filters.category} onChange={(e) => onFilters({ ...filters, category: e.target.value })}>
-                <option value="">All categories</option>
-                {categories.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            )}
+            <SideHead title="Filter" />
             <label className="cal-search">
               <Search size={14} aria-hidden />
               <input type="search" placeholder="Search notes and events" value={query} onChange={(e) => search(e.target.value)} aria-label="Search notes and events" />
@@ -187,10 +221,42 @@ export default function CalendarsSidebar({
                 ))}
               </ul>
             )}
+            <div className="cal-kind-toggles" role="group" aria-label="Show on the calendar">
+              {(Object.keys(KIND_LABELS) as EntryKind[]).map((k) => {
+                const on = filters.kinds.has(k);
+                return (
+                  <button
+                    key={k}
+                    type="button"
+                    className={`cal-kind-toggle ${k}`}
+                    aria-pressed={on}
+                    onClick={() => {
+                      const kinds = new Set(filters.kinds);
+                      if (on) kinds.delete(k);
+                      else kinds.add(k);
+                      onFilters({ ...filters, kinds });
+                    }}
+                  >
+                    <span className="cal-kind-dot" aria-hidden />
+                    {KIND_LABELS[k]}
+                  </button>
+                );
+              })}
+            </div>
+            {categories.length > 0 && (
+              <select aria-label="Category filter" value={filters.category} onChange={(e) => onFilters({ ...filters, category: e.target.value })}>
+                <option value="">All categories</option>
+                {categories.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            )}
           </section>
 
           <section className="cal-side-section">
-            <h2 className="field-label">Seasons preview</h2>
+            <SideHead title="Seasons preview" action={{ label: "Seasons & profiles", Icon: Leaf, onClick: onOpenSeasons }} />
             <select aria-label="Season profile to preview" value={previewProfile?.id ?? ""} onChange={(e) => onPreviewProfile(e.target.value || null)}>
               <option value="">None</option>
               {world.profiles
@@ -201,16 +267,13 @@ export default function CalendarsSidebar({
                   </option>
                 ))}
             </select>
-            <button type="button" className="articles-folder" onClick={onOpenSeasons}>
-              <Leaf size={16} />
-              <span className="articles-folder-name">Seasons &amp; profiles</span>
-            </button>
           </section>
 
           <section className="cal-side-section">
-            <h2 className="field-label">Sky</h2>
+            <SideHead title="Sky" action={{ label: "New celestial object", Icon: Plus, onClick: onNewObject }} />
+            {skyHere.length === 0 && <p className="cal-help">No suns, moons or stars in this calendar yet.</p>}
             {CELESTIAL_TYPES.map((t) => {
-              const objects = world.celestial.filter((o) => !o.archived && o.type === t.type && activeId !== null && inCalendar(o, activeId));
+              const objects = skyHere.filter((o) => o.type === t.type);
               if (objects.length === 0) return null;
               const open = !closedFolders.has(t.type);
               return (
@@ -218,9 +281,8 @@ export default function CalendarsSidebar({
                   <button type="button" className="articles-folder cal-sky-folder-head" aria-expanded={open} onClick={() => toggleFolder(t.type)}>
                     {open ? <ChevronDown size={14} aria-hidden /> : <ChevronRight size={14} aria-hidden />}
                     <t.Icon size={16} aria-hidden />
-                    <span className="articles-folder-name">
-                      {t.plural} ({objects.length})
-                    </span>
+                    <span className="articles-folder-name">{t.plural}</span>
+                    <span className="articles-folder-count">{objects.length}</span>
                   </button>
                   {open && (
                     <ul className="cal-side-list cal-sky-items">
@@ -232,7 +294,13 @@ export default function CalendarsSidebar({
                             </span>
                             <span className="articles-folder-name">{o.name}</span>
                           </button>
-                          <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={hiddenObjects.has(o.id) ? `Show ${o.name} on this calendar` : `Hide ${o.name} on this calendar`} data-tooltip={hiddenObjects.has(o.id) ? "Hidden here" : "Shown here"} onClick={() => onToggleObject(o.id)}>
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-icon btn-sm"
+                            aria-label={hiddenObjects.has(o.id) ? `Show ${o.name} on this calendar` : `Hide ${o.name} on this calendar`}
+                            data-tooltip={hiddenObjects.has(o.id) ? "Hidden here" : "Shown here"}
+                            onClick={() => onToggleObject(o.id)}
+                          >
                             {hiddenObjects.has(o.id) ? <EyeOff size={13} /> : <Eye size={13} />}
                           </button>
                         </li>
@@ -242,10 +310,6 @@ export default function CalendarsSidebar({
                 </div>
               );
             })}
-            <button type="button" className="articles-folder articles-create" onClick={onNewObject}>
-              {world.celestial.length ? <Plus size={16} /> : <Moon size={16} />}
-              <span className="articles-folder-name">New celestial object</span>
-            </button>
           </section>
         </>
       )}

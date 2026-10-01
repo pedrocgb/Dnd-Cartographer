@@ -330,6 +330,34 @@
       "when": 1790796683434,
       "tag": "0046_layer_routes_always_visible",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "6",
+      "when": 1790859745115,
+      "tag": "0047_app_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "6",
+      "when": 1790863374107,
+      "tag": "0048_article_folders",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "6",
+      "when": 1790886940533,
+      "tag": "0049_calendar_trash",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "6",
+      "when": 1790886956666,
+      "tag": "0050_calendar_drop_archived",
+      "breakpoints": true
     }
   ]
 }

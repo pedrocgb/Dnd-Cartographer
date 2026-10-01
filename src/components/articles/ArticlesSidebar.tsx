@@ -5,6 +5,8 @@ import { ARTICLE_TEMPLATE_GROUPS, personTemplate, type ArticleTemplateKey } from
 import { ARTICLE_TEMPLATES, templateOf, type ArticleTemplate } from "./templates";
 import { PickRow, sortByName } from "./shared";
 import { SkeletonList } from "@/components/Skeleton";
+import SegmentedControl from "@/components/marker-panel/SegmentedControl";
+import { isArticleDrag } from "./article-drag";
 import { TerritoryFolder } from "./TerritoryArticle";
 import { CharacterFolder } from "./CharacterArticle";
 import { OrganizationFolder } from "./OrganizationArticle";
@@ -81,10 +83,18 @@ function FolderHeader({ template, count, open, active, onToggle }: { template: A
   );
 }
 
+export type SidebarTab = "type" | "folders";
+
+const TAB_SEGMENTS = [
+  { key: "type", label: "By type" },
+  { key: "folders", label: "Folders" },
+] as const;
+
 /**
- * The Articles left bar: "Create new article", a search box, one folder per
- * template (click to expand/collapse, showing its own grouping), and the
- * tool entries (Relationships, Family trees, Boards, Hierarchy profiles)
+ * The Articles left bar: "Create new article", the By type / Folders tabs,
+ * a search box, then either one folder per template (click to
+ * expand/collapse, showing its own grouping) or the user's own folders, and
+ * the tool entries (Relationships, Family trees, Boards, Hierarchy profiles)
  * pinned at the bottom. While searching, every
  * folder with a match is shown open as a flat list of matches.
  */
@@ -102,7 +112,15 @@ export default function ArticlesSidebar({
   territoryExpanded,
   onToggleTerritory,
   loading = false,
+  tab,
+  onTabChange,
+  userFolders,
 }: {
+  /** Which tab shows: articles by template, or the user's folders. */
+  tab: SidebarTab;
+  onTabChange: (tab: SidebarTab) => void;
+  /** The Folders tab's content (tree and New folder). */
+  userFolders: React.ReactNode;
   /** The lists haven't arrived yet: folders show as skeleton rows. */
   loading?: boolean;
   lists: ArticleLists;
@@ -171,8 +189,21 @@ export default function ArticlesSidebar({
         <CirclePlus size={16} strokeWidth={2.25} aria-hidden />
         <span className="articles-folder-name">Create new article</span>
       </button>
-      <input type="search" placeholder="Search articles…" aria-label="Search articles" value={query} onChange={(e) => onQueryChange(e.target.value)} />
+      {/* Dragging an article over the tabs opens Folders, to drop it on one. */}
+      <div className="articles-tabs" onDragEnter={(e) => tab === "type" && isArticleDrag(e) && onTabChange("folders")}>
+        <SegmentedControl<SidebarTab> ariaLabel="Show articles" value={tab} segments={TAB_SEGMENTS} onChange={onTabChange} />
+      </div>
+      <input
+        type="search"
+        placeholder={tab === "folders" ? "Search folders and articles…" : "Search articles…"}
+        aria-label={tab === "folders" ? "Search folders and articles" : "Search articles"}
+        value={query}
+        onChange={(e) => onQueryChange(e.target.value)}
+      />
 
+      {tab === "folders" ? (
+        <div className="articles-folders">{loading ? <SkeletonList rows={6} label="Loading folders…" /> : userFolders}</div>
+      ) : (
       <nav className="articles-folders">
         {loading && <SkeletonList rows={8} label="Loading articles…" />}
         {!loading && ARTICLE_TEMPLATE_GROUPS.map((group) => {
@@ -190,6 +221,7 @@ export default function ArticlesSidebar({
           <p className="field-label">No articles match &ldquo;{query.trim()}&rdquo;.</p>
         )}
       </nav>
+      )}
 
       <div className="articles-tools">
         {tools.map(({ key, label, Icon, active, onOpen }) => (

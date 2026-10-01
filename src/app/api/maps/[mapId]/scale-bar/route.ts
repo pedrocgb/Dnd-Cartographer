@@ -3,12 +3,20 @@ import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { maps, mapScaleBars } from "@/server/db/schema";
 import { applyScalePatch, parseScaleConfig, type ScaleConfig } from "@/server/scale/scale-config";
+import { ensureDefaultWorld } from "@/server/world/default-world";
+import { getSettings } from "@/server/settings/store";
 
 type ScaleRow = typeof mapScaleBars.$inferSelect;
 
-const toClient = (row: ScaleRow | undefined): { visible: boolean; config: ScaleConfig } => ({
+/** A map without a scale bar yet starts in the user's distance unit (km or mi). */
+async function defaultConfigJson(): Promise<string> {
+  const { lengthSystem } = await getSettings(await ensureDefaultWorld());
+  return JSON.stringify({ unit: lengthSystem === "imperial" ? "mi" : "km" });
+}
+
+const toClient = async (row: ScaleRow | undefined): Promise<{ visible: boolean; config: ScaleConfig }> => ({
   visible: row?.visible ?? false,
-  config: parseScaleConfig(row?.config ?? "{}"),
+  config: parseScaleConfig(row?.config ?? (await defaultConfigJson())),
 });
 
 const findScale = (mapId: string) => db.query.mapScaleBars.findFirst({ where: eq(mapScaleBars.mapId, mapId) });
@@ -16,7 +24,7 @@ const findScale = (mapId: string) => db.query.mapScaleBars.findFirst({ where: eq
 /** The map's scale bar (defaults, hidden and uncalibrated, when it has none yet). */
 export async function GET(_request: Request, { params }: { params: Promise<{ mapId: string }> }) {
   const { mapId } = await params;
-  return NextResponse.json({ scaleBar: toClient(await findScale(mapId)) });
+  return NextResponse.json({ scaleBar: await toClient(await findScale(mapId)) });
 }
 
 /** Body: any of `visible`, `config` (partial, merged and validated). Creates the row on first use. */
@@ -28,7 +36,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ mapI
   if (!body || typeof body !== "object") return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
 
   const existing = await findScale(mapId);
-  const current = toClient(existing);
+  const current = await toClient(existing);
   const visible = typeof body.visible === "boolean" ? body.visible : current.visible;
   const config = JSON.stringify("config" in body ? applyScalePatch(current.config, body.config) : current.config);
   if (existing) {
@@ -36,5 +44,5 @@ export async function PUT(request: Request, { params }: { params: Promise<{ mapI
   } else {
     await db.insert(mapScaleBars).values({ mapId, visible, config }).onConflictDoUpdate({ target: mapScaleBars.mapId, set: { visible, config, updatedAt: new Date() } });
   }
-  return NextResponse.json({ scaleBar: toClient(await findScale(mapId)) });
+  return NextResponse.json({ scaleBar: await toClient(await findScale(mapId)) });
 }

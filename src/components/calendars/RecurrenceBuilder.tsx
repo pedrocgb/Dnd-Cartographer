@@ -41,7 +41,7 @@ function defaultFor(kind: Recurrence["kind"], calendarId: string, def: CalendarD
 const int = (v: string, min = 1) => Math.max(min, Math.floor(Number(v)) || min);
 
 function ConditionRow({ condition, world, onChange, onRemove }: { condition: Condition; world: WorldCalendars; onChange: (c: Condition) => void; onRemove: () => void }) {
-  const calendars = world.calendars.filter((c) => !c.archived);
+  const calendars = world.calendars.filter((c) => !c.trashed);
   const calendarOf = (id: string) => calendars.find((c) => c.id === id)?.definition;
   const firstCal = calendars[0]?.id ?? "";
   const retype = (type: Condition["type"], calendar?: string): Condition => {

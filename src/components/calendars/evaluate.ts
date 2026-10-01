@@ -3,6 +3,7 @@
  * from the shared physical day (worldDay); the displayed calendar only
  * labels it. Pure functions — no fetching.
  */
+import { activeSettings } from "@/server/settings/active";
 import {
   formatDate,
   fromWorldDay,
@@ -45,12 +46,12 @@ export function safe<T>(fn: () => T, fallback: T): T {
   }
 }
 
-/** "W3, 12 Alder 1024 AR" (weekday omitted outside the week). */
+/** "W3, 12 Alder 1024 AR" (weekday omitted outside the week), in the user's world date format. */
 export function dayLabel(def: CalendarDefinition, worldDay: number, { weekday = true, short = false } = {}): string {
   return safe(() => {
     const date = fromWorldDay(def, worldDay);
     const w = weekday ? weekdayIndex(def, date) : null;
-    return `${w === null ? "" : `${def.weekdays[w].name}, `}${formatDate(def, date, { short })}`;
+    return `${w === null ? "" : `${def.weekdays[w].name}, `}${formatDate(def, date, { short, format: activeSettings().worldDateFormat })}`;
   }, "Outside the supported range");
 }
 

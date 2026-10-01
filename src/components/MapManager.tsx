@@ -15,6 +15,7 @@ import DeleteMapDialog from "./maps/DeleteMapDialog";
 import { buildMapTree, countMaps, type TreeEntry } from "./maps/map-tree";
 import type { FolderSummary, MapSummary } from "./maps/types";
 import { SkeletonList } from "@/components/Skeleton";
+import { parseIdList, readStored, subscribeToStorage, writeStored } from "./stored";
 
 type Entry = TreeEntry<MapSummary, FolderSummary>;
 /** Which settings panel is open. */
@@ -24,38 +25,9 @@ type HierarchyChange = { kind: "detach"; map: MapSummary; parentName: string; fo
 
 const OPEN_FOLDERS_KEY = "maps-open-folders";
 
-// Open folders are remembered in localStorage, read through useSyncExternalStore
-// so the server render and hydration see none (see ArticlesManager).
-function subscribeToStorage(onChange: () => void) {
-  window.addEventListener("storage", onChange);
-  return () => window.removeEventListener("storage", onChange);
-}
-
-function readStoredOpenFolders(): string | null {
-  try {
-    return window.localStorage.getItem(OPEN_FOLDERS_KEY);
-  } catch {
-    return null;
-  }
-}
-
-function parseIds(raw: string | null): Set<string> {
-  try {
-    const parsed: unknown = JSON.parse(raw ?? "[]");
-    if (Array.isArray(parsed)) return new Set(parsed.filter((x): x is string => typeof x === "string"));
-  } catch {
-    // corrupt: start collapsed
-  }
-  return new Set();
-}
-
-function saveOpenFolders(open: Set<string>) {
-  try {
-    window.localStorage.setItem(OPEN_FOLDERS_KEY, JSON.stringify([...open]));
-  } catch {
-    // storage unavailable: just not remembered
-  }
-}
+// Open folders are remembered in localStorage (see ./stored).
+const readStoredOpenFolders = () => readStored(OPEN_FOLDERS_KEY);
+const saveOpenFolders = (open: Set<string>) => writeStored(OPEN_FOLDERS_KEY, JSON.stringify([...open]));
 
 async function sendJson(url: string, method: string, body?: unknown): Promise<string | null> {
   const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
@@ -104,7 +76,7 @@ export default function MapManager() {
   const [query, setQuery] = useState("");
   const storedOpenFolders = useSyncExternalStore(subscribeToStorage, readStoredOpenFolders, () => null);
   const [changedOpenFolders, setOpenFolders] = useState<Set<string> | null>(null);
-  const openFolders = useMemo(() => changedOpenFolders ?? parseIds(storedOpenFolders), [changedOpenFolders, storedOpenFolders]);
+  const openFolders = useMemo(() => changedOpenFolders ?? parseIdList(storedOpenFolders), [changedOpenFolders, storedOpenFolders]);
   const [collapsedMaps, setCollapsedMaps] = useState<Set<string>>(new Set());
   // `/maps?new=1` (the old /maps/new page redirects here) opens New Map straight away.
   const [newMap, setNewMap] = useState<{ folderId: string | null } | null>(() => (searchParams.get("new") ? { folderId: null } : null));

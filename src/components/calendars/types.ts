@@ -19,7 +19,8 @@ export interface ClientCalendar {
   definition: CalendarDefinition;
   articleLinks: ArticleRef[];
   version: number;
-  archived: boolean;
+  /** In the Trash: hidden from lists and pickers, still read by what already uses it. */
+  trashed: boolean;
   sortOrder: number;
 }
 

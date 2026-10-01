@@ -1,4 +1,5 @@
 import { sanitizePosition, type HudPosition } from "../legends/legend-config";
+import { formatDecimal } from "../settings/number-format";
 
 /**
  * A map's scale bar, stored as JSON in map_scale_bars.config: the
@@ -117,10 +118,11 @@ export function unitSuffix(config: Pick<ScaleConfig, "unit" | "customLabel">): s
 }
 
 /** A distance with up to 3 significant digits (no trailing zeros). */
+/** About three significant digits (whole numbers kept), in the user's number format. */
 export function formatNumber(value: number): string {
   if (value === 0) return "0";
-  const digits = Math.max(0, 2 - Math.floor(Math.log10(Math.abs(value))));
-  return Number(value.toFixed(Math.min(digits, 6))).toLocaleString("en-US");
+  const digits = Math.min(6, Math.max(0, 2 - Math.floor(Math.log10(Math.abs(value)))));
+  return formatDecimal(Number(value.toFixed(digits)), { maximumFractionDigits: digits });
 }
 
 export function formatDistance(value: number, config: Pick<ScaleConfig, "unit" | "customLabel">): string {

@@ -2,10 +2,12 @@
 
 import { useEditor, EditorContent, type JSONContent } from "@tiptap/react";
 import { useEffect, useRef, useState } from "react";
-import { ImagePlus } from "lucide-react";
+import { ImagePlus, Table } from "lucide-react";
 import { buildExtensions } from "./rich-editor/extensions";
 import { TextBubbleMenu, ImageBubbleMenu } from "./rich-editor/BubbleMenus";
 import MentionMenu from "./rich-editor/MentionMenu";
+import { TableBubbleMenu, TableInsertPicker } from "./rich-editor/TableMenus";
+import CalendarDateModal from "./rich-editor/CalendarDateModal";
 import SlashMenu, { type SlashActions } from "./rich-editor/SlashMenu";
 import ArticleLinkModal, { type ArticleLinkChoice } from "./rich-editor/ArticleLinkModal";
 import { imageFilesOf, insertImageFiles } from "./rich-editor/images";
@@ -100,6 +102,10 @@ export default function RichEditor({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [loaded, setLoaded] = useState(false);
   const [articleLink, setArticleLink] = useState<ArticleLinkTarget | null>(null);
+  // The table size picker, where it opens (screen coordinates); the table goes at the caret.
+  // The calendar date dialog: the range the date replaces.
+  const [dateLink, setDateLink] = useState<{ from: number; to: number } | null>(null);
+  const [tablePicker, setTablePicker] = useState<{ left: number; top: number } | null>(null);
   // Something to show in read mode: the confirmed copy, or the cached one while it loads.
   const [shown, setShown] = useState(false);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -174,8 +180,8 @@ export default function RichEditor({
       },
       handleClick: (view, _pos, event) => {
         const anchor = event.target instanceof Element ? event.target.closest("a[href]") : null;
-        // @mentions are app pages: reading follows them here; editing needs Ctrl/Cmd+click (new tab).
-        if (anchor?.hasAttribute("data-mention")) {
+        // @mentions and calendar dates are app pages: reading follows them here; editing needs Ctrl/Cmd+click (new tab).
+        if (anchor?.hasAttribute("data-mention") || anchor?.hasAttribute("data-calendar-date")) {
           if (view.editable && !(event.ctrlKey || event.metaKey)) return false;
           event.preventDefault();
           if (view.editable) window.open(anchor.getAttribute("href")!, "_blank", "noopener,noreferrer");
@@ -369,16 +375,61 @@ export default function RichEditor({
     setArticleLink(null);
   }
 
+  function openTablePickerAt(pos: number) {
+    if (!editor) return;
+    const coords = editor.view.coordsAtPos(Math.min(pos, editor.state.doc.content.size));
+    setTablePicker({ left: coords.left, top: coords.bottom + 4 });
+  }
+
+  function insertTable(rows: number, cols: number, withHeaderRow: boolean) {
+    setTablePicker(null);
+    editor?.chain().focus().insertTable({ rows, cols, withHeaderRow }).run();
+  }
+
   const slashActions: SlashActions = {
     linkArticle: (at) => setArticleLink({ from: at, to: at, query: "", text: "" }),
     insertImage: () => fileInputRef.current?.click(),
+    insertTable: openTablePickerAt,
+    linkCalendarDate: (at) => setDateLink({ from: at, to: at }),
   };
+
+  function insertCalendarDate(day: number, label: string) {
+    if (!editor || !dateLink) return;
+    const size = editor.state.doc.content.size;
+    editor
+      .chain()
+      .focus()
+      .setTextSelection({ from: Math.min(dateLink.from, size), to: Math.min(dateLink.to, size) })
+      .insertCalendarDate({ day, label })
+      .run();
+    setDateLink(null);
+  }
 
   return (
     <div className="rich-editor">
       <EditorContent editor={editor} className="rich-content" />
-      <TextBubbleMenu editor={editor} onLinkArticle={openArticleLinkForSelection} />
+      <TextBubbleMenu editor={editor} onLinkArticle={openArticleLinkForSelection} onLinkDate={() => setDateLink({ from: editor.state.selection.from, to: editor.state.selection.to })} />
       <ImageBubbleMenu editor={editor} />
+      <TableBubbleMenu editor={editor} />
+      {dateLink && (
+        <CalendarDateModal
+          onPick={insertCalendarDate}
+          onClose={() => {
+            setDateLink(null);
+            editor.commands.focus();
+          }}
+        />
+      )}
+      {tablePicker && (
+        <TableInsertPicker
+          anchor={tablePicker}
+          onInsert={insertTable}
+          onClose={() => {
+            setTablePicker(null);
+            editor.commands.focus();
+          }}
+        />
+      )}
       <MentionMenu editor={editor} campaignId={mentionCampaignId} onLinkArticle={(m) => setArticleLink({ from: m.from, to: m.to, query: m.query, text: "" })} />
       <SlashMenu editor={editor} actions={slashActions} />
       {articleLink && (
@@ -403,6 +454,19 @@ export default function RichEditor({
         >
           <ImagePlus size={14} strokeWidth={2.25} />
           Insert image
+        </button>
+        <button
+          type="button"
+          className="btn btn-sm btn-ghost"
+          data-tooltip="Insert a table at the caret (or type /table)"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={(e) => {
+            const box = e.currentTarget.getBoundingClientRect();
+            setTablePicker({ left: box.left, top: box.bottom + 4 });
+          }}
+        >
+          <Table size={14} strokeWidth={2.25} />
+          Insert table
         </button>
         <input
           ref={fileInputRef}

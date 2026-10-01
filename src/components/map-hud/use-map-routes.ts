@@ -19,6 +19,8 @@ export function useMapRoutes(mapId: string) {
   const [routes, setRoutes] = useState<MapRouteData[]>([]);
   const [groups, setGroups] = useState<MapFolderData[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // The map whose routes have arrived (the Travel panel shows a skeleton until then).
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
   const pending = useRef(new Map<string, { patch: RoutePatch; timer: ReturnType<typeof setTimeout> }>());
   const updateGroup = useFolderSync(setGroups, routeGroupUrl);
 
@@ -31,6 +33,7 @@ export function useMapRoutes(mapId: string) {
       if (cancelled) return;
       if (r.ok) setRoutes(r.data.routes);
       if (g.ok) setGroups(g.data.groups);
+      setLoadedFor(mapId);
     });
     return () => {
       cancelled = true;
@@ -131,7 +134,7 @@ export function useMapRoutes(mapId: string) {
     setRoutes((prev) => (cascade ? prev.filter((r) => r.groupId !== id) : prev.map((r) => (r.groupId === id ? { ...r, groupId: null } : r))));
   }, []);
 
-  return { routes, groups, error, create, update, remove, restore, createGroup, updateGroup, deleteGroup };
+  return { routes, groups, loaded: loadedFor === mapId, error, create, update, remove, restore, createGroup, updateGroup, deleteGroup };
 }
 
 export type MapRoutesApi = ReturnType<typeof useMapRoutes>;
@@ -142,6 +145,8 @@ export type NewRoute = Parameters<MapRoutesApi["create"]>[0];
  * and edits that go through its undo history and multi-selection.
  */
 export interface RouteControls {
+  /** False until this map's routes have arrived. */
+  loaded: boolean;
   /** Routes on the active layer (home or also shown here). */
   routes: MapRouteData[];
   /** Routes drawn on the map (the active layer's plus "always draw" layers'), shown ones only. */

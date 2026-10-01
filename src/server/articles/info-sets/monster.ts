@@ -23,8 +23,8 @@ export const MONSTER_INFO = defineFieldSet(
       hint: "What the party sees first: silhouette, texture, colors, the detail survivors always mention.",
     },
     { key: "size", label: "Size", group: "appearance", kind: "select", options: CREATURE_SIZES, hint: "Its size category. Decides the space it takes and what it can grapple or swallow." },
-    { key: "typicalHeight", label: "Typical Height", group: "appearance", kind: "text", hint: "How tall (or long) it is." },
-    { key: "typicalWeight", label: "Typical Weight", group: "appearance", kind: "text", hint: "How much it weighs. Matters for bridges, boats and trapdoors." },
+    { key: "typicalHeight", label: "Typical Height", group: "appearance", kind: "text", measure: "height", hint: "How tall (or long) it is." },
+    { key: "typicalWeight", label: "Typical Weight", group: "appearance", kind: "text", measure: "weight", hint: "How much it weighs. Matters for bridges, boats and trapdoors." },
     {
       key: "variationsAndForms",
       label: "Variations & Forms",

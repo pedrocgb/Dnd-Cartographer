@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { maps, mapAssets, processingJobs, mapCategories } from "@/server/db/schema";
 import { getBreadcrumbs, listMapSummaries } from "@/server/maps/tree";
@@ -89,7 +89,8 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ m
     return NextResponse.json({ error: "Map not found." }, { status: 404 });
   }
 
-  const children = await db.select({ id: maps.id }).from(maps).where(eq(maps.parentId, mapId));
+  // Sub-maps already in the Trash stay there as they are (their own deletion date).
+  const children = await db.select({ id: maps.id }).from(maps).where(and(eq(maps.parentId, mapId), isNull(maps.deletedAt)));
   const activeChildren = children.filter((c) => c.id !== mapId);
 
   const body = await request.json().catch(() => ({}));
@@ -113,11 +114,11 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ m
     let frontier = activeChildren.map((c) => c.id);
     while (frontier.length > 0) {
       await db.update(maps).set({ deletedAt: now, updatedAt: now }).where(inArray(maps.id, frontier));
-      const nextRows = await db.select({ id: maps.id }).from(maps).where(inArray(maps.parentId, frontier));
+      const nextRows = await db.select({ id: maps.id }).from(maps).where(and(inArray(maps.parentId, frontier), isNull(maps.deletedAt)));
       frontier = nextRows.map((r) => r.id);
     }
   } else if (activeChildren.length > 0 && strategy === "orphan") {
-    await db.update(maps).set({ parentId: null, updatedAt: now }).where(eq(maps.parentId, mapId));
+    await db.update(maps).set({ parentId: null, updatedAt: now }).where(and(eq(maps.parentId, mapId), isNull(maps.deletedAt)));
   }
 
   await db.update(maps).set({ deletedAt: now, updatedAt: now }).where(eq(maps.id, mapId));

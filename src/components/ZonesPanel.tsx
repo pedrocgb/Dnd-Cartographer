@@ -1,6 +1,11 @@
 "use client";
 
+import { formatDecimal } from "@/server/settings/number-format";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Skeleton, SkeletonRegion } from "./Skeleton";
+import { AreaReadings } from "./map-hud/AreaPanel";
+import { shapeAreaPx, shapePerimeterPx, zoneAreaShape } from "@/server/scale/area";
+import type { ScaleConfig } from "@/server/scale/scale-config";
 import {
   X,
   Shapes,
@@ -129,7 +134,8 @@ function ZoneTerritoryLink({ zone, mixed = false, onUpdate }: { zone: ZoneData; 
     };
   }, [zone.territoryId]);
 
-  const visibleChain = chainLoadedFor === zone.territoryId ? chain : null;
+  const chainLoading = chainLoadedFor !== zone.territoryId;
+  const visibleChain = chainLoading ? null : chain;
 
   return (
     <div className="zone-territory-link">
@@ -151,7 +157,11 @@ function ZoneTerritoryLink({ zone, mixed = false, onUpdate }: { zone: ZoneData; 
         </div>
       ) : zone.territoryId && !picking ? (
         <div className="zone-territory-chain">
-          {visibleChain === null ? (
+          {chainLoading ? (
+            <SkeletonRegion label="Loading the territory…">
+              <Skeleton width="70%" />
+            </SkeletonRegion>
+          ) : visibleChain === null ? (
             <span className="field-label">Linked territory is unavailable.</span>
           ) : (
             <span>
@@ -250,7 +260,7 @@ function ZoneStyleFields({ v, sectioned = true, mixed = NO_MIXED, onChange }: { 
         <label className="grid-field">
           <div className="grid-field-header">
             <span className="field-label">Outline width</span>
-            <span className="grid-field-value">{m("strokeWidth") ? <span className="mixed-tag">Mixed</span> : v.strokeWidth.toFixed(2)}</span>
+            <span className="grid-field-value">{m("strokeWidth") ? <span className="mixed-tag">Mixed</span> : formatDecimal(v.strokeWidth, { minimumFractionDigits: 2 })}</span>
           </div>
           <input type="range" min={0} max={2} step={0.05} value={v.strokeWidth} onChange={(e) => onChange({ strokeWidth: Number(e.target.value) })} />
         </label>
@@ -269,6 +279,7 @@ function ZoneEditor({
   onUpdate,
   onDelete,
   onDone,
+  scaleConfig,
 }: {
   zone: ZoneData;
   layers: MapLayerData[];
@@ -283,6 +294,7 @@ function ZoneEditor({
   onUpdate: (patch: Partial<ZoneData>) => void;
   onDelete: () => void;
   onDone: () => void;
+  scaleConfig: ScaleConfig | null;
 }) {
   const [name, setName] = useState(zone.name);
   const focusedRef = useRef(false);
@@ -319,6 +331,7 @@ function ZoneEditor({
       <span className="field-label">{SHAPE_LABEL[zone.shapeType]}</span>
 
       <ZoneStyleFields v={zone} onChange={onUpdate} />
+      <ZoneArea zones={[zone]} config={scaleConfig} />
 
       <ToolSection id="zone-territory" title="Political territory">
         <ZoneTerritoryLink zone={zone} onUpdate={onUpdate} />
@@ -534,9 +547,12 @@ export default function ZonesPanel({
   onPick,
   onUpdateMany,
   onDeleteMany,
+  scaleConfig,
 }: {
   /** Name of the active layer this tool edits. */
   layerName: string;
+  /** The map's scale (null until it loads): zones show their area through it. */
+  scaleConfig: ScaleConfig | null;
   regions: ZoneRegionData[];
   zones: ZoneData[];
   activeRegionId: string | null;
@@ -858,6 +874,7 @@ export default function ZonesPanel({
             onUpdateMany={(patchOf, opts) => onUpdateMany(selectedIds, patchOf, opts)}
             onDelete={() => onDeleteMany(selectedIds)}
             onDone={() => onSelectZone(null)}
+            scaleConfig={scaleConfig}
           />
         </div>
       )}
@@ -873,6 +890,7 @@ export default function ZonesPanel({
             onUpdate={(patch) => onUpdateZone(selectedZone.id, patch)}
             onDelete={() => onDeleteZone(selectedZone.id)}
             onDone={() => onSelectZone(null)}
+            scaleConfig={scaleConfig}
           />
         </div>
       )}
@@ -909,6 +927,26 @@ export default function ZonesPanel({
   );
 }
 
+/**
+ * A zone's area (several zones: their total), live from its borders and the
+ * map's scale, so it's never out of date after a reshape or recalibration.
+ */
+function ZoneArea({ zones, config }: { zones: ZoneData[]; config: ScaleConfig | null }) {
+  const shapes = zones.flatMap((z) => zoneAreaShape(z.shapeType, z.geometry) ?? []);
+  const areaPx = shapes.reduce((sum, s) => sum + shapeAreaPx(s), 0);
+  return (
+    <ToolSection id="zone-area" title={zones.length > 1 ? "Total area" : "Area"}>
+      {!config ? (
+        <Skeleton width="60%" />
+      ) : config.framePxPerUnit === null ? (
+        <p className="field-label">Calibrate the map&rsquo;s scale (Scale &amp; measure) to see {zones.length > 1 ? "their" : "this zone&rsquo;s"} area.</p>
+      ) : (
+        <AreaReadings areaPx={areaPx} perimeterPx={shapes.length === 1 ? shapePerimeterPx(shapes[0]) : undefined} config={config} />
+      )}
+    </ToolSection>
+  );
+}
+
 /** Several zones' settings at once: a field shows its value when they agree, "Mixed" when not. */
 function MultiZoneEditor({
   zones,
@@ -920,6 +958,7 @@ function MultiZoneEditor({
   onUpdateMany,
   onDelete,
   onDone,
+  scaleConfig,
 }: {
   zones: ZoneData[];
   layers: MapLayerData[];
@@ -930,6 +969,7 @@ function MultiZoneEditor({
   onUpdateMany: (patchOf: (zone: ZoneData) => Partial<ZoneData>, opts?: { includeLocked?: boolean }) => void;
   onDelete: () => void;
   onDone: () => void;
+  scaleConfig: ScaleConfig | null;
 }) {
   const [first] = zones;
   const mixed = mixedKeys(zones);
@@ -955,6 +995,7 @@ function MultiZoneEditor({
         onDone={onDone}
       />
       <ZoneStyleFields v={first} mixed={mixed} onChange={setAll} />
+      <ZoneArea zones={zones} config={scaleConfig} />
       <ToolSection id="zone-territory" title="Political territory">
         <ZoneTerritoryLink zone={first} mixed={mixed.has("territoryId")} onUpdate={setAll} />
       </ToolSection>
