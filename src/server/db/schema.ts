@@ -15,9 +15,16 @@ const timestamps = {
     .$defaultFn(() => new Date()),
 };
 
+/** A world: everything else (maps, articles, calendars, campaigns…) belongs to one. Browsers pick theirs on /worlds. */
 export const worlds = sqliteTable("worlds", {
   id: id(),
   name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  /** A marker icon key for its badge; "" shows the name's first letter. */
+  icon: text("icon").notNull().default(""),
+  /** "#RRGGBB" for its card's tint; "" picks one from the id. */
+  color: text("color").notNull().default(""),
+  lastOpenedAt: integer("last_opened_at", { mode: "timestamp_ms" }),
   ...timestamps,
 });
 
@@ -898,10 +905,9 @@ export const worldChronology = sqliteTable("world_chronology", {
 });
 
 /** The app-wide preferences (units, date formats, trash retention…): one JSON blob per world, see server/settings. */
+/** App-wide preferences, shared by every world: a single row (id "app"). */
 export const appSettings = sqliteTable("app_settings", {
-  worldId: text("world_id")
-    .primaryKey()
-    .references(() => worlds.id),
+  id: text("id").primaryKey(),
   data: text("data").notNull().default("{}"),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" })
     .notNull()

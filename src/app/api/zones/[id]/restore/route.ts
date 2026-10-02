@@ -3,9 +3,12 @@ import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { zones } from "@/server/db/schema";
 import { withLayerIds } from "@/server/layers/layer-ids";
+import { notInWorld } from "@/server/world/guards";
 
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const denied = await notInWorld("zones", id, "Zone not found.");
+  if (denied) return denied;
   const [restored] = await db
     .update(zones)
     .set({ deletedAt: null, updatedAt: new Date() })

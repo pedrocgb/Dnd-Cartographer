@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 import { calendarOf, chronologyOf, toClientCalendar, updateChronology } from "@/server/calendars/store";
 import { badRequest, calendarErrorResponse, readBody } from "@/server/calendars/respond";
 
@@ -14,7 +14,7 @@ const toClient = (row: { currentDay: number; defaultCalendarId: string | null; r
 
 /** The chronology, plus the default calendar (name and definition) to read the current day in. */
 export async function GET() {
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   const chronology = await chronologyOf(worldId);
   const calendar = chronology.defaultCalendarId ? await calendarOf(worldId, chronology.defaultCalendarId) : null;
   const client = calendar ? toClientCalendar(calendar) : null;
@@ -30,7 +30,7 @@ export async function GET() {
 export async function PATCH(request: Request) {
   const body = await readBody(request);
   if (!body || !Number.isSafeInteger(body.expectedRevision)) return badRequest("expectedRevision is required.");
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   const current = await chronologyOf(worldId);
   if (body.expectedRevision !== current.revision) {
     return NextResponse.json({ error: "Someone else changed the world date. The latest date has been loaded; try again.", stale: true, chronology: toClient(current) }, { status: 409 });

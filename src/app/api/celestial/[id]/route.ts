@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { and, eq, isNull, like } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { calendarEntries, celestialObjects } from "@/server/db/schema";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 import { celestialIssues, type CelestialType } from "@/server/calendars/celestial";
 import { cleanColor, cleanName, parseArticleLinks, parseCalendarIds, parseCelestialConfig } from "@/server/calendars/parse";
 import { checkCalendarIds, recordRevision, toClientCelestial } from "@/server/calendars/store";
@@ -23,7 +23,7 @@ async function objectOf(worldId: string, id: string) {
  */
 export async function PATCH(request: Request, { params }: RouteContext) {
   const { id } = await params;
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   const row = await objectOf(worldId, id);
   if (!row) return notFound("Celestial object not found.");
   const body = await readBody(request);
@@ -42,7 +42,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     if ("description" in body) patch.description = cleanName(body.description, 4000);
     if ("articleLinks" in body) {
       const links = parseArticleLinks(body.articleLinks);
-      await checkArticles(links);
+      await checkArticles(worldId, links);
       patch.articleLinks = JSON.stringify(links);
     }
     if ("showDayIcon" in body) patch.showDayIcon = body.showDayIcon !== false;
@@ -81,7 +81,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 /** Deletes an object nothing refers to; one used by an event condition must be archived instead. */
 export async function DELETE(_request: Request, { params }: RouteContext) {
   const { id } = await params;
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   if (!(await objectOf(worldId, id))) return notFound("Celestial object not found.");
   const [used] = await db
     .select({ id: calendarEntries.id })

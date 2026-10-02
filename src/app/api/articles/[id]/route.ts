@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { articles } from "@/server/db/schema";
 import { encodeTags, sanitizeTags } from "@/server/articles/tags";
@@ -9,9 +9,13 @@ import { sanitizeInfo } from "@/server/articles/info-fields";
 import { INFO_FIELD_SETS } from "@/server/articles/info-sets";
 import { RelationError, type Executor } from "@/server/relations/store";
 import { withRelationSync } from "@/server/relations/sync";
+import { requireWorldId } from "@/server/world/active-world";
+import { foreignIdResponse, idsInWorld } from "@/server/world/guards";
 
+/** A live article of the open world, or null. */
 async function findArticle(id: string) {
-  const article = await db.query.articles.findFirst({ where: eq(articles.id, id) });
+  const worldId = await requireWorldId();
+  const article = await db.query.articles.findFirst({ where: and(eq(articles.id, id), eq(articles.worldId, worldId)) });
   return article && !article.deletedAt ? article : null;
 }
 
@@ -46,6 +50,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const info = infoSet ? sanitizeInfo(infoSet, body.info) : null;
   if (info) patch.info = JSON.stringify(info);
 
+  if (!(await idsInWorld(article.worldId, [["rich_documents", patch.bodyDocumentId], ["rich_documents", patch.sidebarDocumentId], ["rich_documents", patch.footerDocumentId]]))) return foreignIdResponse();
   const write = async (ex: Executor) => {
     const [row] = await ex.update(articles).set(patch).where(eq(articles.id, id)).returning();
     return row;
@@ -62,6 +67,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  if (!(await findArticle(id))) return NextResponse.json({ error: "Article not found." }, { status: 404 });
   await db.update(articles).set({ deletedAt: new Date(), updatedAt: new Date() }).where(eq(articles.id, id));
   return NextResponse.json({ ok: true });
 }

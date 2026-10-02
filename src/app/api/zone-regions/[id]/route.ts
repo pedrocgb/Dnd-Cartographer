@@ -3,9 +3,12 @@ import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { zoneRegions, zones } from "@/server/db/schema";
 import { folderPatch, toClientFolder } from "@/server/maps/layer-folders";
+import { notInWorld } from "@/server/world/guards";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const denied = await notInWorld("zone_regions", id, "Zone region not found.");
+  if (denied) return denied;
   const region = await db.query.zoneRegions.findFirst({ where: eq(zoneRegions.id, id) });
   if (!region) return NextResponse.json({ error: "Zone Region not found." }, { status: 404 });
 
@@ -21,6 +24,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const denied = await notInWorld("zone_regions", id, "Zone region not found.");
+  if (denied) return denied;
   const region = await db.query.zoneRegions.findFirst({ where: eq(zoneRegions.id, id) });
   if (!region) return NextResponse.json({ error: "Zone Region not found." }, { status: 404 });
 

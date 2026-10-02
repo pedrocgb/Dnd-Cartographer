@@ -116,6 +116,36 @@ export function PageSkeleton({ label, main }: { label: string; main: "cards" | "
   );
 }
 
+/** The worlds screen still loading: its header, then world cards (banner, badge, name, text, counts). */
+export function WorldsSkeleton() {
+  return (
+    <SkeletonRegion label="Loading your worlds…" className="worlds-page">
+      <div className="worlds-header" aria-hidden>
+        <Skeleton width={30} height={30} radius="50%" />
+        <Skeleton width={240} height={24} radius={8} />
+        <Skeleton width={420} height={12} />
+      </div>
+      <div className="worlds-grid" aria-hidden>
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="world-card world-card-skeleton">
+            <Skeleton className="world-card-skeleton-banner" height={96} radius={0} />
+            <span className="world-card-body">
+              <Skeleton width={`${50 + i * 12}%`} height={16} />
+              <SkeletonText lines={2} />
+              <span className="world-card-stats">
+                {[0, 1, 2, 3].map((n) => (
+                  <Skeleton key={n} width={58} height={10} />
+                ))}
+              </span>
+              <Skeleton width="45%" height={10} />
+            </span>
+          </div>
+        ))}
+      </div>
+    </SkeletonRegion>
+  );
+}
+
 /** The map page still loading: header, the tool rail (its five groups) and the canvas. */
 export function MapPageSkeleton() {
   return (

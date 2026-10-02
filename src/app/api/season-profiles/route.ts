@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { seasonProfiles } from "@/server/db/schema";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 import { cleanName, parseProfileData } from "@/server/calendars/parse";
 import { checkProfile } from "@/server/calendars/profiles";
 import { toClientProfile } from "@/server/calendars/store";
@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     const name = cleanName(body.name);
     if (!name) return badRequest("A profile name is required.");
     if (typeof body.calendarId !== "string") return badRequest("Pick the calendar this profile's dates are read in.");
-    const worldId = await ensureDefaultWorld();
+    const worldId = await requireWorldId();
     const data = { ...parseProfileData(body.data), calendarId: body.calendarId };
     await checkProfile(worldId, data);
     const { calendarId, ...rest } = data;

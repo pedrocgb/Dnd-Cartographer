@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { campaignCharacters, people } from "@/server/db/schema";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 import { badRequest, notFound, readBody } from "@/server/calendars/respond";
 import { campaignOf, rosterOf } from "@/server/sessions/store";
 
@@ -11,7 +11,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 /** Adds a player character (a live Player Character article) to the campaign's party. Its player is read from the article. */
 export async function POST(request: Request, { params }: RouteContext) {
   const { id } = await params;
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   if (!(await campaignOf(worldId, id))) return notFound("Campaign not found.");
   const body = await readBody(request);
   if (!body) return badRequest("Invalid request body.");

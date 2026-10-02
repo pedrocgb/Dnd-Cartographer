@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { outlineNodes } from "@/server/db/schema";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 import { badRequest, calendarErrorResponse, notFound, readBody } from "@/server/calendars/respond";
 import { campaignOf } from "@/server/sessions/store";
 import { templateChildren } from "@/server/writer/logic";
@@ -19,7 +19,7 @@ type RouteContext = { params: Promise<{ id: string }> };
  */
 export async function POST(request: Request, { params }: RouteContext) {
   const { id } = await params;
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   if (!(await campaignOf(worldId, id))) return notFound("Campaign not found.");
   const body = await readBody(request);
   if (!body) return badRequest("Invalid request body.");

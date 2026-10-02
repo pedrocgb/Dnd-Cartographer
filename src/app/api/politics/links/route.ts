@@ -2,10 +2,12 @@ import { NextResponse } from "next/server";
 import { eq, and } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { politicalLinks } from "@/server/db/schema";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
+import { rowInWorld, type WorldTable } from "@/server/world/guards";
 
 const OWNER_TYPES = ["marker", "territory", "person", "organization"] as const;
 const TARGET_TYPES = ["map", "marker", "territory", "person", "organization"] as const;
+const TABLE_OF = { map: "maps", marker: "markers", territory: "territories", person: "people", organization: "organizations" } as const satisfies Record<(typeof TARGET_TYPES)[number], WorldTable>;
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -14,7 +16,7 @@ export async function GET(request: Request) {
   if (!ownerType || !ownerId) return NextResponse.json({ error: "ownerType and ownerId are required." }, { status: 400 });
 
   const rows = await db.query.politicalLinks.findMany({
-    where: and(eq(politicalLinks.ownerType, ownerType as (typeof OWNER_TYPES)[number]), eq(politicalLinks.ownerId, ownerId)),
+    where: and(eq(politicalLinks.worldId, await requireWorldId()), eq(politicalLinks.ownerType, ownerType as (typeof OWNER_TYPES)[number]), eq(politicalLinks.ownerId, ownerId)),
   });
   return NextResponse.json({ links: rows });
 }
@@ -43,7 +45,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Provide either an internal target (targetType + targetId) or an external http(s) URL." }, { status: 400 });
   }
 
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
+  if (!(await rowInWorld(TABLE_OF[ownerType as (typeof OWNER_TYPES)[number]], ownerId, worldId))) return NextResponse.json({ error: "The link's owner isn't in this world." }, { status: 404 });
+  if (isInternal && !(await rowInWorld(TABLE_OF[targetType as (typeof TARGET_TYPES)[number]], targetId, worldId))) return NextResponse.json({ error: "The link's target isn't in this world." }, { status: 404 });
   const [created] = await db
     .insert(politicalLinks)
     .values({

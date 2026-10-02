@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { and, eq, isNotNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { calendars, celestialObjects } from "@/server/db/schema";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 import { calendarOf, toClientCalendar } from "@/server/calendars/store";
 import { notFound } from "@/server/calendars/respond";
 
@@ -11,7 +11,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 /** A copy with the same definition and synchronization; celestial objects shown in the original are shown in the copy too (shared, not copied). */
 export async function POST(_request: Request, { params }: RouteContext) {
   const { id } = await params;
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   const row = await calendarOf(worldId, id);
   if (!row) return notFound("Calendar not found.");
   const count = (await db.select({ id: calendars.id }).from(calendars).where(eq(calendars.worldId, worldId))).length;

@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
+import { worldArticleLinksJson } from "@/server/calendars/entries";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { calendars } from "@/server/db/schema";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 import { cleanName, parseArticleLinks, parseDefinition } from "@/server/calendars/parse";
 import { applyDefinition, parseMigration } from "@/server/calendars/mutations";
 import { calendarOf, chronologyOf, StaleError, toClientCalendar } from "@/server/calendars/store";
@@ -20,7 +21,7 @@ const stale = () => NextResponse.json({ error: "This calendar was changed elsewh
  */
 export async function PATCH(request: Request, { params }: RouteContext) {
   const { id } = await params;
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   const row = await calendarOf(worldId, id);
   if (!row) return notFound("Calendar not found.");
   const body = await readBody(request);
@@ -35,7 +36,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       extra.name = name;
     }
     if ("description" in body) extra.description = cleanName(body.description, 4000);
-    if ("articleLinks" in body) extra.articleLinks = JSON.stringify(parseArticleLinks(body.articleLinks));
+    if ("articleLinks" in body) extra.articleLinks = await worldArticleLinksJson(worldId, parseArticleLinks(body.articleLinks));
 
     if ("definition" in body) {
       const definition = parseDefinition(body.definition);
@@ -63,7 +64,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
  */
 export async function DELETE(_request: Request, { params }: RouteContext) {
   const { id } = await params;
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   const row = await calendarOf(worldId, id);
   if (!row) return notFound("Calendar not found.");
   const chronology = await chronologyOf(worldId);

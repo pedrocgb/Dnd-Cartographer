@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { quests } from "@/server/db/schema";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 import { badRequest, calendarErrorResponse, notFound, readBody } from "@/server/calendars/respond";
 import { questFields } from "@/server/quests/fields";
 import { questContextOf, questOf, toClientQuest } from "@/server/quests/store";
@@ -14,7 +14,7 @@ const stale = () => NextResponse.json({ error: "This quest was changed elsewhere
 
 export async function GET(_request: Request, { params }: RouteContext) {
   const { id } = await params;
-  const row = await questOf(await ensureDefaultWorld(), id);
+  const row = await questOf(await requireWorldId(), id);
   if (!row) return notFound("Quest not found.");
   return NextResponse.json({ quest: toClientQuest(row) });
 }
@@ -22,7 +22,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
 /** Edits a quest (`expectedVersion` required); a board move is just `{ status, sortOrder }`. */
 export async function PATCH(request: Request, { params }: RouteContext) {
   const { id } = await params;
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   const row = await questOf(worldId, id);
   if (!row) return notFound("Quest not found.");
   const campaign = await campaignOf(worldId, row.campaignId);
@@ -46,7 +46,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 /** Soft-deletes a quest; its sub-quests move up to its parent. Sessions keep their log lines (shown as a removed quest). */
 export async function DELETE(_request: Request, { params }: RouteContext) {
   const { id } = await params;
-  const row = await questOf(await ensureDefaultWorld(), id);
+  const row = await questOf(await requireWorldId(), id);
   if (!row) return notFound("Quest not found.");
   await db.transaction(async (tx) => {
     await tx

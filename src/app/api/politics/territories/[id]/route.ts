@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { eq, and, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
+import { requireWorldId } from "@/server/world/active-world";
 import { encodeTags, sanitizeTags } from "@/server/articles/tags";
 import { TEMPLATE_LABELS } from "@/server/articles/templates";
 import { territories, hierarchyProfiles, markerAffiliations } from "@/server/db/schema";
@@ -13,7 +14,8 @@ import { withRelationSync } from "@/server/relations/sync";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const territory = await db.query.territories.findFirst({ where: eq(territories.id, id) });
+  const worldId = await requireWorldId();
+  const territory = await db.query.territories.findFirst({ where: and(eq(territories.id, id), eq(territories.worldId, worldId)) });
   if (!territory) return NextResponse.json({ error: "Territory not found." }, { status: 404 });
 
   const { searchParams } = new URL(request.url);
@@ -21,11 +23,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     return NextResponse.json({ territory });
   }
 
-  const chain = await resolveChain(id);
+  const chain = await resolveChain(worldId, id);
   const levelsMap = await levelsByProfileId(chain.map((t) => t.hierarchyProfileId));
   const missing = computeMissingRequiredTypes(toTerritoryLike(chain), levelsMap);
   const [authorities, children, affiliatedMarkers] = await Promise.all([
-    getAuthoritiesForChain(chain.map((t) => t.id)),
+    getAuthoritiesForChain(worldId, chain.map((t) => t.id)),
     db.query.territories.findMany({ where: eq(territories.parentId, id) }),
     getAffiliatedMarkers(territory),
   ]);
@@ -35,7 +37,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const territory = await db.query.territories.findFirst({ where: eq(territories.id, id) });
+  const worldId = await requireWorldId();
+  const territory = await db.query.territories.findFirst({ where: and(eq(territories.id, id), eq(territories.worldId, worldId)) });
   if (!territory) return NextResponse.json({ error: "Territory not found." }, { status: 404 });
 
   const body = await request.json().catch(() => null);
@@ -77,7 +80,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
     if (nextParentId) {
       // Reject if nextParentId is a descendant of this territory (would create a cycle).
-      const descendantChain = await resolveChain(nextParentId);
+      const descendantChain = await resolveChain(worldId, nextParentId);
+      if (descendantChain.at(-1)?.id !== nextParentId) return NextResponse.json({ error: "Parent territory not found in this world." }, { status: 400 });
       if (descendantChain.some((t) => t.id === id)) {
         return NextResponse.json({ error: "That reparenting would create a cycle." }, { status: 400 });
       }
@@ -89,7 +93,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       }
     }
 
-    const ancestors = nextParentId ? toTerritoryLike(await resolveChain(nextParentId)) : [];
+    const ancestors = nextParentId ? toTerritoryLike(await resolveChain(worldId, nextParentId)) : [];
     const candidate = { id, type: nextType, parentId: nextParentId, hierarchyProfileId: nextProfileId };
     const chain = [...ancestors, candidate];
     const levelsMap = await levelsByProfileId(chain.map((t) => t.hierarchyProfileId));
@@ -103,7 +107,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     // `id` is substituted with the candidate values before re-validating.
     const allDescendants = await collectDescendants(id);
     for (const desc of allDescendants) {
-      const descChainRows = await resolveChain(desc.id);
+      const descChainRows = await resolveChain(worldId, desc.id);
       const descChain = toTerritoryLike(descChainRows).map((t) => (t.id === id ? candidate : t));
       const descLevels = await levelsByProfileId(descChain.map((t) => t.hierarchyProfileId));
       const descResult = validateChain(descChain, descLevels);
@@ -122,7 +126,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   let updated;
   try {
     updated = await withRelationSync(TERRITORY_INFO, territory, body.info, async (ex) => {
-      const [row] = await ex.update(territories).set(patch).where(eq(territories.id, id)).returning();
+      const [row] = await ex.update(territories).set(patch).where(and(eq(territories.id, id), eq(territories.worldId, worldId))).returning();
       return row;
     });
   } catch (err) {
@@ -149,7 +153,8 @@ async function collectDescendants(rootId: string): Promise<Array<typeof territor
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const territory = await db.query.territories.findFirst({ where: eq(territories.id, id) });
+  const worldId = await requireWorldId();
+  const territory = await db.query.territories.findFirst({ where: and(eq(territories.id, id), eq(territories.worldId, worldId)) });
   if (!territory) return NextResponse.json({ error: "Territory not found." }, { status: 404 });
 
   const children = await db.query.territories.findMany({ where: and(eq(territories.parentId, id), isNull(territories.deletedAt)) });
@@ -166,6 +171,6 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     return NextResponse.json({ error: "Cannot delete: a marker is affiliated with this territory." }, { status: 409 });
   }
 
-  await db.update(territories).set({ deletedAt: new Date(), updatedAt: new Date() }).where(eq(territories.id, id));
+  await db.update(territories).set({ deletedAt: new Date(), updatedAt: new Date() }).where(and(eq(territories.id, id), eq(territories.worldId, worldId)));
   return NextResponse.json({ ok: true });
 }

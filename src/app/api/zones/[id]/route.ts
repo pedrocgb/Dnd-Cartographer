@@ -10,9 +10,14 @@ import {
 } from "@/server/zones/zone-config";
 import { sanitizeExtraLayerIds } from "@/server/layers/layers";
 import { parseLayerIds, withLayerIds } from "@/server/layers/layer-ids";
+import { notInWorld } from "@/server/world/guards";
+import { requireWorldId } from "@/server/world/active-world";
+import { foreignIdResponse, idsInWorld } from "@/server/world/guards";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const denied = await notInWorld("zones", id, "Zone not found.");
+  if (denied) return denied;
   const zone = await db.query.zones.findFirst({ where: eq(zones.id, id) });
   if (!zone) return NextResponse.json({ error: "Zone not found." }, { status: 404 });
 
@@ -90,12 +95,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (encoded !== null) patch.extraLayerIds = encoded;
   }
 
+  if (!(await idsInWorld(await requireWorldId(), [["territories", patch.territoryId]]))) return foreignIdResponse();
   const [updated] = await db.update(zones).set(patch).where(eq(zones.id, id)).returning();
   return NextResponse.json({ zone: withLayerIds(updated) });
 }
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const denied = await notInWorld("zones", id, "Zone not found.");
+  if (denied) return denied;
   const zone = await db.query.zones.findFirst({ where: eq(zones.id, id) });
   if (!zone) return NextResponse.json({ error: "Zone not found." }, { status: 404 });
   if (zone.locked) return NextResponse.json({ error: "Zone is locked." }, { status: 409 });

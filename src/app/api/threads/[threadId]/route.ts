@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { plotThreads, threadBeats } from "@/server/db/schema";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 import { badRequest, calendarErrorResponse, notFound, readBody } from "@/server/calendars/respond";
 import { threadFields } from "@/server/writer/fields";
 import { threadOf, toClientThread, writerContextOf } from "@/server/writer/store";
@@ -14,7 +14,7 @@ const stale = () => NextResponse.json({ error: "This thread was changed elsewher
 /** Edits a thread (`expectedVersion` required). */
 export async function PATCH(request: Request, { params }: RouteContext) {
   const { threadId } = await params;
-  const row = await threadOf(await ensureDefaultWorld(), threadId);
+  const row = await threadOf(await requireWorldId(), threadId);
   if (!row) return notFound("Thread not found.");
   const body = await readBody(request);
   if (!body) return badRequest("Invalid request body.");
@@ -38,7 +38,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 /** Deletes a thread and where it showed up (scenes are untouched). */
 export async function DELETE(_request: Request, { params }: RouteContext) {
   const { threadId } = await params;
-  const row = await threadOf(await ensureDefaultWorld(), threadId);
+  const row = await threadOf(await requireWorldId(), threadId);
   if (!row) return notFound("Thread not found.");
   await db.transaction(async (tx) => {
     await tx.delete(threadBeats).where(eq(threadBeats.threadId, threadId));

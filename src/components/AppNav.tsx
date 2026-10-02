@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Compass, Book, CalendarDays, Swords, ChevronDown, Settings, Waypoints, GitFork, LayoutDashboard, type LucideIcon } from "lucide-react";
+import { Compass, Book, CalendarDays, Swords, ChevronDown, Settings, Waypoints, GitFork, LayoutDashboard, Globe2, type LucideIcon } from "lucide-react";
 import SearchBox from "./SearchBox";
 import WorldDateLabel from "./WorldDateLabel";
 
@@ -72,18 +72,30 @@ function NavMenu({ label, items, triggerClass, children }: { label: string; item
 /**
  * The top bar: Maps, Articles (and its views), the Campaign area (Sessions,
  * Writer), Calendars and Settings (which also holds Trash, Import and Export);
- * optionally the current in-world date in the middle.
+ * optionally the current in-world date in the middle. The brand is the open
+ * world's name and leads to the worlds screen, where the bar shows nothing else.
  */
-export default function AppNav() {
+export default function AppNav({ world }: { world: { id: string; name: string } | null }) {
   const pathname = usePathname();
   const linkClass = (current: boolean) => (current ? "app-nav-link current" : "app-nav-link");
+
+  if (pathname === "/worlds" || pathname.startsWith("/worlds/") || !world) {
+    return (
+      <nav className="app-nav app-nav-bare">
+        <Link href="/worlds" className="app-nav-brand">
+          <Compass size={20} strokeWidth={2.25} />
+          World Wiki
+        </Link>
+      </nav>
+    );
+  }
 
   return (
     <nav className="app-nav">
       <div className="app-nav-start">
-        <Link href="/maps" className="app-nav-brand">
-          <Compass size={20} strokeWidth={2.25} />
-          World Wiki
+        <Link href="/worlds" className="app-nav-brand app-nav-world" data-tooltip="Switch world">
+          <Globe2 size={20} strokeWidth={2.25} />
+          <span className="app-nav-world-name">{world.name}</span>
         </Link>
         <Link href="/maps" className={linkClass(pathname === "/maps" || pathname.startsWith("/maps/"))}>
           <Compass size={16} strokeWidth={2.25} />

@@ -2,9 +2,12 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { mapAssets, processingJobs } from "@/server/db/schema";
+import { notInWorld } from "@/server/world/guards";
 
 export async function POST(_request: Request, { params }: { params: Promise<{ assetId: string }> }) {
   const { assetId } = await params;
+  const denied = await notInWorld("map_assets", assetId, "Asset not found.");
+  if (denied) return denied;
   const asset = await db.query.mapAssets.findFirst({ where: eq(mapAssets.id, assetId) });
 
   if (!asset) {

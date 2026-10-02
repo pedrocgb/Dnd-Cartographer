@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { and, eq, isNull, ne } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { quests, sessions } from "@/server/db/schema";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 import { checkArticles } from "@/server/calendars/entries";
 import { cleanName, parseArticleLinks, safeJson } from "@/server/calendars/parse";
 import { InvalidError } from "@/server/calendars/mutations";
@@ -19,7 +19,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 
 export async function GET(_request: Request, { params }: RouteContext) {
   const { id } = await params;
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   const row = await sessionOf(worldId, id);
   if (!row) return notFound("Session not found.");
   return NextResponse.json({ session: toClientSession(row) });
@@ -35,7 +35,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
  */
 export async function PATCH(request: Request, { params }: RouteContext) {
   const { id } = await params;
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   const row = await sessionOf(worldId, id);
   if (!row) return notFound("Session not found.");
   const body = await readBody(request);
@@ -63,7 +63,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     if ("notes" in body) patch.notes = JSON.stringify(parseNotes(body.notes));
     if ("articleLinks" in body) {
       const links = parseArticleLinks(body.articleLinks);
-      await checkArticles(links);
+      await checkArticles(worldId, links);
       patch.articleLinks = JSON.stringify(links);
     }
     if ("attendance" in body) patch.attendance = JSON.stringify(parseAttendance(body.attendance, roster));
@@ -71,12 +71,12 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     if ("xpOverrides" in body) patch.xpOverrides = JSON.stringify(parseXpOverrides(body.xpOverrides, roster));
     if ("loot" in body) {
       const loot = parseLoot(body.loot, roster, coinIds);
-      await checkArticles(loot.flatMap((l) => (l.articleId && l.template ? [{ template: l.template, articleId: l.articleId }] : [])));
+      await checkArticles(worldId, loot.flatMap((l) => (l.articleId && l.template ? [{ template: l.template, articleId: l.articleId }] : [])));
       patch.loot = JSON.stringify(loot);
     }
     if ("prep" in body) {
       const prep = parsePrep(body.prep, readPrep(safeJson<unknown>(row.prep, {})));
-      await checkArticles(prep.npcs);
+      await checkArticles(worldId, prep.npcs);
       patch.prep = JSON.stringify(prep);
     }
     if ("coins" in body) patch.coins = JSON.stringify(parseCoins(body.coins, roster, coinIds));
@@ -122,7 +122,7 @@ class StaleQuest extends Error {}
 /** Soft-deletes a session (its number becomes free again). */
 export async function DELETE(_request: Request, { params }: RouteContext) {
   const { id } = await params;
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   if (!(await sessionOf(worldId, id))) return notFound("Session not found.");
   await db.update(sessions).set({ deletedAt: new Date() }).where(eq(sessions.id, id));
   return NextResponse.json({ ok: true });

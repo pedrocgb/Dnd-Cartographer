@@ -3,9 +3,12 @@ import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { mapLayers, maps } from "@/server/db/schema";
 import { listLayerRows, listLayers } from "@/server/layers/layers";
+import { notInWorld } from "@/server/world/guards";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ mapId: string }> }) {
   const { mapId } = await params;
+  const denied = await notInWorld("maps", mapId, "Map not found.");
+  if (denied) return denied;
   const map = await db.query.maps.findFirst({ where: eq(maps.id, mapId) });
   if (!map) return NextResponse.json({ error: "Map not found." }, { status: 404 });
   return NextResponse.json({ layers: await listLayers(mapId) });
@@ -14,6 +17,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ map
 /** New layers are added at the top of the list (drawn on top). */
 export async function POST(request: Request, { params }: { params: Promise<{ mapId: string }> }) {
   const { mapId } = await params;
+  const denied = await notInWorld("maps", mapId, "Map not found.");
+  if (denied) return denied;
   const map = await db.query.maps.findFirst({ where: eq(maps.id, mapId) });
   if (!map) return NextResponse.json({ error: "Map not found." }, { status: 404 });
 

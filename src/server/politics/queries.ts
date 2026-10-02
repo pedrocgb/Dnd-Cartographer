@@ -5,14 +5,14 @@ import { parseHierarchyLevels, type HierarchyLevel, type TerritoryLike } from ".
 
 export type TerritoryRow = typeof territories.$inferSelect;
 
-/** Walks parentId up to the root, returning [root, ..., leaf]. Throws nothing on a cycle — stops once it revisits an id. */
-export async function resolveChain(territoryId: string): Promise<TerritoryRow[]> {
+/** Walks parentId up to the root within the world, returning [root, ..., leaf]. Throws nothing on a cycle — stops once it revisits an id. */
+export async function resolveChain(worldId: string, territoryId: string): Promise<TerritoryRow[]> {
   const chain: TerritoryRow[] = [];
   const seen = new Set<string>();
   let currentId: string | null = territoryId;
   while (currentId && !seen.has(currentId)) {
     seen.add(currentId);
-    const row: TerritoryRow | undefined = await db.query.territories.findFirst({ where: eq(territories.id, currentId) });
+    const row: TerritoryRow | undefined = await db.query.territories.findFirst({ where: and(eq(territories.id, currentId), eq(territories.worldId, worldId)) });
     if (!row) break;
     chain.unshift(row);
     currentId = row.parentId;
@@ -50,9 +50,9 @@ export async function getDraftAffiliation(markerId: string) {
  * sorted in hierarchy order (the chain index is the territory's rank), then
  * alphabetically by holder within the same territory.
  */
-export async function getAuthoritiesForChain(territoryIds: string[]) {
+export async function getAuthoritiesForChain(worldId: string, territoryIds: string[]) {
   if (territoryIds.length === 0) return [];
-  const rows = await db.query.authorityAssignments.findMany({ where: inArray(authorityAssignments.territoryId, territoryIds) });
+  const rows = await db.query.authorityAssignments.findMany({ where: and(inArray(authorityAssignments.territoryId, territoryIds), eq(authorityAssignments.worldId, worldId)) });
   if (rows.length === 0) return [];
 
   const idsOf = (type: string) => Array.from(new Set(rows.filter((r) => r.holderType === type).map((r) => r.holderId)));
@@ -71,9 +71,9 @@ export async function getAuthoritiesForChain(territoryIds: string[]) {
 }
 
 /** Every authority a given person holds, with the territory's name resolved for display. */
-export async function getAuthoritiesForPerson(personId: string) {
+export async function getAuthoritiesForPerson(worldId: string, personId: string) {
   const rows = await db.query.authorityAssignments.findMany({
-    where: and(eq(authorityAssignments.holderType, "person"), eq(authorityAssignments.holderId, personId)),
+    where: and(eq(authorityAssignments.worldId, worldId), eq(authorityAssignments.holderType, "person"), eq(authorityAssignments.holderId, personId)),
   });
   if (rows.length === 0) return [];
 
@@ -90,13 +90,13 @@ export async function getAuthoritiesForPerson(personId: string) {
 }
 
 /** Every non-deleted descendant of `rootId` (not including itself), one query per tree level. */
-async function collectDescendantTerritories(rootId: string): Promise<TerritoryRow[]> {
+async function collectDescendantTerritories(worldId: string, rootId: string): Promise<TerritoryRow[]> {
   const result: TerritoryRow[] = [];
   const seen = new Set([rootId]);
   let frontier = [rootId];
   while (frontier.length > 0) {
     const children = await db.query.territories.findMany({
-      where: and(inArray(territories.parentId, frontier), isNull(territories.deletedAt)),
+      where: and(inArray(territories.parentId, frontier), eq(territories.worldId, worldId), isNull(territories.deletedAt)),
     });
     frontier = [];
     for (const child of children) {
@@ -115,8 +115,8 @@ async function collectDescendantTerritories(rootId: string): Promise<TerritoryRo
  * in every Duchy/County/Settlement beneath it, not just markers affiliated
  * with the Kingdom row directly.
  */
-export async function getAffiliatedMarkers(root: Pick<TerritoryRow, "id" | "name">) {
-  const descendants = await collectDescendantTerritories(root.id);
+export async function getAffiliatedMarkers(root: Pick<TerritoryRow, "id" | "name" | "worldId">) {
+  const descendants = await collectDescendantTerritories(root.worldId, root.id);
   const territoryIds = [root.id, ...descendants.map((t) => t.id)];
   const affiliations = await db.query.markerAffiliations.findMany({
     where: and(inArray(markerAffiliations.territoryId, territoryIds), eq(markerAffiliations.status, "accepted")),

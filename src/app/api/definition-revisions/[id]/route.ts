@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { celestialObjects, definitionRevisions, seasonProfiles } from "@/server/db/schema";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 import { safeJson } from "@/server/calendars/parse";
 import { recordRevision, toClientCelestial, toClientProfile } from "@/server/calendars/store";
 import { badRequest, notFound, readBody } from "@/server/calendars/respond";
@@ -18,7 +18,7 @@ const stale = () => NextResponse.json({ error: "This was changed elsewhere. Relo
  */
 export async function POST(request: Request, { params }: RouteContext) {
   const { id } = await params;
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   const [revision] = await db.select().from(definitionRevisions).where(and(eq(definitionRevisions.id, id), eq(definitionRevisions.worldId, worldId)));
   if (!revision || revision.subjectType === "calendar") return notFound("Revision not found.");
   const body = await readBody(request);

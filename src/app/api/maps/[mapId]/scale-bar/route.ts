@@ -3,14 +3,14 @@ import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { maps, mapScaleBars } from "@/server/db/schema";
 import { applyScalePatch, parseScaleConfig, type ScaleConfig } from "@/server/scale/scale-config";
-import { ensureDefaultWorld } from "@/server/world/default-world";
 import { getSettings } from "@/server/settings/store";
+import { notInWorld } from "@/server/world/guards";
 
 type ScaleRow = typeof mapScaleBars.$inferSelect;
 
 /** A map without a scale bar yet starts in the user's distance unit (km or mi). */
 async function defaultConfigJson(): Promise<string> {
-  const { lengthSystem } = await getSettings(await ensureDefaultWorld());
+  const { lengthSystem } = await getSettings();
   return JSON.stringify({ unit: lengthSystem === "imperial" ? "mi" : "km" });
 }
 
@@ -24,12 +24,16 @@ const findScale = (mapId: string) => db.query.mapScaleBars.findFirst({ where: eq
 /** The map's scale bar (defaults, hidden and uncalibrated, when it has none yet). */
 export async function GET(_request: Request, { params }: { params: Promise<{ mapId: string }> }) {
   const { mapId } = await params;
+  const denied = await notInWorld("maps", mapId, "Map not found.");
+  if (denied) return denied;
   return NextResponse.json({ scaleBar: await toClient(await findScale(mapId)) });
 }
 
 /** Body: any of `visible`, `config` (partial, merged and validated). Creates the row on first use. */
 export async function PUT(request: Request, { params }: { params: Promise<{ mapId: string }> }) {
   const { mapId } = await params;
+  const denied = await notInWorld("maps", mapId, "Map not found.");
+  if (denied) return denied;
   const map = await db.query.maps.findFirst({ where: eq(maps.id, mapId) });
   if (!map) return NextResponse.json({ error: "Map not found." }, { status: 404 });
   const body = await request.json().catch(() => null);

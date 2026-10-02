@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/server/db/client";
 import { quests } from "@/server/db/schema";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 import { createEmptyDocument } from "@/server/documents/create";
 import { badRequest, calendarErrorResponse, notFound, readBody } from "@/server/calendars/respond";
 import { campaignOf } from "@/server/sessions/store";
@@ -13,7 +13,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 /** The campaign's live quests (board order). */
 export async function GET(_request: Request, { params }: RouteContext) {
   const { id } = await params;
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   if (!(await campaignOf(worldId, id))) return notFound("Campaign not found.");
   return NextResponse.json({ quests: (await questsOf(id)).map(toClientQuest) });
 }
@@ -21,7 +21,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
 /** Creates a quest (a hook by default) at the end of its board column, with empty notes. */
 export async function POST(request: Request, { params }: RouteContext) {
   const { id } = await params;
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   const campaign = await campaignOf(worldId, id);
   if (!campaign) return notFound("Campaign not found.");
   const body = await readBody(request);

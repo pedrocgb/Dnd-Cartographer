@@ -282,6 +282,27 @@ textarea::placeholder {
   color: var(--teal-400);
 }
 
+.app-nav-bare {
+  display: flex;
+}
+
+.app-nav-world {
+  max-width: 240px;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-md);
+  transition: background var(--transition-fast);
+}
+
+.app-nav-world:hover {
+  background: var(--bg-surface-hover);
+}
+
+.app-nav-world-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .app-nav-link {
   display: inline-flex;
   align-items: center;
@@ -16166,4 +16187,433 @@ textarea.rel-notes {
 
 .article-folder-popover li.field-label {
   padding: var(--space-2);
+}
+
+/* ---------- Worlds screen (/worlds) ---------- */
+
+.worlds-page {
+  width: min(1120px, 100%);
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-5) var(--space-10);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.worlds-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  text-align: center;
+}
+
+.worlds-header svg {
+  color: var(--teal-400);
+}
+
+.worlds-header h1 {
+  margin: 0;
+  font-size: var(--text-xl);
+  color: var(--text-primary);
+}
+
+.worlds-header p {
+  margin: 0;
+  max-width: 520px;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.worlds-error {
+  align-self: center;
+}
+
+.worlds-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-4);
+}
+
+.world-card {
+  --world-color: #47bfab;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 280px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  overflow: hidden;
+  transition: border-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.world-card:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.world-card.active {
+  border-color: var(--teal-500);
+  box-shadow: inset 0 0 0 1px var(--teal-500);
+}
+
+.world-card-open {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.world-card-open:disabled {
+  cursor: progress;
+}
+
+.world-card-banner {
+  display: flex;
+  align-items: flex-end;
+  height: 96px;
+  padding: var(--space-3) var(--space-4);
+  background:
+    radial-gradient(circle at 80% 20%, color-mix(in srgb, var(--world-color) 55%, transparent), transparent 55%),
+    linear-gradient(135deg, color-mix(in srgb, var(--world-color) 50%, #0c0e11), color-mix(in srgb, var(--world-color) 16%, #0c0e11));
+}
+
+.world-card-initial {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  margin-bottom: -34px;
+  border: 2px solid color-mix(in srgb, var(--world-color) 80%, white);
+  border-radius: var(--radius-full);
+  background: var(--bg-surface-raised);
+  color: color-mix(in srgb, var(--world-color) 60%, white);
+  font-size: 1.4rem;
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+.world-card-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-6) var(--space-4) var(--space-4);
+}
+
+.world-card-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.world-card-title strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-md);
+}
+
+.world-card-current {
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--teal-900);
+  color: var(--teal-300);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.world-card-description {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+.world-card-description.empty {
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+
+.world-card-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin-top: auto;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+
+.world-card-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.world-card-stat svg {
+  color: var(--text-tertiary);
+}
+
+.world-card-foot {
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-subtle);
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+}
+
+/* Edit and Delete sit on the banner, shown on hover or keyboard focus. */
+.world-card-actions {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-md);
+  background: rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.world-card:hover .world-card-actions,
+.world-card:focus-within .world-card-actions {
+  opacity: 1;
+}
+
+.world-card-actions .btn {
+  color: var(--text-primary);
+}
+
+.world-card-new {
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border-style: dashed;
+  border-color: var(--border-strong);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.world-card-new span {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+
+.world-card-new:hover {
+  border-color: var(--teal-500);
+  color: var(--teal-300);
+  background: var(--teal-900);
+}
+
+.world-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.world-form-intro {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.world-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.world-form-field textarea {
+  resize: vertical;
+}
+
+.confirm-dialog-type {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.confirm-dialog-type strong {
+  color: var(--text-primary);
+}
+
+@media (hover: none) {
+  .world-card-actions {
+    opacity: 1;
+  }
+}
+
+/* Opening a world: full screen, over the worlds grid, until the next page loads. */
+.world-opening {
+  --world-color: #47bfab;
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  background:
+    radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--world-color) 30%, transparent), transparent 60%),
+    var(--bg-canvas);
+  animation: fadeIn 180ms ease;
+}
+
+.world-opening-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 84px;
+  height: 84px;
+  border: 2px solid color-mix(in srgb, var(--world-color) 80%, white);
+  border-radius: var(--radius-full);
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--world-color) 55%, #0c0e11), color-mix(in srgb, var(--world-color) 18%, #0c0e11) 75%);
+  box-shadow: 0 0 40px -8px var(--world-color);
+  color: color-mix(in srgb, var(--world-color) 55%, white);
+  font-size: 2.2rem;
+  font-weight: 700;
+}
+
+.world-card-skeleton {
+  pointer-events: none;
+}
+
+.world-card-skeleton:hover {
+  transform: none;
+  box-shadow: none;
+  border-color: var(--border-default);
+}
+
+.skeleton.world-card-skeleton-banner {
+  width: 100%;
+  opacity: 0.6;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .world-opening {
+    animation: none;
+  }
+}
+
+/* World form: name and text with a live card preview on the left; badge and color on the right. */
+.world-form-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  gap: var(--space-5);
+}
+
+.world-form-main,
+.world-form-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.world-form-preview {
+  --world-color: #47bfab;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  overflow: hidden;
+}
+
+.world-form-preview .world-card-banner {
+  height: 84px;
+}
+
+.world-form-preview-name {
+  padding: var(--space-6) var(--space-4) var(--space-3);
+  font-weight: 600;
+  font-size: var(--text-md);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.world-form-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+}
+
+.world-form-block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+/* The icon grid scrolls inside its block, so the form keeps its height. */
+.world-form-icons {
+  max-height: 220px;
+  overflow-y: auto;
+  padding-right: var(--space-1);
+}
+
+.world-form-icons .icon-grid {
+  grid-template-columns: repeat(auto-fill, minmax(34px, 1fr));
+}
+
+.world-auto-color {
+  padding: 2px var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.world-auto-color:hover {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+.world-auto-color.active {
+  border-color: var(--teal-500);
+  background: var(--teal-900);
+  color: var(--teal-300);
+}
+
+.world-form-wheel .color-wheel-controls {
+  width: 220px;
+}
+
+@media (max-width: 760px) {
+  .world-form-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* The Badge switch sizes to its labels (segments otherwise share the width and shrink to fit). */
+.world-form-block-head .segmented {
+  flex: 0 0 auto;
+}
+
+.world-form-block-head .segmented-option {
+  flex: 0 0 auto;
+  padding: 4px 12px;
+  white-space: nowrap;
 }

@@ -6,6 +6,7 @@ import { isLayerOfMap, sanitizeExtraLayerIds } from "@/server/layers/layers";
 import { parseLayerIds, withLayerIds } from "@/server/layers/layer-ids";
 import { folderError, inLockedFolder } from "@/server/maps/layer-folders";
 import { sanitizeTextPatch } from "@/server/texts/text-config";
+import { notInWorld } from "@/server/world/guards";
 
 /**
  * Content, style and position fields, `visible`, `locked`, `sortOrder`, `groupId` (a
@@ -14,6 +15,8 @@ import { sanitizeTextPatch } from "@/server/texts/text-config";
  */
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const denied = await notInWorld("map_texts", id, "Text not found.");
+  if (denied) return denied;
   const existing = await db.query.mapTexts.findFirst({ where: eq(mapTexts.id, id) });
   if (!existing || existing.deletedAt) return NextResponse.json({ error: "Text not found." }, { status: 404 });
   const map = await db.query.maps.findFirst({ where: eq(maps.id, existing.mapId) });
@@ -64,6 +67,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const denied = await notInWorld("map_texts", id, "Text not found.");
+  if (denied) return denied;
   await db.update(mapTexts).set({ deletedAt: new Date(), updatedAt: new Date() }).where(eq(mapTexts.id, id));
   return NextResponse.json({ ok: true });
 }

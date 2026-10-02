@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
+import { worldArticleLinksJson } from "@/server/calendars/entries";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { calendars } from "@/server/db/schema";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 import { validateDefinition } from "@/server/calendars/engine";
 import { cleanName, parseArticleLinks, parseDefinition } from "@/server/calendars/parse";
 import { chronologyOf, loadWorldCalendars, toClientCalendar, updateChronology } from "@/server/calendars/store";
@@ -10,7 +11,7 @@ import { badRequest, calendarErrorResponse, readBody } from "@/server/calendars/
 
 /** The world's chronology, calendars, celestial objects, seasons and profiles. */
 export async function GET() {
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   return NextResponse.json(await loadWorldCalendars(worldId));
 }
 
@@ -25,7 +26,7 @@ export async function POST(request: Request) {
     const issues = validateDefinition(definition);
     if (issues.length) return NextResponse.json({ error: issues[0].message, issues }, { status: 400 });
 
-    const worldId = await ensureDefaultWorld();
+    const worldId = await requireWorldId();
     const existing = await db.select({ id: calendars.id }).from(calendars).where(eq(calendars.worldId, worldId));
     const [row] = await db
       .insert(calendars)
@@ -34,7 +35,7 @@ export async function POST(request: Request) {
         name,
         description: cleanName(body.description, 4000),
         definition: JSON.stringify(definition),
-        articleLinks: JSON.stringify(parseArticleLinks(body.articleLinks)),
+        articleLinks: await worldArticleLinksJson(worldId, parseArticleLinks(body.articleLinks)),
         sortOrder: existing.length,
       })
       .returning();

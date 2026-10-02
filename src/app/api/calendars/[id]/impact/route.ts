@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 import { validateDefinition } from "@/server/calendars/engine";
 import { parseDefinition } from "@/server/calendars/parse";
 import { previewImpact } from "@/server/calendars/mutations";
@@ -11,7 +11,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 /** What a proposed `definition` would change (labels, named-date shifts, broken references). Changes nothing. */
 export async function POST(request: Request, { params }: RouteContext) {
   const { id } = await params;
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   const row = await calendarOf(worldId, id);
   if (!row) return notFound("Calendar not found.");
   const body = await readBody(request);

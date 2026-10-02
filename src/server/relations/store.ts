@@ -15,16 +15,16 @@ export interface RecordRef {
   template: ArticleTemplateKey;
 }
 
-/** Live records among `ids`: which table each lives in and its template. Deleted or unknown ids are absent. */
-export async function resolveRecords(ids: readonly string[], ex: Executor = db): Promise<Map<string, RecordRef>> {
+/** The world's live records among `ids`: which table each lives in and its template. Deleted, unknown or other-world ids are absent. */
+export async function resolveRecords(worldId: string, ids: readonly string[], ex: Executor = db): Promise<Map<string, RecordRef>> {
   const list = [...new Set(ids)];
   const out = new Map<string, RecordRef>();
   if (list.length === 0) return out;
   const [ps, os, ts, as] = await Promise.all([
-    ex.select({ id: people.id, kind: people.kind }).from(people).where(and(inArray(people.id, list), isNull(people.deletedAt))),
-    ex.select({ id: organizations.id }).from(organizations).where(and(inArray(organizations.id, list), isNull(organizations.deletedAt))),
-    ex.select({ id: territories.id }).from(territories).where(and(inArray(territories.id, list), isNull(territories.deletedAt))),
-    ex.select({ id: articles.id, template: articles.template }).from(articles).where(and(inArray(articles.id, list), isNull(articles.deletedAt))),
+    ex.select({ id: people.id, kind: people.kind }).from(people).where(and(inArray(people.id, list), eq(people.worldId, worldId), isNull(people.deletedAt))),
+    ex.select({ id: organizations.id }).from(organizations).where(and(inArray(organizations.id, list), eq(organizations.worldId, worldId), isNull(organizations.deletedAt))),
+    ex.select({ id: territories.id }).from(territories).where(and(inArray(territories.id, list), eq(territories.worldId, worldId), isNull(territories.deletedAt))),
+    ex.select({ id: articles.id, template: articles.template }).from(articles).where(and(inArray(articles.id, list), eq(articles.worldId, worldId), isNull(articles.deletedAt))),
   ]);
   for (const p of ps) out.set(p.id, { kind: "person", template: personTemplate(p.kind) });
   for (const o of os) out.set(o.id, { kind: "organization", template: "organization" });
@@ -54,7 +54,7 @@ export class RelationError extends Error {}
 export async function saveRelation(worldId: string, raw: Record<string, unknown>, ex: Executor = db, selfId?: string): Promise<RelationRow> {
   const fromId = typeof raw.fromId === "string" ? raw.fromId : "";
   const toId = typeof raw.toId === "string" ? raw.toId : "";
-  const refs = await resolveRecords([fromId, toId], ex);
+  const refs = await resolveRecords(worldId, [fromId, toId], ex);
   const live = await listRelations(worldId, ex);
   const checked = validateRelation(raw, { from: refs.get(fromId)?.template ?? null, to: refs.get(toId)?.template ?? null }, existingOf(live), selfId);
   if (!checked.ok) throw new RelationError(checked.error);

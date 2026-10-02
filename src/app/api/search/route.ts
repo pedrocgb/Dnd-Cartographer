@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { and, eq, isNull, like } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { maps, markers } from "@/server/db/schema";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 
 export interface SearchResult {
   type: "map" | "marker";
@@ -18,7 +18,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ results: [] });
   }
 
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   const pattern = `%${q}%`;
 
   const mapRows = await db

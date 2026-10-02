@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { and, desc, eq, isNull, like, or } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { calendarEntries } from "@/server/db/schema";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 import { createEmptyDocument } from "@/server/documents/create";
 import { ENTRY_KINDS, duplicateLink, linkedNames, parseEntryFields, type EntryKind } from "@/server/calendars/entries";
 import { entriesForArticle, entriesInRange, toClientEntry } from "@/server/calendars/store";
@@ -19,7 +19,7 @@ const MAX_WINDOW = 50_000;
  */
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   let entries;
   const articleId = url.searchParams.get("articleId");
   const q = url.searchParams.get("q")?.trim();
@@ -46,7 +46,7 @@ export async function GET(request: Request) {
     if (to - from > MAX_WINDOW) return badRequest(`Ask for at most ${MAX_WINDOW} days at once.`);
     entries = await entriesInRange(worldId, from, to);
   }
-  return NextResponse.json({ entries, articleNames: await linkedNames(entries) });
+  return NextResponse.json({ entries, articleNames: await linkedNames(worldId, entries) });
 }
 
 /**
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
   if (!ENTRY_KINDS.includes(kind)) return badRequest("Pick what to add: a note, an event or an article link.");
   if (!("worldDay" in body)) return badRequest("Pick a date.");
   try {
-    const worldId = await ensureDefaultWorld();
+    const worldId = await requireWorldId();
     const fields = await parseEntryFields(worldId, kind, body);
     if (kind === "link" && !fields.articleId) return badRequest("Pick the article to link.");
     if (kind === "event" && !fields.title) return badRequest("An event needs a title.");
@@ -74,7 +74,7 @@ export async function POST(request: Request) {
       .values({ worldId, kind, worldDay: fields.worldDay!, ...fields, documentId })
       .returning();
     const entry = toClientEntry(row);
-    return NextResponse.json({ entry, articleNames: await linkedNames([entry]) }, { status: 201 });
+    return NextResponse.json({ entry, articleNames: await linkedNames(worldId, [entry]) }, { status: 201 });
   } catch (error) {
     return calendarErrorResponse(error);
   }

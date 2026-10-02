@@ -44,11 +44,17 @@ export async function checkRecurrence(worldId: string, rule: Recurrence) {
   if (obj.length !== refs.objectIds.length) throw new InvalidError("A condition points at a celestial object that doesn't exist.");
 }
 
-/** Live articles only; a link to a deleted/missing article is refused. */
-export async function checkArticles(links: { template: string; articleId: string }[]) {
+/** Live articles of the world only; a link to a deleted, missing or other-world article is refused. */
+export async function checkArticles(worldId: string, links: { template: string; articleId: string }[]) {
   if (links.some((l) => !isArticleTemplate(l.template))) throw new InvalidError("Unknown article type.");
-  const names = await resolveArticleNames(links);
+  const names = await resolveArticleNames(worldId, links);
   if (links.some((l) => !names.has(l.articleId))) throw new InvalidError("A linked article doesn't exist (it may have been deleted).");
+}
+
+/** The links that point at live articles of the world (others, e.g. since deleted, are dropped), as stored JSON. */
+export async function worldArticleLinksJson(worldId: string, links: { template: string; articleId: string }[]): Promise<string> {
+  const names = await resolveArticleNames(worldId, links);
+  return JSON.stringify(links.filter((l) => names.has(l.articleId)));
 }
 
 const dayInt = (v: unknown, what: string) => {
@@ -86,14 +92,14 @@ export async function parseEntryFields(worldId: string, kind: EntryKind, body: R
   if ("color" in body) out.color = cleanColor(body.color) ?? "";
   if ("articleLinks" in body && kind === "event") {
     const links = parseArticleLinks(body.articleLinks);
-    await checkArticles(links);
+    await checkArticles(worldId, links);
     out.articleLinks = JSON.stringify(links);
   }
   if (kind === "link" && ("articleId" in body || "articleTemplate" in body)) {
     const template = typeof body.articleTemplate === "string" ? body.articleTemplate : "";
     const articleId = typeof body.articleId === "string" ? body.articleId : "";
     if (!template || !articleId) throw new ParseError("Pick the article to link.");
-    await checkArticles([{ template, articleId }]);
+    await checkArticles(worldId, [{ template, articleId }]);
     out.articleTemplate = template;
     out.articleId = articleId;
   }
@@ -122,7 +128,7 @@ export async function duplicateLink(worldId: string, worldDay: number, articleId
 }
 
 /** Display names for every article the entries point at; missing ones are absent (shown as "(removed)"). */
-export async function linkedNames(entries: { articleTemplate: string | null; articleId: string | null; articleLinks: { template: string; articleId: string }[] }[]) {
+export async function linkedNames(worldId: string, entries: { articleTemplate: string | null; articleId: string | null; articleLinks: { template: string; articleId: string }[] }[]) {
   const refs = entries.flatMap((e) => [...(e.articleId && e.articleTemplate ? [{ template: e.articleTemplate, articleId: e.articleId }] : []), ...e.articleLinks]);
-  return Object.fromEntries(await resolveArticleNames(refs));
+  return Object.fromEntries(await resolveArticleNames(worldId, refs));
 }

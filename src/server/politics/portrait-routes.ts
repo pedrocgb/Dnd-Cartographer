@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
+import { requireWorldId } from "@/server/world/active-world";
 import { db } from "@/server/db/client";
 import { articles, organizations, people, territories } from "@/server/db/schema";
 import { adjustPortrait, deletePortraitFile, InvalidImageError, portraitSource, processPortraitUpload } from "@/server/assets/portrait-upload";
@@ -32,7 +33,8 @@ export function portraitRouteHandlers(ownerType: PortraitOwnerType) {
   const { table, label } = OWNERS[ownerType];
 
   async function exists(id: string) {
-    const [row] = await db.select({ id: table.id }).from(table).where(eq(table.id, id)).limit(1);
+    const worldId = await requireWorldId();
+    const [row] = await db.select({ id: table.id }).from(table).where(and(eq(table.id, id), eq(table.worldId, worldId))).limit(1);
     return Boolean(row);
   }
 

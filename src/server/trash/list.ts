@@ -2,7 +2,7 @@ import { and, eq, isNotNull } from "drizzle-orm";
 import { db } from "../db/client";
 import { articles, calendarEntries, calendars, campaignCharacters, maps, organizations, people, territories } from "../db/schema";
 import { TEMPLATE_LABELS, isGenericTemplate, personTemplate } from "../articles/templates";
-import { trashedDescendantsLookup, trashedMapRoots, type TrashItem } from "./trash";
+import { trashedDescendantsLookup, trashedMapRoots, type TrashItem, type TrashRef } from "./trash";
 
 const ENTRY_KIND_LABELS: Record<string, string> = { note: "Calendar note", event: "Calendar event", link: "Calendar link" };
 
@@ -70,4 +70,10 @@ export async function listTrash(worldId: string): Promise<TrashItem[]> {
       deletedAt: ms(e.deletedAt),
     })),
   ];
+}
+
+/** The refs that are in this world's Trash; anything else (another world's, or not trashed) is dropped. */
+export async function inWorldTrash(worldId: string, refs: TrashRef[]): Promise<TrashRef[]> {
+  const listed = new Set((await listTrash(worldId)).map((item) => `${item.kind}:${item.id}`));
+  return refs.filter((ref) => listed.has(`${ref.kind}:${ref.id}`));
 }

@@ -3,9 +3,12 @@ import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { lineGroups, mapGrids, mapLayers, mapLegends, mapLines, mapRoutes, routeGroups, textGroups, mapTexts, markers, zoneRegions, zones } from "@/server/db/schema";
 import { findLayer, listLayerRows } from "@/server/layers/layers";
+import { notInWorld } from "@/server/world/guards";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const denied = await notInWorld("map_layers", id, "Layer not found.");
+  if (denied) return denied;
   const layer = await findLayer(id);
   if (!layer) return NextResponse.json({ error: "Layer not found." }, { status: 404 });
 
@@ -43,6 +46,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
  */
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const denied = await notInWorld("map_layers", id, "Layer not found.");
+  if (denied) return denied;
   const layer = await findLayer(id);
   if (!layer) return NextResponse.json({ error: "Layer not found." }, { status: 404 });
 

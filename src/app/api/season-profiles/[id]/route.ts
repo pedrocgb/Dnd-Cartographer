@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { and, eq, ne } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { seasonProfiles } from "@/server/db/schema";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 import { cleanName, parseProfileData } from "@/server/calendars/parse";
 import { checkProfile, profileUsers } from "@/server/calendars/profiles";
 import { recordRevision, toClientProfile } from "@/server/calendars/store";
@@ -25,7 +25,7 @@ const stale = () => NextResponse.json({ error: "This profile was changed elsewhe
  */
 export async function PATCH(request: Request, { params }: RouteContext) {
   const { id } = await params;
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   const row = await profileOf(worldId, id);
   if (!row) return notFound("Season profile not found.");
   const body = await readBody(request);
@@ -76,7 +76,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 /** Hard delete only when no article or event refers to it; otherwise archive it or reassign those articles first. */
 export async function DELETE(_request: Request, { params }: RouteContext) {
   const { id } = await params;
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   if (!(await profileOf(worldId, id))) return notFound("Season profile not found.");
   const users = await profileUsers(worldId, id);
   if (users.articles.length || users.events.length) {

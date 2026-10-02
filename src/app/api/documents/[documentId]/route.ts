@@ -4,9 +4,12 @@ import { db } from "@/server/db/client";
 import { documentMentions, richDocuments } from "@/server/db/schema";
 import { extractMentions } from "@/server/mentions/kinds";
 import { validateDocument, deriveText, DocumentValidationError, SCHEMA_VERSION } from "@/server/documents/schema";
+import { notInWorld } from "@/server/world/guards";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ documentId: string }> }) {
   const { documentId } = await params;
+  const denied = await notInWorld("rich_documents", documentId, "Document not found.");
+  if (denied) return denied;
   const doc = await db.query.richDocuments.findFirst({ where: eq(richDocuments.id, documentId) });
   if (!doc) {
     return NextResponse.json({ error: "Document not found." }, { status: 404 });
@@ -16,6 +19,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ doc
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ documentId: string }> }) {
   const { documentId } = await params;
+  const denied = await notInWorld("rich_documents", documentId, "Document not found.");
+  if (denied) return denied;
   const body = await request.json().catch(() => null);
   const revision = Number(body?.revision);
 

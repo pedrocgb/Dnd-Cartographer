@@ -13,15 +13,20 @@ import {
   DEFAULT_GRID,
 } from "@/server/grid/grid-config";
 import { findLayer } from "@/server/layers/layers";
+import { notInWorld } from "@/server/world/guards";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const denied = await notInWorld("map_layers", id, "Layer not found.");
+  if (denied) return denied;
   const grid = await db.query.mapGrids.findFirst({ where: eq(mapGrids.layerId, id) });
   return NextResponse.json({ grid: grid ?? null });
 }
 
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const denied = await notInWorld("map_layers", id, "Layer not found.");
+  if (denied) return denied;
   const layer = await findLayer(id);
   if (!layer) {
     return NextResponse.json({ error: "Layer not found." }, { status: 404 });
@@ -42,6 +47,8 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const denied = await notInWorld("map_layers", id, "Layer not found.");
+  if (denied) return denied;
   const grid = await db.query.mapGrids.findFirst({ where: eq(mapGrids.layerId, id) });
   if (!grid) {
     return NextResponse.json({ error: "Grid not found." }, { status: 404 });
@@ -69,6 +76,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const denied = await notInWorld("map_layers", id, "Layer not found.");
+  if (denied) return denied;
   await db.delete(mapGrids).where(eq(mapGrids.layerId, id));
   return NextResponse.json({ ok: true });
 }

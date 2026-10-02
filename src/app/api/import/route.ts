@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 import { importBundle, ImportValidationError } from "@/server/portability/import-export";
 
 export const runtime = "nodejs";
@@ -13,7 +13,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Uploaded file is not valid JSON." }, { status: 400 });
   }
 
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
 
   try {
     const summary = await importBundle(parsed, worldId);

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { definitionRevisions } from "@/server/db/schema";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 import { restoreCalendarRevision } from "@/server/calendars/mutations";
 import { calendarOf } from "@/server/calendars/store";
 import { badRequest, calendarErrorResponse, notFound, readBody } from "@/server/calendars/respond";
@@ -12,7 +12,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 /** The calendar's saved revisions, newest first (what and when — no snapshots). */
 export async function GET(_request: Request, { params }: RouteContext) {
   const { id } = await params;
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   if (!(await calendarOf(worldId, id))) return notFound("Calendar not found.");
   const rows = await db
     .select({ id: definitionRevisions.id, version: definitionRevisions.version, reason: definitionRevisions.reason, createdAt: definitionRevisions.createdAt })
@@ -26,7 +26,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
 /** Restores `revisionId` (with `expectedVersion`) as a new version; the entries it had moved go back too. */
 export async function POST(request: Request, { params }: RouteContext) {
   const { id } = await params;
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   const row = await calendarOf(worldId, id);
   if (!row) return notFound("Calendar not found.");
   const body = await readBody(request);

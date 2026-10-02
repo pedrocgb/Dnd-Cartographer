@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { campaigns } from "@/server/db/schema";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 import { cleanName } from "@/server/calendars/parse";
 import { checkCalendarIds } from "@/server/calendars/store";
 import { badRequest, calendarErrorResponse, readBody } from "@/server/calendars/respond";
@@ -12,7 +12,7 @@ import { D_AND_D_COINS } from "@/server/sessions/types";
 
 /** The world's campaigns with their party rosters. */
 export async function GET() {
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   const rows = await db.select().from(campaigns).where(eq(campaigns.worldId, worldId)).orderBy(asc(campaigns.sortOrder), asc(campaigns.createdAt));
   const list = await Promise.all(rows.map(async (row) => toClientCampaign(row, await rosterOf(row.id))));
   return NextResponse.json({ campaigns: list });
@@ -26,7 +26,7 @@ export async function POST(request: Request) {
     const name = cleanName(body.name);
     if (!name) return badRequest("A campaign name is required.");
     if (typeof body.calendarId !== "string" || !body.calendarId) return badRequest("Pick the calendar this campaign's dates are read in.");
-    const worldId = await ensureDefaultWorld();
+    const worldId = await requireWorldId();
     await checkCalendarIds(worldId, [body.calendarId]);
     const currencies = body.currencies === undefined ? D_AND_D_COINS : parseCurrencies(body.currencies);
     const existing = await db.select({ id: campaigns.id }).from(campaigns).where(eq(campaigns.worldId, worldId));

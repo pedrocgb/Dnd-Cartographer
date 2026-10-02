@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/server/db/client";
 import { celestialObjects } from "@/server/db/schema";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 import { celestialIssues } from "@/server/calendars/celestial";
 import { cleanColor, cleanName, parseArticleLinks, parseCalendarIds, parseCelestialConfig, parseCelestialType } from "@/server/calendars/parse";
 import { checkCalendarIds, toClientCelestial } from "@/server/calendars/store";
@@ -19,9 +19,9 @@ export async function POST(request: Request) {
     const config = parseCelestialConfig(body.config);
     const issues = celestialIssues(type, config);
     if (issues.length) return NextResponse.json({ error: issues[0], issues }, { status: 400 });
+    const worldId = await requireWorldId();
     const articleLinks = parseArticleLinks(body.articleLinks);
-    await checkArticles(articleLinks);
-    const worldId = await ensureDefaultWorld();
+    await checkArticles(worldId, articleLinks);
     const calendarIds = parseCalendarIds(body.calendarIds ?? null);
     await checkCalendarIds(worldId, calendarIds);
     const [row] = await db

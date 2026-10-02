@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { db } from "@/server/db/client";
+import { requireWorldId } from "@/server/world/active-world";
 import { authorityAssignments } from "@/server/db/schema";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const row = await db.query.authorityAssignments.findFirst({ where: eq(authorityAssignments.id, id) });
+  const worldId = await requireWorldId();
+  const row = await db.query.authorityAssignments.findFirst({ where: and(eq(authorityAssignments.id, id), eq(authorityAssignments.worldId, worldId)) });
   if (!row) return NextResponse.json({ error: "Authority assignment not found." }, { status: 404 });
 
   const body = await request.json().catch(() => null);
@@ -16,12 +18,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (typeof body.title === "string") patch.title = body.title;
   if (typeof body.notes === "string") patch.notes = body.notes;
 
-  const [updated] = await db.update(authorityAssignments).set(patch).where(eq(authorityAssignments.id, id)).returning();
+  const [updated] = await db.update(authorityAssignments).set(patch).where(and(eq(authorityAssignments.id, id), eq(authorityAssignments.worldId, worldId))).returning();
   return NextResponse.json({ authority: updated });
 }
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  await db.delete(authorityAssignments).where(eq(authorityAssignments.id, id));
+  const worldId = await requireWorldId();
+  await db.delete(authorityAssignments).where(and(eq(authorityAssignments.id, id), eq(authorityAssignments.worldId, worldId)));
   return NextResponse.json({ ok: true });
 }

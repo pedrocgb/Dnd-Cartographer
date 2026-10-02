@@ -4,9 +4,12 @@ import { db } from "@/server/db/client";
 import { zoneRegions, maps } from "@/server/db/schema";
 import { isLayerOfMap } from "@/server/layers/layers";
 import { toClientFolder } from "@/server/maps/layer-folders";
+import { notInWorld } from "@/server/world/guards";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ mapId: string }> }) {
   const { mapId } = await params;
+  const denied = await notInWorld("maps", mapId, "Map not found.");
+  if (denied) return denied;
   const regions = await db.query.zoneRegions.findMany({
     where: and(eq(zoneRegions.mapId, mapId), isNull(zoneRegions.deletedAt)),
     orderBy: [asc(zoneRegions.sortOrder)],
@@ -16,6 +19,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ map
 
 export async function POST(request: Request, { params }: { params: Promise<{ mapId: string }> }) {
   const { mapId } = await params;
+  const denied = await notInWorld("maps", mapId, "Map not found.");
+  if (denied) return denied;
   const map = await db.query.maps.findFirst({ where: eq(maps.id, mapId) });
   if (!map) return NextResponse.json({ error: "Map not found." }, { status: 404 });
 

@@ -14,6 +14,7 @@ import type { ClientCalendar, Impact, WorldCalendars } from "./types";
 import { SkeletonList } from "@/components/Skeleton";
 import { formatRealDate } from "@/server/settings/date-format";
 import { activeSettings } from "@/server/settings/active";
+import { worldKey } from "@/components/world-key";
 
 const TABS = [
   { key: "basics", label: "Name" },
@@ -37,7 +38,7 @@ function starterDefinition(currentDay: number): CalendarDefinition {
   return { weekdays, weekReset: "continuous", weekAnchor: { date, weekdayId: weekdays[0].id }, periods, leapRules: [], year: { hasYearZero: false, suffix: "" }, sync: { date, worldDay: currentDay } };
 }
 
-const draftKey = (id: string | null) => `calendar-draft:${id ?? "new"}`;
+const draftKey = (id: string | null) => worldKey(`calendar-draft:${id ?? "new"}`);
 
 function readDraft(id: string | null): Draft | null {
   try {

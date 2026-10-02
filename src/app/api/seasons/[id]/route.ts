@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
+import { worldArticleLinksJson } from "@/server/calendars/entries";
 import { and, eq, like } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { seasonProfiles, seasons } from "@/server/db/schema";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 import { cleanColor, cleanName, parseArticleLinks, parseSeasonCalendar } from "@/server/calendars/parse";
 import { checkCalendarIds, toClientSeason } from "@/server/calendars/store";
 import { badRequest, calendarErrorResponse, notFound, readBody } from "@/server/calendars/respond";
@@ -16,7 +17,7 @@ async function seasonOf(worldId: string, id: string) {
 
 export async function PATCH(request: Request, { params }: RouteContext) {
   const { id } = await params;
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   const row = await seasonOf(worldId, id);
   if (!row) return notFound("Season not found.");
   const body = await readBody(request);
@@ -31,7 +32,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     if ("description" in body) patch.description = cleanName(body.description, 4000);
     if ("color" in body) patch.color = cleanColor(body.color) ?? row.color;
     if ("icon" in body) patch.icon = cleanName(body.icon, 4);
-    if ("articleLinks" in body) patch.articleLinks = JSON.stringify(parseArticleLinks(body.articleLinks));
+    if ("articleLinks" in body) patch.articleLinks = await worldArticleLinksJson(worldId, parseArticleLinks(body.articleLinks));
     if ("archived" in body) patch.archivedAt = body.archived === true ? new Date() : null;
     if ("calendarId" in body) {
       const calendarId = parseSeasonCalendar(body.calendarId);
@@ -57,7 +58,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 /** Deletes a season no profile uses; a season in use must be archived (or removed from its profiles) first. */
 export async function DELETE(_request: Request, { params }: RouteContext) {
   const { id } = await params;
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   if (!(await seasonOf(worldId, id))) return notFound("Season not found.");
   const users = await db
     .select({ name: seasonProfiles.name })

@@ -2,24 +2,29 @@ import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { markerArticleLinks, markers } from "@/server/db/schema";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 import { resolveArticleNames, verifiedArticleName } from "@/server/articles/lookup";
 import { isArticleTemplate } from "@/server/articles/templates";
 import { linksOfMarker, setPrimaryLink } from "@/server/markers/article-links";
+import { notInWorld } from "@/server/world/guards";
 
 const MAX_LABEL_LENGTH = 80;
 
 /** The marker's linked articles, primary first then oldest; `name` is null once the article is deleted. */
 export async function GET(_request: Request, { params }: { params: Promise<{ markerId: string }> }) {
   const { markerId } = await params;
+  const denied = await notInWorld("markers", markerId, "Marker not found.");
+  if (denied) return denied;
   const rows = await linksOfMarker(markerId);
-  const names = await resolveArticleNames(rows);
+  const names = await resolveArticleNames(await requireWorldId(), rows);
   return NextResponse.json({ links: rows.map((r) => ({ ...r, name: names.get(r.articleId) ?? null })) });
 }
 
 /** Links an article. The marker's first link, or one sent with `primary: true`, becomes its primary article. */
 export async function POST(request: Request, { params }: { params: Promise<{ markerId: string }> }) {
   const { markerId } = await params;
+  const denied = await notInWorld("markers", markerId, "Marker not found.");
+  if (denied) return denied;
   const marker = await db.query.markers.findFirst({ where: eq(markers.id, markerId) });
   if (!marker) return NextResponse.json({ error: "Marker not found." }, { status: 404 });
 
@@ -29,7 +34,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ mar
   if (!isArticleTemplate(template)) return NextResponse.json({ error: "Unknown article template." }, { status: 400 });
   if (!articleId) return NextResponse.json({ error: "articleId is required." }, { status: 400 });
 
-  const name = await verifiedArticleName(template, articleId);
+  const worldId = await requireWorldId();
+  const name = await verifiedArticleName(worldId, template, articleId);
   if (!name) return NextResponse.json({ error: "Article not found." }, { status: 404 });
 
   const existing = await db.query.markerArticleLinks.findFirst({
@@ -37,7 +43,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ mar
   });
   if (existing) return NextResponse.json({ error: `"${name}" is already linked to this marker.` }, { status: 409 });
 
-  const worldId = await ensureDefaultWorld();
   const label = typeof body?.label === "string" ? body.label.trim().slice(0, MAX_LABEL_LENGTH) : "";
   const created = await db.transaction(async (tx) => {
     const hasPrimary = await tx.query.markerArticleLinks.findFirst({

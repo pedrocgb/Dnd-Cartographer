@@ -36,6 +36,7 @@ import { DEFAULT_TRAVEL, formatDuration, milesToUnit, modeOf, PACES, TRAVEL_MODE
 import type { RouteControls, RoutePatch } from "./use-map-routes";
 import { useSettings } from "@/components/settings/SettingsProvider";
 import { distanceUnit, fromFeet, fromKg, fromLitres, fromMiles, roundForInput, shortLengthUnit, speedUnit, toFeet, toMiles, volumeUnit, weightUnit } from "@/server/settings/units";
+import { worldKey } from "@/components/world-key";
 
 const PACE_LABELS: Record<Pace, string> = { slow: "Slow", normal: "Normal", fast: "Fast" };
 const STYLE_LABELS: Record<RouteStyleKind, string> = { solid: "Solid", dashed: "Dashed", dotted: "Dotted" };
@@ -51,7 +52,7 @@ export interface TravelDraft {
 export function useTravelDraft() {
   const [draft, setDraft] = useState<TravelDraft>(() => {
     try {
-      const raw = localStorage.getItem(DRAFT_KEY);
+      const raw = localStorage.getItem(worldKey(DRAFT_KEY));
       const parsed = raw ? JSON.parse(raw) : null;
       return { style: { ...DEFAULT_ROUTE_STYLE, ...parsed?.style }, settings: { ...DEFAULT_TRAVEL, ...parsed?.settings } };
     } catch {
@@ -62,7 +63,7 @@ export function useTravelDraft() {
     setDraft((prev) => {
       const next = { style: { ...prev.style, ...patch.style }, settings: { ...prev.settings, ...patch.settings } };
       try {
-        localStorage.setItem(DRAFT_KEY, JSON.stringify(next));
+        localStorage.setItem(worldKey(DRAFT_KEY), JSON.stringify(next));
       } catch {
         // Private mode or blocked storage: the draft just isn't remembered.
       }

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { and, asc, eq, gt, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { campaignStatusLog, outlineNodes, sessions } from "@/server/db/schema";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 import { checkArticles } from "@/server/calendars/entries";
 import { safeJson } from "@/server/calendars/parse";
 import { badRequest, calendarErrorResponse, notFound, readBody } from "@/server/calendars/respond";
@@ -21,7 +21,7 @@ type RouteContext = { params: Promise<{ id: string }> };
  */
 export async function POST(request: Request, { params }: RouteContext) {
   const { id } = await params;
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   const session = await sessionOf(worldId, id);
   if (!session) return notFound("Session not found.");
   const campaign = await campaignOf(worldId, session.campaignId);
@@ -30,7 +30,7 @@ export async function POST(request: Request, { params }: RouteContext) {
   if (!body) return badRequest("Invalid request body.");
   try {
     const review = parseReview(body);
-    await checkArticles(review.entries.flatMap((e) => (e.subject ? [e.subject] : [])));
+    await checkArticles(worldId, review.entries.flatMap((e) => (e.subject ? [e.subject] : [])));
     const nodes = await nodesOf(campaign.id);
     const scenes = review.scenes.map((r) => ({ r, node: nodes.find((n) => n.id === r.id && n.kind === "scene") }));
     if (scenes.some((s) => !s.node)) return badRequest("A reviewed scene isn't in this campaign's outline.");

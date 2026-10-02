@@ -16,9 +16,14 @@ import {
 import { isValidEnvironmentTag, isValidOwnershipTag, encodeStatusTags, toClientMarker } from "@/server/markers/tag-registry";
 import { isLayerOfMap, sanitizeExtraLayerIds } from "@/server/layers/layers";
 import { parseLayerIds } from "@/server/layers/layer-ids";
+import { notInWorld } from "@/server/world/guards";
+import { requireWorldId } from "@/server/world/active-world";
+import { foreignIdResponse, idsInWorld } from "@/server/world/guards";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ markerId: string }> }) {
   const { markerId } = await params;
+  const denied = await notInWorld("markers", markerId, "Marker not found.");
+  if (denied) return denied;
   const marker = await db.query.markers.findFirst({ where: eq(markers.id, markerId) });
   if (!marker) {
     return NextResponse.json({ error: "Marker not found." }, { status: 404 });
@@ -98,12 +103,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ma
     }
   }
 
+  if (!(await idsInWorld(await requireWorldId(), [["rich_documents", patch.descriptionDocumentId]]))) return foreignIdResponse();
   const [updated] = await db.update(markers).set(patch).where(eq(markers.id, markerId)).returning();
   return NextResponse.json({ marker: toClientMarker(updated) });
 }
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ markerId: string }> }) {
   const { markerId } = await params;
+  const denied = await notInWorld("markers", markerId, "Marker not found.");
+  if (denied) return denied;
   const marker = await db.query.markers.findFirst({ where: eq(markers.id, markerId) });
   if (!marker) {
     return NextResponse.json({ error: "Marker not found." }, { status: 404 });

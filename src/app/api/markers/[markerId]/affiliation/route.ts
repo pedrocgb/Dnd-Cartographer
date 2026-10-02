@@ -4,21 +4,26 @@ import { db } from "@/server/db/client";
 import { markers, territories, markerAffiliations } from "@/server/db/schema";
 import { resolveChain, levelsByProfileId, toTerritoryLike, getAuthoritiesForChain, getAcceptedAffiliation, getDraftAffiliation } from "@/server/politics/queries";
 import { validateChain, computeMissingRequiredTypes, isAttachableType } from "@/server/politics/hierarchy-config";
+import { notInWorld } from "@/server/world/guards";
+import { requireWorldId } from "@/server/world/active-world";
 
-async function describeAffiliation(territoryId: string) {
-  const chain = await resolveChain(territoryId);
+async function describeAffiliation(worldId: string, territoryId: string) {
+  const chain = await resolveChain(worldId, territoryId);
   const levelsMap = await levelsByProfileId(chain.map((t) => t.hierarchyProfileId));
   const missingRequiredTypes = computeMissingRequiredTypes(toTerritoryLike(chain), levelsMap);
-  const authorities = await getAuthoritiesForChain(chain.map((t) => t.id));
+  const authorities = await getAuthoritiesForChain(worldId, chain.map((t) => t.id));
   return { chain, missingRequiredTypes, authorities };
 }
 
 export async function GET(_request: Request, { params }: { params: Promise<{ markerId: string }> }) {
   const { markerId } = await params;
+  const denied = await notInWorld("markers", markerId, "Marker not found.");
+  if (denied) return denied;
   const [accepted, draft] = await Promise.all([getAcceptedAffiliation(markerId), getDraftAffiliation(markerId)]);
 
-  const acceptedDetail = accepted ? await describeAffiliation(accepted.territoryId) : null;
-  const draftDetail = draft ? await describeAffiliation(draft.territoryId) : null;
+  const worldId = await requireWorldId();
+  const acceptedDetail = accepted ? await describeAffiliation(worldId, accepted.territoryId) : null;
+  const draftDetail = draft ? await describeAffiliation(worldId, draft.territoryId) : null;
 
   return NextResponse.json({
     accepted: accepted ? { ...accepted, ...acceptedDetail } : null,
@@ -28,6 +33,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ mar
 
 export async function PUT(request: Request, { params }: { params: Promise<{ markerId: string }> }) {
   const { markerId } = await params;
+  const denied = await notInWorld("markers", markerId, "Marker not found.");
+  if (denied) return denied;
   const marker = await db.query.markers.findFirst({ where: eq(markers.id, markerId) });
   if (!marker) return NextResponse.json({ error: "Marker not found." }, { status: 404 });
 
@@ -37,10 +44,11 @@ export async function PUT(request: Request, { params }: { params: Promise<{ mark
   if (!territoryId) return NextResponse.json({ error: "territoryId is required." }, { status: 400 });
   if (!status) return NextResponse.json({ error: "status must be 'accepted' or 'draft'." }, { status: 400 });
 
-  const territory = await db.query.territories.findFirst({ where: eq(territories.id, territoryId) });
+  const worldId = await requireWorldId();
+  const territory = await db.query.territories.findFirst({ where: and(eq(territories.id, territoryId), eq(territories.worldId, worldId)) });
   if (!territory) return NextResponse.json({ error: "Territory not found." }, { status: 404 });
 
-  const chain = await resolveChain(territoryId);
+  const chain = await resolveChain(worldId, territoryId);
   const levelsMap = await levelsByProfileId(chain.map((t) => t.hierarchyProfileId));
   const chainResult = validateChain(toTerritoryLike(chain), levelsMap);
   if (!chainResult.valid) return NextResponse.json({ error: chainResult.error }, { status: 400 });
@@ -76,12 +84,14 @@ export async function PUT(request: Request, { params }: { params: Promise<{ mark
     if (draft) await db.delete(markerAffiliations).where(eq(markerAffiliations.id, draft.id));
   }
 
-  const detail = await describeAffiliation(territoryId);
+  const detail = await describeAffiliation(worldId, territoryId);
   return NextResponse.json({ status, territoryId, ...detail });
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ markerId: string }> }) {
   const { markerId } = await params;
+  const denied = await notInWorld("markers", markerId, "Marker not found.");
+  if (denied) return denied;
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status") === "draft" ? "draft" : "accepted";
   await db.delete(markerAffiliations).where(and(eq(markerAffiliations.markerId, markerId), eq(markerAffiliations.status, status)));

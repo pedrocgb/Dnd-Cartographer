@@ -6,9 +6,12 @@ import { isLayerOfMap } from "@/server/layers/layers";
 import { withLayerIds } from "@/server/layers/layer-ids";
 import { folderError, topSortOrder } from "@/server/maps/layer-folders";
 import { defaultTextStyle, sanitizeTextPatch } from "@/server/texts/text-config";
+import { notInWorld } from "@/server/world/guards";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ mapId: string }> }) {
   const { mapId } = await params;
+  const denied = await notInWorld("maps", mapId, "Map not found.");
+  if (denied) return denied;
   const texts = await db
     .select()
     .from(mapTexts)
@@ -18,6 +21,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ map
 
 export async function POST(request: Request, { params }: { params: Promise<{ mapId: string }> }) {
   const { mapId } = await params;
+  const denied = await notInWorld("maps", mapId, "Map not found.");
+  if (denied) return denied;
   const map = await db.query.maps.findFirst({ where: eq(maps.id, mapId) });
   if (!map) return NextResponse.json({ error: "Map not found." }, { status: 404 });
   if (!map.frameWidth || !map.frameHeight) {

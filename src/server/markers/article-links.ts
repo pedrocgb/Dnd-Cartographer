@@ -52,8 +52,8 @@ export interface ArticleMarker {
 }
 
 /** Every live marker linked to this article, with its map — for the article page's "On the map" section. */
-export async function markersOfArticle(articleId: string): Promise<ArticleMarker[]> {
-  const links = await db.query.markerArticleLinks.findMany({ where: eq(markerArticleLinks.articleId, articleId) });
+export async function markersOfArticle(worldId: string, articleId: string): Promise<ArticleMarker[]> {
+  const links = await db.query.markerArticleLinks.findMany({ where: and(eq(markerArticleLinks.articleId, articleId), eq(markerArticleLinks.worldId, worldId)) });
   if (!links.length) return [];
   const rows = await db
     .select({
@@ -69,7 +69,7 @@ export async function markersOfArticle(articleId: string): Promise<ArticleMarker
     })
     .from(markers)
     .innerJoin(maps, eq(maps.id, markers.mapId))
-    .where(and(inArray(markers.id, links.map((l) => l.markerId)), isNull(markers.deletedAt), isNull(maps.deletedAt)));
+    .where(and(inArray(markers.id, links.map((l) => l.markerId)), eq(maps.worldId, worldId), isNull(markers.deletedAt), isNull(maps.deletedAt)));
   const byId = new Map(rows.map((r) => [r.id, r]));
   return orderLinks(links).flatMap((l) => {
     const m = byId.get(l.markerId);

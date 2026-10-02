@@ -3,12 +3,15 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { markerArticleLinks } from "@/server/db/schema";
 import { removeLink, setPrimaryLink } from "@/server/markers/article-links";
+import { notInWorld } from "@/server/world/guards";
 
 const MAX_LABEL_LENGTH = 80;
 
 /** Changes a link's relationship label, or makes it the marker's primary article (`primary: true`). */
 export async function PATCH(request: Request, { params }: { params: Promise<{ markerId: string; linkId: string }> }) {
   const { markerId, linkId } = await params;
+  const denied = await notInWorld("markers", markerId, "Marker not found.");
+  if (denied) return denied;
   const link = await db.query.markerArticleLinks.findFirst({
     where: and(eq(markerArticleLinks.id, linkId), eq(markerArticleLinks.markerId, markerId)),
   });
@@ -33,6 +36,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ma
 /** Unlinks; removing the primary article promotes the oldest remaining link. */
 export async function DELETE(_request: Request, { params }: { params: Promise<{ markerId: string; linkId: string }> }) {
   const { markerId, linkId } = await params;
+  const denied = await notInWorld("markers", markerId, "Marker not found.");
+  if (denied) return denied;
   await removeLink(markerId, linkId);
   return NextResponse.json({ ok: true });
 }

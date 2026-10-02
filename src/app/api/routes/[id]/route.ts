@@ -7,6 +7,7 @@ import { parseLayerIds } from "@/server/layers/layer-ids";
 import { folderError, inLockedFolder } from "@/server/maps/layer-folders";
 import { sanitizeRouteName, sanitizeRoutePoints, sanitizeRouteStyle, toClientRoute } from "@/server/travel/route-config";
 import { sanitizeTravelSettings } from "@/server/travel/travel";
+import { notInWorld } from "@/server/world/guards";
 
 /**
  * Style fields, `name`, `visible`, `locked`, `sortOrder`, `points` (redrawn),
@@ -15,6 +16,8 @@ import { sanitizeTravelSettings } from "@/server/travel/travel";
  */
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const denied = await notInWorld("map_routes", id, "Route not found.");
+  if (denied) return denied;
   const existing = await db.query.mapRoutes.findFirst({ where: eq(mapRoutes.id, id) });
   if (!existing || existing.deletedAt) return NextResponse.json({ error: "Route not found." }, { status: 404 });
   const body = await request.json().catch(() => null);
@@ -59,6 +62,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const denied = await notInWorld("map_routes", id, "Route not found.");
+  if (denied) return denied;
   await db.update(mapRoutes).set({ deletedAt: new Date(), updatedAt: new Date() }).where(eq(mapRoutes.id, id));
   return NextResponse.json({ ok: true });
 }

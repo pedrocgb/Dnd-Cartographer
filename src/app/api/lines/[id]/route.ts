@@ -6,6 +6,7 @@ import { isLayerOfMap, sanitizeExtraLayerIds } from "@/server/layers/layers";
 import { parseLayerIds } from "@/server/layers/layer-ids";
 import { folderError, inLockedFolder, sanitizeFolderName } from "@/server/maps/layer-folders";
 import { sanitizeLinePatch, toClientLine, translatePoints } from "@/server/lines/line-config";
+import { notInWorld } from "@/server/world/guards";
 
 /**
  * Style fields, `name`, `visible`, `locked`, `sortOrder`, `groupId` (a folder on its home
@@ -14,6 +15,8 @@ import { sanitizeLinePatch, toClientLine, translatePoints } from "@/server/lines
  */
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const denied = await notInWorld("map_lines", id, "Line not found.");
+  if (denied) return denied;
   const existing = await db.query.mapLines.findFirst({ where: eq(mapLines.id, id) });
   if (!existing || existing.deletedAt) return NextResponse.json({ error: "Line not found." }, { status: 404 });
   const map = await db.query.maps.findFirst({ where: eq(maps.id, existing.mapId) });
@@ -66,6 +69,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const denied = await notInWorld("map_lines", id, "Line not found.");
+  if (denied) return denied;
   await db.update(mapLines).set({ deletedAt: new Date(), updatedAt: new Date() }).where(eq(mapLines.id, id));
   return NextResponse.json({ ok: true });
 }

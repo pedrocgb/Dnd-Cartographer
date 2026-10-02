@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { eq, and, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
+import { requireWorldId } from "@/server/world/active-world";
 import { hierarchyProfiles, territories } from "@/server/db/schema";
 import { encodeHierarchyLevels, parseHierarchyLevels } from "@/server/politics/hierarchy-config";
 
@@ -10,7 +11,8 @@ function serialize(row: typeof hierarchyProfiles.$inferSelect) {
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const profile = await db.query.hierarchyProfiles.findFirst({ where: eq(hierarchyProfiles.id, id) });
+  const worldId = await requireWorldId();
+  const profile = await db.query.hierarchyProfiles.findFirst({ where: and(eq(hierarchyProfiles.id, id), eq(hierarchyProfiles.worldId, worldId)) });
   if (!profile) return NextResponse.json({ error: "Hierarchy profile not found." }, { status: 404 });
 
   const body = await request.json().catch(() => null);
@@ -46,18 +48,19 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
   }
 
-  const [updated] = await db.update(hierarchyProfiles).set(patch).where(eq(hierarchyProfiles.id, id)).returning();
+  const [updated] = await db.update(hierarchyProfiles).set(patch).where(and(eq(hierarchyProfiles.id, id), eq(hierarchyProfiles.worldId, worldId))).returning();
   return NextResponse.json({ profile: serialize(updated) });
 }
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const worldId = await requireWorldId();
   const inUse = await db.query.territories.findFirst({
     where: and(eq(territories.hierarchyProfileId, id), isNull(territories.deletedAt)),
   });
   if (inUse) {
     return NextResponse.json({ error: "Cannot delete a hierarchy profile that is still in use by a territory." }, { status: 409 });
   }
-  await db.delete(hierarchyProfiles).where(eq(hierarchyProfiles.id, id));
+  await db.delete(hierarchyProfiles).where(and(eq(hierarchyProfiles.id, id), eq(hierarchyProfiles.worldId, worldId)));
   return NextResponse.json({ ok: true });
 }

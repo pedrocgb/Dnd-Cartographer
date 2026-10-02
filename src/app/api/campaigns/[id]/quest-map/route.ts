@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { campaigns } from "@/server/db/schema";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 import { safeJson } from "@/server/calendars/parse";
 import { badRequest, calendarErrorResponse, notFound, readBody } from "@/server/calendars/respond";
 import { campaignOf } from "@/server/sessions/store";
@@ -14,7 +14,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 /** Where the DM placed the campaign's quest map nodes (the rest use the automatic layout). */
 export async function GET(_request: Request, { params }: RouteContext) {
   const { id } = await params;
-  const campaign = await campaignOf(await ensureDefaultWorld(), id);
+  const campaign = await campaignOf(await requireWorldId(), id);
   if (!campaign) return notFound("Campaign not found.");
   return NextResponse.json({ positions: safeJson<Record<string, MapPoint>>(campaign.questMap, {}) });
 }
@@ -22,7 +22,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
 /** Merges `{ positions: { nodeId: {x, y} | null } }` into the saved layout; null forgets a node's spot. */
 export async function PATCH(request: Request, { params }: RouteContext) {
   const { id } = await params;
-  const campaign = await campaignOf(await ensureDefaultWorld(), id);
+  const campaign = await campaignOf(await requireWorldId(), id);
   if (!campaign) return notFound("Campaign not found.");
   const body = await readBody(request);
   if (!body) return badRequest("Invalid request body.");

@@ -14,9 +14,14 @@ import {
   DEFAULT_STROKE_WIDTH,
 } from "@/server/zones/zone-config";
 import { withLayerIds } from "@/server/layers/layer-ids";
+import { notInWorld } from "@/server/world/guards";
+import { requireWorldId } from "@/server/world/active-world";
+import { foreignIdResponse, idsInWorld } from "@/server/world/guards";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ mapId: string }> }) {
   const { mapId } = await params;
+  const denied = await notInWorld("maps", mapId, "Map not found.");
+  if (denied) return denied;
   const rows = await db.query.zones.findMany({
     where: and(eq(zones.mapId, mapId), isNull(zones.deletedAt)),
     orderBy: [asc(zones.sortOrder)],
@@ -26,6 +31,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ map
 
 export async function POST(request: Request, { params }: { params: Promise<{ mapId: string }> }) {
   const { mapId } = await params;
+  const denied = await notInWorld("maps", mapId, "Map not found.");
+  if (denied) return denied;
   const map = await db.query.maps.findFirst({ where: eq(maps.id, mapId) });
   if (!map) return NextResponse.json({ error: "Map not found." }, { status: 404 });
 
@@ -66,6 +73,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ map
   const fillColor = typeof body.fillColor === "string" ? normalizeColor(body.fillColor, randomZoneColor()) : randomZoneColor();
   const strokeColor = typeof body.strokeColor === "string" ? normalizeColor(body.strokeColor, fillColor) : fillColor;
 
+  if (!(await idsInWorld(await requireWorldId(), [["territories", typeof body.territoryId === "string" ? body.territoryId : null]]))) return foreignIdResponse();
   const [zone] = await db
     .insert(zones)
     .values({

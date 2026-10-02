@@ -16,6 +16,7 @@ import type { LineGroupData, MapLineData } from "./LineLayer";
 import type { MapFolderData } from "./LayerFolders";
 import { useMapLayers } from "./use-map-layers";
 import { MapPageSkeleton, Skeleton, SkeletonRegion } from "./Skeleton";
+import LoadingScreen from "./LoadingScreen";
 
 interface MapAsset {
   id: string;
@@ -61,17 +62,6 @@ async function fetchStatus(mapId: string): Promise<MapStatus> {
   const res = await fetch(`/api/maps/${mapId}`, { cache: "no-store" });
   if (!res.ok) throw new Error("Failed to load map status.");
   return res.json();
-}
-
-function LoadingScreen({ message }: { message: string }) {
-  return (
-    <div className="loading-screen">
-      <div className="loading-progress-track">
-        <div className="loading-progress-bar" />
-      </div>
-      <p className="loading-message">{message}</p>
-    </div>
-  );
 }
 
 function assetLoadingMessage(asset: MapAsset, job: MapStatus["job"]): string {

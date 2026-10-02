@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { campaignCharacters, campaigns, sessions, quests, fronts, outlineNodes, plotThreads, threadBeats, campaignStatusLog } from "@/server/db/schema";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 import { cleanName } from "@/server/calendars/parse";
 import { checkCalendarIds } from "@/server/calendars/store";
 import { badRequest, calendarErrorResponse, notFound, readBody } from "@/server/calendars/respond";
@@ -17,7 +17,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 /** Edits name, description, calendar, coins, status, archived or the writer setup (merged). A coin still used by a session can't be removed. */
 export async function PATCH(request: Request, { params }: RouteContext) {
   const { id } = await params;
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   const row = await campaignOf(worldId, id);
   if (!row) return notFound("Campaign not found.");
   const body = await readBody(request);
@@ -60,7 +60,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 /** Deletes a campaign with no sessions, quests or fronts left (deleted ones and the roster go with it); otherwise archive it. */
 export async function DELETE(_request: Request, { params }: RouteContext) {
   const { id } = await params;
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   if (!(await campaignOf(worldId, id))) return notFound("Campaign not found.");
   const live = await db.select({ id: sessions.id }).from(sessions).where(and(eq(sessions.campaignId, id), isNull(sessions.deletedAt)));
   if (live.length) return NextResponse.json({ error: `It still has ${live.length} session${live.length === 1 ? "" : "s"}. Delete them first, or archive the campaign instead.` }, { status: 409 });

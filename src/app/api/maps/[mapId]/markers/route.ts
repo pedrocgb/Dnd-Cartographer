@@ -22,9 +22,12 @@ import { toClientMarker } from "@/server/markers/tag-registry";
 import { isLayerOfMap } from "@/server/layers/layers";
 import { isArticleTemplate, type ArticleTemplateKey } from "@/server/articles/templates";
 import { verifiedArticleName } from "@/server/articles/lookup";
+import { notInWorld } from "@/server/world/guards";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ mapId: string }> }) {
   const { mapId } = await params;
+  const denied = await notInWorld("maps", mapId, "Map not found.");
+  if (denied) return denied;
   const rows = await db
     .select()
     .from(markers)
@@ -40,6 +43,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ map
  */
 export async function POST(request: Request, { params }: { params: Promise<{ mapId: string }> }) {
   const { mapId } = await params;
+  const denied = await notInWorld("maps", mapId, "Map not found.");
+  if (denied) return denied;
   const map = await db.query.maps.findFirst({ where: eq(maps.id, mapId) });
   if (!map) {
     return NextResponse.json({ error: "Map not found." }, { status: 404 });
@@ -53,7 +58,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ map
   if (body?.article != null) {
     const template = body.article.template;
     const id = typeof body.article.id === "string" ? body.article.id : "";
-    const articleName = isArticleTemplate(template) && id ? await verifiedArticleName(template, id) : null;
+    const articleName = isArticleTemplate(template) && id ? await verifiedArticleName(map.worldId, template, id) : null;
     if (!articleName) return NextResponse.json({ error: "Article not found." }, { status: 404 });
     article = { template, id, name: articleName };
   }

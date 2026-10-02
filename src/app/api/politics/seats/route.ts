@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { eq, and } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import { territorySeats, territories, markers } from "@/server/db/schema";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { territorySeats, territories } from "@/server/db/schema";
+import { rowInWorld } from "@/server/world/guards";
+import { requireWorldId } from "@/server/world/active-world";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -12,7 +13,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "territoryId or markerId is required." }, { status: 400 });
   }
   const rows = await db.query.territorySeats.findMany({
-    where: territoryId ? eq(territorySeats.territoryId, territoryId) : eq(territorySeats.markerId, markerId!),
+    where: and(eq(territorySeats.worldId, await requireWorldId()), territoryId ? eq(territorySeats.territoryId, territoryId) : eq(territorySeats.markerId, markerId!)),
   });
   return NextResponse.json({ seats: rows });
 }
@@ -27,10 +28,10 @@ export async function POST(request: Request) {
   if (!markerId) return NextResponse.json({ error: "markerId is required." }, { status: 400 });
   if (!role) return NextResponse.json({ error: "role must be 'capital' or 'seat'." }, { status: 400 });
 
-  const territory = await db.query.territories.findFirst({ where: eq(territories.id, territoryId) });
+  const worldId = await requireWorldId();
+  const territory = await db.query.territories.findFirst({ where: and(eq(territories.id, territoryId), eq(territories.worldId, worldId)) });
   if (!territory) return NextResponse.json({ error: "Territory not found." }, { status: 404 });
-  const marker = await db.query.markers.findFirst({ where: eq(markers.id, markerId) });
-  if (!marker) return NextResponse.json({ error: "Marker not found." }, { status: 404 });
+  if (!(await rowInWorld("markers", markerId, worldId))) return NextResponse.json({ error: "Marker not found." }, { status: 404 });
 
   const existing = await db.query.territorySeats.findFirst({
     where: and(eq(territorySeats.territoryId, territoryId), eq(territorySeats.role, role)),
@@ -40,7 +41,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ seat: updated });
   }
 
-  const worldId = await ensureDefaultWorld();
   const [created] = await db.insert(territorySeats).values({ worldId, territoryId, markerId, role }).returning();
   return NextResponse.json({ seat: created }, { status: 201 });
 }

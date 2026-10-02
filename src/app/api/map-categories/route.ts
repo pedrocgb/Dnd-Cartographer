@@ -2,11 +2,11 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { mapCategories } from "@/server/db/schema";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 import { ensureSeededCategories } from "@/server/maps/seed-categories";
 
 export async function GET() {
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   await ensureSeededCategories(worldId);
   const categories = await db
     .select()
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "A category label is required." }, { status: 400 });
   }
 
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   const [category] = await db
     .insert(mapCategories)
     .values({ worldId, label, sortOrder: 1000 })

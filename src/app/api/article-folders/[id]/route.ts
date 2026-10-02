@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { eq, inArray } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { articleFolderItems, articleFolders } from "@/server/db/schema";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 import { cleanFolderColor, cleanFolderName, folderMoveError, folderSubtree } from "@/server/maps/folders";
 import { worldArticleFolders } from "@/server/articles/folders";
 
@@ -11,7 +11,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 /** Renames (`name`), recolors (`color`, null for the default) and/or moves (`parentId`, null for the root) a folder. */
 export async function PATCH(request: Request, { params }: RouteContext) {
   const { id } = await params;
-  const folders = await worldArticleFolders(await ensureDefaultWorld());
+  const folders = await worldArticleFolders(await requireWorldId());
   if (!folders.some((f) => f.id === id)) return NextResponse.json({ error: "Folder not found." }, { status: 404 });
 
   const body = await request.json().catch(() => null);
@@ -42,7 +42,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 /** Deletes the folder, its subfolders and what was filed in them. Never deletes an article. */
 export async function DELETE(_request: Request, { params }: RouteContext) {
   const { id } = await params;
-  const folders = await worldArticleFolders(await ensureDefaultWorld());
+  const folders = await worldArticleFolders(await requireWorldId());
   if (!folders.some((f) => f.id === id)) return NextResponse.json({ error: "Folder not found." }, { status: 404 });
 
   const ids = [...folderSubtree(folders, id)];

@@ -4,6 +4,7 @@ import { db } from "@/server/db/client";
 import { markerAffiliations, markerArticleLinks, markers, politicalLinks, richDocuments } from "@/server/db/schema";
 import { toClientMarker } from "@/server/markers/tag-registry";
 import { isLayerOfMap } from "@/server/layers/layers";
+import { notInWorld } from "@/server/world/guards";
 
 const OFFSET = 0.02;
 
@@ -19,6 +20,8 @@ function unit(n: unknown): number | null {
  */
 export async function POST(request: Request, { params }: { params: Promise<{ markerId: string }> }) {
   const { markerId } = await params;
+  const denied = await notInWorld("markers", markerId, "Marker not found.");
+  if (denied) return denied;
   const source = await db.query.markers.findFirst({ where: eq(markers.id, markerId) });
   if (!source) {
     return NextResponse.json({ error: "Marker not found." }, { status: 404 });

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/server/db/client";
 import { outlineNodes } from "@/server/db/schema";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 import { badRequest, calendarErrorResponse, notFound, readBody } from "@/server/calendars/respond";
 import { campaignOf } from "@/server/sessions/store";
 import { canNest, nestError } from "@/server/writer/logic";
@@ -14,14 +14,14 @@ type RouteContext = { params: Promise<{ id: string }> };
 /** The campaign's story outline, threads and where they show up. */
 export async function GET(_request: Request, { params }: RouteContext) {
   const { id } = await params;
-  if (!(await campaignOf(await ensureDefaultWorld(), id))) return notFound("Campaign not found.");
+  if (!(await campaignOf(await requireWorldId(), id))) return notFound("Campaign not found.");
   return NextResponse.json(await writerStateOf(id));
 }
 
 /** Adds an arc (no parent), a chapter (in an arc) or a scene (in a chapter), last among its siblings. Its text is created on first open. */
 export async function POST(request: Request, { params }: RouteContext) {
   const { id } = await params;
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   if (!(await campaignOf(worldId, id))) return notFound("Campaign not found.");
   const body = await readBody(request);
   if (!body) return badRequest("Invalid request body.");

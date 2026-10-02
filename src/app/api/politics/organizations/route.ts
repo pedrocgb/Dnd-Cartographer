@@ -4,11 +4,11 @@ import { ORGANIZATION_INFO } from "@/server/articles/info-sets";
 import { eq, and, isNull, like } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { organizations } from "@/server/db/schema";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 import { ORGANIZATION_KINDS } from "@/server/politics/hierarchy-config";
 
 export async function GET(request: Request) {
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   const { searchParams } = new URL(request.url);
   const q = searchParams.get("q")?.trim();
   const conditions = [eq(organizations.worldId, worldId), isNull(organizations.deletedAt)];
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
   const name = typeof body?.name === "string" ? body.name.trim() : "";
   if (!name) return NextResponse.json({ error: "A name is required." }, { status: 400 });
 
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   const kind = typeof body?.kind === "string" && (ORGANIZATION_KINDS as readonly string[]).includes(body.kind) ? body.kind : "Noble House";
   const [created] = await db
     .insert(organizations)

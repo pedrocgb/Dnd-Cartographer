@@ -2,13 +2,13 @@ import { NextResponse } from "next/server";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { relationshipBoards } from "@/server/db/schema";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 import { sanitizeBoardCards, sanitizeBoardFilters, sanitizeBoardName, toClientBoard } from "@/server/relations/board-store";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 async function boardOf(id: string) {
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   return db.query.relationshipBoards.findFirst({
     where: and(eq(relationshipBoards.id, id), eq(relationshipBoards.worldId, worldId), isNull(relationshipBoards.deletedAt)),
   });

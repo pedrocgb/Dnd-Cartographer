@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { db } from "@/server/db/client";
+import { requireWorldId } from "@/server/world/active-world";
 import { encodeTags, sanitizeTags } from "@/server/articles/tags";
 import { TEMPLATE_LABELS, personTemplate } from "@/server/articles/templates";
 import { sanitizeInfo } from "@/server/articles/info-fields";
@@ -9,19 +10,22 @@ import { people, authorityAssignments } from "@/server/db/schema";
 import { getAuthoritiesForPerson } from "@/server/politics/queries";
 import { RelationError } from "@/server/relations/store";
 import { withRelationSync } from "@/server/relations/sync";
+import { foreignIdResponse, idsInWorld } from "@/server/world/guards";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const person = await db.query.people.findFirst({ where: eq(people.id, id) });
+  const worldId = await requireWorldId();
+  const person = await db.query.people.findFirst({ where: and(eq(people.id, id), eq(people.worldId, worldId)) });
   if (!person) return NextResponse.json({ error: "Person not found." }, { status: 404 });
 
-  const authorities = await getAuthoritiesForPerson(id);
+  const authorities = await getAuthoritiesForPerson(worldId, id);
   return NextResponse.json({ person, authorities });
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const person = await db.query.people.findFirst({ where: eq(people.id, id) });
+  const worldId = await requireWorldId();
+  const person = await db.query.people.findFirst({ where: and(eq(people.id, id), eq(people.worldId, worldId)) });
   if (!person) return NextResponse.json({ error: "Person not found." }, { status: 404 });
 
   const body = await request.json().catch(() => null);
@@ -46,8 +50,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (info) patch.info = JSON.stringify(info);
 
   try {
+    if (!(await idsInWorld(worldId, [["rich_documents", patch.descriptionDocumentId], ["rich_documents", patch.sidebarDocumentId], ["rich_documents", patch.footerDocumentId], ["organizations", patch.houseId]]))) return foreignIdResponse();
     const updated = await withRelationSync(personInfoSet(person.kind), person, body.info, async (ex) => {
-      const [row] = await ex.update(people).set(patch).where(eq(people.id, id)).returning();
+      const [row] = await ex.update(people).set(patch).where(and(eq(people.id, id), eq(people.worldId, worldId))).returning();
       return row;
     });
     return NextResponse.json({ person: updated });
@@ -59,12 +64,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const worldId = await requireWorldId();
   const holding = await db.query.authorityAssignments.findFirst({
     where: eq(authorityAssignments.holderId, id),
   });
   if (holding) {
     return NextResponse.json({ error: "Cannot delete: this person still holds an authority assignment." }, { status: 409 });
   }
-  await db.update(people).set({ deletedAt: new Date(), updatedAt: new Date() }).where(eq(people.id, id));
+  await db.update(people).set({ deletedAt: new Date(), updatedAt: new Date() }).where(and(eq(people.id, id), eq(people.worldId, worldId)));
   return NextResponse.json({ ok: true });
 }

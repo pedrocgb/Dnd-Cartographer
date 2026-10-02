@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { eq, and, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
+import { requireWorldId } from "@/server/world/active-world";
 import { encodeTags, sanitizeTags } from "@/server/articles/tags";
 import { TEMPLATE_LABELS } from "@/server/articles/templates";
 import { organizations, people, authorityAssignments } from "@/server/db/schema";
@@ -9,10 +10,12 @@ import { sanitizeColor, sanitizeInfo } from "@/server/articles/info-fields";
 import { ORGANIZATION_INFO } from "@/server/articles/info-sets";
 import { RelationError } from "@/server/relations/store";
 import { withRelationSync } from "@/server/relations/sync";
+import { foreignIdResponse, idsInWorld } from "@/server/world/guards";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const org = await db.query.organizations.findFirst({ where: eq(organizations.id, id) });
+  const worldId = await requireWorldId();
+  const org = await db.query.organizations.findFirst({ where: and(eq(organizations.id, id), eq(organizations.worldId, worldId)) });
   if (!org) return NextResponse.json({ error: "Organization not found." }, { status: 404 });
 
   const body = await request.json().catch(() => null);
@@ -38,8 +41,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   let updated;
   try {
+    if (!(await idsInWorld(worldId, [["rich_documents", patch.descriptionDocumentId], ["rich_documents", patch.sidebarDocumentId], ["rich_documents", patch.footerDocumentId]]))) return foreignIdResponse();
     updated = await withRelationSync(ORGANIZATION_INFO, org, body.info, async (ex) => {
-      const [row] = await ex.update(organizations).set(patch).where(eq(organizations.id, id)).returning();
+      const [row] = await ex.update(organizations).set(patch).where(and(eq(organizations.id, id), eq(organizations.worldId, worldId))).returning();
       return row;
     });
   } catch (err) {
@@ -51,11 +55,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const worldId = await requireWorldId();
   const member = await db.query.people.findFirst({ where: and(eq(people.houseId, id), isNull(people.deletedAt)) });
   if (member) return NextResponse.json({ error: "Cannot delete: a person still lists this as their house." }, { status: 409 });
   const holding = await db.query.authorityAssignments.findFirst({ where: eq(authorityAssignments.holderId, id) });
   if (holding) return NextResponse.json({ error: "Cannot delete: this organization still holds an authority assignment." }, { status: 409 });
 
-  await db.update(organizations).set({ deletedAt: new Date(), updatedAt: new Date() }).where(eq(organizations.id, id));
+  await db.update(organizations).set({ deletedAt: new Date(), updatedAt: new Date() }).where(and(eq(organizations.id, id), eq(organizations.worldId, worldId)));
   return NextResponse.json({ ok: true });
 }

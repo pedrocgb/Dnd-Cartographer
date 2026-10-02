@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { hierarchyProfiles } from "@/server/db/schema";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 import { ensureDefaultHierarchyProfile } from "@/server/politics/seed";
 import { encodeHierarchyLevels, parseHierarchyLevels, type HierarchyLevel } from "@/server/politics/hierarchy-config";
 
@@ -11,7 +11,7 @@ function serialize(row: typeof hierarchyProfiles.$inferSelect) {
 }
 
 export async function GET() {
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   await ensureDefaultHierarchyProfile(worldId);
   const rows = await db.query.hierarchyProfiles.findMany({ where: eq(hierarchyProfiles.worldId, worldId) });
   return NextResponse.json({ profiles: rows.map(serialize) });
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "levels must be an array of valid HierarchyLevel objects." }, { status: 400 });
   }
 
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   const [created] = await db
     .insert(hierarchyProfiles)
     .values({

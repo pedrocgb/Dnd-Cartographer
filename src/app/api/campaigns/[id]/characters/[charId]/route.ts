@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { campaignCharacters } from "@/server/db/schema";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 import { badRequest, notFound, readBody } from "@/server/calendars/respond";
 import { campaignOf, rosterOf, sessionsOf, sessionsUsingPerson } from "@/server/sessions/store";
 
@@ -18,7 +18,7 @@ const STATUSES = ["active", "retired", "dead"] as const;
 /** Edits a party member's player name or status (active / retired / dead). */
 export async function PATCH(request: Request, { params }: RouteContext) {
   const { id, charId } = await params;
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   if (!(await campaignOf(worldId, id))) return notFound("Campaign not found.");
   if (!(await memberOf(id, charId))) return notFound("Party member not found.");
   const body = await readBody(request);
@@ -35,7 +35,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 /** Removes a party member who never played or received anything; otherwise retire them instead. */
 export async function DELETE(_request: Request, { params }: RouteContext) {
   const { id, charId } = await params;
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   if (!(await campaignOf(worldId, id))) return notFound("Campaign not found.");
   const member = await memberOf(id, charId);
   if (!member) return notFound("Party member not found.");

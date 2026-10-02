@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { parseTrashRefs } from "@/server/trash/trash";
+import { inWorldTrash } from "@/server/trash/list";
+import { requireWorldId } from "@/server/world/active-world";
 import { purgeItems } from "@/server/trash/purge";
 
 /** Body: `{ items: [{ kind, id }] }`. Permanent: only trashed items are deleted. */
@@ -8,7 +10,7 @@ export async function POST(request: Request) {
   const refs = parseTrashRefs(body?.items);
   if (!refs) return NextResponse.json({ error: "Invalid items." }, { status: 400 });
   try {
-    return NextResponse.json(await purgeItems(refs));
+    return NextResponse.json(await purgeItems(await inWorldTrash(await requireWorldId(), refs)));
   } catch (err) {
     console.error("[trash] purge failed:", err);
     return NextResponse.json({ error: "Couldn't delete these items. Nothing was removed." }, { status: 500 });

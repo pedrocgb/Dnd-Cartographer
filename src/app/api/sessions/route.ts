@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { and, asc, eq, gte, isNull, like, lte, or } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { campaigns, sessions } from "@/server/db/schema";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 import { cleanName } from "@/server/calendars/parse";
 import { badRequest, notFound, readBody } from "@/server/calendars/respond";
 import { campaignOf, createNextSession, sessionsOf, toClientSession, type SessionRow } from "@/server/sessions/store";
@@ -20,7 +20,7 @@ const brief = (row: SessionRow, campaignName: string) => ({ id: row.id, campaign
  */
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   const campaignId = url.searchParams.get("campaignId");
   if (campaignId) {
     if (!(await campaignOf(worldId, campaignId))) return notFound("Campaign not found.");
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
   const body = await readBody(request);
   if (!body) return badRequest("Invalid request body.");
   if (typeof body.campaignId !== "string") return badRequest("Pick the campaign.");
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   const campaign = await campaignOf(worldId, body.campaignId);
   if (!campaign) return notFound("Campaign not found.");
   const row = await createNextSession(worldId, campaign.id, cleanName(body.title, 120));

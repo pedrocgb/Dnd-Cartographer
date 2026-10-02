@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 import { listTrash } from "@/server/trash/list";
 import { purgeItems } from "@/server/trash/purge";
 
 /** Permanently deletes everything in the Trash. */
 export async function POST() {
-  const items = await listTrash(await ensureDefaultWorld());
+  const items = await listTrash(await requireWorldId());
   if (items.length === 0) return NextResponse.json({ purged: 0, skipped: [] });
   try {
     return NextResponse.json(await purgeItems(items.map(({ kind, id }) => ({ kind, id }))));

@@ -4,13 +4,13 @@ import { TERRITORY_INFO } from "@/server/articles/info-sets";
 import { eq, and, isNull, like } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { territories, hierarchyProfiles } from "@/server/db/schema";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 import { ensureDefaultHierarchyProfile } from "@/server/politics/seed";
 import { resolveChain, levelsByProfileId, toTerritoryLike } from "@/server/politics/queries";
 import { validateChain } from "@/server/politics/hierarchy-config";
 
 export async function GET(request: Request) {
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   const { searchParams } = new URL(request.url);
   const q = searchParams.get("q")?.trim();
   const parentId = searchParams.get("parentId");
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
   if (!name) return NextResponse.json({ error: "A territory name is required." }, { status: 400 });
   if (!type) return NextResponse.json({ error: "A territory type is required." }, { status: 400 });
 
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   const parentId = typeof body?.parentId === "string" && body.parentId ? body.parentId : null;
 
   let parent = null;
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
   }
 
   const candidate = { id: "candidate", type, parentId, hierarchyProfileId };
-  const ancestors = parentId ? toTerritoryLike(await resolveChain(parentId)) : [];
+  const ancestors = parentId ? toTerritoryLike(await resolveChain(worldId, parentId)) : [];
   const chain = [...ancestors, candidate];
   const levelsMap = await levelsByProfileId(chain.map((t) => t.hierarchyProfileId));
   const result = validateChain(chain, levelsMap);

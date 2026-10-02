@@ -4,7 +4,7 @@
  */
 import { and, eq, inArray, isNull, like, or } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import { articles, documentMentions, fronts, organizations, outlineNodes, people, quests, sessions, territories } from "@/server/db/schema";
+import { articles, documentMentions, fronts, organizations, outlineNodes, people, quests, richDocuments, sessions, territories } from "@/server/db/schema";
 import { articleHref, personTemplate, TEMPLATE_LABELS, type ArticleTemplateKey } from "@/server/articles/templates";
 import { NODE_KIND_LABELS } from "@/server/writer/types";
 import { mentionHref, type MentionOption } from "./kinds";
@@ -22,10 +22,10 @@ export async function searchMentions(worldId: string, q: string, campaignId: str
     db.select({ id: organizations.id, name: organizations.name }).from(organizations).where(and(eq(organizations.worldId, worldId), isNull(organizations.deletedAt), like(organizations.name, p))).limit(PER_SOURCE),
     db.select({ id: territories.id, name: territories.name }).from(territories).where(and(eq(territories.worldId, worldId), isNull(territories.deletedAt), like(territories.name, p))).limit(PER_SOURCE),
     db.select({ id: articles.id, name: articles.title, template: articles.template }).from(articles).where(and(eq(articles.worldId, worldId), isNull(articles.deletedAt), like(articles.title, p))).limit(PER_SOURCE * 2),
-    campaignId ? db.select({ id: quests.id, name: quests.title }).from(quests).where(and(eq(quests.campaignId, campaignId), isNull(quests.deletedAt), like(quests.title, p))).limit(PER_SOURCE) : [],
-    campaignId ? db.select({ id: fronts.id, name: fronts.name }).from(fronts).where(and(eq(fronts.campaignId, campaignId), isNull(fronts.deletedAt), like(fronts.name, p))).limit(PER_SOURCE) : [],
+    campaignId ? db.select({ id: quests.id, name: quests.title }).from(quests).where(and(eq(quests.worldId, worldId), eq(quests.campaignId, campaignId), isNull(quests.deletedAt), like(quests.title, p))).limit(PER_SOURCE) : [],
+    campaignId ? db.select({ id: fronts.id, name: fronts.name }).from(fronts).where(and(eq(fronts.worldId, worldId), eq(fronts.campaignId, campaignId), isNull(fronts.deletedAt), like(fronts.name, p))).limit(PER_SOURCE) : [],
     campaignId
-      ? db.select({ id: outlineNodes.id, name: outlineNodes.title, kind: outlineNodes.kind }).from(outlineNodes).where(and(eq(outlineNodes.campaignId, campaignId), isNull(outlineNodes.deletedAt), like(outlineNodes.title, p))).limit(PER_SOURCE)
+      ? db.select({ id: outlineNodes.id, name: outlineNodes.title, kind: outlineNodes.kind }).from(outlineNodes).where(and(eq(outlineNodes.worldId, worldId), eq(outlineNodes.campaignId, campaignId), isNull(outlineNodes.deletedAt), like(outlineNodes.title, p))).limit(PER_SOURCE)
       : [],
   ]);
   const article = (template: string, id: string, label: string): MentionOption => ({ kind: template, id, label, campaign: null, group: TEMPLATE_LABELS[template as ArticleTemplateKey] ?? "Article" });
@@ -53,11 +53,16 @@ export interface Backlink {
 }
 
 /**
- * The pages whose text mentions `targetId` (ids are unique across kinds),
+ * The world's pages whose text mentions `targetId` (ids are unique across kinds),
  * each document once. Documents whose owner is gone are left out.
  */
-export async function backlinksTo(targetId: string): Promise<Backlink[]> {
-  const rows = await db.selectDistinct({ documentId: documentMentions.documentId }).from(documentMentions).where(eq(documentMentions.targetId, targetId)).limit(MAX_BACKLINKS);
+export async function backlinksTo(worldId: string, targetId: string): Promise<Backlink[]> {
+  const rows = await db
+    .selectDistinct({ documentId: documentMentions.documentId })
+    .from(documentMentions)
+    .innerJoin(richDocuments, eq(richDocuments.id, documentMentions.documentId))
+    .where(and(eq(documentMentions.targetId, targetId), eq(richDocuments.worldId, worldId)))
+    .limit(MAX_BACKLINKS);
   const ids = rows.map((r) => r.documentId);
   if (!ids.length) return [];
   const [nodes, qs, ss, as, ps, os, ts] = await Promise.all([

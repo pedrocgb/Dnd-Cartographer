@@ -5,11 +5,14 @@ import { mapLegends } from "@/server/db/schema";
 import { findLayer, sanitizeExtraLayerIds } from "@/server/layers/layers";
 import { applyLegendPatch, DEFAULT_LEGEND, parseLegendConfig } from "@/server/legends/legend-config";
 import { toClientLegend } from "@/server/legends/legends";
+import { notInWorld } from "@/server/world/guards";
 
 const findLegend = (layerId: string) => db.query.mapLegends.findFirst({ where: eq(mapLegends.layerId, layerId) });
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const denied = await notInWorld("map_layers", id, "Layer not found.");
+  if (denied) return denied;
   const legend = await findLegend(id);
   return NextResponse.json({ legend: legend ? toClientLegend(legend) : null });
 }
@@ -17,6 +20,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 /** Creates the layer's legend (each layer has at most one); an existing one is returned as is. */
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const denied = await notInWorld("map_layers", id, "Layer not found.");
+  if (denied) return denied;
   const layer = await findLayer(id);
   if (!layer) return NextResponse.json({ error: "Layer not found." }, { status: 404 });
   const existing = await findLegend(id);
@@ -32,6 +37,8 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
 /** Body: any of `visible`, `extraLayerIds`, `config` (a partial config, merged and validated). */
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const denied = await notInWorld("map_layers", id, "Layer not found.");
+  if (denied) return denied;
   const legend = await findLegend(id);
   if (!legend) return NextResponse.json({ error: "Legend not found." }, { status: 404 });
   const body = await request.json().catch(() => null);
@@ -51,6 +58,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const denied = await notInWorld("map_layers", id, "Layer not found.");
+  if (denied) return denied;
   await db.delete(mapLegends).where(eq(mapLegends.layerId, id));
   return NextResponse.json({ ok: true });
 }

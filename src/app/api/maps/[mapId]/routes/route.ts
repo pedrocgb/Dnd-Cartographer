@@ -6,9 +6,12 @@ import { isLayerOfMap } from "@/server/layers/layers";
 import { folderError, topSortOrder } from "@/server/maps/layer-folders";
 import { DEFAULT_ROUTE_STYLE, sanitizeRouteName, sanitizeRoutePoints, sanitizeRouteStyle, toClientRoute } from "@/server/travel/route-config";
 import { sanitizeTravelSettings } from "@/server/travel/travel";
+import { notInWorld } from "@/server/world/guards";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ mapId: string }> }) {
   const { mapId } = await params;
+  const denied = await notInWorld("maps", mapId, "Map not found.");
+  if (denied) return denied;
   const rows = await db
     .select()
     .from(mapRoutes)
@@ -19,6 +22,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ map
 /** Body: `layerId`, `points` (frame px), optional `groupId`, `name`, style fields and `settings`. */
 export async function POST(request: Request, { params }: { params: Promise<{ mapId: string }> }) {
   const { mapId } = await params;
+  const denied = await notInWorld("maps", mapId, "Map not found.");
+  if (denied) return denied;
   const map = await db.query.maps.findFirst({ where: eq(maps.id, mapId) });
   if (!map) return NextResponse.json({ error: "Map not found." }, { status: 404 });
   if (!map.frameWidth || !map.frameHeight) return NextResponse.json({ error: "Upload a map image first." }, { status: 409 });

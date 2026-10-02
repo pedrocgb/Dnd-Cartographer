@@ -66,9 +66,10 @@ export async function frontsOf(campaignId: string): Promise<FrontRow[]> {
 }
 
 /** What a campaign's quest fields are checked against (see questFields). */
-export async function questContextOf(campaign: { id: string; currencies: string }) {
+export async function questContextOf(campaign: { id: string; worldId: string; currencies: string }) {
   const [campaignQuests, campaignFronts] = await Promise.all([questsOf(campaign.id), frontsOf(campaign.id)]);
   return {
+    worldId: campaign.worldId,
     campaignQuests,
     frontIds: new Set(campaignFronts.map((f) => f.id)),
     currencyIds: new Set(safeJson<{ id: string }[]>(campaign.currencies, []).map((c) => c.id)),

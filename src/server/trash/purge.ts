@@ -169,7 +169,7 @@ async function purgeMaps(tx: Executor, rootIds: string[], result: PurgeResult): 
   return assetIds.flatMap((id) => [resolveAssetPath("originals", id), resolveAssetPath("tiles", id), resolveAssetPath("thumbnails", id)]);
 }
 
-const portraitFiles = (ownerType: PortraitOwnerType, ids: string[]) =>
+export const portraitFiles = (ownerType: PortraitOwnerType, ids: string[]) =>
   ids.flatMap((id) => [portraitPath(ownerType, id), portraitOriginalPath(ownerType, id), portraitCropPath(ownerType, id)]);
 
 /** Calendar entries: their document, then the entries. */
@@ -308,7 +308,7 @@ async function purgeCalendars(tx: Executor, ids: string[], result: PurgeResult) 
   result.purged += purged.length;
 }
 
-async function removeFiles(paths: string[]) {
+export async function removeFiles(paths: string[]) {
   for (const path of paths) {
     try {
       await rm(path, { recursive: true, force: true });

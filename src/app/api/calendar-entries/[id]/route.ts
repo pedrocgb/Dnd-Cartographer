@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { calendarEntries } from "@/server/db/schema";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 import { duplicateLink, linkedNames, parseEntryFields, type EntryKind } from "@/server/calendars/entries";
 import { parseException, safeJson } from "@/server/calendars/parse";
 import { toClientEntry } from "@/server/calendars/store";
@@ -24,7 +24,7 @@ async function entryOf(worldId: string, id: string) {
  */
 export async function PATCH(request: Request, { params }: RouteContext) {
   const { id } = await params;
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   const row = await entryOf(worldId, id);
   if (!row) return notFound("Entry not found.");
   const body = await readBody(request);
@@ -51,7 +51,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     }
     const [updated] = await db.update(calendarEntries).set(patch).where(eq(calendarEntries.id, id)).returning();
     const entry = toClientEntry(updated);
-    return NextResponse.json({ entry, articleNames: await linkedNames([entry]) });
+    return NextResponse.json({ entry, articleNames: await linkedNames(worldId, [entry]) });
   } catch (error) {
     return calendarErrorResponse(error);
   }
@@ -60,7 +60,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 /** Removes the whole entry (a series with all its occurrences). Kept as a soft delete. */
 export async function DELETE(_request: Request, { params }: RouteContext) {
   const { id } = await params;
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   if (!(await entryOf(worldId, id))) return notFound("Entry not found.");
   await db.update(calendarEntries).set({ deletedAt: new Date(), updatedAt: new Date() }).where(eq(calendarEntries.id, id));
   return NextResponse.json({ ok: true });

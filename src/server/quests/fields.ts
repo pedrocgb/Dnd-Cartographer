@@ -6,6 +6,7 @@ import { parseClock, parseClues, parseGiver, parseQuestDays, parseObjectives, pa
 
 /** What a quest's fields are checked against: its campaign's quests, fronts and coins. */
 export interface QuestContext {
+  worldId: string;
   campaignQuests: readonly { id: string; parentId: string | null }[];
   frontIds: ReadonlySet<string>;
   currencyIds: ReadonlySet<string>;
@@ -19,7 +20,7 @@ type QuestPatch = Partial<typeof quests.$inferInsert>;
  * campaign's, rewards use its coins; linked articles, the giver, clue places
  * and reward items must exist. `selfId` is null when creating.
  */
-export async function questFields(body: Record<string, unknown>, { campaignQuests, frontIds, currencyIds }: QuestContext, selfId: string | null): Promise<QuestPatch> {
+export async function questFields(body: Record<string, unknown>, { worldId, campaignQuests, frontIds, currencyIds }: QuestContext, selfId: string | null): Promise<QuestPatch> {
   const patch: QuestPatch = {};
   if ("title" in body) patch.title = parseQuestTitle(body.title);
   if ("summary" in body) patch.summary = parseQuestSummary(body.summary);
@@ -65,6 +66,6 @@ export async function questFields(body: Record<string, unknown>, { campaignQuest
     refs.push(...links);
     patch.articleLinks = JSON.stringify(links);
   }
-  if (refs.length) await checkArticles(refs);
+  if (refs.length) await checkArticles(worldId, refs);
   return patch;
 }

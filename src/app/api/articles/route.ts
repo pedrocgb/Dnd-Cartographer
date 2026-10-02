@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { and, eq, isNull, like } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { articles } from "@/server/db/schema";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 import { createEmptyDocument } from "@/server/documents/create";
 import { isGenericTemplate } from "@/server/articles/templates";
 import { MAX_TITLE_LENGTH, toClientArticle } from "@/server/articles/articles";
@@ -11,7 +11,7 @@ import { INFO_FIELD_SETS } from "@/server/articles/info-sets";
 
 /** Generic-template articles, optionally of one template (`?template=`) and title-filtered (`?q=`). */
 export async function GET(request: Request) {
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   const { searchParams } = new URL(request.url);
   const template = searchParams.get("template");
   const q = searchParams.get("q")?.trim();
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
   const infoSet = INFO_FIELD_SETS[body.template as keyof typeof INFO_FIELD_SETS];
   const info = infoSet ? sanitizeInfo(infoSet, body.info) : null;
 
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   const bodyDoc = await createEmptyDocument(worldId);
   const sidebarDoc = await createEmptyDocument(worldId);
   const [created] = await db

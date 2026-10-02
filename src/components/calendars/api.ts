@@ -7,7 +7,10 @@ export async function api<T = Record<string, unknown>>(method: string, url: stri
       body: body === undefined ? undefined : JSON.stringify(body),
       cache: "no-store",
     });
-    const data = (await res.json().catch(() => ({}))) as T & { error?: string };
+    const data = (await res.json().catch(() => ({}))) as T & { error?: string; noWorld?: boolean };
+    // No world open in this browser (src/proxy.ts): back to the worlds screen, a full load (no router in a plain helper).
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+    if (res.status === 409 && data.noWorld) window.location.assign("/worlds");
     return { ok: res.ok, status: res.status, data };
   } catch {
     return { ok: false, status: 0, data: { error: "Could not reach the server." } as T & { error?: string } };

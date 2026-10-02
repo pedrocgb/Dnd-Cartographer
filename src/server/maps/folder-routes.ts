@@ -3,6 +3,7 @@ import { and, asc, eq, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { maps } from "@/server/db/schema";
 import { isLayerOfMap } from "@/server/layers/layers";
+import { notInWorld } from "@/server/world/guards";
 import { folderPatch, folderTable, itemTable, sanitizeFolderName, toClientFolder, type GroupedKind } from "./layer-folders";
 
 /**
@@ -21,6 +22,8 @@ export function folderCollectionRoutes(kind: Kind) {
   return {
     async GET(_request: Request, { params }: MapContext) {
       const { mapId } = await params;
+      const denied = await notInWorld("maps", mapId, "Map not found.");
+      if (denied) return denied;
       const rows = await db
         .select()
         .from(table)
@@ -31,6 +34,8 @@ export function folderCollectionRoutes(kind: Kind) {
 
     async POST(request: Request, { params }: MapContext) {
       const { mapId } = await params;
+      const denied = await notInWorld("maps", mapId, "Map not found.");
+      if (denied) return denied;
       const map = await db.query.maps.findFirst({ where: eq(maps.id, mapId) });
       if (!map) return NextResponse.json({ error: "Map not found." }, { status: 404 });
       const body = await request.json().catch(() => null);
@@ -50,6 +55,8 @@ export function folderCollectionRoutes(kind: Kind) {
   };
 }
 
+const FOLDER_TABLES = { line: "line_groups", route: "route_groups", text: "text_groups" } as const;
+
 export function folderItemRoutes(kind: Kind) {
   const table = folderTable(kind);
   const items = itemTable(kind);
@@ -57,6 +64,8 @@ export function folderItemRoutes(kind: Kind) {
   return {
     async PATCH(request: Request, { params }: FolderContext) {
       const { id } = await params;
+      const denied = await notInWorld(FOLDER_TABLES[kind], id, "Folder not found.");
+      if (denied) return denied;
       const folder = await live(id);
       if (!folder) return NextResponse.json({ error: "Folder not found." }, { status: 404 });
       const body = await request.json().catch(() => null);
@@ -70,6 +79,8 @@ export function folderItemRoutes(kind: Kind) {
     /** Its items move to Ungrouped, or with `?mode=cascade` are deleted with it (soft). */
     async DELETE(request: Request, { params }: FolderContext) {
       const { id } = await params;
+      const denied = await notInWorld(FOLDER_TABLES[kind], id, "Folder not found.");
+      if (denied) return denied;
       if (!(await live(id))) return NextResponse.json({ error: "Folder not found." }, { status: 404 });
       const cascade = new URL(request.url).searchParams.get("mode") === "cascade";
       const now = new Date();

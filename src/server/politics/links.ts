@@ -60,7 +60,7 @@ async function resolveInternalName(targetType: string, targetId: string): Promis
  * `source` field) — nothing here is a materialized copy of another
  * record's data, only resolved names/hrefs for display.
  */
-export async function buildMarkerLinks(markerId: string): Promise<ConsolidatedLink[]> {
+export async function buildMarkerLinks(worldId: string, markerId: string): Promise<ConsolidatedLink[]> {
   const marker = await db.query.markers.findFirst({ where: eq(markers.id, markerId) });
   if (!marker) return [];
 
@@ -75,7 +75,7 @@ export async function buildMarkerLinks(markerId: string): Promise<ConsolidatedLi
   }
 
   // 1. Direct marker-attached links.
-  const direct = await db.query.politicalLinks.findMany({ where: and(eq(politicalLinks.ownerType, "marker"), eq(politicalLinks.ownerId, markerId)) });
+  const direct = await db.query.politicalLinks.findMany({ where: and(eq(politicalLinks.worldId, worldId), eq(politicalLinks.ownerType, "marker"), eq(politicalLinks.ownerId, markerId)) });
   for (const link of direct) {
     if (link.externalUrl) {
       addOutgoing({ source: "Direct", targetType: "external", targetId: null, targetName: link.label || link.externalUrl, href: link.externalUrl, removableLinkId: link.id });
@@ -122,7 +122,7 @@ export async function buildMarkerLinks(markerId: string): Promise<ConsolidatedLi
   const accepted = await getAcceptedAffiliation(markerId);
   let chainIds: string[] = [];
   if (accepted) {
-    const chain = await resolveChain(accepted.territoryId);
+    const chain = await resolveChain(worldId, accepted.territoryId);
     chainIds = chain.map((t) => t.id);
     for (let i = 0; i < chain.length; i++) {
       const t = chain[i];
@@ -139,7 +139,7 @@ export async function buildMarkerLinks(markerId: string): Promise<ConsolidatedLi
     }
 
     // 5. Authorities across that chain.
-    const authorities = await getAuthoritiesForChain(chainIds);
+    const authorities = await getAuthoritiesForChain(worldId, chainIds);
     const territoryNameById = new Map(chain.map((t) => [t.id, t.name]));
     for (const a of authorities) {
       const resolved = await resolveInternalName(a.holderType, a.holderId);
@@ -183,7 +183,7 @@ export async function buildMarkerLinks(markerId: string): Promise<ConsolidatedLi
   }
 
   const incomingLinks = await db.query.politicalLinks.findMany({
-    where: and(eq(politicalLinks.targetType, "marker"), eq(politicalLinks.targetId, markerId)),
+    where: and(eq(politicalLinks.worldId, worldId), eq(politicalLinks.targetType, "marker"), eq(politicalLinks.targetId, markerId)),
   });
   for (const link of incomingLinks) {
     const resolved = await resolveInternalName(link.ownerType, link.ownerId);
@@ -198,15 +198,14 @@ export async function buildMarkerLinks(markerId: string): Promise<ConsolidatedLi
     });
   }
 
-  // Incoming: other markers whose own description rich-text links here.
-  const otherMarkersWithDocs = await db.query.markers.findMany({
-    where: and(ne(markers.id, markerId), isNotNull(markers.descriptionDocumentId)),
-  });
+  // Incoming: other markers of this world whose own description rich-text links here.
+  const otherMarkersWithDocs = await db
+    .select({ id: markers.id, name: markers.name, mapId: markers.mapId, deletedAt: markers.deletedAt, jsonText: richDocuments.jsonText })
+    .from(markers)
+    .innerJoin(richDocuments, eq(richDocuments.id, markers.descriptionDocumentId))
+    .where(and(ne(markers.id, markerId), isNotNull(markers.descriptionDocumentId), eq(richDocuments.worldId, worldId)));
   for (const other of otherMarkersWithDocs) {
-    if (!other.descriptionDocumentId) continue;
-    const doc = await db.query.richDocuments.findFirst({ where: eq(richDocuments.id, other.descriptionDocumentId) });
-    if (!doc) continue;
-    const hasLinkToThis = extractLinksFromJson(doc.jsonText).some((l) => {
+    const hasLinkToThis = extractLinksFromJson(other.jsonText).some((l) => {
       const c = classifyHref(l.href);
       return c.kind === "marker" && c.markerId === markerId;
     });

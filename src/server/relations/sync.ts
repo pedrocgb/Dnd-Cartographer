@@ -25,7 +25,7 @@ export async function syncRelationFields(ex: Executor, set: InfoFieldSet, record
   if (fields.length === 0) return;
   const live = await listRelations(record.worldId, ex);
   const wantedAll = fields.flatMap((f) => wantedIds(info[f.key]));
-  const refs = await resolveRecords([...wantedAll, ...live.flatMap((r) => [r.fromId, r.toId])], ex);
+  const refs = await resolveRecords(record.worldId, [...wantedAll, ...live.flatMap((r) => [r.fromId, r.toId])], ex);
   const templateOf = (id: string) => refs.get(id)?.template ?? null;
 
   const drop: string[] = [];

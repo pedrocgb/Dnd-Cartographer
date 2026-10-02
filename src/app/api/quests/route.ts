@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { and, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { campaigns, quests } from "@/server/db/schema";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 import { badRequest } from "@/server/calendars/respond";
 import { questsForArticle } from "@/server/quests/store";
 import type { BriefQuest } from "@/server/quests/types";
@@ -24,7 +24,7 @@ async function liveCampaigns(ids: string[]) {
  */
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   const articleId = url.searchParams.get("articleId")?.slice(0, 64);
   if (articleId) {
     const rows = await questsForArticle(worldId, articleId);

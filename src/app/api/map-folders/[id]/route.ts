@@ -2,13 +2,13 @@ import { NextResponse } from "next/server";
 import { eq, inArray } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { mapFolders, maps } from "@/server/db/schema";
-import { ensureDefaultWorld } from "@/server/world/default-world";
+import { requireWorldId } from "@/server/world/active-world";
 import { cleanFolderColor, cleanFolderName, folderMoveError, folderSubtree } from "@/server/maps/folders";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 async function worldFolders() {
-  const worldId = await ensureDefaultWorld();
+  const worldId = await requireWorldId();
   return db.select({ id: mapFolders.id, parentId: mapFolders.parentId }).from(mapFolders).where(eq(mapFolders.worldId, worldId));
 }
 

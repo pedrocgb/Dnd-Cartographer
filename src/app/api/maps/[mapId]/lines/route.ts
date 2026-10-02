@@ -5,9 +5,12 @@ import { mapLines, maps } from "@/server/db/schema";
 import { isLayerOfMap } from "@/server/layers/layers";
 import { folderError, sanitizeFolderName, topSortOrder } from "@/server/maps/layer-folders";
 import { LINE_KINDS, defaultLineStyle, sanitizeLinePatch, sanitizePoints, toClientLine, type LineKind } from "@/server/lines/line-config";
+import { notInWorld } from "@/server/world/guards";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ mapId: string }> }) {
   const { mapId } = await params;
+  const denied = await notInWorld("maps", mapId, "Map not found.");
+  if (denied) return denied;
   const rows = await db
     .select()
     .from(mapLines)
@@ -17,6 +20,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ map
 
 export async function POST(request: Request, { params }: { params: Promise<{ mapId: string }> }) {
   const { mapId } = await params;
+  const denied = await notInWorld("maps", mapId, "Map not found.");
+  if (denied) return denied;
   const map = await db.query.maps.findFirst({ where: eq(maps.id, mapId) });
   if (!map) return NextResponse.json({ error: "Map not found." }, { status: 404 });
   if (!map.frameWidth || !map.frameHeight) return NextResponse.json({ error: "Upload a map image first." }, { status: 409 });

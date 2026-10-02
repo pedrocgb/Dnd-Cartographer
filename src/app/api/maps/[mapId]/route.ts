@@ -6,9 +6,13 @@ import { getBreadcrumbs, listMapSummaries } from "@/server/maps/tree";
 import { reparentMap } from "@/server/maps/reparent";
 import { InvalidReparentError } from "@/server/maps/hierarchy";
 import { validFolderId } from "@/server/maps/folder-lookup";
+import { notInWorld } from "@/server/world/guards";
+import { foreignIdResponse, idsInWorld } from "@/server/world/guards";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ mapId: string }> }) {
   const { mapId } = await params;
+  const denied = await notInWorld("maps", mapId, "Map not found.");
+  if (denied) return denied;
   const map = await db.query.maps.findFirst({ where: eq(maps.id, mapId) });
   if (!map) {
     return NextResponse.json({ error: "Map not found." }, { status: 404 });
@@ -45,6 +49,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ map
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ mapId: string }> }) {
   const { mapId } = await params;
+  const denied = await notInWorld("maps", mapId, "Map not found.");
+  if (denied) return denied;
   const map = await db.query.maps.findFirst({ where: eq(maps.id, mapId) });
   if (!map) {
     return NextResponse.json({ error: "Map not found." }, { status: 404 });
@@ -78,12 +84,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ma
     patch.descriptionDocumentId = body.descriptionDocumentId === null ? null : String(body.descriptionDocumentId);
   }
 
+  if (!(await idsInWorld(map.worldId, [["map_categories", patch.categoryId], ["rich_documents", patch.descriptionDocumentId]]))) return foreignIdResponse();
   const [updated] = await db.update(maps).set(patch).where(eq(maps.id, mapId)).returning();
   return NextResponse.json({ map: updated });
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ mapId: string }> }) {
   const { mapId } = await params;
+  const denied = await notInWorld("maps", mapId, "Map not found.");
+  if (denied) return denied;
   const map = await db.query.maps.findFirst({ where: eq(maps.id, mapId) });
   if (!map) {
     return NextResponse.json({ error: "Map not found." }, { status: 404 });
