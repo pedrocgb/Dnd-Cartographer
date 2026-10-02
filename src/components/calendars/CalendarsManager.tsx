@@ -21,6 +21,7 @@ import DateInput from "./DateInput";
 import DayDetails from "./DayDetails";
 import EntryEditor, { type EntryEditorMode } from "./EntryEditor";
 import SeasonsEditor from "./SeasonsEditor";
+import ProfilesEditor from "./ProfilesEditor";
 import type { CalendarView, Chronology, ClientCalendar, ClientCelestial, ClientEntry, WorldCalendars } from "./types";
 
 const ACTIVE_KEY = "calendars:active";
@@ -82,7 +83,15 @@ export default function CalendarsManager() {
   const [celestialEditor, setCelestialEditor] = useState<ClientCelestial | "new" | null>(null);
   const [celestialView, setCelestialView] = useState<string | null>(null);
   const [seasonView, setSeasonView] = useState<string | null>(null);
-  const [seasonsOpen, setSeasonsOpen] = useState(false);
+  // Seasons and Season profiles open from each other, so they stack: the last one opened is on top.
+  // Asking for the one already open underneath goes back to it (the one above closes).
+  const [seasonModals, setSeasonModals] = useState<{ kind: "seasons" | "profiles"; calendarId: string | null; seasonId?: string }[]>([]);
+  const openSeasonModal = (kind: "seasons" | "profiles", calendarId: string | null, seasonId?: string) =>
+    setSeasonModals((list) => {
+      const at = list.findIndex((m) => m.kind === kind);
+      return at >= 0 ? list.slice(0, at + 1) : [...list, { kind, calendarId, seasonId }];
+    });
+  const closeSeasonModal = (kind: "seasons" | "profiles") => setSeasonModals((list) => list.filter((m) => m.kind !== kind));
   const [entryEditor, setEntryEditor] = useState<EntryEditorMode | null>(null);
   const [entriesVersion, setEntriesVersion] = useState(0);
 
@@ -333,7 +342,8 @@ export default function CalendarsManager() {
       onToggleObject={toggleObject}
       onEditObject={setCelestialEditor}
       onNewObject={() => setCelestialEditor("new")}
-      onOpenSeasons={() => setSeasonsOpen(true)}
+      onOpenSeasons={() => openSeasonModal("seasons", activeId)}
+      onOpenProfiles={() => openSeasonModal("profiles", activeId)}
       onPreviewProfile={setPreviewProfileId}
       onFilters={setFilters}
       onJump={showDay}
@@ -414,11 +424,17 @@ export default function CalendarsManager() {
           onClose={() => setSeasonView(null)}
           onEdit={() => {
             setSeasonView(null);
-            setSeasonsOpen(true);
+            openSeasonModal("seasons", viewedSeason.calendarId ?? activeId, viewedSeason.id);
           }}
         />
       )}
-      {seasonsOpen && <SeasonsEditor world={world} calendarId={activeId} onChanged={() => void reload()} onClose={() => setSeasonsOpen(false)} />}
+      {seasonModals.map((m) =>
+        m.kind === "seasons" ? (
+          <SeasonsEditor key="seasons" world={world} calendarId={m.calendarId} seasonId={m.seasonId} onChanged={() => void reload()} onClose={() => closeSeasonModal("seasons")} onOpenProfiles={(id) => openSeasonModal("profiles", id)} />
+        ) : (
+          <ProfilesEditor key="profiles" world={world} calendarId={m.calendarId} onChanged={() => void reload()} onClose={() => closeSeasonModal("profiles")} onOpenSeasons={(id) => openSeasonModal("seasons", id)} />
+        )
+      )}
       {entryEditor && def && calendar && (
         <EntryEditor
           mode={entryEditor}

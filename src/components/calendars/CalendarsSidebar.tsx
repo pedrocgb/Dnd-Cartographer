@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CalendarDays, ChevronDown, ChevronRight, Copy, Ellipsis, Eye, EyeOff, Leaf, Pencil, Plus, Search, Star, Trash2 } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronRight, Copy, Ellipsis, Eye, EyeOff, Layers, Leaf, Pencil, Plus, Search, Star, Trash2 } from "lucide-react";
 import type { CalendarDefinition } from "@/server/calendars/engine";
 import { api } from "./api";
 import { dayLabel, inCalendar } from "./evaluate";
@@ -121,6 +121,7 @@ export default function CalendarsSidebar({
   onEditObject,
   onNewObject,
   onOpenSeasons,
+  onOpenProfiles,
   onPreviewProfile,
   onFilters,
   onJump,
@@ -142,6 +143,7 @@ export default function CalendarsSidebar({
   onEditObject: (o: ClientCelestial) => void;
   onNewObject: () => void;
   onOpenSeasons: () => void;
+  onOpenProfiles: () => void;
   onPreviewProfile: (id: string | null) => void;
   onFilters: (f: Filters) => void;
   onJump: (worldDay: number) => void;
@@ -159,6 +161,8 @@ export default function CalendarsSidebar({
       return next;
     });
   const calendars = world.calendars.filter((c) => !c.trashed);
+  const seasonCount = world.seasons.filter((s) => !s.archived && (s.calendarId === null || s.calendarId === activeId)).length;
+  const profileCount = world.profiles.filter((p) => !p.archived && p.data.calendarId === activeId).length;
   const skyHere = world.celestial.filter((o) => !o.archived && activeId !== null && inCalendar(o, activeId));
 
   async function search(q: string) {
@@ -256,7 +260,24 @@ export default function CalendarsSidebar({
           </section>
 
           <section className="cal-side-section">
-            <SideHead title="Seasons preview" action={{ label: "Seasons & profiles", Icon: Leaf, onClick: onOpenSeasons }} />
+            <SideHead title="Seasons" />
+            <ul className="cal-side-list">
+              <li>
+                <button type="button" className="articles-folder" onClick={onOpenSeasons}>
+                  <Leaf size={16} aria-hidden />
+                  <span className="articles-folder-name">Seasons</span>
+                  <span className="articles-folder-count">{seasonCount}</span>
+                </button>
+              </li>
+              <li>
+                <button type="button" className="articles-folder" onClick={onOpenProfiles}>
+                  <Layers size={16} aria-hidden />
+                  <span className="articles-folder-name">Season profiles</span>
+                  <span className="articles-folder-count">{profileCount}</span>
+                </button>
+              </li>
+            </ul>
+            <span className="field-label">Preview on the calendar</span>
             <select aria-label="Season profile to preview" value={previewProfile?.id ?? ""} onChange={(e) => onPreviewProfile(e.target.value || null)}>
               <option value="">None</option>
               {world.profiles

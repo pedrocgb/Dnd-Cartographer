@@ -75,7 +75,7 @@ function ProfileRow({ season, profile, world, def, day }: { season: ClientSeason
 /**
  * Read-only view of a season: what it is, whether it's in season on `day`
  * (in the previewed profile), and its dates in every profile that uses it.
- * Dates are shown in `def` (the calendar being viewed). "Edit" opens Seasons & Profiles.
+ * Dates are shown in `def` (the calendar being viewed). "Edit" opens it in Seasons.
  */
 export default function SeasonView({ season, world, def, day, previewProfile, onEdit, onClose }: { season: ClientSeason; world: WorldCalendars; def: CalendarDefinition; day: number; previewProfile: ClientProfile | null; onEdit: () => void; onClose: () => void }) {
   const calendarName = season.calendarId === null ? "Every calendar" : (world.calendars.find((c) => c.id === season.calendarId)?.name ?? "A removed calendar");
@@ -134,7 +134,7 @@ export default function SeasonView({ season, world, def, day, previewProfile, on
             Close
           </button>
           <button type="button" className="btn btn-sm btn-primary" onClick={onEdit}>
-            <Pencil size={14} /> Edit in Seasons &amp; Profiles
+            <Pencil size={14} /> Edit season
           </button>
         </div>
       </div>

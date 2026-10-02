@@ -8796,88 +8796,238 @@ select optgroup {
   list-style: none;
 }
 
-/* Seasons & Profiles modal: season cards, profile cards, mode choice */
-.sp-season-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: var(--space-3);
+/* Seasons and Season profiles modals: a list at the left, the open item's form at the right */
+.sp-modal .modal-card-wide {
+  width: min(1080px, 100%);
 }
 
-.sp-season-card {
-  --season: var(--teal-500);
-  position: relative;
+.sp-split {
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr);
+  gap: var(--space-5);
+  min-height: 460px;
+}
+
+.sp-list {
+  position: sticky;
+  top: 0;
+  align-self: start;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: var(--space-3);
-  border: 1px solid var(--border-default);
-  border-top: 3px solid var(--season);
-  border-radius: var(--radius-md);
-  background: var(--bg-surface-raised);
+  padding-right: var(--space-4);
+  border-right: 1px solid var(--border-subtle);
 }
 
-.sp-season-card.archived {
+.sp-list-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sp-list-item {
+  --season: var(--teal-500);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.sp-list-item:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+.sp-list-item.active {
+  background: var(--teal-900);
+  border-color: var(--teal-600);
+  color: var(--text-primary);
+}
+
+.sp-list-item.archived {
   opacity: 0.55;
 }
 
-.sp-season-top {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.sp-season-badge {
+.sp-list-badge {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   border: 2px solid var(--season);
   border-radius: var(--radius-full);
-  background: color-mix(in srgb, var(--season) 22%, transparent);
+  background: color-mix(in srgb, var(--season) 25%, transparent);
   color: var(--text-primary);
-  font-size: 1rem;
+  font-size: 0.95rem;
+}
+
+.sp-list-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sp-list-text strong {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+
+.sp-list-profile {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+}
+
+.sp-list-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.sp-list-new {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 36px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-sm);
   cursor: pointer;
+  transition: border-color var(--transition-fast), color var(--transition-fast), background var(--transition-fast);
 }
 
-.sp-season-badge:hover,
-.sp-season-badge[aria-expanded="true"] {
-  background: color-mix(in srgb, var(--season) 40%, transparent);
+.sp-list-new:hover,
+.sp-list-new.active {
+  border-color: var(--teal-500);
+  color: var(--teal-300);
+  background: var(--teal-900);
 }
 
-.sp-season-name {
+.sp-list-archived {
+  padding: 0 var(--space-1);
+}
+
+.sp-pane {
+  min-width: 0;
+}
+
+.sp-detail {
+  --season: var(--teal-500);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* The season's identity: its badge and name over a wash of its color. */
+.sp-hero {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--season) 45%, var(--border-subtle));
+  border-radius: var(--radius-lg);
+  background: linear-gradient(120deg, color-mix(in srgb, var(--season) 24%, var(--bg-surface)) 0%, var(--bg-surface) 75%);
+}
+
+.sp-hero-badge {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 68px;
+  height: 68px;
+  border: 2px solid var(--season);
+  border-radius: var(--radius-full);
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--season) 45%, transparent), color-mix(in srgb, var(--season) 12%, var(--bg-inset)) 70%);
+  box-shadow: 0 0 24px -6px var(--season);
+  color: var(--season);
+  font-size: 32px;
+  line-height: 1;
+}
+
+.sp-hero-text {
   flex: 1 1 auto;
   min-width: 0;
-  font-weight: 600;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.modal-body input.sp-hero-name {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  padding: var(--space-1) var(--space-2);
   background: transparent;
   border-color: transparent;
 }
 
-.sp-season-name:hover,
-.sp-season-name:focus {
+.modal-body input.sp-hero-name:hover,
+.modal-body input.sp-hero-name:focus {
   border-color: var(--border-default);
+  background: var(--bg-inset);
 }
 
-.sp-season-description {
-  resize: vertical;
+.sp-hero-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-2);
+}
+
+.sp-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+}
+
+.sp-block-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.sp-block-head h3 {
   font-size: var(--text-sm);
+  font-weight: 700;
 }
 
-/* While its color is being picked, the card takes the whole row so the wheel has room. */
-.sp-season-card.picking {
-  grid-column: 1 / -1;
+.sp-block-head p {
+  margin: 0;
 }
 
-.sp-season-picker {
+.sp-block textarea {
+  resize: vertical;
+}
+
+.sp-appearance {
   display: grid;
   /* The wheel column is sized to the wheel's content, so its fields never spill into the symbols. */
   grid-template-columns: max-content minmax(0, 1fr);
   gap: var(--space-5);
-  padding: var(--space-3);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  background: var(--bg-inset);
 }
 
 .sp-picker-wheel .color-wheel-controls {
@@ -8893,7 +9043,7 @@ select optgroup {
 .sp-picker-side {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-4);
   min-width: 0;
 }
 
@@ -8905,12 +9055,13 @@ select optgroup {
 }
 
 .sp-swatch {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   border: 2px solid transparent;
   border-radius: var(--radius-full);
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
   cursor: pointer;
+  transition: transform var(--transition-fast);
 }
 
 .sp-swatch:hover {
@@ -8921,116 +9072,31 @@ select optgroup {
   border-color: var(--text-primary);
 }
 
-.sp-picker-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-2);
-  margin-top: auto;
-}
-
-.sp-season-foot {
+.sp-chips {
+  list-style: none;
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  padding-top: var(--space-2);
-  border-top: 1px solid var(--border-subtle);
-}
-
-.sp-season-foot select {
-  width: auto;
-  max-width: 100%;
-  font-size: var(--text-xs);
-}
-
-.sp-add-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
-  min-height: 140px;
-  border: 1px dashed var(--border-strong);
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--text-secondary);
-  font: inherit;
-  cursor: pointer;
-  transition: border-color var(--transition-fast), color var(--transition-fast), background var(--transition-fast);
-}
-
-.sp-add-card:hover {
-  border-color: var(--teal-500);
-  color: var(--teal-300);
-  background: var(--teal-900);
-}
-
-.sp-profile-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: var(--space-2);
 }
 
-.sp-profile-card {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
+.sp-chip {
+  padding: 2px var(--space-3);
   border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  background: var(--bg-surface);
-  color: var(--text-primary);
-  font: inherit;
-  font-size: var(--text-sm);
-  text-align: left;
-  cursor: pointer;
-  transition: border-color var(--transition-fast), background var(--transition-fast);
-}
-
-.sp-profile-card:hover {
-  border-color: var(--teal-500);
-}
-
-.sp-profile-card.active {
-  border-color: var(--teal-500);
-  background: var(--teal-900);
-  box-shadow: inset 0 0 0 1px var(--teal-500);
-}
-
-.sp-profile-card.archived {
-  opacity: 0.6;
-}
-
-.sp-profile-new {
-  flex-direction: row;
-  align-items: center;
-  justify-content: center;
-  border-style: dashed;
+  border-radius: var(--radius-full);
+  background: var(--bg-surface-raised);
+  font-size: var(--text-xs);
   color: var(--text-secondary);
 }
 
-.sp-profile-title {
+.sp-add-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-3);
 }
 
 .cal-season-strip.compact {
   height: 8px;
-}
-
-.sp-profile-form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  margin-top: var(--space-2);
-  padding: var(--space-4);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-lg);
-  background: var(--bg-surface-raised);
 }
 
 .sp-profile-fields {
@@ -9057,7 +9123,7 @@ select optgroup {
   padding: var(--space-3);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
-  background: var(--bg-surface);
+  background: var(--bg-surface-raised);
   color: var(--text-primary);
   font: inherit;
   font-size: var(--text-sm);
@@ -9080,7 +9146,31 @@ select optgroup {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2) var(--space-5);
-  margin-top: var(--space-2);
+}
+
+@media (max-width: 760px) {
+  .sp-split {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  .sp-list {
+    position: static;
+    padding: 0 0 var(--space-3);
+    border-right: none;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .sp-appearance,
+  .sp-profile-fields,
+  .sp-mode-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sp-picker-side {
+    border-left: none;
+    padding-left: 0;
+  }
 }
 
 /* The table stacks when its box (not the window) is too narrow for five columns. */
@@ -9109,22 +9199,6 @@ select optgroup {
 
   .cal-season-head {
     display: none;
-  }
-}
-
-@media (max-width: 700px) {
-  .sp-season-picker {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .sp-picker-side {
-    border-left: none;
-    padding-left: 0;
-  }
-
-  .sp-profile-fields,
-  .sp-mode-grid {
-    grid-template-columns: minmax(0, 1fr);
   }
 }
 
