@@ -14,5 +14,9 @@ export async function api<T = Record<string, unknown>>(method: string, url: stri
   }
 }
 
+/** Tells the top bar's in-world date to reload (after the current day or a calendar changed). */
+export const WORLD_DATE_EVENT = "world-date-changed";
+export const notifyWorldDateChanged = () => window.dispatchEvent(new Event(WORLD_DATE_EVENT));
+
 /** A short random id for new definition items (stable once saved). */
 export const newId = (prefix: string) => `${prefix}-${crypto.randomUUID().slice(0, 8)}`;

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Compass, Book, CalendarDays, Swords, ChevronDown, Settings, Waypoints, GitFork, LayoutDashboard, type LucideIcon } from "lucide-react";
 import SearchBox from "./SearchBox";
+import WorldDateLabel from "./WorldDateLabel";
 
 interface MenuItem {
   href: string;
@@ -70,7 +71,8 @@ function NavMenu({ label, items, triggerClass, children }: { label: string; item
 
 /**
  * The top bar: Maps, Articles (and its views), the Campaign area (Sessions,
- * Writer), Calendars and Settings (which also holds Trash, Import and Export).
+ * Writer), Calendars and Settings (which also holds Trash, Import and Export);
+ * optionally the current in-world date in the middle.
  */
 export default function AppNav() {
   const pathname = usePathname();
@@ -78,36 +80,41 @@ export default function AppNav() {
 
   return (
     <nav className="app-nav">
-      <Link href="/maps" className="app-nav-brand">
-        <Compass size={20} strokeWidth={2.25} />
-        World Wiki
-      </Link>
-      <Link href="/maps" className={linkClass(pathname === "/maps" || pathname.startsWith("/maps/"))}>
-        <Compass size={16} strokeWidth={2.25} />
-        Maps
-      </Link>
-      <span className={pathname.startsWith("/articles") ? "app-nav-split current" : "app-nav-split"}>
-        <Link href="/articles" className={linkClass(pathname.startsWith("/articles"))}>
-          <Book size={16} strokeWidth={2.25} />
-          Articles
+      <div className="app-nav-start">
+        <Link href="/maps" className="app-nav-brand">
+          <Compass size={20} strokeWidth={2.25} />
+          World Wiki
         </Link>
-        <NavMenu label="Articles, relationships, family trees and boards" items={ARTICLE_VIEWS} triggerClass="app-nav-link app-nav-split-toggle">
-          <ChevronDown size={14} strokeWidth={2.25} aria-hidden />
-        </NavMenu>
-      </span>
-      <Link href="/sessions" className={linkClass(pathname.startsWith("/sessions") || pathname.startsWith("/writer"))} data-tooltip="Sessions and Writer of the active campaign">
-        <Swords size={16} strokeWidth={2.25} />
-        Campaign
-      </Link>
-      <Link href="/calendars" className={linkClass(pathname.startsWith("/calendars"))}>
-        <CalendarDays size={16} strokeWidth={2.25} />
-        Calendars
-      </Link>
-      <Link href="/settings" className={linkClass(pathname.startsWith("/settings"))} data-tooltip="Settings, data and trash">
-        <Settings size={16} strokeWidth={2.25} />
-        Settings
-      </Link>
-      <SearchBox />
+        <Link href="/maps" className={linkClass(pathname === "/maps" || pathname.startsWith("/maps/"))}>
+          <Compass size={16} strokeWidth={2.25} />
+          Maps
+        </Link>
+        <span className={pathname.startsWith("/articles") ? "app-nav-split current" : "app-nav-split"}>
+          <Link href="/articles" className={linkClass(pathname.startsWith("/articles"))}>
+            <Book size={16} strokeWidth={2.25} />
+            Articles
+          </Link>
+          <NavMenu label="Articles, relationships, family trees and boards" items={ARTICLE_VIEWS} triggerClass="app-nav-link app-nav-split-toggle">
+            <ChevronDown size={14} strokeWidth={2.25} aria-hidden />
+          </NavMenu>
+        </span>
+        <Link href="/sessions" className={linkClass(pathname.startsWith("/sessions") || pathname.startsWith("/writer"))} data-tooltip="Sessions and Writer of the active campaign">
+          <Swords size={16} strokeWidth={2.25} />
+          Campaign
+        </Link>
+        <Link href="/calendars" className={linkClass(pathname.startsWith("/calendars"))}>
+          <CalendarDays size={16} strokeWidth={2.25} />
+          Calendars
+        </Link>
+        <Link href="/settings" className={linkClass(pathname.startsWith("/settings"))} data-tooltip="Settings, data and trash">
+          <Settings size={16} strokeWidth={2.25} />
+          Settings
+        </Link>
+      </div>
+      <WorldDateLabel />
+      <div className="app-nav-end">
+        <SearchBox />
+      </div>
     </nav>
   );
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { ensureDefaultWorld } from "@/server/world/default-world";
-import { calendarOf, chronologyOf, updateChronology } from "@/server/calendars/store";
+import { calendarOf, chronologyOf, toClientCalendar, updateChronology } from "@/server/calendars/store";
 import { badRequest, calendarErrorResponse, readBody } from "@/server/calendars/respond";
 
 /** Supported shared-day range (physical days from the epoch). */
@@ -12,9 +12,13 @@ const toClient = (row: { currentDay: number; defaultCalendarId: string | null; r
   revision: row.revision,
 });
 
+/** The chronology, plus the default calendar (name and definition) to read the current day in. */
 export async function GET() {
   const worldId = await ensureDefaultWorld();
-  return NextResponse.json({ chronology: toClient(await chronologyOf(worldId)) });
+  const chronology = await chronologyOf(worldId);
+  const calendar = chronology.defaultCalendarId ? await calendarOf(worldId, chronology.defaultCalendarId) : null;
+  const client = calendar ? toClientCalendar(calendar) : null;
+  return NextResponse.json({ chronology: toClient(chronology), calendar: client?.definition ? { id: client.id, name: client.name, definition: client.definition } : null });
 }
 
 /**

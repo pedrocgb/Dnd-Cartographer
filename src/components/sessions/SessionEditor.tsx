@@ -10,7 +10,7 @@ import InfoPicker from "@/components/articles/InfoPicker";
 import { candidateOptions, loadCandidates, type Candidate } from "@/components/articles/candidates";
 import ArticleLinksSection from "@/components/calendars/ArticleLinksSection";
 import WorldDatePicker from "@/components/calendars/WorldDatePicker";
-import { api, newId } from "@/components/calendars/api";
+import { api, newId, notifyWorldDateChanged } from "@/components/calendars/api";
 import { dayLabel, safe } from "@/components/calendars/evaluate";
 import type { ArticleRef, Chronology, ClientCalendar } from "@/components/calendars/types";
 import { fromWorldDay, type CalendarDefinition } from "@/server/calendars/engine";
@@ -316,8 +316,10 @@ export default function SessionEditor({
   async function moveDate() {
     if (!advance) return;
     const res = await api("PATCH", "/api/chronology", { currentDay: advance.to, expectedRevision: chronology.revision });
-    if (res.ok) onSaved(advance.saved, true);
-    else setAdvanceError(res.data.error ?? "Could not move the date (it may have changed elsewhere). The session itself is saved.");
+    if (res.ok) {
+      notifyWorldDateChanged();
+      onSaved(advance.saved, true);
+    } else setAdvanceError(res.data.error ?? "Could not move the date (it may have changed elsewhere). The session itself is saved.");
   }
 
   const tabs: { key: Tab; label: string; Icon: typeof Users; count?: number }[] = [

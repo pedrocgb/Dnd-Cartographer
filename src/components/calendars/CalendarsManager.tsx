@@ -6,7 +6,7 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import { useSearchParams } from "next/navigation";
 import { CalendarPlus, ChevronLeft, ChevronRight, LocateFixed, Sun, Undo2 } from "lucide-react";
 import { toWorldDay, weekLength, type LocalDate } from "@/server/calendars/engine";
-import { api } from "./api";
+import { api, notifyWorldDateChanged } from "./api";
 import { byDay, dayLabel, evalContext, inCalendar, localOf, occurrencesIn, periodRange, periodsOf, safe, stepPeriod, stepYear, yearRange } from "./evaluate";
 import { AgendaView, MonthView, YearView } from "./CalendarViews";
 import CalendarsSidebar, { type Filters } from "./CalendarsSidebar";
@@ -97,8 +97,10 @@ export default function CalendarsManager() {
 
   const reload = useCallback(async () => {
     const res = await api<WorldCalendars>("GET", "/api/calendars");
-    if (res.ok) setWorld(res.data);
-    else setLoadError(res.data.error ?? "Could not load the calendars.");
+    if (res.ok) {
+      setWorld(res.data);
+      notifyWorldDateChanged();
+    } else setLoadError(res.data.error ?? "Could not load the calendars.");
     return res.ok ? res.data : null;
   }, []);
 
@@ -235,6 +237,7 @@ export default function CalendarsManager() {
 
   function applyChronology(chronology: Chronology) {
     setWorld((w) => (w ? { ...w, chronology } : w));
+    notifyWorldDateChanged();
   }
 
   /** Changes the shared date (compare-and-set on the revision); records an undo step. */

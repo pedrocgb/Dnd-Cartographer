@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { Check } from "lucide-react";
+import Toggle from "@/components/Toggle";
 import { useSettings } from "./SettingsProvider";
-import { SettingError, SettingsCard, SettingsHeader } from "./parts";
+import { SettingError, SettingRow, SettingsCard, SettingsHeader } from "./parts";
 import type { Language } from "@/server/settings/settings";
 
 /** Drawn, not emoji: Windows has no flag emoji. */
@@ -37,10 +38,11 @@ const LANGUAGE_OPTIONS: { key: Language; label: string; region: string; flag: Re
 export default function GeneralSettings() {
   const { settings, updateSetting } = useSettings();
   const [error, setError] = useState<string | null>(null);
+  const [barError, setBarError] = useState<string | null>(null);
 
   return (
     <>
-      <SettingsHeader title="General" description="How the app speaks to you." />
+      <SettingsHeader title="General" description="How the app speaks to you, and what the top bar shows." />
       <SettingsCard title="Language" description="Translations are on the way: your choice is saved now and applies once they arrive.">
         <div className="settings-choice-grid" role="radiogroup" aria-label="Language">
           {LANGUAGE_OPTIONS.map((option) => {
@@ -65,6 +67,12 @@ export default function GeneralSettings() {
           })}
         </div>
         <SettingError message={error} />
+      </SettingsCard>
+      <SettingsCard title="Top bar" description="The bar at the top of every page.">
+        <SettingRow label="In-world date" description="Shows the current date of your world, read in the default calendar, in the middle of the bar. Click it to open Calendars.">
+          <Toggle checked={settings.showWorldDate} label={settings.showWorldDate ? "Shown" : "Hidden"} onChange={async (on) => setBarError(await updateSetting("showWorldDate", on))} />
+        </SettingRow>
+        <SettingError message={barError} />
       </SettingsCard>
     </>
   );

@@ -49,6 +49,8 @@ export interface AppSettings {
   /** Numbers the app writes (areas, distances, totals); what the user types stays as written. */
   numberFormat: NumberFormat;
   trashRetentionDays: TrashRetention;
+  /** The current in-world date (default calendar) in the middle of the top bar. */
+  showWorldDate: boolean;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -59,6 +61,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   worldDateFormat: "D MMMM YYYY",
   numberFormat: "comma",
   trashRetentionDays: null,
+  showWorldDate: false,
 };
 
 const oneOf = <T,>(values: readonly T[], value: unknown): value is T => values.includes(value as T);
@@ -71,6 +74,7 @@ const VALIDATORS: { [K in keyof AppSettings]: (value: unknown) => value is AppSe
   worldDateFormat: (v): v is WorldDateFormat => oneOf(WORLD_DATE_FORMATS, v),
   numberFormat: (v): v is NumberFormat => oneOf(NUMBER_FORMATS, v),
   trashRetentionDays: (v): v is TrashRetention => v === null || oneOf(TRASH_RETENTION_DAYS, v),
+  showWorldDate: (v): v is boolean => typeof v === "boolean",
 };
 
 const KEYS = Object.keys(VALIDATORS) as (keyof AppSettings)[];
