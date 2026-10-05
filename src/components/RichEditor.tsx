@@ -269,13 +269,13 @@ export default function RichEditor({
 
     // Read mode: show the last known copy right away (display only; nothing saves until the fresh copy lands).
     const cached = documentCache.get(documentId);
-    if (cached && editor && !editable) {
+    if (cached && editor && !editor.isDestroyed && !editable) {
       editor.commands.setContent(JSON.parse(cached.jsonText), { emitUpdate: false });
       setShown(true);
     }
 
     fetchDocument(documentId).then((doc) => {
-      if (cancelled || !editor) return;
+      if (cancelled || !editor || editor.isDestroyed) return;
 
       const draftRaw = localStorage.getItem(draftKey(documentId));
       let content: JSONContent = JSON.parse(doc.jsonText);
