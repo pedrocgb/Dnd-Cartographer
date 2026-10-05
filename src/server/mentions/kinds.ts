@@ -27,11 +27,11 @@ export interface MentionAttrs {
 
 /**
  * What a mention reads as: its custom text (set in the article link dialog)
- * or, without one, "@" and the target's label.
+ * or, without one, the target's label (no "@": a link reads as plain prose).
  */
 export function mentionDisplayText(attrs: Record<string, unknown>): string {
   if (typeof attrs.text === "string" && attrs.text.trim()) return attrs.text;
-  return `@${typeof attrs.label === "string" ? attrs.label : ""}`;
+  return typeof attrs.label === "string" ? attrs.label : "";
 }
 
 /** A search result for the @ menu. */

@@ -183,11 +183,11 @@ describe("mentions", () => {
     expect(mentionHref({ kind: "node", id: "n1", campaign: "c1" })).toBe("/writer?campaign=c1&node=n1");
   });
 
-  it("validates mention attributes and puts @label in the plain text", () => {
+  it("validates mention attributes and puts the label in the plain text", () => {
     expect(() => validateDocument(mention({ kind: "character", id: "p1", label: "Varek" }))).not.toThrow();
     expect(() => validateDocument(mention({ kind: "script", id: "p1", label: "x" }))).toThrow(/Unsupported mention/);
     expect(() => validateDocument(mention({ kind: "character", id: "<script>", label: "x" }))).toThrow(/target/);
     expect(() => validateDocument(mention({ kind: "character", id: "p1", label: "x".repeat(201) }))).toThrow(/label/);
-    expect(deriveText(mention({ kind: "character", id: "p1", label: "Varek" }))).toBe("Meet @Varek");
+    expect(deriveText(mention({ kind: "character", id: "p1", label: "Varek" }))).toBe("Meet Varek");
   });
 });

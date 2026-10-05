@@ -114,10 +114,10 @@ describe("mention link text", () => {
     expect(() => validateDocument(withMention({ text: "x".repeat(201) }))).toThrow(DocumentValidationError);
   });
 
-  it("derives the custom text, else @label", () => {
+  it("derives the custom text, else the label", () => {
     expect(deriveText(withMention({ text: "the old king" }))).toBe("See the old king");
-    expect(deriveText(withMention({}))).toBe("See @Aldric");
-    expect(deriveText(withMention({ text: "  " }))).toBe("See @Aldric");
+    expect(deriveText(withMention({}))).toBe("See Aldric");
+    expect(deriveText(withMention({ text: "  " }))).toBe("See Aldric");
   });
 });
 
