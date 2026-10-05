@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BookOpen, CalendarCheck, Globe, HelpCircle, ListTree, Plus, Settings2, Spline } from "lucide-react";
+import { BookOpen, CalendarCheck, Eye, Globe, HelpCircle, ListTree, PenLine, Plus, Settings2, Spline } from "lucide-react";
 import { api } from "@/components/calendars/api";
 import { PageSkeleton } from "@/components/Skeleton";
 import type { ClientCampaign } from "@/components/sessions/types";
@@ -16,6 +16,8 @@ import CampaignSetupDialog from "./CampaignSetupDialog";
 import ThreadsView from "./ThreadsView";
 import SessionsPanel from "./SessionsPanel";
 import StatusLog from "./StatusLog";
+import StoryReader from "./StoryReader";
+import ReaderDock from "./ReaderDock";
 import { upsert, useWriterData } from "./useWriterData";
 
 type Tab = "story" | "sessions" | "threads" | "status";
@@ -28,8 +30,8 @@ const TABS: { key: Tab; label: string; icon: typeof BookOpen; hint: string }[] =
 
 const tabParam = (v: string | null): Tab => (v === "sessions" || v === "threads" || v === "status" ? v : "story");
 
-/** Keeps ?campaign=&node=&tab= in the address bar without a navigation. */
-function syncUrl(values: Record<"campaign" | "node" | "tab", string | null>) {
+/** Keeps ?campaign=&node=&tab=&mode= in the address bar without a navigation. */
+function syncUrl(values: Record<"campaign" | "node" | "tab" | "mode", string | null>) {
   const url = new URL(window.location.href);
   for (const [key, value] of Object.entries(values)) {
     if (value) url.searchParams.set(key, value);
@@ -47,16 +49,21 @@ export default function CampaignWriter({
   campaign,
   initialNode,
   initialTab,
+  initialMode,
   onCampaignChanged,
 }: {
   campaign: ClientCampaign;
   initialNode: string | null;
   initialTab: string | null;
+  initialMode: string | null;
   onCampaignChanged: (c: ClientCampaign) => void;
 }) {
   const { data, loading, error, reload, update } = useWriterData(campaign.id);
   const [tab, setTab] = useState<Tab>(tabParam(initialTab));
   const [selectedId, setSelectedId] = useState<string | null>(initialNode);
+  // The Story tab reads like a book (no editing) or opens the editor.
+  const [reading, setReading] = useState(initialMode === "read");
+  const [mainEl, setMainEl] = useState<HTMLElement | null>(null);
   const [templateFor, setTemplateFor] = useState<{ parentId: string | null } | null>(null);
   const [setupOpen, setSetupOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -64,8 +71,8 @@ export default function CampaignWriter({
   const selected = data.nodes.find((n) => n.id === selectedId) ?? null;
 
   useEffect(() => {
-    syncUrl({ campaign: campaign.id, node: selected?.id ?? null, tab: tab === "story" ? null : tab });
-  }, [campaign.id, selected?.id, tab]);
+    syncUrl({ campaign: campaign.id, node: selected?.id ?? null, tab: tab === "story" ? null : tab, mode: tab === "story" && reading ? "read" : null });
+  }, [campaign.id, selected?.id, tab, reading]);
 
   const setNodes = (fn: (nodes: OutlineNode[]) => OutlineNode[]) => update((d) => ({ ...d, nodes: fn(d.nodes) }));
 
@@ -76,6 +83,7 @@ export default function CampaignWriter({
     setNodes((list) => [...list, res.data.node]);
     setSelectedId(res.data.node.id);
     setTab("story");
+    setReading(false);
   }
 
   async function move(moves: OutlineMove[]) {
@@ -133,13 +141,23 @@ export default function CampaignWriter({
   return (
     <div className="articles-page">
       {sidebar}
-      <main className="articles-main wr-main">
+      <main ref={setMainEl} className={tab === "story" ? "articles-main wr-main wr-main-story" : "articles-main wr-main"}>
         <header className="ss-header">
           <div className="ss-header-text">
             <h1>{campaign.name}</h1>
             {campaign.setup.pitch ? <p className="ss-description">{campaign.setup.pitch}</p> : <p className="cal-help">No pitch yet. Open the campaign setup to write it in a sentence or two.</p>}
           </div>
           <div className="ss-header-actions">
+            {tab === "story" && (
+              <div className="wr-mode" role="group" aria-label="Story mode">
+                <button type="button" className={reading ? "btn btn-sm btn-ghost" : "btn btn-sm btn-ghost active"} aria-pressed={!reading} data-tooltip="Write and organize the story" onClick={() => setReading(false)}>
+                  <PenLine size={14} /> Edit
+                </button>
+                <button type="button" className={reading ? "btn btn-sm btn-ghost active" : "btn btn-sm btn-ghost"} aria-pressed={reading} data-tooltip="Read the story like a book, without editing" onClick={() => setReading(true)}>
+                  <Eye size={14} /> Read
+                </button>
+              </div>
+            )}
             <button type="button" className={guides ? "btn btn-sm btn-ghost active" : "btn btn-sm btn-ghost"} aria-pressed={guides} data-tooltip={guides ? "Hide the writing guides" : "Show the writing guides"} onClick={() => void saveSetup({ guidesHidden: guides })}>
               <HelpCircle size={14} /> Guides
             </button>
@@ -161,7 +179,9 @@ export default function CampaignWriter({
           </p>
         )}
 
+        {tab === "story" && reading && <StoryReader nodes={data.nodes} rootId={selected?.id ?? null} title={campaign.name} pitch={campaign.setup.pitch} onReadAll={() => setSelectedId(null)} />}
         {tab === "story" &&
+          !reading &&
           (selected ? (
             <NodeEditor
               key={selected.id}
@@ -187,6 +207,7 @@ export default function CampaignWriter({
         {tab === "threads" && <ThreadsView campaign={campaign} data={data} update={update} guides={guides} onOpenNode={(id) => { setSelectedId(id); setTab("story"); }} />}
         {tab === "status" && <StatusLog campaign={campaign} sessions={data.sessions} guides={guides} />}
       </main>
+      {tab === "story" && reading && <ReaderDock pane={mainEl} onEdit={() => setReading(false)} />}
 
       {templateFor && <TemplatePicker target={templateFor.parentId === null ? null : (data.nodes.find((n) => n.id === templateFor.parentId)?.kind ?? null)} onPick={(key) => void applyTemplate(templateFor.parentId, key)} onClose={() => setTemplateFor(null)} />}
       {setupOpen && (

@@ -56,5 +56,5 @@ export default function WriterManager() {
     );
   }
 
-  return <CampaignWriter key={campaign.id} campaign={campaign} initialNode={params.get("node")} initialTab={params.get("tab")} onCampaignChanged={replace} />;
+  return <CampaignWriter key={campaign.id} campaign={campaign} initialNode={params.get("node")} initialTab={params.get("tab")} initialMode={params.get("mode")} onCampaignChanged={replace} />;
 }

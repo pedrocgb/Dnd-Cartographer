@@ -11832,6 +11832,101 @@ input.ss-resolved {
   display: flex;
   justify-content: flex-end;
 }
+
+/* Story tab: the editor / reader sits centered in the main pane, like an article. */
+.wr-main-story > :is(.wr-editor, .wr-start, .wr-reader, .wr-empty) {
+  width: 100%;
+  margin-inline: auto;
+}
+.wr-mode {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+/* Read mode's floating controls beside the story's text (ReaderDock sets left, and top = the
+   dock's bottom edge; it grows upward). */
+.wr-reader-dock {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  transform: translateY(-100%);
+}
+.wr-reader-dock .scroll-to-top {
+  position: static;
+}
+
+/* Read mode: the story as a book, wiki-style (title, lead, contents, sections). */
+.wr-reader {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 900px;
+}
+.wr-reader-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border-default);
+}
+.wr-reader-title {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.wr-reader-lead {
+  margin: 0;
+  color: var(--text-secondary);
+  font-style: italic;
+  white-space: pre-wrap;
+}
+.wr-reader-toc {
+  align-self: flex-start;
+  min-width: 240px;
+  max-width: 100%;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface-raised);
+}
+.wr-reader-toc h2 {
+  margin: 0 0 var(--space-2);
+}
+.wr-reader-toc ol {
+  margin: 0;
+  padding-left: var(--space-4);
+}
+.wr-reader-toc li {
+  margin: 2px 0;
+}
+.wr-reader-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  scroll-margin-top: var(--space-4);
+}
+.wr-reader-heading {
+  margin: var(--space-3) 0 0;
+  overflow-wrap: anywhere;
+}
+h2.wr-reader-heading {
+  padding-bottom: var(--space-1);
+  border-bottom: 1px solid var(--border-default);
+  font-size: 1.5rem;
+}
+h3.wr-reader-heading {
+  font-size: 1.25rem;
+}
+h4.wr-reader-heading {
+  font-size: 1.05rem;
+}
 .wr-chips {
   display: flex;
   flex-wrap: wrap;

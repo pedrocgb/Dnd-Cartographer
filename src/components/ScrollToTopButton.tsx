@@ -7,7 +7,7 @@ const SIZE = 40;
 /** Space between the content's edge and the button, and from the pane's edges. */
 const GAP = 16;
 
-type Position = { left: number; top: number };
+export type Position = { left: number; top: number };
 
 /**
  * Where the button sits: just past the right edge of the container's
@@ -28,6 +28,29 @@ function placement(container: HTMLElement): Position {
  * fixed on screen beside the content so it stays put while scrolling.
  */
 export default function ScrollToTopButton({ container }: { container: HTMLElement | null }) {
+  const { scrollable, position } = useFloatingInPane(container, placement);
+
+  if (!scrollable || !container || !position) return null;
+  return (
+    <button type="button" className="scroll-to-top" style={position} aria-label="Back to top" data-tooltip="Back to top" onClick={() => scrollToTop(container)}>
+      <ArrowUp size={18} strokeWidth={2.25} />
+    </button>
+  );
+}
+
+/** Scrolls a pane back to its top (instantly when the user prefers reduced motion). */
+export function scrollToTop(container: HTMLElement) {
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  container.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
+}
+
+/**
+ * Tracks a scrolling pane for something floating over it: whether it has
+ * more content than fits, and where `place` puts the floating element
+ * (screen coordinates, for position: fixed), kept current as the pane,
+ * its content and the window change.
+ */
+export function useFloatingInPane(container: HTMLElement | null, place: (container: HTMLElement) => Position) {
   const [scrollable, setScrollable] = useState(false);
   const [position, setPosition] = useState<Position | null>(null);
 
@@ -35,7 +58,7 @@ export default function ScrollToTopButton({ container }: { container: HTMLElemen
     if (!container) return;
     const check = () => {
       setScrollable(container.scrollHeight > container.clientHeight + 1);
-      const next = placement(container);
+      const next = place(container);
       setPosition((prev) => (prev && prev.left === next.left && prev.top === next.top ? prev : next));
     };
     check();
@@ -58,22 +81,9 @@ export default function ScrollToTopButton({ container }: { container: HTMLElemen
       container.removeEventListener("load", check, true);
       window.removeEventListener("resize", check);
     };
+    // `place` is a module-level function at every call site.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [container]);
 
-  if (!scrollable || !container || !position) return null;
-  return (
-    <button
-      type="button"
-      className="scroll-to-top"
-      style={position}
-      aria-label="Back to top"
-      data-tooltip="Back to top"
-      onClick={() => {
-        const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-        container.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
-      }}
-    >
-      <ArrowUp size={18} strokeWidth={2.25} />
-    </button>
-  );
+  return { scrollable, position };
 }
