@@ -16879,3 +16879,281 @@ textarea.rel-notes {
   background: var(--brass-900);
   color: var(--brass-300);
 }
+
+/* ---------- Advanced Tools ---------- */
+
+.settings-header h1.tool-title,
+.settings-card-head h2.tool-card-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.tool-title svg {
+  color: var(--teal-400);
+}
+
+.tool-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.tool-empty {
+  margin: var(--space-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--text-sm);
+}
+
+/* Recent characters */
+.tool-history {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tool-history-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.tool-history-item:hover {
+  background: var(--bg-surface-hover);
+}
+
+.tool-history-item:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.tool-history-name {
+  color: var(--text-primary);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tool-history-meta {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tool-history-badge {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--teal-900);
+  color: var(--teal-300);
+  font-size: var(--text-xs);
+}
+
+.tool-history-time {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The generated character modal */
+.tool-hero {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.tool-avatar {
+  flex: 0 0 auto;
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-full);
+  background: linear-gradient(135deg, var(--teal-900), var(--violet-900));
+  border: 1px solid var(--border-default);
+  color: var(--teal-300);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.tool-hero-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.tool-hero-name {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--text-xl);
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.tool-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.tool-tag {
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--bg-surface-hover);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+
+.tool-tag-accent {
+  background: var(--brass-900);
+  color: var(--brass-300);
+}
+
+/* Hair, beard and backstory share one card, split by thin rules. */
+.tool-sheet {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+}
+
+.tool-sheet > *,
+.tool-sheet .cod-story > section,
+.tool-sheet .cod-story > .cod-story-pair {
+  padding: var(--space-3) var(--space-4);
+}
+
+.tool-sheet > * + *,
+.tool-sheet .cod-story > * + * {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.tool-sheet > .cod-story {
+  padding: 0;
+}
+
+.tool-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-4);
+}
+
+.tool-fact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tool-fact-label,
+.cod-story h4 {
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.tool-fact-value {
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+}
+
+.cod-story {
+  display: flex;
+  flex-direction: column;
+}
+
+.cod-story h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 var(--space-1);
+}
+
+.cod-story p {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+}
+
+.cod-story-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+.tool-sheet .cod-story-secret {
+  background: color-mix(in srgb, var(--violet-900) 80%, transparent);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+.cod-story-secret h4 {
+  color: var(--violet-300);
+}
+
+.tool-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.tool-modal-actions > :first-child {
+  margin-right: auto;
+}
+
+.cod-created {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--teal-300);
+  font-size: var(--text-sm);
+}
+
+@media (max-width: 640px) {
+  .tools-page .settings-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tools-page .settings-row-control select {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .cod-story-pair {
+    grid-template-columns: 1fr;
+  }
+
+  .tool-history-meta {
+    display: none;
+  }
+}

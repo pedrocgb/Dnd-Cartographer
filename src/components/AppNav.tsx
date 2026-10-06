@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Compass, Book, CalendarDays, Swords, ChevronDown, Settings, Waypoints, GitFork, LayoutDashboard, Globe2, type LucideIcon } from "lucide-react";
+import { Compass, Book, CalendarDays, Swords, ChevronDown, Settings, Waypoints, GitFork, LayoutDashboard, Globe2, Wrench, type LucideIcon } from "lucide-react";
 import SearchBox from "./SearchBox";
 import WorldDateLabel from "./WorldDateLabel";
+import { TOOLS } from "./tools/tools";
 
 interface MenuItem {
   href: string;
@@ -121,6 +122,11 @@ export default function AppNav({ world }: { world: { id: string; name: string } 
           <CalendarDays size={16} strokeWidth={2.25} />
           Calendars
         </Link>
+        <NavMenu label="Advanced tools" items={TOOLS} triggerClass={linkClass(pathname.startsWith("/tools"))}>
+          <Wrench size={16} strokeWidth={2.25} />
+          Advanced Tools
+          <ChevronDown size={14} strokeWidth={2.25} aria-hidden />
+        </NavMenu>
         <Link href="/settings" className={linkClass(pathname.startsWith("/settings"))} data-tooltip="Settings, data and trash">
           <Settings size={16} strokeWidth={2.25} />
           Settings
