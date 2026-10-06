@@ -14412,46 +14412,6 @@ textarea.rel-notes {
   background: transparent;
 }
 
-/* Articles: its link plus a small arrow for its views, drawn as one pill. */
-.app-nav-split {
-  display: inline-flex;
-  align-items: stretch;
-  border-radius: var(--radius-md);
-}
-
-.app-nav-split.current {
-  background: var(--teal-900);
-}
-
-.app-nav-split .app-nav-link,
-.app-nav-split .app-nav-link.current {
-  background: transparent;
-}
-
-.app-nav-split.current .app-nav-link {
-  color: var(--teal-300);
-}
-
-.app-nav-split > .app-nav-link:first-child {
-  padding-right: 6px;
-  border-radius: var(--radius-md) 0 0 var(--radius-md);
-}
-
-.app-nav-split .app-nav-split-toggle {
-  height: 100%;
-  padding-left: 4px;
-  padding-right: 8px;
-  border-radius: 0 var(--radius-md) var(--radius-md) 0;
-}
-
-.app-nav-split .app-nav-link:hover {
-  background: var(--bg-surface-hover);
-}
-
-.app-nav-split.current .app-nav-link:hover {
-  background: rgba(255, 255, 255, 0.06);
-}
-
 .app-nav-menu-popup {
   position: absolute;
   top: calc(100% + 6px);

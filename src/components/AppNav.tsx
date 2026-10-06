@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Compass, Book, CalendarDays, Swords, ChevronDown, Settings, Waypoints, GitFork, LayoutDashboard, Globe2, Wrench, type LucideIcon } from "lucide-react";
+import { Compass, Book, CalendarDays, Swords, ChevronDown, Settings, Waypoints, GitFork, LayoutDashboard, Globe2, Wrench, ScrollText, PenLine, type LucideIcon } from "lucide-react";
 import SearchBox from "./SearchBox";
 import WorldDateLabel from "./WorldDateLabel";
 import { TOOLS } from "./tools/tools";
@@ -20,6 +20,12 @@ const ARTICLE_VIEWS: MenuItem[] = [
   { href: "/articles?type=relationships", label: "Relationships", icon: Waypoints },
   { href: "/articles?type=family", label: "Family trees", icon: GitFork },
   { href: "/articles?type=boards", label: "Boards", icon: LayoutDashboard },
+];
+
+/** The active campaign's two areas. */
+const CAMPAIGN_VIEWS: MenuItem[] = [
+  { href: "/sessions", label: "Sessions", icon: ScrollText },
+  { href: "/writer", label: "Writer", icon: PenLine },
 ];
 
 /** A small dropdown of links: click to open, Esc or a click outside closes it. */
@@ -105,19 +111,16 @@ export default function AppNav({ world }: { world: { id: string; name: string } 
           <Compass size={16} strokeWidth={2.25} />
           Maps
         </Link>
-        <span className={pathname.startsWith("/articles") ? "app-nav-split current" : "app-nav-split"}>
-          <Link href="/articles" className={linkClass(pathname.startsWith("/articles"))}>
-            <Book size={16} strokeWidth={2.25} />
-            Articles
-          </Link>
-          <NavMenu label="Articles, relationships, family trees and boards" items={ARTICLE_VIEWS} triggerClass="app-nav-link app-nav-split-toggle">
-            <ChevronDown size={14} strokeWidth={2.25} aria-hidden />
-          </NavMenu>
-        </span>
-        <Link href="/sessions" className={linkClass(pathname.startsWith("/sessions") || pathname.startsWith("/writer"))} data-tooltip="Sessions and Writer of the active campaign">
+        <NavMenu label="Articles, relationships, family trees and boards" items={ARTICLE_VIEWS} triggerClass={linkClass(pathname.startsWith("/articles"))}>
+          <Book size={16} strokeWidth={2.25} />
+          Articles
+          <ChevronDown size={14} strokeWidth={2.25} aria-hidden />
+        </NavMenu>
+        <NavMenu label="Sessions and Writer of the active campaign" items={CAMPAIGN_VIEWS} triggerClass={linkClass(pathname.startsWith("/sessions") || pathname.startsWith("/writer"))}>
           <Swords size={16} strokeWidth={2.25} />
           Campaign
-        </Link>
+          <ChevronDown size={14} strokeWidth={2.25} aria-hidden />
+        </NavMenu>
         <Link href="/calendars" className={linkClass(pathname.startsWith("/calendars"))}>
           <CalendarDays size={16} strokeWidth={2.25} />
           Calendars
