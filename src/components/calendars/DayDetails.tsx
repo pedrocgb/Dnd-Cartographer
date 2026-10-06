@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { CalendarCheck, ChevronDown, ChevronRight, Link2, Pencil, Plus, Repeat, Settings2, Trash2, Undo2, X } from "lucide-react";
+import { CalendarCheck, ChevronDown, Link2, Pencil, Plus, Repeat, Settings2, Trash2, Undo2, X } from "lucide-react";
 import Modal from "@/components/Modal";
 import RichEditor from "@/components/RichEditor";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -10,6 +10,8 @@ import { articleHref, isArticleTemplate } from "@/server/articles/templates";
 import { describeRecurrence, type EvalContext } from "@/server/calendars/recurrence";
 import { fromWorldDay, weekdayIndex, type CalendarDefinition } from "@/server/calendars/engine";
 import { api } from "./api";
+import FoldSection from "./FoldSection";
+import DayWeather from "./DayWeather";
 import { celestialStates, dayLabel, occurrenceTitle, safe, type DayOccurrence } from "./evaluate";
 import { ENTRY_KINDS, type EntryEditorMode } from "./EntryEditor";
 import type { ClientCalendar, ClientCelestial, ClientEntry, ClientProfile, ClientSeason, EntryKind } from "./types";
@@ -24,24 +26,6 @@ function ArticleLinkName({ template, id, names }: { template: string | null; id:
     <Link className="politics-link-button" href={articleHref(template, id)}>
       {name}
     </Link>
-  );
-}
-
-/** A section of the day panel that folds open/closed from its header; `action` sits at the header's right. */
-function FoldSection({ title, count, action, children }: { title: string; count?: number; action?: React.ReactNode; children: React.ReactNode }) {
-  const [open, setOpen] = useState(true);
-  return (
-    <section className="cal-details-section">
-      <div className="day-fold-head">
-        <button type="button" className="day-fold-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
-          {open ? <ChevronDown size={14} aria-hidden /> : <ChevronRight size={14} aria-hidden />}
-          <h3 className="field-label">{title}</h3>
-          {count ? <span className="day-fold-count">{count}</span> : null}
-        </button>
-        {action}
-      </div>
-      {open && children}
-    </section>
   );
 }
 
@@ -269,6 +253,8 @@ export default function DayDetails({
           </ul>
         )}
       </FoldSection>
+
+      <DayWeather worldDay={worldDay} />
 
       <FoldSection
         title="On this day"

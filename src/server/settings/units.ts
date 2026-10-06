@@ -1,4 +1,4 @@
-import type { NumberFormat, UnitSystem } from "./settings";
+import type { NumberFormat, TemperatureUnit, UnitSystem } from "./settings";
 import { formatDecimal } from "./number-format";
 import type { InfoMeasure } from "../articles/info-fields";
 
@@ -21,6 +21,13 @@ export const speedUnit = (system: UnitSystem) => (system === "metric" ? "km/h" :
 export const shortLengthUnit = (system: UnitSystem) => (system === "metric" ? "m" : "ft.");
 export const weightUnit = (system: UnitSystem) => (system === "metric" ? "kg" : "lb");
 export const volumeUnit = (system: UnitSystem) => (system === "metric" ? "L" : "gal");
+
+export const temperatureSymbol = (unit: TemperatureUnit) => (unit === "celsius" ? "°C" : "°F");
+/** Degrees Celsius to the chosen unit, and back. */
+export const fromCelsius = (c: number, unit: TemperatureUnit) => (unit === "celsius" ? c : (c * 9) / 5 + 32);
+export const toCelsius = (value: number, unit: TemperatureUnit) => (unit === "celsius" ? value : ((value - 32) * 5) / 9);
+/** Kilometres per hour to the system's speed. */
+export const fromKmh = (kmh: number, system: UnitSystem) => (system === "metric" ? kmh : kmh / KM_PER_MILE);
 
 /** Miles (or mph) to the system's distance (or speed), and back. */
 export const fromMiles = (miles: number, system: UnitSystem) => (system === "metric" ? miles * KM_PER_MILE : miles);

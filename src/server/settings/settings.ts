@@ -9,6 +9,9 @@ export type Language = (typeof LANGUAGES)[number];
 export const UNIT_SYSTEMS = ["metric", "imperial"] as const;
 export type UnitSystem = (typeof UNIT_SYSTEMS)[number];
 
+export const TEMPERATURE_UNITS = ["celsius", "fahrenheit"] as const;
+export type TemperatureUnit = (typeof TEMPERATURE_UNITS)[number];
+
 /** Real-world date layouts; tokens: DD/D day, MM month number, MMMM month name, YYYY year. */
 export const REAL_DATE_FORMATS = [
   "DD/MM/YYYY",
@@ -44,6 +47,7 @@ export interface AppSettings {
   weightSystem: UnitSystem;
   /** Lengths and distances. */
   lengthSystem: UnitSystem;
+  temperatureUnit: TemperatureUnit;
   realDateFormat: RealDateFormat;
   worldDateFormat: WorldDateFormat;
   /** Numbers the app writes (areas, distances, totals); what the user types stays as written. */
@@ -57,6 +61,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   language: "en-US",
   weightSystem: "metric",
   lengthSystem: "metric",
+  temperatureUnit: "celsius",
   realDateFormat: "DD/MM/YYYY",
   worldDateFormat: "D MMMM YYYY",
   numberFormat: "comma",
@@ -70,6 +75,7 @@ const VALIDATORS: { [K in keyof AppSettings]: (value: unknown) => value is AppSe
   language: (v): v is Language => oneOf(LANGUAGES, v),
   weightSystem: (v): v is UnitSystem => oneOf(UNIT_SYSTEMS, v),
   lengthSystem: (v): v is UnitSystem => oneOf(UNIT_SYSTEMS, v),
+  temperatureUnit: (v): v is TemperatureUnit => oneOf(TEMPERATURE_UNITS, v),
   realDateFormat: (v): v is RealDateFormat => oneOf(REAL_DATE_FORMATS, v),
   worldDateFormat: (v): v is WorldDateFormat => oneOf(WORLD_DATE_FORMATS, v),
   numberFormat: (v): v is NumberFormat => oneOf(NUMBER_FORMATS, v),

@@ -5,13 +5,18 @@ import { Check } from "lucide-react";
 import SegmentedControl from "@/components/marker-panel/SegmentedControl";
 import { useSettings } from "./SettingsProvider";
 import { SettingError, SettingRow, SettingsCard, SettingsHeader } from "./parts";
-import { NUMBER_FORMATS, REAL_DATE_FORMATS, WORLD_DATE_FORMATS, type AppSettings, type NumberFormat, type RealDateFormat, type UnitSystem, type WorldDateFormat } from "@/server/settings/settings";
+import { NUMBER_FORMATS, REAL_DATE_FORMATS, WORLD_DATE_FORMATS, type AppSettings, type NumberFormat, type RealDateFormat, type TemperatureUnit, type UnitSystem, type WorldDateFormat } from "@/server/settings/settings";
 import { formatDecimal } from "@/server/settings/number-format";
 import { applyDateFormat, formatRealDate } from "@/server/settings/date-format";
 
 const SYSTEM_SEGMENTS = [
   { key: "metric", label: "Metric" },
   { key: "imperial", label: "Imperial" },
+] as const;
+
+const TEMPERATURE_SEGMENTS = [
+  { key: "celsius", label: "Celsius (°C)" },
+  { key: "fahrenheit", label: "Fahrenheit (°F)" },
 ] as const;
 
 const NUMBER_FORMAT_OPTIONS: Record<NumberFormat, { label: string; separators: string }> = {
@@ -41,6 +46,9 @@ export default function FormatSettings() {
         </SettingRow>
         <SettingRow label="Length & distance" description={settings.lengthSystem === "metric" ? "Centimetres, metres, kilometres (km/h)" : "Feet, yards, miles (mph)"}>
           <SegmentedControl<UnitSystem> ariaLabel="Length and distance" value={settings.lengthSystem} segments={SYSTEM_SEGMENTS} onChange={(v) => save("lengthSystem", v)} />
+        </SettingRow>
+        <SettingRow label="Temperature" description={settings.temperatureUnit === "celsius" ? "Degrees Celsius (°C)" : "Degrees Fahrenheit (°F)"}>
+          <SegmentedControl<TemperatureUnit> ariaLabel="Temperature" value={settings.temperatureUnit} segments={TEMPERATURE_SEGMENTS} onChange={(v) => save("temperatureUnit", v)} />
         </SettingRow>
       </SettingsCard>
 

@@ -1042,6 +1042,32 @@ export const calendarEntries = sqliteTable(
   (table) => [index("calendar_entries_world_day_idx").on(table.worldId, table.worldDay), index("calendar_entries_article_idx").on(table.articleId)]
 );
 
+/**
+ * A day of weather from the Weather Generator, attached to `worldDay` and
+ * optionally to the settlement and/or territory it describes. `data` is the
+ * whole generated day (JSON, °C and km/h). The place links hide while their
+ * article is in the trash and are cleared when it is purged.
+ */
+export const calendarWeather = sqliteTable(
+  "calendar_weather",
+  {
+    id: id(),
+    worldId: text("world_id")
+      .notNull()
+      .references(() => worlds.id),
+    worldDay: integer("world_day").notNull(),
+    data: text("data").notNull(),
+    settlementId: text("settlement_id").references(() => articles.id),
+    territoryId: text("territory_id").references(() => territories.id),
+    ...timestamps,
+  },
+  (table) => [
+    index("calendar_weather_world_day_idx").on(table.worldId, table.worldDay),
+    index("calendar_weather_settlement_idx").on(table.settlementId),
+    index("calendar_weather_territory_idx").on(table.territoryId),
+  ]
+);
+
 /** Restorable snapshots taken before a definition changes (calendars, celestial objects, season profiles). */
 export const definitionRevisions = sqliteTable(
   "definition_revisions",

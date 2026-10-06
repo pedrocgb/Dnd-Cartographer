@@ -6,6 +6,7 @@ import {
   articles,
   authorityAssignments,
   calendarEntries,
+  calendarWeather,
   calendars,
   campaignCharacters,
   campaigns,
@@ -237,6 +238,9 @@ async function purgeArticles(tx: Executor, refs: TrashRef[], result: PurgeResult
     linkEntries.push(...(await tx.select({ id: calendarEntries.id }).from(calendarEntries).where(and(eq(calendarEntries.kind, "link"), inArray(calendarEntries.articleId, c)))).map((r) => r.id));
   }
   await purgeEntryRows(tx, linkEntries);
+  // Weather on the calendar stays; it just no longer names the place.
+  await eachChunk(generic.ids, (c) => tx.update(calendarWeather).set({ settlementId: null }).where(inArray(calendarWeather.settlementId, c)));
+  await eachChunk(lands.ids, (c) => tx.update(calendarWeather).set({ territoryId: null }).where(inArray(calendarWeather.territoryId, c)));
 
   await eachChunk(generic.ids, (c) => tx.delete(articles).where(inArray(articles.id, c)));
   await eachChunk(persons.ids, (c) => tx.delete(people).where(inArray(people.id, c)));

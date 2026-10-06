@@ -17138,13 +17138,285 @@ textarea.rel-notes {
   font-size: var(--text-sm);
 }
 
+/* Weather Generator */
+.weather-icon {
+  color: var(--brass-300);
+  background: linear-gradient(135deg, var(--blue-900), var(--brass-900));
+}
+
+.weather-summary {
+  color: var(--text-secondary);
+  font-size: var(--text-md);
+  font-weight: 500;
+}
+
+.tools-page .settings-row-control .info-picker {
+  min-width: 240px;
+}
+
+.weather-temp-input {
+  width: 120px;
+}
+
+.weather-effects ul {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+/* Weather day timeline. Condition colours were checked with the dataviz palette
+   validator on the dark surface; grey, near-grey and textured fills (cloud, fog,
+   drizzle, sleet, dust) always come with a name above the bar, a legend and a tooltip. */
+.wx-clear { --wx: #c98500; }
+.wx-partly { --wx: #8b939e; }
+.wx-cloudy { --wx: #5f6772; }
+.wx-fog { --wx: #5f6772; --wx-texture: 1; }
+.wx-drizzle { --wx: #3987e5; --wx-texture: 1; }
+.wx-rain { --wx: #3987e5; }
+.wx-sleet { --wx: #199e70; --wx-texture: 1; }
+.wx-snow { --wx: #199e70; }
+.wx-storm { --wx: #d55181; }
+.wx-dust { --wx: #c98500; --wx-texture: 1; }
+.wx-underground { --wx: #4a4f56; }
+
+.wx-segment,
+.wx-swatch {
+  background: var(--wx);
+}
+
+.wx-fog.wx-segment, .wx-fog.wx-swatch,
+.wx-drizzle.wx-segment, .wx-drizzle.wx-swatch,
+.wx-sleet.wx-segment, .wx-sleet.wx-swatch,
+.wx-dust.wx-segment, .wx-dust.wx-swatch {
+  background: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.28) 0 2px, transparent 2px 6px), var(--wx);
+}
+
+.wx-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+}
+
+.wx-scroll {
+  overflow-x: auto;
+}
+
+.wx-grid {
+  display: grid;
+  min-width: 560px;
+}
+
+.wx-labels,
+.wx-bar,
+.wx-hours,
+.wx-ticks {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(24, 1fr);
+}
+
+.wx-labels {
+  grid-row: 1;
+  min-height: 18px;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+
+.wx-labels span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  padding-left: 2px;
+}
+
+.wx-chart {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  position: relative;
+}
+
+.wx-temps {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.wx-temps polyline {
+  fill: none;
+  stroke: var(--teal-400);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.wx-selected-col {
+  fill: rgba(255, 255, 255, 0.06);
+}
+
+.wx-temp-marks span {
+  position: absolute;
+  transform: translateX(-50%);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.wx-temp-marks i {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--teal-400);
+  box-shadow: 0 0 0 2px var(--bg-surface);
+  transform: translate(-50%, -50%);
+}
+
+.wx-bar {
+  grid-row: 3;
+  height: 22px;
+  margin-top: var(--space-1);
+}
+
+/* A 2px surface gap between stretches; rounded data ends. */
+.wx-segment {
+  margin-right: 2px;
+  border-radius: 4px;
+}
+
+.wx-segment:last-child {
+  margin-right: 0;
+}
+
+.wx-hours {
+  grid-row: 2 / 4;
+  z-index: 1;
+}
+
+.wx-hour {
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+}
+
+.wx-hour:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.wx-hour.selected {
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+
+.wx-hour:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.wx-ticks {
+  grid-row: 4;
+  margin-top: var(--space-1);
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.wx-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+
+.wx-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wx-swatch {
+  width: 14px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.weather-hour-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+}
+
+.weather-hour-head span {
+  margin-left: auto;
+  font-size: var(--text-md);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.weather-attached {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.weather-attached > svg {
+  color: var(--teal-300);
+}
+
+/* The calendar day panel's Weather rows: the report, then the places it is for. */
+.cal-sky li.cal-weather-row {
+  flex-direction: column;
+}
+
+.cal-weather-place {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-left: calc(20px + var(--space-2));
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+}
+
+.weather-when {
+  margin-left: var(--space-2);
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--bg-surface-hover);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 @media (max-width: 640px) {
   .tools-page .settings-row {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .tools-page .settings-row-control select {
+  .tools-page .settings-row-control select,
+  .tools-page .settings-row-control .info-picker,
+  .tools-page .weather-temp-input {
     min-width: 0;
     width: 100%;
   }
