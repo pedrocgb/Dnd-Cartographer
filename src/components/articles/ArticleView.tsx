@@ -2,7 +2,7 @@
 
 import { useContext, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { CirclePlus, Footprints, Info, PanelRightClose, Pencil, TextAlignStart, Trash2, type LucideIcon } from "lucide-react";
+import { CirclePlus, Footprints, Info, PanelRightClose, Pencil, Share2, TextAlignStart, Trash2, type LucideIcon } from "lucide-react";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import RichEditor from "@/components/RichEditor";
 import CalendarBacklinks from "@/components/calendars/CalendarBacklinks";
@@ -16,6 +16,7 @@ import TagEditor from "./TagEditor";
 import ArticleFoldersControl from "./ArticleFoldersControl";
 import { CreateArticleContext } from "./create-context";
 import RelationshipsCard from "@/components/relations/RelationshipsCard";
+import ShareDialog from "@/components/share/ShareDialog";
 
 /** Floating editor UI (bubble menus, popovers) lives outside the card; clicks there keep it editing. */
 // Editor UI outside the card: menus, dialogs, and the date picker popover they can open (.dp-pop).
@@ -255,6 +256,7 @@ export default function ArticleView({
   const [footerJustAdded, setFooterJustAdded] = useState(false);
   const [confirmingFooterRemoval, setConfirmingFooterRemoval] = useState(false);
   const [removingFooter, setRemovingFooter] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const hasFooter = Boolean(footer.documentId);
   // The open article's id is in the URL (?type=&id=): its calendar backlinks follow it.
   const articleId = useSearchParams().get("id");
@@ -288,8 +290,14 @@ export default function ArticleView({
           <EditableTitle key={title} title={title} onRename={onRename} />
           {subtitle && <span className="field-label article-subtitle">({subtitle})</span>}
         </h1>
-        {(createNew || actions) && (
+        {(createNew || actions || articleId) && (
           <div className="article-actions">
+            {articleId && (
+              <button type="button" className="btn btn-sm btn-share" data-tooltip="A read-only link to this article" onClick={() => setSharing(true)}>
+                <Share2 size={13} strokeWidth={2.25} />
+                Share
+              </button>
+            )}
             {createNew && (
               <button type="button" className="btn btn-sm btn-create" onClick={() => createNew(template)}>
                 <CirclePlus size={13} strokeWidth={2.25} />
@@ -359,6 +367,7 @@ export default function ArticleView({
       {articleId && <SessionBacklinks key={`sessions:${articleId}`} articleId={articleId} />}
       {articleId && <QuestBacklinks key={`quests:${articleId}`} articleId={articleId} />}
       {articleId && <MentionBacklinks key={`mentions:${articleId}`} targetId={articleId} />}
+      {sharing && articleId && <ShareDialog scopes={[{ label: title, target: { kind: "article", template, id: articleId } }]} onClose={() => setSharing(false)} />}
       <ConfirmDialog
         open={confirmingFooterRemoval}
         title="Remove the footer?"

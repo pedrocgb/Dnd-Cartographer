@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronRight, GripVertical, Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, EyeOff, GripVertical, Plus } from "lucide-react";
 import { moveNode, outlineTree, type OutlineTreeNode } from "@/server/writer/logic";
 import type { OutlineMove } from "@/server/writer/parse";
 import { beatOf } from "@/server/writer/templates";
@@ -119,6 +119,7 @@ export default function OutlineTree({
               <span className={`wr-dot wr-dot-${node.status}`} data-tooltip={NODE_STATUS_LABELS[node.status]} aria-label={NODE_STATUS_LABELS[node.status]} role="img" />
               <button type="button" className="wr-row-title" onClick={() => onSelect(node.id)} onKeyDown={(e) => onKey(node, e)} data-tooltip={beat ? `${NODE_KIND_LABELS[node.kind]} · beat: ${beat.name}` : NODE_KIND_LABELS[node.kind]}>
                 {node.title}
+                {node.hidden && <EyeOff size={12} className="wr-row-hidden" aria-label="Hidden from shares" />}
               </button>
               {childKind && (
                 <button type="button" className="btn btn-ghost btn-icon btn-sm wr-row-add" aria-label={`Add a ${NODE_KIND_LABELS[childKind].toLowerCase()} to ${node.title}`} data-tooltip={`Add ${NODE_KIND_LABELS[childKind].toLowerCase()}`} onClick={() => onAdd(childKind, node.id)}>

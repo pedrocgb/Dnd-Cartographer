@@ -4,5 +4,5 @@ export const WORLD_COOKIE = "world";
 /** Options for setting WORLD_COOKIE: one year, sent with every same-site request, not readable by scripts. */
 export const WORLD_COOKIE_OPTIONS = { httpOnly: true, sameSite: "lax", path: "/", maxAge: 365 * 24 * 3600 } as const;
 
-/** Paths that work with no world open: the worlds screen, its API, the app-wide settings, Next's own files and static files from public/. */
-export const WORLD_FREE_PATHS = [/^\/worlds(\/|$)/, /^\/api\/(worlds|settings)(\/|$)/, /^\/_next\//, /^\/(?!api\/).*\.[a-z0-9]+$/i];
+/** Paths that work with no world open: the worlds screen, its API, the app-wide settings, shared pages (/share/<token> and its read-only API carry their own world), Next's own files and static files from public/. */
+export const WORLD_FREE_PATHS = [/^\/worlds(\/|$)/, /^\/api\/(worlds|settings)(\/|$)/, /^\/(api\/)?share\//, /^\/_next\//, /^\/(?!api\/).*\.[a-z0-9]+$/i];

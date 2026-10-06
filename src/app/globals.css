@@ -37,6 +37,11 @@
   --blue-500: #3f6fa8;
   --blue-900: #17263a;
 
+  /* Accent: violet (GM-only secrets in rich text) */
+  --violet-300: #c4a6f5;
+  --violet-500: #8a5cd6;
+  --violet-900: #2a1d42;
+
   /* Semantic: destructive */
   --danger-300: #f5a397;
   --danger-400: #e8735f;
@@ -1820,6 +1825,18 @@ textarea::placeholder {
   color: #b6d3f8;
 }
 
+/* Share actions: a faint green tint. */
+.btn.btn-share {
+  background: var(--teal-900);
+  border-color: var(--teal-600);
+  color: var(--teal-300);
+}
+
+.btn.btn-share:hover {
+  background: #1a3b35;
+  color: #9be6d8;
+}
+
 .articles-tools {
   display: flex;
   flex-direction: column;
@@ -3150,6 +3167,57 @@ input[type="range"]::-moz-range-track {
   padding-left: var(--space-3);
   color: var(--text-secondary);
   margin: var(--space-2) 0;
+}
+
+/* A GM-only secret: a quote-like box, violet while hidden, brass once revealed. */
+.rich-content .ProseMirror .rx-secret,
+.rich-reader .ProseMirror .rx-secret {
+  position: relative;
+  border-left: 3px solid var(--violet-500);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: color-mix(in srgb, var(--violet-900) 80%, transparent);
+  padding: var(--space-6) var(--space-3) var(--space-2);
+  margin: var(--space-2) 0;
+}
+.rich-content .ProseMirror .rx-secret[data-revealed="true"],
+.rich-reader .ProseMirror .rx-secret[data-revealed="true"] {
+  border-left-color: var(--brass-400);
+  background: color-mix(in srgb, var(--brass-900) 85%, transparent);
+}
+.rx-secret-lock {
+  position: absolute;
+  top: var(--space-1);
+  left: var(--space-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--violet-300);
+  cursor: pointer;
+}
+.rx-secret-lock:hover {
+  background: color-mix(in srgb, var(--violet-500) 30%, transparent);
+}
+.rx-secret-lock:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+.rx-secret[data-revealed="true"] .rx-secret-lock {
+  color: var(--brass-300);
+}
+.rx-secret[data-revealed="true"] .rx-secret-lock:hover {
+  background: color-mix(in srgb, var(--brass-500) 30%, transparent);
+}
+.rx-secret-body > :first-child {
+  margin-top: 0;
+}
+.rx-secret-body > :last-child {
+  margin-bottom: 0;
 }
 
 .rich-content .ProseMirror hr,
@@ -11781,6 +11849,25 @@ input.ss-resolved {
   color: var(--text-tertiary);
   font-size: var(--text-sm);
 }
+/* Shown in shares: the brass of a revealed secret. */
+.wr-hide-toggle {
+  margin-left: auto;
+  color: var(--brass-300);
+  background: color-mix(in srgb, var(--brass-900) 85%, transparent);
+}
+.wr-hide-toggle.via-parent {
+  color: var(--text-tertiary);
+  background: none;
+}
+.wr-hide-toggle.active {
+  color: var(--violet-300);
+  background: color-mix(in srgb, var(--violet-900) 80%, transparent);
+}
+.wr-row-hidden {
+  margin-left: var(--space-1);
+  vertical-align: -1px;
+  color: var(--violet-300);
+}
 .wr-crumbs span {
   display: inline-flex;
   align-items: center;
@@ -11899,12 +11986,28 @@ input.ss-resolved {
 .wr-reader-toc h2 {
   margin: 0 0 var(--space-2);
 }
+/* Outline numbering: "1." for arcs, then "1.1", "1.1.1" for what's inside them. */
 .wr-reader-toc ol {
   margin: 0;
   padding-left: var(--space-4);
+  list-style: none;
+  counter-reset: toc;
+}
+.wr-reader-toc > ol {
+  padding-left: 0;
 }
 .wr-reader-toc li {
   margin: 2px 0;
+  counter-increment: toc;
+}
+.wr-reader-toc li::before {
+  content: counters(toc, ".") " ";
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  margin-right: var(--space-1);
+}
+.wr-reader-toc > ol > li::before {
+  content: counter(toc) ".";
 }
 .wr-reader-section {
   display: flex;
@@ -16711,4 +16814,68 @@ textarea.rel-notes {
   flex: 0 0 auto;
   padding: 4px 12px;
   white-space: nowrap;
+}
+
+/* ---------- Shared pages (/share/<token>): read-only, no app chrome ---------- */
+.share-page {
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-4) var(--space-12);
+  display: flex;
+  justify-content: center;
+}
+.share-page > .article-view,
+.share-page > .wr-reader {
+  width: 100%;
+}
+.share-portrait {
+  width: 208px;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+}
+.share-status {
+  margin: var(--space-12) auto;
+  color: var(--text-secondary);
+  text-align: center;
+}
+.share-gone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* The share dialog's link row. */
+.share-link-row {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+.share-link-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.share-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--violet-500);
+  background: color-mix(in srgb, var(--violet-900) 80%, transparent);
+  color: var(--violet-300);
+  font-size: var(--text-sm);
+}
+.share-notice svg {
+  flex: none;
+  margin-top: 2px;
+}
+.share-notice.share-warning {
+  border-color: var(--brass-500);
+  background: var(--brass-900);
+  color: var(--brass-300);
 }

@@ -25,6 +25,7 @@ export const ALLOWED_NODE_TYPES = new Set([
   "orderedList",
   "listItem",
   "blockquote",
+  "secret",
   "horizontalRule",
   "hardBreak",
   "title",
@@ -103,6 +104,10 @@ function checkNodeAttrs(node: JsonNode): void {
   if (node.type === "calendarDate") {
     if (!(Number.isSafeInteger(attrs.day) && Math.abs(attrs.day as number) <= LIMITS.maxWorldDay)) fail("Invalid calendar date.");
     if (!isNullish(attrs.label) && !(typeof attrs.label === "string" && attrs.label.length <= MAX_DATE_LABEL)) fail("Invalid calendar date label.");
+    return;
+  }
+  if (node.type === "secret") {
+    if (!isNullish(attrs.revealed) && typeof attrs.revealed !== "boolean") fail("Invalid secret state.");
     return;
   }
   if (node.type === "tableRow") {
@@ -203,7 +208,7 @@ export function deriveText(json: unknown): string {
       current += typeof node.attrs?.label === "string" ? node.attrs.label : "";
       return;
     }
-    const blockTypes = new Set(["paragraph", "heading", "title", "listItem", "blockquote"]);
+    const blockTypes = new Set(["paragraph", "heading", "title", "listItem", "blockquote", "secret"]);
     const isBlock = node.type ? blockTypes.has(node.type) : false;
     for (const child of node.content ?? []) {
       visit(child);

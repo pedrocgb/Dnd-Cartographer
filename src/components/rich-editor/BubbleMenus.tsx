@@ -20,6 +20,7 @@ import {
   Italic,
   Link2,
   List,
+  Lock,
   ListOrdered,
   Maximize2,
   Pilcrow,
@@ -349,6 +350,7 @@ export function TextBubbleMenu({ editor, onLinkArticle, onLinkDate }: { editor: 
           <ColorButton editor={editor} />
           <ToolButton label="Link an article (Ctrl+K)" Icon={AtSign} onClick={onLinkArticle} />
           <ToolButton label="Link a calendar date" Icon={CalendarDays} onClick={onLinkDate} />
+          <ToolButton label="Secret" Icon={Lock} active={editor.isActive("secret")} onClick={() => editor.chain().focus().toggleSecret().run()} />
           <ToolButton label="Link" Icon={Link2} active={editor.isActive("link")} onClick={() => setLinking(true)} />
           {editor.isActive("link") && <ToolButton label="Remove link" Icon={Unlink} onClick={() => editor.chain().focus().extendMarkRange("link").unsetLink().run()} />}
         </div>

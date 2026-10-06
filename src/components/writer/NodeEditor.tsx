@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronRight, Flame, Lightbulb, Plus, Spline, Swords, Trash2, X } from "lucide-react";
+import { ChevronRight, Eye, EyeOff, Flame, Lightbulb, Plus, Spline, Swords, Trash2, X } from "lucide-react";
 import { api } from "@/components/calendars/api";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import RichEditor from "@/components/RichEditor";
@@ -30,7 +30,7 @@ import {
 } from "@/server/writer/types";
 import type { WriterData } from "./useWriterData";
 
-type Patch = Partial<Pick<OutlineNode, "title" | "synopsis" | "status" | "changeNote" | "plannedSessionId" | "links" | "beatTemplate">>;
+type Patch = Partial<Pick<OutlineNode, "title" | "synopsis" | "status" | "changeNote" | "plannedSessionId" | "links" | "beatTemplate" | "hidden">>;
 
 /**
  * The selected arc, chapter or scene: its title, synopsis (the one-line
@@ -92,6 +92,8 @@ export default function NodeEditor({
   const children = data.nodes.filter((n) => n.parentId === node.id).sort((a, b) => a.sortOrder - b.sortOrder);
   const childKind = CHILD_KIND[node.kind];
   const descendants = countDescendants(data.nodes, node.id);
+  // Hidden through an arc or chapter above it: shares leave it out whatever its own setting.
+  const hiddenAbove = [parent, grandparent].find((p) => p?.hidden) ?? null;
 
   return (
     <article className="wr-editor" aria-label={`${NODE_KIND_LABELS[node.kind]}: ${node.title}`}>
@@ -105,6 +107,22 @@ export default function NodeEditor({
           </span>
         ))}
         <span className={`wr-kind wr-kind-${node.kind}`}>{NODE_KIND_LABELS[node.kind]}</span>
+        <button
+          type="button"
+          className={`btn btn-sm btn-ghost wr-hide-toggle${node.hidden ? " active" : hiddenAbove ? " via-parent" : ""}`}
+          aria-pressed={node.hidden}
+          data-tooltip={
+            node.hidden
+              ? "Left out of share links, with everything inside it. Click to show it again."
+              : hiddenAbove
+                ? `Already left out of share links: its ${NODE_KIND_LABELS[hiddenAbove.kind].toLowerCase()} is hidden`
+                : "Leave it (and everything inside it) out of share links"
+          }
+          onClick={() => void save({ hidden: !node.hidden })}
+        >
+          {node.hidden || hiddenAbove ? <EyeOff size={14} aria-hidden /> : <Eye size={14} aria-hidden />}
+          {node.hidden ? "Hidden from shares" : hiddenAbove ? "Hidden (via parent)" : "Shown in shares"}
+        </button>
       </nav>
 
       <input className="wr-title-input" aria-label="Title" value={title} maxLength={160} onChange={(e) => setTitle(e.target.value)} onBlur={() => title.trim() && title !== node.title && void save({ title })} />

@@ -56,6 +56,8 @@ export interface OutlineNode {
   playedSessionId: string | null;
   changeNote: string;
   links: OutlineLink[];
+  /** Left out of share links, with everything inside it (unless shared on its own). */
+  hidden: boolean;
   sortOrder: number;
   version: number;
 }

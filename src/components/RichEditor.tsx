@@ -11,6 +11,7 @@ import CalendarDateModal from "./rich-editor/CalendarDateModal";
 import SlashMenu, { type SlashActions } from "./rich-editor/SlashMenu";
 import ArticleLinkModal, { type ArticleLinkChoice } from "./rich-editor/ArticleLinkModal";
 import { imageFilesOf, insertImageFiles } from "./rich-editor/images";
+import { SECRET_REVEAL_META } from "./rich-editor/secret";
 import { SkeletonRegion, SkeletonText } from "./Skeleton";
 
 const AUTOSAVE_IDLE_MS = 1500;
@@ -193,13 +194,15 @@ export default function RichEditor({
         return true;
       },
     },
-    onUpdate: () => {
-      if (!editable || !loadedRef.current) return;
+    onUpdate: ({ transaction }) => {
+      // Read mode saves one kind of change: a secret's padlock, revealed at the table.
+      const reveal = transaction.getMeta(SECRET_REVEAL_META) === true;
+      if ((!editable && !reveal) || !loadedRef.current) return;
       const content = editor?.getJSON();
       if (content) persistDraft(documentId, content);
       setSaveState("idle");
       if (idleTimer.current) clearTimeout(idleTimer.current);
-      idleTimer.current = setTimeout(save, AUTOSAVE_IDLE_MS);
+      idleTimer.current = reveal ? setTimeout(() => save(true), 0) : setTimeout(save, AUTOSAVE_IDLE_MS);
     },
     // `useEditor` without a deps array only ever evaluates `options` once —
     // `onUpdate` above would otherwise freeze its closure over the very
@@ -221,8 +224,8 @@ export default function RichEditor({
     editor?.setEditable(editable);
   }, [editor, editable]);
 
-  async function save() {
-    if (!editable || !editor || !loadedRef.current || revisionRef.current === null || savingRef.current) return;
+  async function save(force = false) {
+    if ((!editable && !force) || !editor || !loadedRef.current || revisionRef.current === null || savingRef.current) return;
     savingRef.current = true;
     setSaveState("saving");
     const json = editor.getJSON();
@@ -250,7 +253,7 @@ export default function RichEditor({
       adoptRevision(current.revision);
       retryCountRef.current += 1;
       savingRef.current = false;
-      save();
+      save(force);
     } else {
       setSaveState("failed");
       savingRef.current = false;

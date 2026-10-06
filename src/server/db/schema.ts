@@ -1259,6 +1259,8 @@ export const outlineNodes = sqliteTable(
     changeNote: text("change_note").notNull().default(""),
     /** JSON [{ kind: "quest" | "front", id }]. */
     links: text("links").notNull().default("[]"),
+    /** Left out of share links (with everything inside it), unless the link shares this item itself. */
+    hiddenFromShares: integer("hidden_from_shares", { mode: "boolean" }).notNull().default(false),
     sortOrder: integer("sort_order").notNull().default(0),
     version: integer("version").notNull().default(1),
     deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
@@ -1416,4 +1418,29 @@ export const relationshipBoards = sqliteTable(
     ...timestamps,
   },
   (table) => [index("relationship_boards_world_idx").on(table.worldId)]
+);
+
+/**
+ * A read-only link to an article or to the Campaign Writer (a whole campaign
+ * or one act, chapter or scene), opened without the app at /share/<token>.
+ * The view is live (always the current text, unrevealed secrets left out);
+ * revoking stamps `revokedAt` and the link stops working.
+ */
+export const shareLinks = sqliteTable(
+  "share_links",
+  {
+    id: id(),
+    worldId: text("world_id")
+      .notNull()
+      .references(() => worlds.id),
+    /** Unguessable (32 random bytes, base64url): the link's only key. */
+    token: text("token").notNull(),
+    targetKind: text("target_kind", { enum: ["article", "campaign", "outline"] }).notNull(),
+    /** An article's template on "article" shares (it picks the table); null otherwise. */
+    targetTemplate: text("target_template"),
+    targetId: text("target_id").notNull(),
+    revokedAt: integer("revoked_at", { mode: "timestamp_ms" }),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex("share_links_token_unique").on(table.token), index("share_links_target_idx").on(table.worldId, table.targetKind, table.targetId)]
 );

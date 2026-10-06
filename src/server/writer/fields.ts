@@ -39,6 +39,10 @@ export function nodeFields(body: Record<string, unknown>, { questIds, frontIds, 
   if ("status" in body) patch.status = parseNodeStatus(body.status);
   if ("changeNote" in body) patch.changeNote = parseChangeNote(body.changeNote);
   if ("sortOrder" in body) patch.sortOrder = parseSortIndex(body.sortOrder);
+  if ("hidden" in body) {
+    if (typeof body.hidden !== "boolean") throw new InvalidError("Hidden must be true or false.");
+    patch.hiddenFromShares = body.hidden;
+  }
   if ("beatTemplate" in body) {
     const key = parseOptionalId(body.beatTemplate, "The story structure");
     if (key !== null && !templateByKey(key)) throw new InvalidError("That story structure doesn't exist.");

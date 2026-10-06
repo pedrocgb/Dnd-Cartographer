@@ -1,0 +1,1 @@
+ALTER TABLE `outline_nodes` ADD `hidden_from_shares` integer DEFAULT false NOT NULL;

@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BookOpen, CalendarCheck, Eye, Globe, HelpCircle, ListTree, PenLine, Plus, Settings2, Spline } from "lucide-react";
+import { BookOpen, CalendarCheck, Eye, Globe, HelpCircle, ListTree, PenLine, Plus, Settings2, Share2, Spline } from "lucide-react";
 import { api } from "@/components/calendars/api";
 import { PageSkeleton } from "@/components/Skeleton";
 import type { ClientCampaign } from "@/components/sessions/types";
 import { applyMoves } from "@/server/writer/logic";
 import type { OutlineMove } from "@/server/writer/parse";
-import type { NodeKind, OutlineNode } from "@/server/writer/types";
+import { NODE_KIND_LABELS, type NodeKind, type OutlineNode } from "@/server/writer/types";
 import { TIPS } from "@/server/writer/guides";
 import OutlineTree from "./OutlineTree";
 import NodeEditor from "./NodeEditor";
@@ -19,6 +19,7 @@ import StatusLog from "./StatusLog";
 import StoryReader from "./StoryReader";
 import ReaderDock from "./ReaderDock";
 import { upsert, useWriterData } from "./useWriterData";
+import ShareDialog, { type ShareScope } from "@/components/share/ShareDialog";
 
 type Tab = "story" | "sessions" | "threads" | "status";
 const TABS: { key: Tab; label: string; icon: typeof BookOpen; hint: string }[] = [
@@ -27,6 +28,41 @@ const TABS: { key: Tab; label: string; icon: typeof BookOpen; hint: string }[] =
   { key: "threads", label: "Threads", icon: Spline, hint: "Promises, setups and mysteries: where they start and pay off" },
   { key: "status", label: "World status", icon: Globe, hint: "What changed in the world, session by session" },
 ];
+
+const kindName = (n: OutlineNode) => NODE_KIND_LABELS[n.kind].toLowerCase();
+
+/** What a link to `root` (or the whole campaign) leaves out: the hidden items inside it, not counting what's inside those. */
+function hiddenNote(nodes: OutlineNode[], root: OutlineNode | null): string | undefined {
+  const inside = (parentId: string | null): OutlineNode[] => nodes.filter((n) => n.parentId === parentId).flatMap((n) => (n.hidden ? [n] : inside(n.id)));
+  const hidden = inside(root?.id ?? null);
+  if (!hidden.length) return undefined;
+  const names = hidden.map((n) => `${NODE_KIND_LABELS[n.kind]} "${n.title}"`).join(", ");
+  return `Hidden from shares, so left out (with everything inside): ${names}.`;
+}
+
+/**
+ * What can be shared from here: the whole campaign, then the selected item
+ * and each item above it. A hidden item (or one inside a hidden item) can
+ * still be shared on its own, which reveals it on that link: its option says so.
+ */
+function shareScopes(campaignId: string, nodes: OutlineNode[], selected: OutlineNode | null): ShareScope[] {
+  const chain: OutlineNode[] = [];
+  for (let n = selected; n && chain.length < 4; n = nodes.find((p) => p.id === n!.parentId) ?? null) chain.unshift(n);
+  return [
+    { label: "Whole campaign", target: { kind: "campaign", id: campaignId }, note: hiddenNote(nodes, null) },
+    ...chain.map((n, i): ShareScope => {
+      const hiddenBy = n.hidden ? n : chain.slice(0, i).find((a) => a.hidden);
+      return {
+        label: `${NODE_KIND_LABELS[n.kind]}: ${n.title}${hiddenBy ? " (hidden)" : ""}`,
+        target: { kind: "outline", id: n.id },
+        warning: hiddenBy
+          ? `This ${kindName(n)} is hidden from shares${hiddenBy === n ? "" : ` (its ${kindName(hiddenBy)} "${hiddenBy.title}" is hidden)`}. Sharing it on its own will force reveal it to anyone with this link.`
+          : undefined,
+        note: hiddenNote(nodes, n),
+      };
+    }),
+  ];
+}
 
 const tabParam = (v: string | null): Tab => (v === "sessions" || v === "threads" || v === "status" ? v : "story");
 
@@ -66,6 +102,7 @@ export default function CampaignWriter({
   const [mainEl, setMainEl] = useState<HTMLElement | null>(null);
   const [templateFor, setTemplateFor] = useState<{ parentId: string | null } | null>(null);
   const [setupOpen, setSetupOpen] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const guides = !campaign.setup.guidesHidden;
   const selected = data.nodes.find((n) => n.id === selectedId) ?? null;
@@ -113,6 +150,7 @@ export default function CampaignWriter({
   }
 
   if (loading) return <PageSkeleton label="Loading the story…" main="cards" />;
+  const shareOptions = sharing ? shareScopes(campaign.id, data.nodes, selected) : null;
 
   const sidebar = (
     <aside className="articles-sidebar wr-sidebar" aria-label="Story outline">
@@ -160,6 +198,9 @@ export default function CampaignWriter({
             )}
             <button type="button" className={guides ? "btn btn-sm btn-ghost active" : "btn btn-sm btn-ghost"} aria-pressed={guides} data-tooltip={guides ? "Hide the writing guides" : "Show the writing guides"} onClick={() => void saveSetup({ guidesHidden: guides })}>
               <HelpCircle size={14} /> Guides
+            </button>
+            <button type="button" className="btn btn-sm btn-share" data-tooltip="A read-only link to the story or part of it" onClick={() => setSharing(true)}>
+              <Share2 size={14} /> Share
             </button>
             <button type="button" className="btn btn-sm" onClick={() => setSetupOpen(true)}>
               <Settings2 size={14} /> Campaign setup
@@ -210,6 +251,7 @@ export default function CampaignWriter({
       {tab === "story" && reading && <ReaderDock pane={mainEl} onEdit={() => setReading(false)} />}
 
       {templateFor && <TemplatePicker target={templateFor.parentId === null ? null : (data.nodes.find((n) => n.id === templateFor.parentId)?.kind ?? null)} onPick={(key) => void applyTemplate(templateFor.parentId, key)} onClose={() => setTemplateFor(null)} />}
+      {shareOptions && <ShareDialog scopes={shareOptions} initialScope={shareOptions.length - 1} onClose={() => setSharing(false)} />}
       {setupOpen && (
         <CampaignSetupDialog
           campaign={campaign}

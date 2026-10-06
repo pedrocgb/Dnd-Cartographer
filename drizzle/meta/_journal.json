@@ -379,6 +379,20 @@
       "when": 1790962472964,
       "tag": "0053_world_icon_color",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "6",
+      "when": 1791288396259,
+      "tag": "0054_share_links",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "6",
+      "when": 1791290316874,
+      "tag": "0055_outline_hidden_from_shares",
+      "breakpoints": true
     }
   ]
 }

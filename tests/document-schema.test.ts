@@ -179,3 +179,17 @@ describe("calendar dates", () => {
     }
   });
 });
+
+describe("secrets", () => {
+  const withSecret = (attrs: Record<string, unknown>) => ({ type: "doc", content: [{ type: "secret", attrs, content: [{ type: "paragraph", content: [{ type: "text", text: "The duke is a lich" }] }] }] });
+
+  it("accepts a hidden or revealed secret, and searches its text", () => {
+    expect(() => validateDocument(withSecret({ revealed: false }))).not.toThrow();
+    expect(() => validateDocument(withSecret({ revealed: true }))).not.toThrow();
+    expect(deriveText(withSecret({ revealed: false }))).toBe("The duke is a lich");
+  });
+
+  it("rejects a non-boolean state", () => {
+    expect(() => validateDocument(withSecret({ revealed: "yes" }))).toThrow(DocumentValidationError);
+  });
+});

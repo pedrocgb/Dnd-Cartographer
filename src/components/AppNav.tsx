@@ -79,6 +79,9 @@ export default function AppNav({ world }: { world: { id: string; name: string } 
   const pathname = usePathname();
   const linkClass = (current: boolean) => (current ? "app-nav-link current" : "app-nav-link");
 
+  // A shared page is for someone outside the app: no way into it from there.
+  if (pathname.startsWith("/share/")) return null;
+
   if (pathname === "/worlds" || pathname.startsWith("/worlds/") || !world) {
     return (
       <nav className="app-nav app-nav-bare">

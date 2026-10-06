@@ -30,6 +30,7 @@ export const toClientNode = (row: NodeRow): OutlineNode => ({
   playedSessionId: row.playedSessionId,
   changeNote: row.changeNote,
   links: safeJson<OutlineLink[]>(row.links, []),
+  hidden: row.hiddenFromShares,
   sortOrder: row.sortOrder,
   version: row.version,
 });
