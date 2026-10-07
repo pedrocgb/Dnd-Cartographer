@@ -12,6 +12,7 @@ import SlashMenu, { type SlashActions } from "./rich-editor/SlashMenu";
 import ArticleLinkModal, { type ArticleLinkChoice } from "./rich-editor/ArticleLinkModal";
 import { imageFilesOf, insertImageFiles } from "./rich-editor/images";
 import { SECRET_REVEAL_META } from "./rich-editor/secret";
+import ImageLightbox, { openReaderImage, type ZoomedImage } from "./rich-editor/ImageLightbox";
 import { SkeletonRegion, SkeletonText } from "./Skeleton";
 
 const AUTOSAVE_IDLE_MS = 1500;
@@ -137,6 +138,7 @@ export default function RichEditor({
     setShown(value);
   }
 
+  const [zoomed, setZoomed] = useState<ZoomedImage | null>(null);
   const editor = useEditor({
     immediatelyRender: false,
     // Tiptap v3 defaults this to false ("will be removed in future
@@ -173,12 +175,8 @@ export default function RichEditor({
         void insertImageFiles(view, files, view.state.selection.from).then(setUploadError);
         return true;
       },
-      // Reading: links and linked images open in a new tab (editing keeps clicks for the caret).
-      handleClickOn: (view, _pos, node) => {
-        if (view.editable || node.type.name !== "image" || !node.attrs.href) return false;
-        window.open(node.attrs.href, "_blank", "noopener,noreferrer");
-        return true;
-      },
+      // Reading: links and linked images open in a new tab, other images full size (editing keeps clicks for the caret).
+      handleClickOn: (view, _pos, node) => !view.editable && openReaderImage(node, setZoomed),
       handleClick: (view, _pos, event) => {
         const anchor = event.target instanceof Element ? event.target.closest("a[href]") : null;
         // @mentions and calendar dates are app pages: reading follows them here; editing needs Ctrl/Cmd+click (new tab).
@@ -336,6 +334,7 @@ export default function RichEditor({
     return (
       <div className="rich-reader">
         <EditorContent editor={editor} />
+        <ImageLightbox image={zoomed} onClose={() => setZoomed(null)} />
       </div>
     );
   }

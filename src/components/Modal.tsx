@@ -12,6 +12,31 @@ export function isModalOpen(): boolean {
   return openModals.length > 0;
 }
 
+/** Registers an open overlay as a modal: Esc closes it when it's the topmost one, and page shortcuts stand down. */
+export function useModalKeyboard(active: boolean, onClose: () => void) {
+  const token = useRef({});
+  const closeRef = useRef(onClose);
+  useEffect(() => {
+    closeRef.current = onClose;
+  });
+  // Esc closes only the topmost open modal (a confirm opened over a dialog).
+  useEffect(() => {
+    if (!active) return;
+    const own = token.current;
+    openModals.push(own);
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "Escape" || openModals[openModals.length - 1] !== own) return;
+      e.preventDefault();
+      closeRef.current();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      openModals.splice(openModals.indexOf(own), 1);
+    };
+  }, [active]);
+}
+
 export default function Modal({
   open,
   onClose,
@@ -35,27 +60,7 @@ export default function Modal({
   className?: string;
   children: React.ReactNode;
 }) {
-  const token = useRef({});
-  const closeRef = useRef(onClose);
-  useEffect(() => {
-    closeRef.current = onClose;
-  });
-  // Esc closes only the topmost open modal (a confirm opened over a dialog).
-  useEffect(() => {
-    if (!open || minimized) return;
-    const own = token.current;
-    openModals.push(own);
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key !== "Escape" || openModals[openModals.length - 1] !== own) return;
-      e.preventDefault();
-      closeRef.current();
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      openModals.splice(openModals.indexOf(own), 1);
-    };
-  }, [open, minimized]);
+  useModalKeyboard(open && !minimized, onClose);
 
   if (!open) return null;
 

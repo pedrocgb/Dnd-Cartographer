@@ -1,27 +1,26 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useEditor, EditorContent, type JSONContent } from "@tiptap/react";
 import { buildExtensions } from "./extensions";
+import ImageLightbox, { openReaderImage, type ZoomedImage } from "./ImageLightbox";
 
 /**
  * A document given as JSON, read only (a shared page has no world, so it
  * can't load documents by id like RichEditor). Links to other shared pages
  * and to sections of this one open here; anything else in a new tab.
+ * Unlinked images open full size.
  * New content (a live update) replaces the old in place.
  */
 export default function ReadOnlyRich({ content }: { content: JSONContent }) {
+  const [zoomed, setZoomed] = useState<ZoomedImage | null>(null);
   const editor = useEditor({
     immediatelyRender: false,
     editable: false,
     content,
     extensions: buildExtensions(""),
     editorProps: {
-      handleClickOn: (_view, _pos, node) => {
-        if (node.type.name !== "image" || !node.attrs.href) return false;
-        window.open(node.attrs.href, "_blank", "noopener,noreferrer");
-        return true;
-      },
+      handleClickOn: (_view, _pos, node) => openReaderImage(node, setZoomed),
       handleClick: (_view, _pos, event) => {
         const anchor = event.target instanceof Element ? event.target.closest("a[href]") : null;
         const href = anchor?.getAttribute("href");
@@ -47,6 +46,7 @@ export default function ReadOnlyRich({ content }: { content: JSONContent }) {
   return (
     <div className="rich-reader">
       <EditorContent editor={editor} />
+      <ImageLightbox image={zoomed} onClose={() => setZoomed(null)} />
     </div>
   );
 }
