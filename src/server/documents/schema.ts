@@ -145,7 +145,7 @@ function checkNodeAttrs(node: JsonNode): void {
     const v = attrs[key];
     if (!isNullish(v) && !(typeof v === "number" && Number.isFinite(v) && v > 0 && v <= MAX_IMAGE_DIMENSION)) fail(`Invalid image ${key}.`);
   }
-  for (const key of ["alt", "title"] as const) {
+  for (const key of ["alt", "title", "caption"] as const) {
     const v = attrs[key];
     if (!isNullish(v) && !(typeof v === "string" && v.length <= MAX_ALT_LENGTH)) fail(`Invalid image ${key}.`);
   }

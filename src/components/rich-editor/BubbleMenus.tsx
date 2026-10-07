@@ -11,6 +11,7 @@ import {
   Bold,
   CalendarDays,
   Captions,
+  ScanText,
   ChevronDown,
   Heading1,
   Heading2,
@@ -366,9 +367,9 @@ const IMAGE_ALIGN_OPTIONS: { align: ImageAlign; label: string; Icon: LucideIcon 
   { align: "full", label: "Full width", Icon: Maximize2 },
 ];
 
-/** Image toolbar: alignment, link, alt text, delete. Resize with the corner handles; drag to move. */
+/** Image toolbar: alignment, link, caption, alt text, delete. Resize with the corner handles; drag to move. */
 export function ImageBubbleMenu({ editor }: { editor: Editor }) {
-  const [field, setField] = useState<"link" | "alt" | null>(null);
+  const [field, setField] = useState<"link" | "caption" | "alt" | null>(null);
   useResetOnSelectionChange(editor, () => setField(null));
   const attrs = editor.getAttributes("image");
   const update = (patch: Record<string, unknown>) => editor.chain().focus().updateAttributes("image", patch).run();
@@ -401,6 +402,19 @@ export function ImageBubbleMenu({ editor }: { editor: Editor }) {
           }}
         />
       )}
+      {field === "caption" && (
+        <InlineField
+          label="Caption"
+          placeholder="Shown under the image"
+          initial={attrs.caption ?? ""}
+          onCancel={() => setField(null)}
+          onApply={(raw) => {
+            update({ caption: raw.trim() || null });
+            setField(null);
+            return null;
+          }}
+        />
+      )}
       {field === "alt" && (
         <InlineField
           label="Alt text"
@@ -421,7 +435,8 @@ export function ImageBubbleMenu({ editor }: { editor: Editor }) {
           ))}
           <span className="rich-toolbar-divider" aria-hidden />
           <ToolButton label={attrs.href ? "Edit image link" : "Link image"} Icon={Link2} active={Boolean(attrs.href)} onClick={() => setField("link")} />
-          <ToolButton label="Alt text" Icon={Captions} active={Boolean(attrs.alt)} onClick={() => setField("alt")} />
+          <ToolButton label={attrs.caption ? "Edit caption" : "Add caption"} Icon={Captions} active={Boolean(attrs.caption)} onClick={() => setField("caption")} />
+          <ToolButton label="Alt text" Icon={ScanText} active={Boolean(attrs.alt)} onClick={() => setField("alt")} />
           <span className="rich-toolbar-divider" aria-hidden />
           <ToolButton label="Delete image" Icon={Trash2} onClick={() => editor.chain().focus().deleteSelection().run()} />
         </div>

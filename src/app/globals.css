@@ -3240,29 +3240,46 @@ input[type="range"]::-moz-range-track {
 
 /* Images: TipTap's ResizableNodeView container is aligned around the <img>,
    which carries data-align / data-href. */
+/* The container shrinks to the image (a column: image, then the optional
+   caption), so the caption wraps at the image's width and moves with it. */
 .ProseMirror [data-resize-container][data-node="image"] {
-  margin: var(--space-3) 0;
-  justify-content: center;
+  flex-direction: column;
+  width: fit-content;
+  margin: var(--space-3) auto;
   max-width: 100%;
 }
 
 .ProseMirror [data-resize-container]:has(> [data-resize-wrapper] > img[data-align="left"]) {
   float: left;
-  justify-content: flex-start;
   margin: var(--space-1) var(--space-4) var(--space-2) 0;
   max-width: 60%;
 }
 
 .ProseMirror [data-resize-container]:has(> [data-resize-wrapper] > img[data-align="right"]) {
   float: right;
-  justify-content: flex-end;
   margin: var(--space-1) 0 var(--space-2) var(--space-4);
   max-width: 60%;
 }
 
+.ProseMirror [data-resize-container]:has(> [data-resize-wrapper] > img[data-align="full"]),
 .ProseMirror [data-resize-container]:has(> [data-resize-wrapper] > img[data-align="full"]) > [data-resize-wrapper],
 .ProseMirror img[data-align="full"] {
   width: 100% !important;
+}
+
+/* width 0 + min-width 100%: the caption never widens the container past the image. */
+.ProseMirror .rich-image-caption {
+  width: 0;
+  min-width: 100%;
+  margin-top: var(--space-2);
+  padding-top: var(--space-1);
+  border-top: 1px solid var(--border-subtle);
+  color: var(--text-tertiary);
+  font-size: var(--text-sm);
+  font-style: italic;
+  line-height: 1.4;
+  text-align: center;
+  overflow-wrap: anywhere;
 }
 
 .ProseMirror [data-resize-wrapper] {

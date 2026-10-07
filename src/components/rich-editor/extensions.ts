@@ -4,6 +4,7 @@ import Placeholder from "@tiptap/extension-placeholder";
 import TextAlign from "@tiptap/extension-text-align";
 import { Color, FontFamily, TextStyle } from "@tiptap/extension-text-style";
 import Image from "@tiptap/extension-image";
+import type { Node as PMNode } from "@tiptap/pm/model";
 import { Mention } from "./mention";
 import { Secret } from "./secret";
 import { CalendarDate } from "./calendar-date";
@@ -51,15 +52,46 @@ export type ImageAlign = (typeof IMAGE_ALIGNS)[number];
 
 /**
  * Block image with native corner resizing (aspect ratio kept), drag-to-move,
- * an alignment (left/right float with text wrap, center, full width), and an
- * optional link opened on click while reading. Both extra attributes render
- * as data-* on the <img>; CSS aligns the resize container around it.
+ * an alignment (left/right float with text wrap, center, full width), an
+ * optional link opened on click while reading, and an optional caption shown
+ * under the image. The extra attributes render as data-* on the <img>; CSS
+ * aligns the resize container around it. The caption lives inside that
+ * container (after the resize wrapper, so the handles stay on the image), so
+ * it floats, aligns, and drags with the image.
  */
 export const ArticleImage = Image.extend({
   draggable: true,
+  addNodeView() {
+    const parent = this.parent?.();
+    if (!parent) return null;
+    return (props) => {
+      const view = parent(props);
+      const caption = document.createElement("div");
+      caption.className = "rich-image-caption";
+      const syncCaption = (node: PMNode) => {
+        const text = typeof node.attrs.caption === "string" ? node.attrs.caption.trim() : "";
+        caption.textContent = text;
+        if (text) view.dom.appendChild(caption);
+        else caption.remove();
+      };
+      syncCaption(props.node);
+      const update = view.update?.bind(view);
+      view.update = (node, decorations, innerDecorations) => {
+        if (!update?.(node, decorations, innerDecorations)) return false;
+        syncCaption(node);
+        return true;
+      };
+      return view;
+    };
+  },
   addAttributes() {
     return {
       ...this.parent?.(),
+      caption: {
+        default: null,
+        parseHTML: (el) => el.getAttribute("data-caption"),
+        renderHTML: (attrs) => (attrs.caption ? { "data-caption": attrs.caption } : {}),
+      },
       align: {
         default: "center",
         parseHTML: (el) => el.getAttribute("data-align") ?? "center",
