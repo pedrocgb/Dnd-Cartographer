@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Link2Off, PanelRightClose, TextAlignStart, Footprints, type LucideIcon } from "lucide-react";
 import ReadOnlyRich from "@/components/rich-editor/ReadOnlyRich";
+import ImageLightbox, { type ZoomedImage } from "@/components/rich-editor/ImageLightbox";
 import { templateOf } from "@/components/articles/templates";
 import { NODE_KIND_LABELS } from "@/server/writer/types";
 import type { SharedSection, ShareView as View } from "@/server/share/load";
@@ -91,6 +92,7 @@ function SharedCard({ variant, Icon, label, doc }: { variant: string; Icon: Luci
 
 function SharedArticle({ view }: { view: Extract<View, { kind: "article" }> }) {
   const { Icon } = templateOf(view.template);
+  const [zoomed, setZoomed] = useState<ZoomedImage | null>(null);
   return (
     <article className="article-view">
       <header className="article-header">
@@ -100,9 +102,17 @@ function SharedArticle({ view }: { view: Extract<View, { kind: "article" }> }) {
         </h1>
       </header>
       {view.portraitUrl && (
-        // eslint-disable-next-line @next/next/no-img-element -- served by the share's own route, not a static asset
-        <img className="share-portrait" src={view.portraitUrl} alt={view.title} />
+        <button
+          type="button"
+          className="share-portrait-button"
+          aria-label={`View ${view.title}'s image full size`}
+          onClick={() => setZoomed({ src: view.portraitFullUrl ?? view.portraitUrl!, alt: view.title, caption: null })}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element -- served by the share's own route, not a static asset */}
+          <img className="share-portrait" src={view.portraitUrl} alt={view.title} />
+        </button>
       )}
+      <ImageLightbox image={zoomed} onClose={() => setZoomed(null)} />
       <div className={view.footer ? "article-cards has-footer" : "article-cards"}>
         <SharedCard variant="body" Icon={TextAlignStart} label="Body" doc={view.body} />
         <SharedCard variant="sidebar" Icon={PanelRightClose} label="Sidebar" doc={view.sidebar} />

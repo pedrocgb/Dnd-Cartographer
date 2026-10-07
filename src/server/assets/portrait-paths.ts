@@ -1,3 +1,4 @@
+import path from "node:path";
 import { makeAssetKey, resolveAssetPath } from "../storage/storage-adapter";
 
 export type PortraitOwnerType = "territory" | "person" | "organization" | "article";
@@ -23,4 +24,10 @@ export function portraitOriginalPath(ownerType: PortraitOwnerType, ownerId: stri
 /** The last crop applied to the original (PortraitCrop JSON). */
 export function portraitCropPath(ownerType: PortraitOwnerType, ownerId: string): string {
   return resolveAssetPath("portraits", makeAssetKey(ownerType, `originals/${ownerId}.json`));
+}
+
+/** The kept original and crop file of a stored portrait key (`<owner>/<id>.webp`). */
+export function portraitOriginalPathsOf(key: string): { image: string; crop: string } {
+  const base = path.posix.join(path.posix.dirname(key), "originals", path.posix.basename(key, ".webp"));
+  return { image: resolveAssetPath("portraits", `${base}.webp`), crop: resolveAssetPath("portraits", `${base}.json`) };
 }

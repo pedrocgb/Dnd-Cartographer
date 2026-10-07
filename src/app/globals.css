@@ -16857,7 +16857,21 @@ textarea.rel-notes {
 .share-page > .wr-reader {
   width: 100%;
 }
+.share-portrait-button {
+  display: block;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: var(--radius-md);
+  cursor: zoom-in;
+}
+.share-portrait-button:focus-visible {
+  outline: 2px solid var(--teal-400);
+  outline-offset: 2px;
+}
 .share-portrait {
+  display: block;
   width: 208px;
   max-width: 100%;
   height: auto;

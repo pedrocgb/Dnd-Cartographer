@@ -1,7 +1,8 @@
 import { copyFile, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
-import { portraitCropPath, portraitKey, portraitOriginalKey, portraitOriginalPath, portraitPath, type PortraitOwnerType } from "./portrait-paths";
+import { portraitCropPath, portraitKey, portraitOriginalKey, portraitOriginalPath, portraitOriginalPathsOf, portraitPath, type PortraitOwnerType } from "./portrait-paths";
+import { resolveAssetPath } from "../storage/storage-adapter";
 import { cropToPixels, MAX_PORTRAIT_BYTES, parsePortraitCrop, type PortraitCrop } from "./portrait-crop";
 import { InvalidImageError } from "./validate";
 import { receiveImageUpload } from "./receive-upload";
@@ -97,4 +98,23 @@ export async function portraitSource(ownerType: PortraitOwnerType, ownerId: stri
 
 export async function deletePortraitFile(ownerType: PortraitOwnerType, ownerId: string): Promise<void> {
   await Promise.all([portraitPath, portraitOriginalPath, portraitCropPath].map((file) => rm(file(ownerType, ownerId), { force: true })));
+}
+
+/**
+ * The whole image behind a stored portrait key, uncropped but turned as the
+ * crop was. Portraits uploaded before originals were kept only have the
+ * displayed (cropped) portrait.
+ */
+export async function fullPortrait(key: string): Promise<Buffer> {
+  const { image, crop } = portraitOriginalPathsOf(key);
+  if (!(await exists(image))) return readFile(resolveAssetPath("portraits", key));
+  const original = await readFile(image);
+  const saved = await readFile(crop, "utf8").catch(() => null);
+  let rotation = 0;
+  try {
+    rotation = (saved && parsePortraitCrop(JSON.parse(saved))?.rotation) || 0;
+  } catch {
+    // unreadable crop file: show the original as uploaded
+  }
+  return rotation ? sharp(original).rotate(rotation).webp({ quality: 90 }).toBuffer() : original;
 }

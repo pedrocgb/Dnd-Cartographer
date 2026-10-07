@@ -91,7 +91,7 @@ export interface SharedSection {
 }
 
 export type ShareView =
-  | { kind: "article"; title: string; template: ArticleTemplateKey; templateLabel: string; portraitUrl: string | null; body: JsonNode | null; sidebar: JsonNode | null; footer: JsonNode | null }
+  | { kind: "article"; title: string; template: ArticleTemplateKey; templateLabel: string; portraitUrl: string | null; portraitFullUrl: string | null; body: JsonNode | null; sidebar: JsonNode | null; footer: JsonNode | null }
   | { kind: "writer"; campaign: string; root: { kind: NodeKind | null; title: string; lead: string; doc: JsonNode | null }; sections: SharedSection[] };
 
 export interface LoadedShare {
@@ -162,6 +162,7 @@ async function loadArticleView(worldId: string, token: string, template: Article
       template,
       templateLabel: TEMPLATE_LABELS[template],
       portraitUrl: record.portraitKey ? `/api/share/${token}/portrait` : null,
+      portraitFullUrl: record.portraitKey ? `/api/share/${token}/portrait/full` : null,
       body: shown(record.bodyId),
       sidebar: shown(record.sidebarId),
       footer: shown(record.footerId),
