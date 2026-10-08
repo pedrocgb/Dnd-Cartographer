@@ -9,6 +9,7 @@ import { activeWorld } from "@/server/world/active-world";
 import { WORLD_COOKIE } from "@/server/world/world-cookie";
 import ForgetStaleWorld from "@/components/worlds/ForgetStaleWorld";
 import { getSettings } from "@/server/settings/store";
+import { serverT } from "@/i18n/server";
 import { mapFontVariables } from "./map-fonts";
 import "./globals.css";
 
@@ -17,10 +18,10 @@ const inter = Inter({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "World Wiki — Maps",
-  description: "Local map & marker workspace",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await serverT("common");
+  return { title: "World Wiki — Maps", description: t("appDescription") };
+}
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   // The user's settings come with every page, so formatted dates and units are right on first paint.
@@ -29,7 +30,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   // The cookie names a world that is gone (deleted in another browser).
   const stale = Boolean(store.get(WORLD_COOKIE)?.value) && !world;
   return (
-    <html lang="en" className={`${inter.variable} ${mapFontVariables}`}>
+    <html lang={settings.language} className={`${inter.variable} ${mapFontVariables}`}>
       <body data-world={world?.id}>
         <SettingsProvider initialSettings={settings}>
           <AppNav world={world} />

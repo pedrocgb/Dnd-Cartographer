@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * Skeleton loaders: shimmering placeholders in the shape of the content
  * that's on its way, so a page settles into place instead of popping in.
@@ -7,6 +9,7 @@
  */
 
 import { X, type LucideIcon } from "lucide-react";
+import { useT } from "@/i18n/useT";
 
 type Size = number | string;
 const px = (v: Size | undefined) => (typeof v === "number" ? `${v}px` : v);
@@ -28,10 +31,11 @@ export function SkeletonText({ lines = 3, className }: { lines?: number; classNa
 }
 
 /** A labelled loading region: screen readers hear "Loading…", sighted users see the shapes. */
-export function SkeletonRegion({ label = "Loading…", className, children }: { label?: string; className?: string; children: React.ReactNode }) {
+export function SkeletonRegion({ label, className, children }: { label?: string; className?: string; children: React.ReactNode }) {
+  const t = useT("common");
   return (
     <div className={className ? `skeleton-region ${className}` : "skeleton-region"} role="status" aria-busy="true">
-      <span className="sr-only">{label}</span>
+      <span className="sr-only">{label ?? t("loading")}</span>
       {children}
     </div>
   );
@@ -54,8 +58,9 @@ export function SkeletonList({ rows = 4, label, avatar = false }: { rows?: numbe
 
 /** The article page's shape: title, image and info cards, then the body card. */
 export function ArticleSkeleton() {
+  const t = useT("common");
   return (
-    <SkeletonRegion label="Loading the article…" className="article-view">
+    <SkeletonRegion label={t("loadingArticle")} className="article-view">
       <Skeleton width="38%" height={30} radius={8} />
       <div className="article-top">
         <div className="article-card skeleton-card">
@@ -118,8 +123,9 @@ export function PageSkeleton({ label, main }: { label: string; main: "cards" | "
 
 /** The worlds screen still loading: its header, then world cards (banner, badge, name, text, counts). */
 export function WorldsSkeleton() {
+  const t = useT("common");
   return (
-    <SkeletonRegion label="Loading your worlds…" className="worlds-page">
+    <SkeletonRegion label={t("loadingWorlds")} className="worlds-page">
       <div className="worlds-header" aria-hidden>
         <Skeleton width={30} height={30} radius="50%" />
         <Skeleton width={240} height={24} radius={8} />
@@ -148,8 +154,9 @@ export function WorldsSkeleton() {
 
 /** The map page still loading: header, the tool rail (its five groups) and the canvas. */
 export function MapPageSkeleton() {
+  const t = useT("common");
   return (
-    <SkeletonRegion label="Loading the map…" className="map-page-root">
+    <SkeletonRegion label={t("loadingMap")} className="map-page-root">
       <div className="map-header" aria-hidden>
         <Skeleton width={220} height={14} />
       </div>
@@ -190,6 +197,7 @@ export function PanelSkeleton({
   onClose: () => void;
   rows?: number;
 }) {
+  const t = useT("common");
   const body = (
     <>
       <div className="marker-side-panel-header">
@@ -197,11 +205,11 @@ export function PanelSkeleton({
           {Icon && <Icon size={16} strokeWidth={2.25} style={{ verticalAlign: "-2px", marginRight: "6px" }} />}
           {title}
         </h2>
-        <button className="btn btn-ghost btn-icon" onClick={onClose} aria-label={`Close ${title.toLowerCase()} panel`}>
+        <button className="btn btn-ghost btn-icon" onClick={onClose} aria-label={t("closePanel", { title: title.toLowerCase() })}>
           <X size={16} strokeWidth={2.25} />
         </button>
       </div>
-      <SkeletonList rows={rows} label={`Loading ${title.toLowerCase()}…`} />
+      <SkeletonList rows={rows} label={t("loadingNamed", { title: title.toLowerCase() })} />
     </>
   );
   return <div className={className}>{mainClassName ? <div className={mainClassName}>{body}</div> : body}</div>;

@@ -1,0 +1,21 @@
+{
+  "invalidBody": "Corpo da requisição inválido.",
+  "foreignId": "Isso aponta para algo que não está neste mundo.",
+  "worldNotFound": "Mundo não encontrado.",
+  "worldNameRequired": "Um mundo precisa de um nome.",
+  "unknownIcon": "Ícone desconhecido.",
+  "colorFormat": "As cores usam o formato #RRGGBB.",
+  "worldDeleteConfirm": "Digite o nome do mundo exatamente para excluí-lo.",
+  "worldBusy": "Uma das imagens de mapa deste mundo ainda está sendo processada. Tente de novo em instantes.",
+  "invalidSettingValue": "Valor inválido para {setting}.",
+  "importNotJson": "O arquivo enviado não é um JSON válido.",
+  "importNotBundle": "O arquivo não é uma exportação válida.",
+  "importUnsupportedVersion": "Versão de exportação não suportada: {version}",
+  "importMissingSections": "Faltam seções obrigatórias no arquivo.",
+  "importTooManyMaps": "Mapas demais no arquivo de importação.",
+  "importTooManyMarkers": "Marcadores demais no arquivo de importação.",
+  "importTooManyDocuments": "Documentos demais no arquivo de importação.",
+  "importTooManyCategories": "Categorias demais no arquivo de importação.",
+  "importDocumentNotJson": "O documento {id} não é um JSON válido.",
+  "importDocumentInvalid": "O documento {id} não passou na validação: {reason}"
+}

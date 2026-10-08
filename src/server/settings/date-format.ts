@@ -1,6 +1,13 @@
-import { DEFAULT_SETTINGS, type RealDateFormat, type WorldDateFormat } from "./settings";
+import { DEFAULT_SETTINGS, type Language, type RealDateFormat, type WorldDateFormat } from "./settings";
+import { activeSettings } from "./active";
 
-const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const monthFormats = new Map<Language, Intl.DateTimeFormat>();
+/** A real month's name in the language ("March", "março"). */
+function realMonthName(date: Date, language: Language): string {
+  let format = monthFormats.get(language);
+  if (!format) monthFormats.set(language, (format = new Intl.DateTimeFormat(language, { month: "long" })));
+  return format.format(date);
+}
 
 export interface DateParts {
   day: number;
@@ -34,12 +41,13 @@ export function applyDateFormat(format: RealDateFormat | WorldDateFormat, parts:
 /**
  * A real-world date in the chosen layout. Takes a Date, a timestamp, or an
  * ISO string; a bare "YYYY-MM-DD" is a calendar day (no timezone shift).
- * `withTime` appends the local 24h time ("14:05").
+ * `withTime` appends the local 24h time ("14:05"). Month names follow
+ * `language`, by default the active language setting.
  */
 export function formatRealDate(
   input: Date | number | string | null | undefined,
   format: RealDateFormat = DEFAULT_SETTINGS.realDateFormat,
-  { withTime = false } = {},
+  { withTime = false, language = activeSettings().language }: { withTime?: boolean; language?: Language } = {},
 ): string {
   if (input === null || input === undefined || input === "") return "";
   const bare = typeof input === "string" ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(input) : null;
@@ -48,7 +56,7 @@ export function formatRealDate(
   const text = applyDateFormat(format, {
     day: date.getDate(),
     month: date.getMonth() + 1,
-    monthName: MONTH_NAMES[date.getMonth()],
+    monthName: realMonthName(date, language),
     year: String(date.getFullYear()),
   });
   return withTime && !bare ? `${text} ${pad(date.getHours())}:${pad(date.getMinutes())}` : text;

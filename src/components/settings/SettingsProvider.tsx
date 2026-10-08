@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { DEFAULT_SETTINGS, type AppSettings } from "@/server/settings/settings";
 import { setActiveSettings } from "@/server/settings/active";
+import { translate } from "@/i18n/translate";
 
 interface SettingsState {
   settings: AppSettings;
@@ -27,6 +28,9 @@ export default function SettingsProvider({ initialSettings, children }: { initia
 
   const updateSetting = useCallback(async <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
     const previous = settingsRef.current[key];
+    // In the language in use before this change (a failed language switch keeps the old one).
+    const language = settingsRef.current.language;
+    const saveFailed = () => translate(language, "common", "saveSettingFailed");
     setSettings((s) => ({ ...s, [key]: value }));
     try {
       const res = await fetch("/api/settings", {
@@ -35,12 +39,12 @@ export default function SettingsProvider({ initialSettings, children }: { initia
         body: JSON.stringify({ [key]: value }),
       });
       const data: { settings?: AppSettings; error?: string } = await res.json().catch(() => ({}));
-      if (!res.ok || !data.settings) throw new Error(data.error ?? "Couldn't save the setting.");
+      if (!res.ok || !data.settings) throw new Error(data.error ?? saveFailed());
       setSettings(data.settings);
       return null;
     } catch (err) {
       setSettings((s) => ({ ...s, [key]: previous }));
-      return err instanceof Error ? err.message : "Couldn't save the setting.";
+      return err instanceof Error ? err.message : saveFailed();
     }
   }, []);
 

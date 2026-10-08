@@ -7,6 +7,8 @@ import { Compass, Book, CalendarDays, Swords, ChevronDown, Settings, Waypoints, 
 import SearchBox from "./SearchBox";
 import WorldDateLabel from "./WorldDateLabel";
 import { TOOLS } from "./tools/tools";
+import { useT } from "@/i18n/useT";
+import type { MessageKey } from "@/i18n/messages";
 
 interface MenuItem {
   href: string;
@@ -15,17 +17,17 @@ interface MenuItem {
 }
 
 /** Articles and the views built from them (pinned pseudo-views of /articles). */
-const ARTICLE_VIEWS: MenuItem[] = [
-  { href: "/articles", label: "Articles", icon: Book },
-  { href: "/articles?type=relationships", label: "Relationships", icon: Waypoints },
-  { href: "/articles?type=family", label: "Family trees", icon: GitFork },
-  { href: "/articles?type=boards", label: "Boards", icon: LayoutDashboard },
+const ARTICLE_VIEWS: { href: string; labelKey: MessageKey<"nav">; icon: LucideIcon }[] = [
+  { href: "/articles", labelKey: "articles", icon: Book },
+  { href: "/articles?type=relationships", labelKey: "relationships", icon: Waypoints },
+  { href: "/articles?type=family", labelKey: "familyTrees", icon: GitFork },
+  { href: "/articles?type=boards", labelKey: "boards", icon: LayoutDashboard },
 ];
 
 /** The active campaign's two areas. */
-const CAMPAIGN_VIEWS: MenuItem[] = [
-  { href: "/sessions", label: "Sessions", icon: ScrollText },
-  { href: "/writer", label: "Writer", icon: PenLine },
+const CAMPAIGN_VIEWS: { href: string; labelKey: MessageKey<"nav">; icon: LucideIcon }[] = [
+  { href: "/sessions", labelKey: "sessions", icon: ScrollText },
+  { href: "/writer", labelKey: "writer", icon: PenLine },
 ];
 
 /** A small dropdown of links: click to open, Esc or a click outside closes it. */
@@ -84,6 +86,8 @@ function NavMenu({ label, items, triggerClass, children }: { label: string; item
  */
 export default function AppNav({ world }: { world: { id: string; name: string } | null }) {
   const pathname = usePathname();
+  const t = useT("nav");
+  const tTools = useT("tools");
   const linkClass = (current: boolean) => (current ? "app-nav-link current" : "app-nav-link");
 
   // A shared page is for someone outside the app: no way into it from there.
@@ -103,36 +107,36 @@ export default function AppNav({ world }: { world: { id: string; name: string } 
   return (
     <nav className="app-nav">
       <div className="app-nav-start">
-        <Link href="/worlds" className="app-nav-brand app-nav-world" data-tooltip="Switch world">
+        <Link href="/worlds" className="app-nav-brand app-nav-world" data-tooltip={t("switchWorld")}>
           <Globe2 size={20} strokeWidth={2.25} />
           <span className="app-nav-world-name">{world.name}</span>
         </Link>
         <Link href="/maps" className={linkClass(pathname === "/maps" || pathname.startsWith("/maps/"))}>
           <Compass size={16} strokeWidth={2.25} />
-          Maps
+          {t("maps")}
         </Link>
-        <NavMenu label="Articles, relationships, family trees and boards" items={ARTICLE_VIEWS} triggerClass={linkClass(pathname.startsWith("/articles"))}>
+        <NavMenu label={t("articlesMenu")} items={ARTICLE_VIEWS.map(({ labelKey, ...v }) => ({ ...v, label: t(labelKey) }))} triggerClass={linkClass(pathname.startsWith("/articles"))}>
           <Book size={16} strokeWidth={2.25} />
-          Articles
+          {t("articles")}
           <ChevronDown size={14} strokeWidth={2.25} aria-hidden />
         </NavMenu>
-        <NavMenu label="Sessions and Writer of the active campaign" items={CAMPAIGN_VIEWS} triggerClass={linkClass(pathname.startsWith("/sessions") || pathname.startsWith("/writer"))}>
+        <NavMenu label={t("campaignMenu")} items={CAMPAIGN_VIEWS.map(({ labelKey, ...v }) => ({ ...v, label: t(labelKey) }))} triggerClass={linkClass(pathname.startsWith("/sessions") || pathname.startsWith("/writer"))}>
           <Swords size={16} strokeWidth={2.25} />
-          Campaign
+          {t("campaign")}
           <ChevronDown size={14} strokeWidth={2.25} aria-hidden />
         </NavMenu>
         <Link href="/calendars" className={linkClass(pathname.startsWith("/calendars"))}>
           <CalendarDays size={16} strokeWidth={2.25} />
-          Calendars
+          {t("calendars")}
         </Link>
-        <NavMenu label="Advanced tools" items={TOOLS} triggerClass={linkClass(pathname.startsWith("/tools"))}>
+        <NavMenu label={t("advancedToolsMenu")} items={TOOLS.map((tool) => ({ ...tool, label: tTools(`${tool.id}.label`) }))} triggerClass={linkClass(pathname.startsWith("/tools"))}>
           <Wrench size={16} strokeWidth={2.25} />
-          Advanced Tools
+          {t("advancedTools")}
           <ChevronDown size={14} strokeWidth={2.25} aria-hidden />
         </NavMenu>
-        <Link href="/settings" className={linkClass(pathname.startsWith("/settings"))} data-tooltip="Settings, data and trash">
+        <Link href="/settings" className={linkClass(pathname.startsWith("/settings"))} data-tooltip={t("settingsHint")}>
           <Settings size={16} strokeWidth={2.25} />
-          Settings
+          {t("settings")}
         </Link>
       </div>
       <WorldDateLabel />

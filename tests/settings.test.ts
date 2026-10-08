@@ -11,8 +11,8 @@ describe("settings", () => {
   });
 
   it("rejects invalid values and bodies", () => {
-    expect(sanitizeSettingsPatch({ lengthSystem: "cubits" })).toEqual({ error: "Invalid value for lengthSystem." });
-    expect(sanitizeSettingsPatch({ trashRetentionDays: 12 })).toEqual({ error: "Invalid value for trashRetentionDays." });
+    expect(sanitizeSettingsPatch({ lengthSystem: "cubits" })).toEqual({ error: "invalidSettingValue", setting: "lengthSystem" });
+    expect(sanitizeSettingsPatch({ trashRetentionDays: 12 })).toEqual({ error: "invalidSettingValue", setting: "trashRetentionDays" });
     expect(sanitizeSettingsPatch({ realDateFormat: "DD/MM" })).toHaveProperty("error");
     expect(sanitizeSettingsPatch(null)).toHaveProperty("error");
     expect(sanitizeSettingsPatch([1])).toHaveProperty("error");
@@ -115,6 +115,6 @@ describe("number format", () => {
     const { parseStoredSettings, sanitizeSettingsPatch } = await import("../src/server/settings/settings");
     expect(parseStoredSettings({}).numberFormat).toBe("comma");
     expect(sanitizeSettingsPatch({ numberFormat: "space" })).toEqual({ patch: { numberFormat: "space" } });
-    expect(sanitizeSettingsPatch({ numberFormat: "dot" })).toEqual({ error: "Invalid value for numberFormat." });
+    expect(sanitizeSettingsPatch({ numberFormat: "dot" })).toEqual({ error: "invalidSettingValue", setting: "numberFormat" });
   });
 });

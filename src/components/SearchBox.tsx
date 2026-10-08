@@ -4,8 +4,10 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Search } from "lucide-react";
 import type { SearchResult } from "@/app/api/search/route";
+import { useT } from "@/i18n/useT";
 
 export default function SearchBox() {
+  const t = useT("common");
   const [q, setQ] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [open, setOpen] = useState(false);
@@ -43,8 +45,8 @@ export default function SearchBox() {
         <Search size={15} strokeWidth={2.25} aria-hidden="true" />
         <input
           type="text"
-          placeholder="Search maps & markers…"
-          aria-label="Search maps and markers"
+          placeholder={t("search.placeholder")}
+          aria-label={t("search.label")}
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onFocus={() => results.length > 0 && setOpen(true)}
@@ -59,9 +61,9 @@ export default function SearchBox() {
               className="search-result-row"
               onClick={() => setOpen(false)}
             >
-              <span className="search-result-type">{r.type}</span>
+              <span className="search-result-type">{t(`search.type.${r.type}`)}</span>
               <span>{r.name}</span>
-              {r.type === "marker" && <span className="search-result-context">on {r.mapName}</span>}
+              {r.type === "marker" && <span className="search-result-context">{t("search.onMap", { map: r.mapName })}</span>}
             </Link>
           ))}
         </div>

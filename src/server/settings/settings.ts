@@ -42,7 +42,7 @@ export const TRASH_RETENTION_DAYS = [7, 30, 90] as const;
 export type TrashRetention = (typeof TRASH_RETENTION_DAYS)[number] | null;
 
 export interface AppSettings {
-  /** Stored only: the UI isn't translated yet. */
+  /** The UI language (src/i18n); localized screen by screen, see docs/localization.md. */
   language: Language;
   weightSystem: UnitSystem;
   /** Lengths and distances. */
@@ -85,14 +85,14 @@ const VALIDATORS: { [K in keyof AppSettings]: (value: unknown) => value is AppSe
 
 const KEYS = Object.keys(VALIDATORS) as (keyof AppSettings)[];
 
-/** A PATCH body's known, valid keys; `error` names the first invalid one. Unknown keys are ignored. */
-export function sanitizeSettingsPatch(body: unknown): { patch: Partial<AppSettings> } | { error: string } {
-  if (!body || typeof body !== "object" || Array.isArray(body)) return { error: "Invalid request body." };
+/** A PATCH body's known, valid keys; `error` (an `errors` message key) and `setting` name the first invalid one. Unknown keys are ignored. */
+export function sanitizeSettingsPatch(body: unknown): { patch: Partial<AppSettings> } | { error: "invalidBody" } | { error: "invalidSettingValue"; setting: keyof AppSettings } {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return { error: "invalidBody" };
   const patch: Record<string, unknown> = {};
   for (const key of KEYS) {
     if (!(key in body)) continue;
     const value = (body as Record<string, unknown>)[key];
-    if (!VALIDATORS[key](value)) return { error: `Invalid value for ${key}.` };
+    if (!VALIDATORS[key](value)) return { error: "invalidSettingValue", setting: key };
     patch[key] = value;
   }
   return { patch: patch as Partial<AppSettings> };

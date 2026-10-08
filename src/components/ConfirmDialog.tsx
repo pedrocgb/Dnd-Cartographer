@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { TriangleAlert } from "lucide-react";
 import Modal from "./Modal";
+import { useT } from "@/i18n/useT";
 
 /**
  * The app's confirmation dialog (instead of window.confirm): a warning,
@@ -69,7 +70,10 @@ function ConfirmBody({
   onCancel: () => void;
   children: React.ReactNode;
 }) {
+  const t = useT("common");
   const [typed, setTyped] = useState("");
+  // The typed text is bold inside the sentence, wherever the language puts it.
+  const [typeBefore, typeAfter] = t("typeToConfirm").split("{text}");
   const blocked = confirmText !== undefined && typed !== confirmText;
   return (
     <>
@@ -82,7 +86,9 @@ function ConfirmBody({
       {confirmText !== undefined && (
         <label className="confirm-dialog-type">
           <span>
-            Type <strong>{confirmText}</strong> to confirm
+            {typeBefore}
+            <strong>{confirmText}</strong>
+            {typeAfter}
           </span>
           <input type="text" value={typed} autoComplete="off" spellCheck={false} onChange={(e) => setTyped(e.target.value)} />
         </label>
@@ -94,7 +100,7 @@ function ConfirmBody({
       )}
       <div className="confirm-dialog-actions">
         <button type="button" className="btn btn-sm" onClick={onCancel} disabled={busy} autoFocus>
-          Cancel
+          {t("cancel")}
         </button>
         <button type="button" className={danger ? "btn btn-sm btn-danger" : "btn btn-sm btn-primary"} onClick={onConfirm} disabled={busy || blocked}>
           {busy ? (busyLabel ?? confirmLabel) : confirmLabel}

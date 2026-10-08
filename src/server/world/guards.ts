@@ -3,6 +3,7 @@ import { sql, type SQL } from "drizzle-orm";
 import { db } from "../db/client";
 import { requireWorldId } from "./active-world";
 import { worldDeletePlan, worldFilterSql } from "./delete-plan";
+import { serverT } from "@/i18n/server";
 
 const plan = worldDeletePlan();
 
@@ -37,4 +38,7 @@ export async function idsInWorld(worldId: string, refs: [WorldTable, string | nu
 }
 
 /** The 400 answer when a body names something from another world (or nothing). */
-export const foreignIdResponse = () => NextResponse.json({ error: "That points at something that isn't in this world." }, { status: 400 });
+export async function foreignIdResponse() {
+  const t = await serverT("errors");
+  return NextResponse.json({ error: t("foreignId") }, { status: 400 });
+}

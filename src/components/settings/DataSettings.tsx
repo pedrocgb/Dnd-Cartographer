@@ -4,6 +4,8 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Download, Upload } from "lucide-react";
 import { SettingRow, SettingsCard, SettingsHeader } from "./parts";
+import { useT } from "@/i18n/useT";
+import { formatInteger } from "@/server/settings/number-format";
 
 interface ImportSummary {
   mapsCreated: number;
@@ -14,6 +16,7 @@ interface ImportSummary {
 
 /** Import a world export (POST /api/import): additive, nothing existing is overwritten. */
 function ImportForm() {
+  const t = useT("settings");
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +29,7 @@ function ImportForm() {
     try {
       const res = await fetch("/api/import", { method: "POST", headers: { "Content-Type": "application/json" }, body: await file.text() });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error ?? "Import failed.");
+      if (!res.ok) throw new Error(data.error ?? t("data.import.failed"));
       setSummary(data.summary);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -38,7 +41,7 @@ function ImportForm() {
 
   return (
     <>
-      <SettingRow label="Import a world export" description="Adds the file's maps, markers and descriptions as new items. Images are re-tiled in the background.">
+      <SettingRow label={t("data.import")} description={t("data.import.description")}>
         <input
           ref={inputRef}
           id="settings-import-file"
@@ -53,7 +56,7 @@ function ImportForm() {
         />
         <button type="button" className="btn" disabled={busy} onClick={() => inputRef.current?.click()}>
           <Upload size={15} strokeWidth={2.25} />
-          {busy ? "Importing…" : "Choose file…"}
+          {busy ? t("data.import.busy") : t("data.import.choose")}
         </button>
       </SettingRow>
       {error && (
@@ -64,10 +67,15 @@ function ImportForm() {
       {summary && (
         <div className="settings-notice" role="status">
           <p>
-            Imported {summary.mapsCreated} map(s), {summary.markersCreated} marker(s) and {summary.documentsCreated} description(s). {summary.assetsQueued} image(s) queued for tiling.
+            {t("data.import.summary", {
+              maps: formatInteger(summary.mapsCreated),
+              markers: formatInteger(summary.markersCreated),
+              documents: formatInteger(summary.documentsCreated),
+              assets: formatInteger(summary.assetsQueued),
+            })}
           </p>
           <Link href="/maps" className="btn btn-sm">
-            Go to Maps
+            {t("data.import.goToMaps")}
             <ArrowRight size={14} strokeWidth={2.25} />
           </Link>
         </div>
@@ -77,14 +85,15 @@ function ImportForm() {
 }
 
 export default function DataSettings() {
+  const t = useT("settings");
   return (
     <>
-      <SettingsHeader title="Data" description="Move your maps between installations, or keep a copy." />
-      <SettingsCard title="Maps data" description="Covers maps, their images, markers, categories and descriptions.">
-        <SettingRow label="Export" description="Downloads everything as one .json file, images included.">
+      <SettingsHeader title={t("data.title")} description={t("data.description")} />
+      <SettingsCard title={t("data.maps.title")} description={t("data.maps.description")}>
+        <SettingRow label={t("data.export")} description={t("data.export.description")}>
           <a className="btn" href="/api/export" download>
             <Download size={15} strokeWidth={2.25} />
-            Export
+            {t("data.export")}
           </a>
         </SettingRow>
         <ImportForm />

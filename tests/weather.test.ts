@@ -218,6 +218,6 @@ describe("temperature and speed units", () => {
   it("stores the temperature unit as a setting", () => {
     expect(DEFAULT_SETTINGS.temperatureUnit).toBe("celsius");
     expect(sanitizeSettingsPatch({ temperatureUnit: "fahrenheit" })).toEqual({ patch: { temperatureUnit: "fahrenheit" } });
-    expect(sanitizeSettingsPatch({ temperatureUnit: "kelvin" })).toEqual({ error: "Invalid value for temperatureUnit." });
+    expect(sanitizeSettingsPatch({ temperatureUnit: "kelvin" })).toEqual({ error: "invalidSettingValue", setting: "temperatureUnit" });
   });
 });

@@ -7,17 +7,19 @@ import { badRequest, notFound, readBody } from "@/server/calendars/respond";
 import { WORLD_COOKIE } from "@/server/world/world-cookie";
 import { parseWorldFields, worldById } from "@/server/world/worlds";
 import { deleteWorld, worldIsBusy } from "@/server/world/delete-world";
+import { serverT } from "@/i18n/server";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 /** Renames a world or changes its description. */
 export async function PATCH(request: Request, { params }: RouteContext) {
   const { id } = await params;
-  if (!(await worldById(id))) return notFound("World not found.");
+  const t = await serverT("errors");
+  if (!(await worldById(id))) return notFound(t("worldNotFound"));
   const body = await readBody(request);
-  if (!body) return badRequest("Invalid request body.");
+  if (!body) return badRequest(t("invalidBody"));
   const fields = parseWorldFields(body, true);
-  if ("error" in fields) return badRequest(fields.error);
+  if ("error" in fields) return badRequest(t(fields.error));
   const [row] = await db.update(worlds).set({ ...fields, updatedAt: new Date() }).where(eq(worlds.id, id)).returning();
   return NextResponse.json({ world: { id: row.id, name: row.name, description: row.description, icon: row.icon, color: row.color } });
 }
@@ -25,11 +27,12 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 /** Deletes a world and everything in it, for good. Body: `{ confirmName }`, the world's exact name. */
 export async function DELETE(request: Request, { params }: RouteContext) {
   const { id } = await params;
+  const t = await serverT("errors");
   const world = await worldById(id);
-  if (!world) return notFound("World not found.");
+  if (!world) return notFound(t("worldNotFound"));
   const body = await readBody(request);
-  if (body?.confirmName !== world.name) return badRequest("Type the world's name exactly to delete it.");
-  if (await worldIsBusy(id)) return NextResponse.json({ error: "One of this world's map images is still being processed. Try again in a moment." }, { status: 409 });
+  if (body?.confirmName !== world.name) return badRequest(t("worldDeleteConfirm"));
+  if (await worldIsBusy(id)) return NextResponse.json({ error: t("worldBusy") }, { status: 409 });
   await deleteWorld(id);
   const store = await cookies();
   if (store.get(WORLD_COOKIE)?.value === id) store.delete(WORLD_COOKIE);

@@ -1,0 +1,21 @@
+{
+  "invalidBody": "Invalid request body.",
+  "foreignId": "That points at something that isn't in this world.",
+  "worldNotFound": "World not found.",
+  "worldNameRequired": "A world needs a name.",
+  "unknownIcon": "Unknown icon.",
+  "colorFormat": "Colors are #RRGGBB.",
+  "worldDeleteConfirm": "Type the world's name exactly to delete it.",
+  "worldBusy": "One of this world's map images is still being processed. Try again in a moment.",
+  "invalidSettingValue": "Invalid value for {setting}.",
+  "importNotJson": "Uploaded file is not valid JSON.",
+  "importNotBundle": "Import file is not a valid export bundle.",
+  "importUnsupportedVersion": "Unsupported export version: {version}",
+  "importMissingSections": "Import file is missing required sections.",
+  "importTooManyMaps": "Too many maps in import file.",
+  "importTooManyMarkers": "Too many markers in import file.",
+  "importTooManyDocuments": "Too many documents in import file.",
+  "importTooManyCategories": "Too many categories in import file.",
+  "importDocumentNotJson": "Document {id} is not valid JSON.",
+  "importDocumentInvalid": "Document {id} failed validation: {reason}"
+}

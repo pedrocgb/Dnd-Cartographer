@@ -8,6 +8,7 @@ import type { CalendarDefinition } from "@/server/calendars/engine";
 import { api, WORLD_DATE_EVENT } from "./calendars/api";
 import { dayLabel } from "./calendars/evaluate";
 import { useSettings } from "./settings/SettingsProvider";
+import { useT } from "@/i18n/useT";
 
 interface WorldDate {
   currentDay: number;
@@ -21,6 +22,7 @@ interface WorldDate {
  */
 export default function WorldDateLabel() {
   const { settings } = useSettings();
+  const t = useT("nav");
   const enabled = settings.showWorldDate;
   const pathname = usePathname();
   const [date, setDate] = useState<WorldDate | null>(null);
@@ -43,7 +45,7 @@ export default function WorldDateLabel() {
   return (
     <div className="app-nav-date-slot">
       {enabled && date?.calendar && (
-        <Link href="/calendars" className="app-nav-date" aria-label={`Current in-world date: ${dayLabel(date.calendar.definition, date.currentDay)}`} data-tooltip={`Current date in ${date.calendar.name}`}>
+        <Link href="/calendars" className="app-nav-date" aria-label={t("worldDate.label", { date: dayLabel(date.calendar.definition, date.currentDay) })} data-tooltip={t("worldDate.hint", { calendar: date.calendar.name })}>
           <CalendarDays size={15} strokeWidth={2.25} aria-hidden />
           <span className="app-nav-date-text">{dayLabel(date.calendar.definition, date.currentDay)}</span>
         </Link>

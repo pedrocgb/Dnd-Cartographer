@@ -1,0 +1,20 @@
+{
+  "switchWorld": "Switch world",
+  "maps": "Maps",
+  "articles": "Articles",
+  "articlesMenu": "Articles, relationships, family trees and boards",
+  "relationships": "Relationships",
+  "familyTrees": "Family trees",
+  "boards": "Boards",
+  "campaign": "Campaign",
+  "campaignMenu": "Sessions and Writer of the active campaign",
+  "sessions": "Sessions",
+  "writer": "Writer",
+  "calendars": "Calendars",
+  "advancedTools": "Advanced Tools",
+  "advancedToolsMenu": "Advanced tools",
+  "settings": "Settings",
+  "settingsHint": "Settings, data and trash",
+  "worldDate.label": "Current in-world date: {date}",
+  "worldDate.hint": "Current date in {calendar}"
+}

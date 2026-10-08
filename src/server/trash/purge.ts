@@ -1,4 +1,5 @@
 import { rm } from "node:fs/promises";
+import type { Translator } from "@/i18n/translate";
 import { and, eq, inArray, isNotNull, or, sql } from "drizzle-orm";
 import { db } from "../db/client";
 import {
@@ -88,10 +89,28 @@ async function deleteLooseReferences(tx: Executor, ids: string[]) {
   await eachChunk(ids, (c) => tx.delete(politicalReferences).where(or(inArray(politicalReferences.sourceId, c), inArray(politicalReferences.targetId, c))));
 }
 
+/** What still reads a calendar's dates. */
+type CalendarUser = { kind: "campaign" | "seasonProfile"; name: string } | { kind: "repeating" };
+
+/** Why an item stayed in the Trash; describeSkip words it in the user's language. */
+export type SkipReason = { kind: "mapBusy" } | { kind: "calendarInUse"; name: string; users: CalendarUser[] };
+
 export interface PurgeResult {
   purged: number;
-  /** Maps left in the Trash because an image of theirs is being processed right now. */
-  skipped: { ref: TrashRef; reason: string }[];
+  /** Items left in the Trash: a map whose image is being processed, a calendar still in use. */
+  skipped: { ref: TrashRef; reason: SkipReason }[];
+}
+
+/** A skip reason as a sentence. */
+export function describeSkip(reason: SkipReason, t: Translator<"trash">): string {
+  if (reason.kind === "mapBusy") return t("skip.mapBusy");
+  const users = reason.users.map((u) => (u.kind === "repeating" ? t("skip.user.repeating") : t(u.kind === "campaign" ? "skip.user.campaign" : "skip.user.seasonProfile", { name: u.name })));
+  return t("skip.calendarInUse", { name: reason.name, users: users.join(", ") });
+}
+
+/** The result as sent to the page: skip reasons as sentences. */
+export function describePurgeResult(result: PurgeResult, t: Translator<"trash">) {
+  return { purged: result.purged, skipped: result.skipped.map(({ ref, reason }) => ({ ref, reason: describeSkip(reason, t) })) };
 }
 
 /** Map roots and their trashed sub-maps: the rows to delete and the asset directories to remove afterwards. */
@@ -112,7 +131,7 @@ async function purgeMaps(tx: Executor, rootIds: string[], result: PurgeResult): 
       .where(and(inArray(mapAssets.mapId, subtree), eq(processingJobs.state, "processing")))
       .limit(1);
     if (busy.length > 0) {
-      result.skipped.push({ ref: { kind: "map", id: rootId }, reason: "An image of this map is still being processed. Try again in a moment." });
+      result.skipped.push({ ref: { kind: "map", id: rootId }, reason: { kind: "mapBusy" } });
       continue;
     }
     mapIds.push(...subtree);
@@ -262,15 +281,15 @@ async function purgeEntries(tx: Executor, ids: string[], result: PurgeResult) {
 }
 
 /** What still reads its dates in this calendar: a campaign, a season profile or a repeat rule (by name, for the skip reason). */
-async function calendarUsers(tx: Executor, id: string): Promise<string[]> {
+async function calendarUsers(tx: Executor, id: string): Promise<CalendarUser[]> {
   const campaignRows = await tx.select({ name: campaigns.name }).from(campaigns).where(eq(campaigns.calendarId, id));
   const profileRows = await tx.select({ name: seasonProfiles.name }).from(seasonProfiles).where(eq(seasonProfiles.calendarId, id));
   // Repeat rules name their calendar inside the JSON; ids are UUIDs, so a substring match is exact enough.
   const ruleRows = await tx.select({ id: calendarEntries.id }).from(calendarEntries).where(sql`instr(${calendarEntries.recurrence}, ${id}) > 0`).limit(1);
   return [
-    ...campaignRows.map((r) => `campaign “${r.name}”`),
-    ...profileRows.map((r) => `season profile “${r.name}”`),
-    ...(ruleRows.length > 0 ? ["repeating calendar entries"] : []),
+    ...campaignRows.map((r): CalendarUser => ({ kind: "campaign", name: r.name })),
+    ...profileRows.map((r): CalendarUser => ({ kind: "seasonProfile", name: r.name })),
+    ...(ruleRows.length > 0 ? [{ kind: "repeating" } as const] : []),
   ];
 }
 
@@ -286,7 +305,7 @@ async function purgeCalendars(tx: Executor, ids: string[], result: PurgeResult) 
     if (!row) continue;
     const users = await calendarUsers(tx, id);
     if (users.length > 0) {
-      result.skipped.push({ ref: { kind: "calendar", id }, reason: `“${row.name}” is still used by ${users.join(", ")}. Switch them to another calendar first.` });
+      result.skipped.push({ ref: { kind: "calendar", id }, reason: { kind: "calendarInUse", name: row.name, users } });
       continue;
     }
     purged.push(id);

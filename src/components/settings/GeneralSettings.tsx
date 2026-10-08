@@ -6,6 +6,7 @@ import Toggle from "@/components/Toggle";
 import { useSettings } from "./SettingsProvider";
 import { SettingError, SettingRow, SettingsCard, SettingsHeader } from "./parts";
 import type { Language } from "@/server/settings/settings";
+import { useT } from "@/i18n/useT";
 
 /** Drawn, not emoji: Windows has no flag emoji. */
 function FlagBrazil() {
@@ -30,21 +31,23 @@ function FlagUSA() {
   );
 }
 
-const LANGUAGE_OPTIONS: { key: Language; label: string; region: string; flag: React.ReactNode }[] = [
+/** Each language is named in itself, so it reads right whatever the current language is. */
+const LANGUAGE_OPTIONS:{ key: Language; label: string; region: string; flag: React.ReactNode }[] = [
   { key: "en-US", label: "English", region: "United States", flag: <FlagUSA /> },
   { key: "pt-BR", label: "Português", region: "Brasil", flag: <FlagBrazil /> },
 ];
 
 export default function GeneralSettings() {
   const { settings, updateSetting } = useSettings();
+  const t = useT("settings");
   const [error, setError] = useState<string | null>(null);
   const [barError, setBarError] = useState<string | null>(null);
 
   return (
     <>
-      <SettingsHeader title="General" description="How the app speaks to you, and what the top bar shows." />
-      <SettingsCard title="Language" description="Translations are on the way: your choice is saved now and applies once they arrive.">
-        <div className="settings-choice-grid" role="radiogroup" aria-label="Language">
+      <SettingsHeader title={t("general.title")} description={t("general.description")} />
+      <SettingsCard title={t("general.language.title")} description={t("general.language.description")}>
+        <div className="settings-choice-grid" role="radiogroup" aria-label={t("general.language.title")}>
           {LANGUAGE_OPTIONS.map((option) => {
             const selected = settings.language === option.key;
             return (
@@ -68,9 +71,9 @@ export default function GeneralSettings() {
         </div>
         <SettingError message={error} />
       </SettingsCard>
-      <SettingsCard title="Top bar" description="The bar at the top of every page.">
-        <SettingRow label="In-world date" description="Shows the current date of your world, read in the default calendar, in the middle of the bar. Click it to open Calendars.">
-          <Toggle checked={settings.showWorldDate} label={settings.showWorldDate ? "Shown" : "Hidden"} onChange={async (on) => setBarError(await updateSetting("showWorldDate", on))} />
+      <SettingsCard title={t("general.topBar.title")} description={t("general.topBar.description")}>
+        <SettingRow label={t("general.worldDate.label")} description={t("general.worldDate.description")}>
+          <Toggle checked={settings.showWorldDate} label={settings.showWorldDate ? t("general.worldDate.shown") : t("general.worldDate.hidden")} onChange={async (on) => setBarError(await updateSetting("showWorldDate", on))} />
         </SettingRow>
         <SettingError message={barError} />
       </SettingsCard>

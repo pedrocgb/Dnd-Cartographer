@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { countByGroup, daysUntilPurge, filterSortTrash, parseTrashRefs, trashedDescendants, trashedMapRoots, type TrashItem } from "../src/server/trash/trash";
-import { filterShortcutGroups, SHORTCUT_GROUPS, SHORTCUT_KEYS } from "../src/components/shortcuts";
+import { filterShortcutGroups, localizeShortcutGroups, SHORTCUT_GROUPS, SHORTCUT_KEYS } from "../src/components/shortcuts";
+import { createTranslator } from "../src/i18n/translate";
+
+const GROUPS = localizeShortcutGroups(SHORTCUT_GROUPS, createTranslator("en-US", "shortcuts"));
 
 const item = (over: Partial<TrashItem>): TrashItem => ({ kind: "article", id: "x", name: "X", subtype: "Item", deletedAt: 0, childCount: 0, campaignCount: 0, ...over });
 
@@ -66,12 +69,12 @@ describe("trash list", () => {
 
 describe("shortcuts reference", () => {
   it("lists every map tool key from the sidebar's own table", () => {
-    const tools = SHORTCUT_GROUPS.find((g) => g.title === "Map tools")!;
+    const tools = GROUPS.find((g) => g.id === "mapTools")!;
     expect(tools.shortcuts.map((s) => s.keys[0]).sort()).toEqual(Object.values(SHORTCUT_KEYS).sort());
   });
 
   it("never repeats a key combo within a group and context", () => {
-    for (const group of SHORTCUT_GROUPS) {
+    for (const group of GROUPS) {
       const seen = new Set<string>();
       for (const s of group.shortcuts) {
         for (const combo of s.keys) {
@@ -84,7 +87,7 @@ describe("shortcuts reference", () => {
   });
 
   it("searches actions, contexts and keys", () => {
-    expect(filterShortcutGroups(SHORTCUT_GROUPS, "brush").flatMap((g) => g.shortcuts).length).toBeGreaterThan(0);
-    expect(filterShortcutGroups(SHORTCUT_GROUPS, "zzzz-nothing")).toEqual([]);
+    expect(filterShortcutGroups(GROUPS, "brush").flatMap((g) => g.shortcuts).length).toBeGreaterThan(0);
+    expect(filterShortcutGroups(GROUPS, "zzzz-nothing")).toEqual([]);
   });
 });

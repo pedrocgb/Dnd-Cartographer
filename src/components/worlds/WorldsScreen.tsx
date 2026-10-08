@@ -14,6 +14,7 @@ import IconPicker from "@/components/IconPicker";
 import { RawIcon } from "@/components/MarkerIcon";
 import SegmentedControl from "@/components/marker-panel/SegmentedControl";
 import type { WorldSummary } from "@/server/world/worlds";
+import { useT } from "@/i18n/useT";
 
 const NAME_MAX = 80;
 const DESCRIPTION_MAX = 4000;
@@ -58,9 +59,10 @@ function BadgeContent({ world, size }: { world: Pick<WorldSummary, "name" | "ico
 
 /** "Opening <world>…": the world's badge over the same progress bar as a map being prepared. */
 function WorldOpening({ world }: { world: Opening }) {
+  const t = useT("worlds");
   return (
     <div className="world-opening" style={tint(world)}>
-      <LoadingScreen message={`Opening ${world.name}…`}>
+      <LoadingScreen message={t("opening", { name: world.name })}>
         <span className="world-opening-badge" aria-hidden>
           <BadgeContent world={world} size={36} />
         </span>
@@ -70,13 +72,15 @@ function WorldOpening({ world }: { world: Opening }) {
 }
 
 const QUICK_COLORS = ["#C9706F", "#D9803F", "#E8C547", "#7BC67B", "#47BFAB", "#5BA8D9", "#6A7FD9", "#9B7BD9", "#BF6C92", "#A7ADB5"];
-const BADGE_SEGMENTS = [
-  { key: "letter", label: "First letter" },
-  { key: "icon", label: "Icon" },
-] as const;
 
 /** Name, description, badge icon and color, for a new world or an existing one, with a live preview of its card. */
 function WorldForm({ world, onClose, onSaved, onEntering }: { world: WorldSummary | null; onClose: () => void; onSaved: () => void; onEntering: (w: Opening) => void }) {
+  const t = useT("worlds");
+  const tc = useT("common");
+  const badgeSegments = [
+    { key: "letter", label: t("form.badgeLetter") },
+    { key: "icon", label: t("form.badgeIcon") },
+  ] as const;
   const [name, setName] = useState(world?.name ?? "");
   const [description, setDescription] = useState(world?.description ?? "");
   const [icon, setIcon] = useState(world?.icon ?? "");
@@ -89,7 +93,7 @@ function WorldForm({ world, onClose, onSaved, onEntering }: { world: WorldSummar
   // A new world has no id yet: its automatic color follows its name until it's created.
   const previewId = world?.id ?? (name.trim() || "new");
   const shownIcon = badge === "icon" ? icon : "";
-  const preview = { id: previewId, name: name || "New world", icon: shownIcon, color };
+  const preview = { id: previewId, name: name || t("newWorld"), icon: shownIcon, color };
 
   function pickColor(hex: string) {
     setColor(hex);
@@ -104,7 +108,7 @@ function WorldForm({ world, onClose, onSaved, onEntering }: { world: WorldSummar
     const res = world ? await api("PATCH", `/api/worlds/${world.id}`, body) : await api<{ world: Opening }>("POST", "/api/worlds", body);
     if (!res.ok) {
       setBusy(false);
-      setError(res.data.error ?? "Could not save the world.");
+      setError(res.data.error ?? t("form.saveFailed"));
       return;
     }
     // A new world opens right away (the server set it as this browser's world).
@@ -116,7 +120,7 @@ function WorldForm({ world, onClose, onSaved, onEntering }: { world: WorldSummar
   }
 
   return (
-    <Modal open onClose={() => !busy && onClose()} title={world ? `Edit ${world.name}` : "New world"} size="wide">
+    <Modal open onClose={() => !busy && onClose()} title={world ? t("editWorld", { name: world.name }) : t("newWorld")} size="wide">
       <form className="world-form" onSubmit={submit}>
         <div className="world-form-columns">
           <div className="world-form-main">
@@ -128,43 +132,43 @@ function WorldForm({ world, onClose, onSaved, onEntering }: { world: WorldSummar
               </span>
               <span className="world-form-preview-name">{preview.name}</span>
             </div>
-            {!world && <p className="world-form-intro">A new world starts empty: its own maps, articles, calendars and campaigns.</p>}
+            {!world && <p className="world-form-intro">{t("form.intro")}</p>}
             <label className="world-form-field">
-              <span className="field-label">Name</span>
-              <input type="text" value={name} maxLength={NAME_MAX} placeholder="e.g. The Shattered Isles" autoFocus onChange={(e) => setName(e.target.value)} />
+              <span className="field-label">{t("form.name")}</span>
+              <input type="text" value={name} maxLength={NAME_MAX} placeholder={t("form.namePlaceholder")} autoFocus onChange={(e) => setName(e.target.value)} />
             </label>
             <label className="world-form-field">
-              <span className="field-label">Description</span>
-              <textarea rows={5} value={description} maxLength={DESCRIPTION_MAX} placeholder="What this world is: its tone, its campaign, who plays in it…" onChange={(e) => setDescription(e.target.value)} />
+              <span className="field-label">{t("form.description")}</span>
+              <textarea rows={5} value={description} maxLength={DESCRIPTION_MAX} placeholder={t("form.descriptionPlaceholder")} onChange={(e) => setDescription(e.target.value)} />
             </label>
           </div>
 
           <div className="world-form-side">
             <section className="world-form-block">
               <div className="world-form-block-head">
-                <span className="field-label">Badge</span>
-                <SegmentedControl ariaLabel="Badge" value={badge} segments={BADGE_SEGMENTS} onChange={setBadge} />
+                <span className="field-label">{t("form.badge")}</span>
+                <SegmentedControl ariaLabel={t("form.badge")} value={badge} segments={badgeSegments} onChange={setBadge} />
               </div>
               {badge === "icon" ? (
                 <div className="world-form-icons">
                   <IconPicker value={icon} onChange={setIcon} />
                 </div>
               ) : (
-                <p className="cal-help">The circle shows the first letter of the name. Choose Icon to pick a symbol instead.</p>
+                <p className="cal-help">{t("form.badgeLetterHelp")}</p>
               )}
             </section>
 
             <section className="world-form-block">
               <div className="world-form-block-head">
-                <span className="field-label">Color</span>
+                <span className="field-label">{t("form.color")}</span>
                 <button type="button" className={color ? "world-auto-color" : "world-auto-color active"} aria-pressed={!color} onClick={() => pickColor("")}>
-                  Automatic
+                  {t("form.colorAutomatic")}
                 </button>
               </div>
               <div className="sp-swatches">
                 {QUICK_COLORS.map((c) => {
                   const active = c.toLowerCase() === color.toLowerCase();
-                  return <button key={c} type="button" className={active ? "sp-swatch active" : "sp-swatch"} style={{ background: c }} aria-label={`Color ${c}`} aria-pressed={active} onClick={() => pickColor(c)} />;
+                  return <button key={c} type="button" className={active ? "sp-swatch active" : "sp-swatch"} style={{ background: c }} aria-label={t("form.colorSwatch", { color: c })} aria-pressed={active} onClick={() => pickColor(c)} />;
                 })}
               </div>
               <div className="world-form-wheel">
@@ -180,10 +184,10 @@ function WorldForm({ world, onClose, onSaved, onEntering }: { world: WorldSummar
         )}
         <div className="confirm-dialog-actions">
           <button type="button" className="btn btn-sm" onClick={onClose} disabled={busy}>
-            Cancel
+            {tc("cancel")}
           </button>
           <button type="submit" className="btn btn-sm btn-primary" disabled={busy || !name.trim() || (badge === "icon" && !icon)}>
-            {busy ? "Saving…" : world ? "Save" : "Create and open"}
+            {busy ? tc("saving") : world ? tc("save") : t("form.createAndOpen")}
           </button>
         </div>
       </form>
@@ -193,15 +197,16 @@ function WorldForm({ world, onClose, onSaved, onEntering }: { world: WorldSummar
 
 function WorldCard({ world, active, busy, onOpen, onEdit, onDelete }: { world: WorldSummary; active: boolean; busy: boolean; onOpen: () => void; onEdit: () => void; onDelete: () => void }) {
   const { settings } = useSettings();
+  const t = useT("worlds");
   const stats = [
-    { Icon: MapIcon, n: world.counts.maps, one: "map", many: "maps" },
-    { Icon: Book, n: world.counts.articles, one: "article", many: "articles" },
-    { Icon: CalendarDays, n: world.counts.calendars, one: "calendar", many: "calendars" },
-    { Icon: Swords, n: world.counts.campaigns, one: "campaign", many: "campaigns" },
-  ];
+    { Icon: MapIcon, n: world.counts.maps, key: "stats.maps" },
+    { Icon: Book, n: world.counts.articles, key: "stats.articles" },
+    { Icon: CalendarDays, n: world.counts.calendars, key: "stats.calendars" },
+    { Icon: Swords, n: world.counts.campaigns, key: "stats.campaigns" },
+  ] as const;
   return (
     <article className={active ? "world-card active" : "world-card"} style={tint(world)}>
-      <button type="button" className="world-card-open" onClick={onOpen} disabled={busy} aria-label={`Open ${world.name}`}>
+      <button type="button" className="world-card-open" onClick={onOpen} disabled={busy} aria-label={t("openWorld", { name: world.name })}>
         <span className="world-card-banner" aria-hidden>
           <span className="world-card-initial">
             <BadgeContent world={world} size={24} />
@@ -210,25 +215,25 @@ function WorldCard({ world, active, busy, onOpen, onEdit, onDelete }: { world: W
         <span className="world-card-body">
           <span className="world-card-title">
             <strong>{world.name}</strong>
-            {active && <span className="world-card-current">Open now</span>}
+            {active && <span className="world-card-current">{t("openNow")}</span>}
           </span>
-          <span className={world.description ? "world-card-description" : "world-card-description empty"}>{world.description || "No description yet."}</span>
+          <span className={world.description ? "world-card-description" : "world-card-description empty"}>{world.description || t("noDescription")}</span>
           <span className="world-card-stats">
-            {stats.map(({ Icon, n, one, many }) => (
-              <span key={one} className="world-card-stat">
+            {stats.map(({ Icon, n, key }) => (
+              <span key={key} className="world-card-stat">
                 <Icon size={13} aria-hidden />
-                {formatInteger(n)} {n === 1 ? one : many}
+                {t(key, { count: n, n: formatInteger(n) })}
               </span>
             ))}
           </span>
-          <span className="world-card-foot">{world.lastOpenedAt ? `Last opened ${formatRealDate(world.lastOpenedAt, settings.realDateFormat)}` : "Never opened"}</span>
+          <span className="world-card-foot">{world.lastOpenedAt ? t("lastOpened", { date: formatRealDate(world.lastOpenedAt, settings.realDateFormat, { language: settings.language }) }) : t("neverOpened")}</span>
         </span>
       </button>
       <div className="world-card-actions">
-        <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={`Edit ${world.name}`} data-tooltip="Edit name, icon and color" onClick={onEdit}>
+        <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={t("editWorld", { name: world.name })} data-tooltip={t("editHint")} onClick={onEdit}>
           <Pencil size={14} />
         </button>
-        <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={`Delete ${world.name}`} data-tooltip="Delete world" onClick={onDelete}>
+        <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={t("deleteWorldNamed", { name: world.name })} data-tooltip={t("deleteWorld")} onClick={onDelete}>
           <Trash2 size={14} />
         </button>
       </div>
@@ -246,6 +251,7 @@ export default function WorldsScreen({ initialWorlds, activeId: initialActive }:
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [opening, setOpening] = useState<Opening | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const t = useT("worlds");
 
   async function reload() {
     const res = await api<{ worlds: WorldSummary[]; activeId: string | null }>("GET", "/api/worlds");
@@ -261,7 +267,7 @@ export default function WorldsScreen({ initialWorlds, activeId: initialActive }:
     if (res.ok) enterWorld();
     else {
       setOpening(null);
-      setError(res.data.error ?? "Could not open the world.");
+      setError(res.data.error ?? t("openFailed"));
     }
   }
   async function remove() {
@@ -271,7 +277,7 @@ export default function WorldsScreen({ initialWorlds, activeId: initialActive }:
     const res = await api("DELETE", `/api/worlds/${deleting.id}`, { confirmName: deleting.name });
     setDeleteBusy(false);
     if (!res.ok) {
-      setDeleteError(res.data.error ?? "Could not delete the world.");
+      setDeleteError(res.data.error ?? t("deleteFailed"));
       return;
     }
     setDeleting(null);
@@ -282,8 +288,8 @@ export default function WorldsScreen({ initialWorlds, activeId: initialActive }:
     <div className="worlds-page">
       <header className="worlds-header">
         <Globe2 size={30} strokeWidth={1.75} aria-hidden />
-        <h1>{worlds.length ? "Choose your world" : "Create your first world"}</h1>
-        <p>Each world keeps its own maps, articles, calendars and campaigns. Your settings are shared by all of them.</p>
+        <h1>{worlds.length ? t("titleChoose") : t("titleFirst")}</h1>
+        <p>{t("intro")}</p>
       </header>
       {error && (
         <p className="form-error worlds-error" role="alert">
@@ -296,8 +302,8 @@ export default function WorldsScreen({ initialWorlds, activeId: initialActive }:
         ))}
         <button type="button" className="world-card world-card-new" onClick={() => setEditing("new")}>
           <Plus size={26} aria-hidden />
-          <strong>New world</strong>
-          <span>Starts empty</span>
+          <strong>{t("newWorld")}</strong>
+          <span>{t("startsEmpty")}</span>
         </button>
       </div>
 
@@ -320,9 +326,9 @@ export default function WorldsScreen({ initialWorlds, activeId: initialActive }:
         <ConfirmDialog
           open
           danger
-          title={`Delete ${deleting.name}?`}
-          confirmLabel="Delete world"
-          busyLabel="Deleting…"
+          title={t("deleteTitle", { name: deleting.name })}
+          confirmLabel={t("deleteWorld")}
+          busyLabel={t("deleting")}
           busy={deleteBusy}
           error={deleteError}
           confirmText={deleting.name}
@@ -332,8 +338,7 @@ export default function WorldsScreen({ initialWorlds, activeId: initialActive }:
             setDeleteError(null);
           }}
         >
-          Everything in this world is removed for good, Trash included: its {formatInteger(deleting.counts.maps)} maps and their images, {formatInteger(deleting.counts.articles)} articles, calendars and campaigns. This can&apos;t be
-          undone. To keep a copy of its maps, open it and use Settings › Data › Export first.
+          {t("deleteWarning", { maps: formatInteger(deleting.counts.maps), articles: formatInteger(deleting.counts.articles) })}
         </ConfirmDialog>
       )}
     </div>

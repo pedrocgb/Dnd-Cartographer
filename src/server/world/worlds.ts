@@ -3,6 +3,7 @@ import { db } from "../db/client";
 import { articles, calendars, campaigns, maps, organizations, people, territories, worldChronology, worlds } from "../db/schema";
 import { cleanColor, cleanName } from "../calendars/parse";
 import { isValidIconKey } from "../markers/icon-registry";
+import type { MessageKey } from "@/i18n/messages";
 
 export interface WorldSummary {
   id: string;
@@ -71,23 +72,23 @@ export interface WorldFields {
   color?: string;
 }
 
-/** Name, description, icon and color from a request body; `error` when the name is missing or the icon/color is invalid. */
-export function parseWorldFields(body: Record<string, unknown>, partial: boolean): WorldFields | { error: string } {
+/** Name, description, icon and color from a request body; `error` (an `errors` message key) when the name is missing or the icon/color is invalid. */
+export function parseWorldFields(body: Record<string, unknown>, partial: boolean): WorldFields | { error: MessageKey<"errors"> } {
   const fields: WorldFields = {};
   if (!partial || "name" in body) {
     const name = cleanName(body.name, WORLD_NAME_MAX);
-    if (!name) return { error: "A world needs a name." };
+    if (!name) return { error: "worldNameRequired" };
     fields.name = name;
   }
   if (!partial || "description" in body) fields.description = cleanName(body.description, WORLD_DESCRIPTION_MAX);
   if ("icon" in body) {
     const icon = typeof body.icon === "string" ? body.icon : "";
-    if (icon && !isValidIconKey(icon)) return { error: "Unknown icon." };
+    if (icon && !isValidIconKey(icon)) return { error: "unknownIcon" };
     fields.icon = icon;
   }
   if ("color" in body) {
     const color = body.color === "" || body.color === null ? "" : cleanColor(body.color);
-    if (color === null) return { error: "Colors are #RRGGBB." };
+    if (color === null) return { error: "colorFormat" };
     fields.color = color;
   }
   return fields;

@@ -23,8 +23,18 @@ import { originalPath, originalKey, tempUploadPath } from "../assets/paths";
 import { validateImageFile, InvalidImageError } from "../assets/validate";
 import type { ExportBundle } from "./types";
 import { createDefaultLayer } from "../layers/layers";
+import { translate } from "@/i18n/translate";
+import type { MessageKey } from "@/i18n/messages";
 
-export class ImportValidationError extends Error {}
+/** A rejected import file; `key`/`params` are an `errors` message the route words in the user's language. */
+export class ImportValidationError extends Error {
+  constructor(
+    readonly key: MessageKey<"errors">,
+    readonly params?: Record<string, string>,
+  ) {
+    super(translate("en-US", "errors", key, params));
+  }
+}
 
 /** Tolerates bundles from before statusTags existed (undefined/malformed). */
 function parseJsonArraySafe(raw: string | undefined): unknown[] {
@@ -41,20 +51,20 @@ const LIMITS = { maxMaps: 5000, maxMarkers: 50_000, maxDocuments: 55_000, maxCat
 
 function assertBundleShape(bundle: unknown): ExportBundle {
   if (typeof bundle !== "object" || bundle === null) {
-    throw new ImportValidationError("Import file is not a valid export bundle.");
+    throw new ImportValidationError("importNotBundle");
   }
   const b = bundle as Partial<ExportBundle>;
   if (b.exportVersion !== 1) {
-    throw new ImportValidationError(`Unsupported export version: ${String(b.exportVersion)}`);
+    throw new ImportValidationError("importUnsupportedVersion", { version: String(b.exportVersion) });
   }
   if (!Array.isArray(b.maps) || !Array.isArray(b.markers) || !Array.isArray(b.documents)) {
-    throw new ImportValidationError("Import file is missing required sections.");
+    throw new ImportValidationError("importMissingSections");
   }
-  if (b.maps.length > LIMITS.maxMaps) throw new ImportValidationError("Too many maps in import file.");
-  if (b.markers.length > LIMITS.maxMarkers) throw new ImportValidationError("Too many markers in import file.");
-  if (b.documents.length > LIMITS.maxDocuments) throw new ImportValidationError("Too many documents in import file.");
+  if (b.maps.length > LIMITS.maxMaps) throw new ImportValidationError("importTooManyMaps");
+  if (b.markers.length > LIMITS.maxMarkers) throw new ImportValidationError("importTooManyMarkers");
+  if (b.documents.length > LIMITS.maxDocuments) throw new ImportValidationError("importTooManyDocuments");
   if ((b.mapCategories?.length ?? 0) > LIMITS.maxCategories || (b.markerCategories?.length ?? 0) > LIMITS.maxCategories) {
-    throw new ImportValidationError("Too many categories in import file.");
+    throw new ImportValidationError("importTooManyCategories");
   }
   return b as ExportBundle;
 }
@@ -83,13 +93,13 @@ export async function importBundle(raw: unknown, worldId: string): Promise<Impor
     try {
       parsed = JSON.parse(doc.jsonText);
     } catch {
-      throw new ImportValidationError(`Document ${doc.id} is not valid JSON.`);
+      throw new ImportValidationError("importDocumentNotJson", { id: doc.id });
     }
     try {
       validateDocument(parsed);
     } catch (err) {
       if (err instanceof DocumentValidationError) {
-        throw new ImportValidationError(`Document ${doc.id} failed validation: ${err.message}`);
+        throw new ImportValidationError("importDocumentInvalid", { id: doc.id, reason: err.message });
       }
       throw err;
     }

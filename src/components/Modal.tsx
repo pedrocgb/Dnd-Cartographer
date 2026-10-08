@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Maximize2, Minus, X } from "lucide-react";
+import { useT } from "@/i18n/useT";
 
 /** Open, not minimized modals, oldest first. */
 const openModals: object[] = [];
@@ -61,18 +62,19 @@ export default function Modal({
   children: React.ReactNode;
 }) {
   useModalKeyboard(open && !minimized, onClose);
+  const t = useT("common");
 
   if (!open) return null;
 
   if (minimized && onMinimize) {
     return createPortal(
-      <div className="modal-dock" role="dialog" aria-label={`${title} (minimized)`}>
+      <div className="modal-dock" role="dialog" aria-label={t("minimizedTitle", { title })}>
         <span className="modal-dock-title">{title}</span>
         <button className="btn btn-sm" onClick={() => onMinimize(false)} autoFocus>
           <Maximize2 size={14} strokeWidth={2.25} />
-          Restore
+          {t("restore")}
         </button>
-        <button className="btn btn-ghost btn-icon btn-sm" onClick={onClose} aria-label="Close dialog" data-tooltip="Close">
+        <button className="btn btn-ghost btn-icon btn-sm" onClick={onClose} aria-label={t("closeDialog")} data-tooltip={t("close")}>
           <X size={14} strokeWidth={2.25} />
         </button>
       </div>,
@@ -92,11 +94,11 @@ export default function Modal({
           <h2>{title}</h2>
           <div className="modal-header-actions">
             {onMinimize && (
-              <button className="btn btn-ghost btn-icon" onClick={() => onMinimize(true)} aria-label="Minimize dialog" data-tooltip="Minimize to see the page behind">
+              <button className="btn btn-ghost btn-icon" onClick={() => onMinimize(true)} aria-label={t("minimizeDialog")} data-tooltip={t("minimizeHint")}>
                 <Minus size={16} strokeWidth={2.25} />
               </button>
             )}
-            <button className="btn btn-ghost btn-icon" onClick={onClose} aria-label="Close dialog">
+            <button className="btn btn-ghost btn-icon" onClick={onClose} aria-label={t("closeDialog")}>
               <X size={16} strokeWidth={2.25} />
             </button>
           </div>

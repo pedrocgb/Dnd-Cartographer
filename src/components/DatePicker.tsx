@@ -6,9 +6,22 @@ import { CalendarDays, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { usePopover } from "./usePopover";
 import { formatRealDate } from "@/server/settings/date-format";
 import { activeSettings } from "@/server/settings/active";
+import { useSettings } from "./settings/SettingsProvider";
+import { useT } from "@/i18n/useT";
+import type { Locale } from "@/i18n/config";
 
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+/** Month names, weekday initials (Sunday first) and a day's full name, in the language. */
+function calendarWords(locale: Locale) {
+  const month = new Intl.DateTimeFormat(locale, { month: "long" });
+  const weekday = new Intl.DateTimeFormat(locale, { weekday: "short" });
+  const full = new Intl.DateTimeFormat(locale, { dateStyle: "long" });
+  return {
+    months: Array.from({ length: 12 }, (_, m) => month.format(new Date(2000, m, 1))),
+    // 2 January 2000 was a Sunday.
+    weekdays: Array.from({ length: 7 }, (_, d) => weekday.format(new Date(2000, 0, 2 + d))),
+    dayName: ({ y, m, d }: Ymd) => full.format(new Date(y, m, d)),
+  };
+}
 
 type Ymd = { y: number; m: number; d: number };
 
@@ -34,7 +47,10 @@ export const formatIsoDate = (v: string | null) => (parseIso(v) ? formatRealDate
  * Clear. Esc or a click outside closes it. The grid floats over the page
  * (portaled to <body>), so it never stretches or clips a modal.
  */
-export default function DatePicker({ value, onChange, label, placeholder = "Pick a date" }: { value: string | null; onChange: (iso: string | null) => void; label: string; placeholder?: string }) {
+export default function DatePicker({ value, onChange, label, placeholder }: { value: string | null; onChange: (iso: string | null) => void; label: string; placeholder?: string }) {
+  const t = useT("common");
+  const { language } = useSettings().settings;
+  const words = calendarWords(language);
   const selected = parseIso(value);
   const { open, setOpen, root, trigger, pop } = usePopover();
   const [shown, setShown] = useState(() => {
@@ -72,12 +88,12 @@ export default function DatePicker({ value, onChange, label, placeholder = "Pick
   return (
     <div className="dp" ref={root}>
       <div className="dp-field">
-        <button type="button" ref={trigger} className="dp-trigger" aria-label={`${label}: ${value ? formatIsoDate(value) : "not set"}`} aria-haspopup="dialog" aria-expanded={open} onClick={toggle}>
+        <button type="button" ref={trigger} className="dp-trigger" aria-label={t("datePicker.fieldValue", { label, value: value ? formatIsoDate(value) : t("datePicker.notSet") })} aria-haspopup="dialog" aria-expanded={open} onClick={toggle}>
           <CalendarDays size={15} aria-hidden />
-          <span className={value ? undefined : "dp-placeholder"}>{value ? formatIsoDate(value) : placeholder}</span>
+          <span className={value ? undefined : "dp-placeholder"}>{value ? formatIsoDate(value) : (placeholder ?? t("datePicker.placeholder"))}</span>
         </button>
         {value && (
-          <button type="button" className="btn btn-ghost btn-icon btn-sm dp-clear" aria-label={`Clear ${label}`} onClick={() => onChange(null)}>
+          <button type="button" className="btn btn-ghost btn-icon btn-sm dp-clear" aria-label={t("datePicker.clearField", { label })} onClick={() => onChange(null)}>
             <X size={14} />
           </button>
         )}
@@ -87,18 +103,18 @@ export default function DatePicker({ value, onChange, label, placeholder = "Pick
           // Hidden until positioned, so it never flashes at the corner.
           <div className="dp-pop" ref={pop} role="dialog" aria-label={label} style={{ visibility: "hidden" }}>
           <div className="dp-head">
-            <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label="Previous month" onClick={() => step(-1)}>
+            <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={t("datePicker.previousMonth")} onClick={() => step(-1)}>
               <ChevronLeft size={16} />
             </button>
             <div className="dp-title">
-              <select aria-label="Month" value={shown.m} onChange={(e) => setShown({ ...shown, m: Number(e.target.value) })}>
-                {MONTHS.map((name, i) => (
+              <select aria-label={t("datePicker.month")} value={shown.m} onChange={(e) => setShown({ ...shown, m: Number(e.target.value) })}>
+                {words.months.map((name, i) => (
                   <option key={name} value={i}>
                     {name}
                   </option>
                 ))}
               </select>
-              <select aria-label="Year" value={shown.y} onChange={(e) => setShown({ ...shown, y: Number(e.target.value) })}>
+              <select aria-label={t("datePicker.year")} value={shown.y} onChange={(e) => setShown({ ...shown, y: Number(e.target.value) })}>
                 {!years.includes(shown.y) && <option value={shown.y}>{shown.y}</option>}
                 {years.map((y) => (
                   <option key={y} value={y}>
@@ -107,12 +123,12 @@ export default function DatePicker({ value, onChange, label, placeholder = "Pick
                 ))}
               </select>
             </div>
-            <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label="Next month" onClick={() => step(1)}>
+            <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={t("datePicker.nextMonth")} onClick={() => step(1)}>
               <ChevronRight size={16} />
             </button>
           </div>
           <div className="dp-grid" role="grid">
-            {WEEKDAYS.map((w) => (
+            {words.weekdays.map((w) => (
               <span key={w} className="dp-weekday" role="columnheader">
                 {w}
               </span>
@@ -120,7 +136,7 @@ export default function DatePicker({ value, onChange, label, placeholder = "Pick
             {cells.map(({ date, outside }) => {
               const classes = ["dp-day", outside && "outside", same(selected, date) && "selected", same(today, date) && "today"].filter(Boolean).join(" ");
               return (
-                <button key={toIso(date)} type="button" role="gridcell" className={classes} aria-selected={same(selected, date)} aria-label={`${date.d} ${MONTHS[date.m]} ${date.y}`} onClick={() => pick(date)}>
+                <button key={toIso(date)} type="button" role="gridcell" className={classes} aria-selected={same(selected, date)} aria-label={words.dayName(date)} onClick={() => pick(date)}>
                   {date.d}
                 </button>
               );
@@ -128,7 +144,7 @@ export default function DatePicker({ value, onChange, label, placeholder = "Pick
           </div>
           <div className="dp-foot">
             <button type="button" className="btn btn-ghost btn-sm" onClick={() => pick(today)}>
-              Today
+              {t("datePicker.today")}
             </button>
             {value && (
               <button
@@ -139,7 +155,7 @@ export default function DatePicker({ value, onChange, label, placeholder = "Pick
                   setOpen(false);
                 }}
               >
-                Clear
+                {t("datePicker.clear")}
               </button>
             )}
           </div>

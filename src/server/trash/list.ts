@@ -3,13 +3,16 @@ import { db } from "../db/client";
 import { articles, calendarEntries, calendars, campaignCharacters, maps, organizations, people, territories } from "../db/schema";
 import { TEMPLATE_LABELS, isGenericTemplate, personTemplate } from "../articles/templates";
 import { trashedDescendantsLookup, trashedMapRoots, type TrashItem, type TrashRef } from "./trash";
+import { serverT } from "@/i18n/server";
+import type { MessageKey } from "@/i18n/messages";
 
-const ENTRY_KIND_LABELS: Record<string, string> = { note: "Calendar note", event: "Calendar event", link: "Calendar link" };
+const ENTRY_KIND_LABELS: Record<string, MessageKey<"trash">> = { note: "kind.calendarNote", event: "kind.calendarEvent", link: "kind.calendarLink" };
 
 const ms = (d: Date | null) => (d ? d.getTime() : 0);
 
 /** Every trashed item of the world, unsorted (see filterSortTrash). */
 export async function listTrash(worldId: string): Promise<TrashItem[]> {
+  const t = await serverT("trash");
   const [mapRows, articleRows, personRows, orgRows, territoryRows, calendarRows, entryRows, rosterRows] = await Promise.all([
     db.select({ id: maps.id, name: maps.name, parentId: maps.parentId, deletedAt: maps.deletedAt }).from(maps).where(eq(maps.worldId, worldId)),
     db.select({ id: articles.id, title: articles.title, template: articles.template, deletedAt: articles.deletedAt }).from(articles).where(and(eq(articles.worldId, worldId), isNotNull(articles.deletedAt))),
@@ -36,8 +39,8 @@ export async function listTrash(worldId: string): Promise<TrashItem[]> {
       ...base,
       kind: "map",
       id: m.id,
-      name: mapNames.get(m.id) || "Untitled map",
-      subtype: "Map",
+      name: mapNames.get(m.id) || t("untitled.map"),
+      subtype: t("kind.map"),
       deletedAt: m.deletedAt ?? 0,
       childCount: descendantsOf(m.id).length,
     })),
@@ -45,28 +48,28 @@ export async function listTrash(worldId: string): Promise<TrashItem[]> {
       ...base,
       kind: "article",
       id: a.id,
-      name: a.title || "Untitled article",
-      subtype: isGenericTemplate(a.template) ? TEMPLATE_LABELS[a.template] : "Article",
+      name: a.title || t("untitled.article"),
+      subtype: isGenericTemplate(a.template) ? TEMPLATE_LABELS[a.template] : t("kind.article"),
       deletedAt: ms(a.deletedAt),
     })),
     ...personRows.map((p): TrashItem => ({
       ...base,
       kind: "person",
       id: p.id,
-      name: p.name || "Unnamed character",
+      name: p.name || t("untitled.person"),
       subtype: TEMPLATE_LABELS[personTemplate(p.kind)],
       deletedAt: ms(p.deletedAt),
       campaignCount: rosterCounts.get(p.id) ?? 0,
     })),
-    ...orgRows.map((o): TrashItem => ({ ...base, kind: "organization", id: o.id, name: o.name || "Unnamed organization", subtype: TEMPLATE_LABELS.organization, deletedAt: ms(o.deletedAt) })),
-    ...territoryRows.map((t): TrashItem => ({ ...base, kind: "territory", id: t.id, name: t.name || "Unnamed territory", subtype: TEMPLATE_LABELS.territory, deletedAt: ms(t.deletedAt) })),
-    ...calendarRows.map((c): TrashItem => ({ ...base, kind: "calendar", id: c.id, name: c.name || "Untitled calendar", subtype: "Calendar", deletedAt: ms(c.deletedAt) })),
+    ...orgRows.map((o): TrashItem => ({ ...base, kind: "organization", id: o.id, name: o.name || t("untitled.organization"), subtype: TEMPLATE_LABELS.organization, deletedAt: ms(o.deletedAt) })),
+    ...territoryRows.map((tr): TrashItem => ({ ...base, kind: "territory", id: tr.id, name: tr.name || t("untitled.territory"), subtype: TEMPLATE_LABELS.territory, deletedAt: ms(tr.deletedAt) })),
+    ...calendarRows.map((c): TrashItem => ({ ...base, kind: "calendar", id: c.id, name: c.name || t("untitled.calendar"), subtype: t("kind.calendar"), deletedAt: ms(c.deletedAt) })),
     ...entryRows.map((e): TrashItem => ({
       ...base,
       kind: "calendarEntry",
       id: e.id,
-      name: e.title.trim() || e.description.trim().slice(0, 60) || "Untitled note",
-      subtype: ENTRY_KIND_LABELS[e.kind] ?? "Calendar entry",
+      name: e.title.trim() || e.description.trim().slice(0, 60) || t("untitled.note"),
+      subtype: t(ENTRY_KIND_LABELS[e.kind] ?? "kind.calendarEntry"),
       deletedAt: ms(e.deletedAt),
     })),
   ];
