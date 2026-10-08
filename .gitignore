@@ -46,4 +46,8 @@ next-env.d.ts
 *.log
 
 # local Claude Code tooling (personal skills/scratch, not project source)
-/.claude
+/.claude/*
+!/.claude/skills/
+/.claude/skills/*
+# the localization skill travels with the repo (docs/localization.md)
+!/.claude/skills/localize-batch/
