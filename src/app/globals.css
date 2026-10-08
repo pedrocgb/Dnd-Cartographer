@@ -3184,6 +3184,19 @@ input[type="range"]::-moz-range-track {
   border-left-color: var(--brass-400);
   background: color-mix(in srgb, var(--brass-900) 85%, transparent);
 }
+/* Secret text inside a line: the same violet/brass, as a highlight. */
+.ProseMirror .rx-secret-text {
+  padding: 0 2px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--violet-500) 28%, transparent);
+  border-bottom: 1px dashed var(--violet-300);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.ProseMirror .rx-secret-text[data-revealed="true"] {
+  background: color-mix(in srgb, var(--brass-500) 25%, transparent);
+  border-bottom-color: var(--brass-300);
+}
 .rx-secret-lock {
   position: absolute;
   top: var(--space-1);
@@ -3211,6 +3224,20 @@ input[type="range"]::-moz-range-track {
   color: var(--brass-300);
 }
 .rx-secret[data-revealed="true"] .rx-secret-lock:hover {
+  background: color-mix(in srgb, var(--brass-500) 30%, transparent);
+}
+/* The padlock in front of secret text: in the line, not in a corner. */
+.rx-secret-lock.rx-secret-text-lock {
+  position: static;
+  width: 18px;
+  height: 18px;
+  margin-right: 2px;
+  vertical-align: -3px;
+}
+.rx-secret-text-lock[data-revealed="true"] {
+  color: var(--brass-300);
+}
+.rx-secret-text-lock[data-revealed="true"]:hover {
   background: color-mix(in srgb, var(--brass-500) 30%, transparent);
 }
 .rx-secret-body > :first-child {

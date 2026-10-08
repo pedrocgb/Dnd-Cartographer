@@ -39,6 +39,7 @@ import {
 import FontPicker from "@/components/FontPicker";
 import { MAP_FONTS, mapFontFamily, type MapFontKey } from "@/server/texts/fonts";
 import type { ImageAlign } from "./extensions";
+import { toggleAnySecret } from "./secret";
 import { DEFAULT_SWATCH, TEXT_COLORS, textColorOf } from "./colors";
 import { useT } from "@/i18n/useT";
 import type { Translator } from "@/i18n/translate";
@@ -358,7 +359,7 @@ export function TextBubbleMenu({ editor, onLinkArticle, onLinkDate }: { editor: 
           <ColorButton editor={editor} />
           <ToolButton label={t("toolbar.linkArticle")} Icon={AtSign} onClick={onLinkArticle} />
           <ToolButton label={t("toolbar.linkDate")} Icon={CalendarDays} onClick={onLinkDate} />
-          <ToolButton label={t("toolbar.secret")} Icon={Lock} active={editor.isActive("secret")} onClick={() => editor.chain().focus().toggleSecret().run()} />
+          <ToolButton label={t("toolbar.secret")} Icon={Lock} active={editor.isActive("secret") || editor.isActive("secretText")} onClick={() => toggleAnySecret(editor)} />
           <ToolButton label={t("toolbar.link")} Icon={Link2} active={editor.isActive("link")} onClick={() => setLinking(true)} />
           {editor.isActive("link") && <ToolButton label={t("toolbar.removeLink")} Icon={Unlink} onClick={() => editor.chain().focus().extendMarkRange("link").unsetLink().run()} />}
         </div>

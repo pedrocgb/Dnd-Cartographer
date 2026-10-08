@@ -41,7 +41,7 @@ export const ALLOWED_NODE_TYPES = new Set([
   "tableHeader",
 ]);
 
-export const ALLOWED_MARK_TYPES = new Set(["bold", "italic", "strike", "underline", "link", "textStyle"]);
+export const ALLOWED_MARK_TYPES = new Set(["bold", "italic", "strike", "underline", "link", "textStyle", "secretText"]);
 
 export const ALLOWED_LINK_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
 
@@ -164,6 +164,7 @@ function checkNodeAttrs(node: JsonNode): void {
 function checkMark(mark: { type: string; attrs?: Record<string, unknown> }): void {
   if (!ALLOWED_MARK_TYPES.has(mark.type)) fail("docMarkType", { type: String(mark.type) });
   if (mark.type === "link" && !isValidHref(mark.attrs?.href)) fail("docLinkHref");
+  if (mark.type === "secretText" && !isNullish(mark.attrs?.revealed) && typeof mark.attrs?.revealed !== "boolean") fail("docSecretState");
   if (mark.type !== "textStyle") return;
   const { color, fontFamily } = mark.attrs ?? {};
   if (!isNullish(color) && !(typeof color === "string" && HEX_COLOR.test(color))) fail("docTextColor");

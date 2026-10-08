@@ -1,4 +1,7 @@
-import { Node, mergeAttributes } from "@tiptap/core";
+import { Mark, Node, getMarkRange, mergeAttributes, type Editor } from "@tiptap/core";
+import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { Decoration, DecorationSet } from "@tiptap/pm/view";
+import type { Node as PMNode } from "@tiptap/pm/model";
 import { activeT } from "@/i18n/active";
 
 declare module "@tiptap/core" {
@@ -103,3 +106,106 @@ export const Secret = Node.create({
     };
   },
 });
+
+const SECRET_TEXT = "secretText";
+
+/**
+ * Secret text inside a paragraph: the inline cousin of the secret block, for
+ * a few words in a long passage. Violet while hidden, brass once revealed;
+ * in read mode a click on it reveals or hides it (saved like the block's
+ * padlock). Shared views drop it unless revealed (server/share/transform.ts).
+ */
+export const SecretText = Mark.create({
+  name: SECRET_TEXT,
+  // Typing at its edge doesn't extend the secret.
+  inclusive: false,
+  addAttributes() {
+    return {
+      revealed: {
+        default: false,
+        parseHTML: (el) => el.getAttribute("data-revealed") === "true",
+        renderHTML: (attrs) => ({ "data-revealed": attrs.revealed ? "true" : "false" }),
+      },
+    };
+  },
+  parseHTML() {
+    return [{ tag: 'span[data-type="secret-text"]' }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ["span", mergeAttributes(HTMLAttributes, { "data-type": "secret-text", class: "rx-secret-text" }), 0];
+  },
+  addProseMirrorPlugins() {
+    const type = this.type;
+    // A padlock widget before each run of secret text: decorations, not
+    // document content, so it's never saved and never reaches a share.
+    const padlocks = (doc: PMNode) => {
+      const widgets: Decoration[] = [];
+      let prevEnd = -1;
+      doc.descendants((node, pos) => {
+        const mark = node.isInline ? node.marks.find((m) => m.type === type) : undefined;
+        // A run split across text nodes (bold in the middle) gets one padlock.
+        if (mark && pos !== prevEnd) widgets.push(padlockWidget(pos, mark.attrs.revealed === true));
+        if (mark) prevEnd = pos + node.nodeSize;
+      });
+      return DecorationSet.create(doc, widgets);
+    };
+    const padlockWidget = (at: number, revealed: boolean) =>
+      Decoration.widget(
+        at,
+        (view, getPos) => {
+          const lock = document.createElement("button");
+          lock.type = "button";
+          lock.className = "rx-secret-lock rx-secret-text-lock";
+          lock.contentEditable = "false";
+          lock.setAttribute("data-revealed", String(revealed));
+          lock.innerHTML = revealed ? UNLOCKED_ICON : LOCKED_ICON;
+          const label = activeT("editor")(revealed ? "secret.hide" : "secret.reveal");
+          lock.setAttribute("aria-label", label);
+          lock.setAttribute("aria-pressed", String(revealed));
+          lock.setAttribute("data-tooltip", label);
+          // Like the block's padlock: works while reading or editing, and saves the reveal.
+          lock.addEventListener("mousedown", (e) => e.preventDefault());
+          lock.addEventListener("click", (e) => {
+            e.preventDefault();
+            const pos = getPos();
+            if (pos === undefined) return;
+            const { doc } = view.state;
+            const range = getMarkRange(doc.resolve(pos), type);
+            const mark = range && doc.nodeAt(range.from)?.marks.find((m) => m.type === type);
+            if (!range || !mark) return;
+            const next = type.create({ ...mark.attrs, revealed: mark.attrs.revealed !== true });
+            view.dispatch(view.state.tr.removeMark(range.from, range.to, type).addMark(range.from, range.to, next).setMeta(SECRET_REVEAL_META, true));
+          });
+          return lock;
+        },
+        { side: -1, key: `secret-text-${at}-${revealed}`, ignoreSelection: true, stopEvent: () => true }
+      );
+    return [
+      new Plugin({
+        key: new PluginKey("secretTextPadlocks"),
+        state: {
+          init: (_, state) => padlocks(state.doc),
+          apply: (tr, set) => (tr.docChanged ? padlocks(tr.doc) : set),
+        },
+        props: {
+          decorations(state) {
+            return this.getState(state);
+          },
+        },
+      }),
+    ];
+  },
+});
+
+/**
+ * The toolbar padlock: words picked inside one paragraph become secret text;
+ * no selection, a whole paragraph or several make (or unmake) a secret block.
+ * Inside secret text, it turns that text back to normal.
+ */
+export function toggleAnySecret(editor: Editor): boolean {
+  const chain = editor.chain().focus();
+  if (editor.isActive(SECRET_TEXT)) return chain.extendMarkRange(SECRET_TEXT).unsetMark(SECRET_TEXT).run();
+  const { empty, $from, $to } = editor.state.selection;
+  const partOfOneLine = !empty && $from.sameParent($to) && $from.parent.isTextblock && !($from.parentOffset === 0 && $to.parentOffset === $from.parent.content.size);
+  return partOfOneLine ? chain.setMark(SECRET_TEXT).run() : chain.toggleSecret().run();
+}

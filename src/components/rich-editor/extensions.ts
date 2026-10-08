@@ -6,7 +6,7 @@ import { Color, FontFamily, TextStyle } from "@tiptap/extension-text-style";
 import Image from "@tiptap/extension-image";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import { Mention } from "./mention";
-import { Secret } from "./secret";
+import { Secret, SecretText } from "./secret";
 import { CalendarDate } from "./calendar-date";
 import { MenuKeys } from "./menu-keys";
 import { TableOfContents } from "./TableOfContents";
@@ -152,6 +152,7 @@ export function buildExtensions(placeholder: string): Extensions {
     TextAlign.configure({ types: ["heading", "paragraph", "title"], alignments: [...TEXT_ALIGNS] }),
     ArticleImage,
     Secret,
+    SecretText,
     // Always loaded, so a document with mentions keeps them in every editor.
     Mention,
     CalendarDate,

@@ -28,10 +28,14 @@ export const sectionAnchor = (id: string) => `s-${id}`;
 /** Only links that leave the app survive; anything relative points into it. */
 export const isExternalHref = (href: unknown): href is string => typeof href === "string" && /^(https?:|mailto:)/i.test(href.trim());
 
+/** Blocks holding inline content: emptied by secret text, they go too. */
+const TEXT_BLOCKS = new Set(["paragraph", "heading", "title"]);
+
 /**
- * The document without its unrevealed secrets; a revealed secret is
- * replaced by its contents. A container left empty gets an empty paragraph
- * (its schema needs a block).
+ * The document without its unrevealed secrets, block (`secret` node) or
+ * inline (`secretText` mark); a revealed secret is replaced by its contents
+ * (its text, unmarked). A line left empty goes; any other container left
+ * empty gets an empty paragraph (its schema needs a block).
  */
 export function stripSecrets(doc: JsonNode): JsonNode {
   const visit = (node: JsonNode, depth: number): JsonNode[] => {
@@ -40,9 +44,17 @@ export function stripSecrets(doc: JsonNode): JsonNode {
       if (node.attrs?.revealed !== true) return [];
       return (node.content ?? []).flatMap((child) => visit(child, depth + 1));
     }
+    const secretMark = node.marks?.find((m) => m.type === "secretText");
+    if (secretMark) {
+      if (secretMark.attrs?.revealed !== true) return [];
+      const marks = node.marks!.filter((m) => m !== secretMark);
+      node = { ...node, marks: marks.length ? marks : undefined };
+      if (!node.marks) delete node.marks;
+    }
     if (!node.content) return [node];
     const content = node.content.flatMap((child) => visit(child, depth + 1));
     const emptied = content.length === 0 && node.content.length > 0;
+    if (emptied && TEXT_BLOCKS.has(node.type ?? "")) return [];
     return [{ ...node, content: emptied ? [{ type: "paragraph" }] : content }];
   };
   return visit(doc, 0)[0] ?? { type: "doc", content: [{ type: "paragraph" }] };

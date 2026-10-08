@@ -22,6 +22,17 @@ describe("stripSecrets", () => {
     expect(stripSecrets(doc(cell([secret(false, p("x"))])))).toEqual(doc(cell([{ type: "paragraph" }])));
   });
 
+  it("drops hidden secret text inside a line and unmarks revealed text", () => {
+    const t = (text: string, revealed?: boolean): JsonNode => (revealed === undefined ? { type: "text", text } : { type: "text", text, marks: [{ type: "bold" }, { type: "secretText", attrs: { revealed } }] });
+    const line = (...content: JsonNode[]): JsonNode => ({ type: "paragraph", content });
+    expect(stripSecrets(doc(line(t("The duke "), t("is a lich", false), t(" and "), t("rules", true))))).toEqual(
+      doc(line(t("The duke "), t(" and "), { type: "text", text: "rules", marks: [{ type: "bold" }] }))
+    );
+    // A line that was all secret goes; the doc keeps a paragraph.
+    expect(stripSecrets(doc(p("open"), line(t("gone", false))))).toEqual(doc(p("open")));
+    expect(stripSecrets(doc(line(t("gone", false))))).toEqual(doc({ type: "paragraph" }));
+  });
+
   it("never lets hidden text through", () => {
     expect(JSON.stringify(stripSecrets(doc(p("a"), secret(false, p("The duke is a lich")))))).not.toContain("lich");
   });
