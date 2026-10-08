@@ -291,7 +291,7 @@
   "zones.tool.select": "Select / edit",
   "zones.tool.rectangleHint": "Rectangle / Square — hold Shift for an equal-sided square",
   "zones.tool.circleHint": "Circle — press at the center and drag out the radius",
-  "zones.tool.polygonHint": "Polygon — click each vertex, click the first point (or press Enter) to close",
+  "zones.tool.polygonHint": "Polygon — click each vertex, click the first point (or press Enter) to close; right-click or Backspace removes the last point",
   "zones.tool.brush": "Brush",
   "zones.tool.brushHint": "Brush — paint a new zone, or paint onto the selected zone to grow it. [ and ] or Shift + mouse wheel change the size.",
   "zones.tool.eraser": "Eraser",

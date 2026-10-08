@@ -77,6 +77,10 @@ function renderGeom(zone: ZoneData): { geom: AnyGeom; areaPath: string | null } 
 
 const CLICK_THRESHOLD_PX = 5;
 const CLOSURE_SCREEN_PX = 10;
+/** Edit handle size on screen (rect corners, circle radius). */
+const HANDLE_SCREEN_PX = 12;
+/** A polygon edge shorter than this on screen gets no midpoint handle. */
+const MIDPOINT_MIN_EDGE_PX = 24;
 
 interface Props {
   viewer: OpenSeadragonType.Viewer | null;
@@ -157,6 +161,9 @@ export default function ZoneLayer({
   const [transform, setTransform] = useState<Transform | null>(null);
   const [hoveredVertex, setHoveredVertex] = useState<number | null>(null);
   const [brushHover, setBrushHover] = useState<Pt | null>(null);
+  // Bumped when a pan/zoom settles, so edit handles are re-sized to stay the
+  // same on screen (mid-motion the overlay is only scaled, see addFullMapOverlay).
+  const [viewTick, setViewTick] = useState(0);
 
   const latestRef = useRef({ regions, zones, selectedZoneId, activeTool, activeRegionId });
   useEffect(() => {
@@ -196,6 +203,17 @@ export default function ZoneLayer({
       setOsdNavEnabled(viewer, true);
     };
   }, [viewer, authoring, activeTool, selectedZoneId]);
+
+  useEffect(() => {
+    if (!viewer || !authoring) return;
+    const bump = () => setViewTick((t) => t + 1);
+    viewer.addHandler("animation-finish", bump);
+    viewer.addHandler("resize", bump);
+    return () => {
+      viewer.removeHandler("animation-finish", bump);
+      viewer.removeHandler("resize", bump);
+    };
+  }, [viewer, authoring]);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -391,13 +409,26 @@ export default function ZoneLayer({
         return;
       }
     }
-    setDraft({ kind: "polygon", points: [...current, pt], hover: null });
+    // Functional updates: these handlers reach the SVG through a separate
+    // root re-rendered from an effect, so their `draft` can be a render
+    // behind. Building on it let a fast click (or the mousemove right after
+    // one) overwrite the point just added, so clicks seemed to do nothing.
+    setDraft((prev) => ({ kind: "polygon", points: [...(prev?.kind === "polygon" ? prev.points : []), pt], hover: null }));
   }
 
   function handlePolygonHover(e: React.MouseEvent) {
-    if (draft?.kind !== "polygon") return;
     const pt = toImagePoint(e.clientX, e.clientY);
-    if (pt) setDraft({ ...draft, hover: pt });
+    if (pt) setDraft((prev) => (prev?.kind === "polygon" ? { ...prev, hover: pt } : prev));
+  }
+
+  /** Right-click undoes the last point; the browser menu never opens over the polygon tool. */
+  function handlePolygonContextMenu(e: React.MouseEvent) {
+    e.preventDefault();
+    setDraft((prev) => {
+      if (prev?.kind !== "polygon") return prev;
+      const points = prev.points.slice(0, -1);
+      return points.length > 0 ? { ...prev, points } : null;
+    });
   }
 
   // ---- Painting (brush adds, eraser subtracts) ----
@@ -633,6 +664,7 @@ export default function ZoneLayer({
         interactive={!drawTool}
         selectedZoneId={selectedZoneId}
         transform={transform}
+        screenPx={1 / screenPxPerImagePx()}
         onZoneMouseDown={beginMove}
         onRectHandleMouseDown={beginRectResize}
         onCircleHandleMouseDown={beginCircleResize}
@@ -643,6 +675,7 @@ export default function ZoneLayer({
         drawTool={drawTool ? activeTool : null}
         onDrawMouseDown={activeTool === "rectangle" || activeTool === "circle" ? beginRectOrCircleDraw : painting ? beginPaint : undefined}
         onDrawClick={activeTool === "polygon" ? handlePolygonClick : undefined}
+        onDrawContextMenu={activeTool === "polygon" ? handlePolygonContextMenu : undefined}
         onDrawMouseMove={activeTool === "polygon" ? handlePolygonHover : painting ? handlePaintHover : undefined}
         onDrawMouseLeave={painting ? () => setBrushHover(null) : undefined}
         brushCursor={painting && brushHover ? { center: brushHover, radius: brushSize / 2 / screenPxPerImagePx() } : null}
@@ -650,7 +683,7 @@ export default function ZoneLayer({
       />
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewer, osd, authoring, regions, zones, underZones, overZones, pulseId, activeTool, activeRegionId, selectedZoneId, draft, transform, brushHover, brushSize]);
+  }, [viewer, osd, authoring, regions, zones, underZones, overZones, pulseId, activeTool, activeRegionId, selectedZoneId, draft, transform, brushHover, brushSize, viewTick]);
 
   return null;
 }
@@ -751,6 +784,8 @@ interface SvgProps {
   interactive: boolean;
   selectedZoneId?: string | null;
   transform?: Transform | null;
+  /** Image px per screen px, for edit handles that keep their size on screen. */
+  screenPx?: number;
   onZoneMouseDown?: (zone: ZoneData, e: React.MouseEvent) => void;
   onRectHandleMouseDown?: (zone: ZoneData, corner: "nw" | "ne" | "se" | "sw", e: React.MouseEvent) => void;
   onCircleHandleMouseDown?: (zone: ZoneData, e: React.MouseEvent) => void;
@@ -761,6 +796,7 @@ interface SvgProps {
   drawTool?: ZoneTool | null;
   onDrawMouseDown?: (e: React.MouseEvent) => void;
   onDrawClick?: (e: React.MouseEvent) => void;
+  onDrawContextMenu?: (e: React.MouseEvent) => void;
   onDrawMouseMove?: (e: React.MouseEvent) => void;
   onDrawMouseLeave?: () => void;
   brushCursor?: { center: Pt; radius: number } | null;
@@ -772,7 +808,7 @@ function ZoneSvg(props: SvgProps) {
   const regionById = new Map(regions.map((r) => [r.id, r]));
   const paintOrder = zonePaintOrder(regions, zones);
 
-  const handleImgSize = Math.max(imageWidth, imageHeight) * 0.006;
+  const handleImgSize = HANDLE_SCREEN_PX * (props.screenPx || Math.max(imageWidth, imageHeight) * 0.0005);
   const strokeScale = imageWidth / 100;
 
   return (
@@ -793,6 +829,7 @@ function ZoneSvg(props: SvgProps) {
             }
       }
       onClick={props.onDrawClick}
+      onContextMenu={props.onDrawContextMenu}
       onMouseMove={props.onDrawMouseMove}
       onMouseLeave={props.onDrawMouseLeave}
     >
@@ -969,35 +1006,40 @@ function renderHandles(
     );
   }
 
+  // Polygons get round, screen-sized handles: a vertex dot, plus a fainter
+  // midpoint dot (drag to insert) only where the edge has room for it, so
+  // dense outlines don't bury the zone under handles.
+  const px = handleSize / HANDLE_SCREEN_PX;
   const pts = geom.points;
   return (
     <g className="zone-handles">
-      <polygon points={polygonPointsAttr(pts)} fill="none" stroke="#fff" strokeDasharray={handleSize / 2} strokeWidth={handleSize * 0.15} />
+      <polygon points={polygonPointsAttr(pts)} fill="none" stroke="#fff" strokeOpacity={0.9} strokeDasharray={`${4 * px} ${3 * px}`} strokeWidth={1.5 * px} style={{ pointerEvents: "none" }} />
       {pts.map((p, i) => {
         const next = pts[(i + 1) % pts.length];
         const mid = { x: (p.x + next.x) / 2, y: (p.y + next.y) / 2 };
+        const roomForMid = Math.hypot(next.x - p.x, next.y - p.y) / px >= MIDPOINT_MIN_EDGE_PX;
         return (
           <g key={i}>
-            <rect
-              x={mid.x - half * 0.7}
-              y={mid.y - half * 0.7}
-              width={handleSize * 0.7}
-              height={handleSize * 0.7}
+            {roomForMid && (
+              <circle
+                cx={mid.x}
+                cy={mid.y}
+                r={3 * px}
+                fill="#fff"
+                fillOpacity={0.55}
+                stroke="#111"
+                strokeWidth={1 * px}
+                style={{ cursor: "copy" }}
+                onMouseDown={(e) => props.onMidpointMouseDown?.(zone, i, mid, e)}
+              />
+            )}
+            <circle
+              cx={p.x}
+              cy={p.y}
+              r={4 * px}
               fill="#fff"
-              fillOpacity={0.6}
               stroke="#111"
-              strokeWidth={handleSize * 0.08}
-              style={{ cursor: "copy" }}
-              onMouseDown={(e) => props.onMidpointMouseDown?.(zone, i, mid, e)}
-            />
-            <rect
-              x={p.x - half}
-              y={p.y - half}
-              width={handleSize}
-              height={handleSize}
-              fill="#fff"
-              stroke="#111"
-              strokeWidth={handleSize * 0.1}
+              strokeWidth={1.5 * px}
               style={{ cursor: "move" }}
               onMouseEnter={() => props.onVertexHover?.(i)}
               onMouseLeave={() => props.onVertexHover?.(null)}

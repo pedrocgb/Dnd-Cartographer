@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { flushSync } from "react-dom";
 import type OpenSeadragonType from "openseadragon";
 import { screenPxPerImagePx } from "@/components/osd-coords";
 import { scaleBarLayout, unitSuffix, type ScaleBarLayout, type ScaleConfig } from "@/server/scale/scale-config";
 import { useHudDrag } from "./use-hud-drag";
+import { useT } from "@/i18n/useT";
 
 /** Longest the bar may get, as a share of the map window's width. */
 const MAX_WIDTH_SHARE = 0.45;
@@ -28,12 +30,23 @@ export function useViewportTick(viewer: OpenSeadragonType.Viewer | null): number
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => setTick((t) => t + 1));
     };
-    const events = ["open", "animation", "animation-finish", "resize"] as const;
-    for (const e of events) viewer.addHandler(e, bump);
+    // OSD raises these inside its own frame, right after drawing the map:
+    // re-rendering synchronously paints the overlay in that same frame. A
+    // deferred render lands a frame late, so the overlay trails the map
+    // while it pans (visible as a wobble).
+    const sync = () => {
+      cancelAnimationFrame(frame);
+      flushSync(() => setTick((t) => t + 1));
+    };
+    const deferred = ["open", "resize"] as const;
+    const inFrame = ["animation", "animation-finish"] as const;
+    for (const e of deferred) viewer.addHandler(e, bump);
+    for (const e of inFrame) viewer.addHandler(e, sync);
     bump();
     return () => {
       cancelAnimationFrame(frame);
-      for (const e of events) viewer.removeHandler(e, bump);
+      for (const e of deferred) viewer.removeHandler(e, bump);
+      for (const e of inFrame) viewer.removeHandler(e, sync);
     };
   }, [viewer]);
   return tick;
@@ -93,6 +106,7 @@ export default function MapScaleBar({
   editable: boolean;
   onUpdateConfig: (patch: Partial<ScaleConfig>) => void;
 }) {
+  const t = useT("maps");
   const [widget, setWidget] = useState<HTMLDivElement | null>(null);
   useViewportTick(viewer);
   const screenPerFrame = screenPxPerImagePx(viewer);
@@ -126,8 +140,8 @@ export default function MapScaleBar({
       className={["map-scale", editable && "editing", dragging && "dragging"].filter(Boolean).join(" ")}
       style={{ ...style, background: config.plate ? tone.plate : "transparent" }}
       {...handleProps}
-      aria-label={editable ? "Scale bar — drag or use the arrow keys to move it" : `Scale bar: ${layout.labels[1]} ${suffix} per step`}
-      data-tooltip={editable ? "Drag to move the scale bar" : undefined}
+      aria-label={editable ? t("scale.barLabelEdit") : t("scale.barLabel", { value: layout.labels[1], unit: suffix })}
+      data-tooltip={editable ? t("scale.barDragHint") : undefined}
     >
       <svg width={width} height={height} aria-hidden style={{ display: "block" }}>
         <g fontSize={fontSize} fill={tone.fg} fontFamily="inherit" style={{ paintOrder: "stroke" }} stroke={config.plate ? "none" : tone.bg} strokeWidth={config.plate ? 0 : 3} strokeLinejoin="round">

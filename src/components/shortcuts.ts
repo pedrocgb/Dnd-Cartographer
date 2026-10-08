@@ -96,6 +96,7 @@ export const SHORTCUT_GROUPS: ShortcutGroupEntry[] = [
       { keys: ["Enter"], action: "action.finishLine" },
       { keys: ["Right-click"], action: "action.finishRoute" },
       { keys: ["Backspace"], action: "action.removeLastPoint" },
+      { keys: ["Right-click"], action: "action.removeLastPoint", context: "context.zonePolygon" },
       { keys: ["Esc"], action: "action.clearPoints" },
       { keys: ["Shift"], action: "action.snap45" },
       { keys: ["[", "]"], action: "action.brushSize", context: "context.zoneBrush" },

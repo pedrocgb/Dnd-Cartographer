@@ -291,7 +291,7 @@
   "zones.tool.select": "Selecionar / editar",
   "zones.tool.rectangleHint": "Retângulo / Quadrado — segure Shift para lados iguais",
   "zones.tool.circleHint": "Círculo — pressione no centro e arraste para definir o raio",
-  "zones.tool.polygonHint": "Polígono — clique em cada vértice; clique no primeiro ponto (ou pressione Enter) para fechar",
+  "zones.tool.polygonHint": "Polígono — clique em cada vértice; clique no primeiro ponto (ou pressione Enter) para fechar; botão direito ou Backspace remove o último ponto",
   "zones.tool.brush": "Pincel",
   "zones.tool.brushHint": "Pincel — pinte uma nova zona, ou pinte sobre a zona selecionada para aumentá-la. [ e ] ou Shift + roda do mouse mudam o tamanho.",
   "zones.tool.eraser": "Borracha",

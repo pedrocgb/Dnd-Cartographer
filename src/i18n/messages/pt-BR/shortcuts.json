@@ -43,6 +43,7 @@
   "context.layerImageDialog": "Janela de imagem da camada",
   "context.focusedLegend": "Legenda ou barra de escala em foco",
   "context.zoneBrush": "Pincel de zonas",
+  "context.zonePolygon": "Ferramenta de polígono de zonas",
   "context.editingZone": "Editando uma zona",
   "context.rotatingText": "Girando um texto",
   "context.inTable": "Numa tabela",

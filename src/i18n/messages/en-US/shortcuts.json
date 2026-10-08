@@ -43,6 +43,7 @@
   "context.layerImageDialog": "Layer image dialog",
   "context.focusedLegend": "Focused legend or scale bar",
   "context.zoneBrush": "Zone paint brush",
+  "context.zonePolygon": "Zone polygon tool",
   "context.editingZone": "Editing a zone",
   "context.rotatingText": "Rotating a text",
   "context.inTable": "In a table",
