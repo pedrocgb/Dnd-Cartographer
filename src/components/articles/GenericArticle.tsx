@@ -2,7 +2,7 @@
 
 import { Pencil } from "lucide-react";
 import PortraitUploader from "@/components/PortraitUploader";
-import { addedInfo } from "@/server/articles/info-fields";
+import { addedInfo, isNameSecret } from "@/server/articles/info-fields";
 import { INFO_FIELD_SETS } from "@/server/articles/info-sets";
 import { useRelationValues } from "@/components/relations/relations-context";
 import ArticleView from "./ArticleView";
@@ -44,6 +44,7 @@ export default function GenericArticle({
     <ArticleView
       template={article.template}
       title={article.title}
+      nameSecret={isNameSecret(article.info)}
       onRename={(title) => void update({ title })}
       tags={article.tags}
       tagSuggestions={tagSuggestions}

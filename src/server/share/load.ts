@@ -7,9 +7,10 @@ import { extractMentions } from "@/server/mentions/kinds";
 import { outlineTree, type OutlineTreeNode } from "@/server/writer/logic";
 import { readSetup } from "@/server/writer/parse";
 import type { NodeKind } from "@/server/writer/types";
-import { imageKeysOf, isBlankDoc, sectionAnchor, rewriteForShare, stripSecrets, type JsonNode } from "./transform";
+import { imageKeysOf, isBlankDoc, sectionAnchor, rewriteForShare, stripSecrets, type JsonNode, type ShareLinkContext } from "./transform";
 import { serverT } from "@/i18n/server";
 import { loadSharedInfo, type SharedInfo } from "./info";
+import { isNameSecret } from "@/server/articles/info-fields";
 
 export const SHARE_KINDS = ["article", "campaign", "outline"] as const;
 export type ShareKind = (typeof SHARE_KINDS)[number];
@@ -126,25 +127,49 @@ async function loadDocuments(worldId: string, ids: (string | null)[]): Promise<M
 }
 
 /**
- * Where each mention in the documents leads on the shared side: an outline
- * item inside this view jumps to its section, a target with its own
- * active share opens that, anything else reads as plain text.
+ * How the documents' mentions read on the shared side. Where each leads: an
+ * outline item inside this view jumps to its section, a target with its own
+ * active share opens that, anything else reads as plain text. A mentioned
+ * article whose name is secret reads as its template's name ("Character").
  */
-async function mentionLinks(worldId: string, token: string, docs: JsonNode[], inView: Set<string>) {
+async function mentionContext(worldId: string, token: string, docs: JsonNode[], inView: Set<string>): Promise<Pick<ShareLinkContext, "mentionHref" | "mentionText">> {
   const targets = docs.flatMap((d) => extractMentions(d));
   const ids = [...new Set(targets.map((t) => t.id))];
-  const rows = ids.length
-    ? await db
-        .select({ token: shareLinks.token, targetKind: shareLinks.targetKind, targetId: shareLinks.targetId })
-        .from(shareLinks)
-        .where(and(eq(shareLinks.worldId, worldId), inArray(shareLinks.targetId, ids), isNull(shareLinks.revokedAt)))
-    : [];
+  const [rows, secretNames, ta] = await Promise.all([
+    ids.length
+      ? db
+          .select({ token: shareLinks.token, targetKind: shareLinks.targetKind, targetId: shareLinks.targetId })
+          .from(shareLinks)
+          .where(and(eq(shareLinks.worldId, worldId), inArray(shareLinks.targetId, ids), isNull(shareLinks.revokedAt)))
+      : [],
+    secretNameIds(worldId, targets),
+    serverT("articles"),
+  ]);
   const shared = new Map(rows.map((r) => [`${r.targetKind}:${r.targetId}`, r.token]));
-  return (kind: string, id: string): string | null => {
-    if (kind === "node" && inView.has(id)) return `#${sectionAnchor(id)}`;
-    const other = isArticleTemplate(kind) ? shared.get(`article:${id}`) : kind === "node" ? shared.get(`outline:${id}`) : undefined;
-    return other && other !== token ? sharePath(other) : null;
+  return {
+    mentionHref: (kind, id) => {
+      if (kind === "node" && inView.has(id)) return `#${sectionAnchor(id)}`;
+      const other = isArticleTemplate(kind) ? shared.get(`article:${id}`) : kind === "node" ? shared.get(`outline:${id}`) : undefined;
+      return other && other !== token ? sharePath(other) : null;
+    },
+    mentionText: (kind, id) => (isArticleTemplate(kind) && secretNames.has(id) ? templateLabel(kind, ta) : null),
   };
+}
+
+/** The mentioned articles whose name is secret (one query per table that holds any of them). */
+async function secretNameIds(worldId: string, targets: { kind: string; id: string }[]): Promise<Set<string>> {
+  const idsOf = (match: (kind: string) => boolean) => [...new Set(targets.filter((t) => match(t.kind)).map((t) => t.id))];
+  const personIds = idsOf((k) => k === "character" || k === "playerCharacter");
+  const organizationIds = idsOf((k) => k === "organization");
+  const territoryIds = idsOf((k) => k === "territory");
+  const articleIds = idsOf((k) => isGenericTemplate(k));
+  const infos = await Promise.all([
+    personIds.length ? db.select({ id: people.id, info: people.info }).from(people).where(and(eq(people.worldId, worldId), inArray(people.id, personIds))) : [],
+    organizationIds.length ? db.select({ id: organizations.id, info: organizations.info }).from(organizations).where(and(eq(organizations.worldId, worldId), inArray(organizations.id, organizationIds))) : [],
+    territoryIds.length ? db.select({ id: territories.id, info: territories.info }).from(territories).where(and(eq(territories.worldId, worldId), inArray(territories.id, territoryIds))) : [],
+    articleIds.length ? db.select({ id: articles.id, info: articles.info }).from(articles).where(and(eq(articles.worldId, worldId), inArray(articles.id, articleIds))) : [],
+  ]);
+  return new Set(infos.flat().filter((r) => isNameSecret(r.info)).map((r) => r.id));
 }
 
 const shareImageSrc = (token: string) => (key: string) => `/api/share/${token}/image/${key}`;
@@ -153,16 +178,17 @@ async function loadArticleView(worldId: string, token: string, template: Article
   const record = await findArticleRecord(worldId, template, id);
   if (!record) return null;
   const docs = await loadDocuments(worldId, [record.bodyId, record.sidebarId, record.footerId]);
-  const linkFor = await mentionLinks(worldId, token, [...docs.values()], new Set());
+  const mentions = await mentionContext(worldId, token, [...docs.values()], new Set());
   const imageKeys = new Set([...docs.values()].flatMap(imageKeysOf));
   const shown = (docId: string | null) => {
     const doc = docId ? docs.get(docId) : undefined;
-    return doc && !isBlankDoc(doc) ? rewriteForShare(doc, { mentionHref: linkFor, imageSrc: shareImageSrc(token) }) : null;
+    return doc && !isBlankDoc(doc) ? rewriteForShare(doc, { ...mentions, imageSrc: shareImageSrc(token) }) : null;
   };
   return {
     view: {
       kind: "article",
-      title: record.title,
+      // A secret name reads as the template's name ("Item"), here and in the page title.
+      title: isNameSecret(record.row.info) ? templateLabel(template, await serverT("articles")) : record.title,
       template,
       templateLabel: templateLabel(template, await serverT("articles")),
       portraitUrl: record.portraitKey ? `/api/share/${token}/portrait` : null,
@@ -218,8 +244,8 @@ async function loadWriterView(worldId: string, token: string, kind: "campaign" |
   list.forEach(collect);
 
   const docs = await loadDocuments(worldId, inView.map((n) => n.documentId));
-  const linkFor = await mentionLinks(worldId, token, [...docs.values()], new Set(inView.map((n) => n.id)));
-  const ctx = { mentionHref: linkFor, imageSrc: shareImageSrc(token) };
+  const mentions = await mentionContext(worldId, token, [...docs.values()], new Set(inView.map((n) => n.id)));
+  const ctx = { ...mentions, imageSrc: shareImageSrc(token) };
   const shown = (docId: string | null) => {
     const doc = docId ? docs.get(docId) : undefined;
     return doc && !isBlankDoc(doc) ? rewriteForShare(doc, ctx) : null;

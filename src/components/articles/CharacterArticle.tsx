@@ -9,7 +9,7 @@ import PortraitUploader from "@/components/PortraitUploader";
 import ArticleView from "./ArticleView";
 import DeleteArticleButton from "./DeleteArticleButton";
 import { PickGroupRow, PickRow, json, patchRecord, sortByName, useEditingResetOnSelect, useExpandedSet } from "./shared";
-import { addedInfo, columnPatch, emptyRequiredInfo } from "@/server/articles/info-fields";
+import { addedInfo, columnPatch, emptyRequiredInfo, isNameSecret } from "@/server/articles/info-fields";
 import { personInfoSet } from "@/server/articles/info-sets";
 import { personTemplate, type PersonKind } from "@/server/articles/templates";
 import { InfoForm, InfoView, type InfoLookups } from "./InfoBar";
@@ -283,6 +283,7 @@ export function CharacterArticle({
     <ArticleView
       template={template}
       title={person.name}
+      nameSecret={isNameSecret(person.info)}
       tags={parseTags(person.tags)}
       tagSuggestions={tagSuggestions}
       onChangeTags={(tags) => void update({ tags })}

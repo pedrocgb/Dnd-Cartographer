@@ -109,6 +109,23 @@ export const link = (targets: InfoLinkTarget[], multiple = false) => ({ targets,
 /** Whether a field stores a list (multi-select or multi-link). */
 export const isListField = (field: InfoField) => Boolean(field.multiple || field.link?.multiple);
 
+/**
+ * Reserved `info` key: the keys of the fields kept secret (left out of share
+ * links), plus INFO_NAME_SECRET when the record's name is too. It rides in
+ * the same object as the values, so every save route keeps it.
+ */
+export const INFO_SECRETS_KEY = "$secrets";
+export const INFO_NAME_SECRET = "$name";
+
+/** The secret keys in an `info` object (or values from addedInfo). */
+export function infoSecrets(values: InfoValues): string[] {
+  const v = values[INFO_SECRETS_KEY];
+  return Array.isArray(v) ? v : [];
+}
+
+/** Whether a record's raw `info` keeps its name secret. */
+export const isNameSecret = (info: unknown) => infoSecrets(parseInfo(info)).includes(INFO_NAME_SECRET);
+
 export function parseInfo(raw: unknown): InfoValues {
   if (typeof raw !== "string") return {};
   try {
@@ -196,7 +213,16 @@ export function sanitizeInfo(set: InfoFieldSet, raw: unknown): InfoValues | null
     const field = set.fields.find((f) => f.key === key);
     if (field) out[key] = field.column || field.relation ? null : sanitizeValue(field, value);
   }
+  const secrets = keptSecrets(raw as InfoValues, (key) => key in out);
+  if (secrets.length) out[INFO_SECRETS_KEY] = secrets;
   return out;
+}
+
+/** The valid secret keys of `info`: the name, or a field `has` (deduplicated). */
+function keptSecrets(info: InfoValues, has: (key: string) => boolean): string[] {
+  const raw = info[INFO_SECRETS_KEY];
+  if (!Array.isArray(raw)) return [];
+  return [...new Set(raw.filter((k) => typeof k === "string" && (k === INFO_NAME_SECRET || has(k))))];
 }
 
 /**
@@ -228,6 +254,8 @@ export function addedInfo<T extends { info?: string }>(set: InfoFieldSet, record
   }
   for (const field of set.fields) if (field.column && !(field.key in out) && columnValue(field)) out[field.key] = columnValue(field);
   for (const field of set.fields) if (field.relation && !(field.key in out) && hasValue(relationValues[field.key])) out[field.key] = valueOf(field);
+  const secrets = keptSecrets(info, (key) => key in out);
+  if (secrets.length) out[INFO_SECRETS_KEY] = secrets;
   return out;
 }
 

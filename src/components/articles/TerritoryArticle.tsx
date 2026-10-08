@@ -8,7 +8,7 @@ import {
   isValidParentType,
 } from "@/server/politics/hierarchy-config";
 import { parseTags } from "@/server/articles/tags";
-import { addedInfo, columnPatch, emptyRequiredInfo, type InfoValues } from "@/server/articles/info-fields";
+import { addedInfo, columnPatch, emptyRequiredInfo, type InfoValues, isNameSecret } from "@/server/articles/info-fields";
 import { TERRITORY_INFO } from "@/server/articles/info-sets";
 import { useRelationValues } from "@/components/relations/relations-context";
 import { ancestorsOf, buildTerritoryTree, TerritoryTreeRow } from "@/components/TerritoryTree";
@@ -276,6 +276,7 @@ export function TerritoryArticle({
     <ArticleView
       template="territory"
       title={territory.name}
+      nameSecret={isNameSecret(territory.info)}
       subtitle={territoryTypeLabel(territory.type, tp)}
       tags={parseTags(territory.tags)}
       tagSuggestions={tagSuggestions}

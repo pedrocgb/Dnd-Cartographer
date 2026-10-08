@@ -51,6 +51,8 @@ export function stripSecrets(doc: JsonNode): JsonNode {
 export interface ShareLinkContext {
   /** Where a mention leads on the shared side (another share, or a section of this one), or null for plain text. */
   mentionHref: (kind: string, id: string) => string | null;
+  /** Text shown instead of a mention's own (a record whose name is secret), or null to keep it. */
+  mentionText?: (kind: string, id: string) => string | null;
   /** The shared URL of an article image (by its key). */
   imageSrc: (key: string) => string;
 }
@@ -61,6 +63,9 @@ function shareMarks(marks: JsonMark[] | undefined): JsonMark[] | undefined {
   const kept = marks.filter((m) => m.type !== "link" || isExternalHref(m.attrs?.href));
   return kept.length ? kept : undefined;
 }
+
+/** `marks` plus each of `types` it lacks. */
+const withMarks = (marks: JsonMark[] | undefined, types: string[]): JsonMark[] => [...(marks ?? []), ...types.filter((t) => !marks?.some((m) => m.type === t)).map((type) => ({ type }))];
 
 const textNode = (text: string, marks: JsonMark[] | undefined): JsonNode[] => (text ? [{ type: "text", text, ...(marks ? { marks } : {}) }] : []);
 
@@ -75,8 +80,13 @@ export function rewriteForShare(doc: JsonNode, ctx: ShareLinkContext): JsonNode 
     const marks = shareMarks(node.marks);
     if (node.type === "mention") {
       const attrs = node.attrs ?? {};
-      const href = typeof attrs.kind === "string" && typeof attrs.id === "string" ? ctx.mentionHref(attrs.kind, attrs.id) : null;
-      return textNode(mentionDisplayText(attrs), href ? [...(marks ?? []), { type: "link", attrs: { href, target: null, rel: null } }] : marks);
+      const target = typeof attrs.kind === "string" && typeof attrs.id === "string" ? { kind: attrs.kind, id: attrs.id } : null;
+      const href = target ? ctx.mentionHref(target.kind, target.id) : null;
+      // Replaced even when the author typed their own text for it: that text may well be the name.
+      const replaced = target ? (ctx.mentionText?.(target.kind, target.id) ?? null) : null;
+      // A stand-in name reads italic and underlined, so it stands out from the prose around it.
+      const styled = replaced ? withMarks(marks, ["italic", "underline"]) : marks;
+      return textNode(replaced ?? mentionDisplayText(attrs), href ? [...(styled ?? []), { type: "link", attrs: { href, target: null, rel: null } }] : styled);
     }
     if (node.type === "calendarDate") {
       return textNode(typeof node.attrs?.label === "string" ? node.attrs.label : "", marks);

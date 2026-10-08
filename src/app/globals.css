@@ -4960,12 +4960,12 @@ input[type="range"]::-moz-range-track {
  * Info Bar edit form: one grid shared by every row (rows are subgrids), so
  * all labels share one column — as wide as the longest label, capped — and
  * every editor starts and ends at the same place.
- * Columns: grip | label | editor | hint | remove.
+ * Columns: grip | label | editor | secret | hint | remove.
  */
 .info-form {
   --info-control-height: 36px;
   display: grid;
-  grid-template-columns: auto fit-content(min(200px, 32%)) minmax(0, 1fr) auto auto;
+  grid-template-columns: auto fit-content(min(200px, 32%)) minmax(0, 1fr) auto auto auto;
   column-gap: 6px;
   row-gap: var(--space-2);
   align-items: start;
@@ -5285,6 +5285,28 @@ input[type="range"]::-moz-range-track {
   cursor: grabbing;
 }
 
+/* The padlock: open and quiet while public, closed and violet (like secret blocks) while secret. */
+.info-edit-row > .info-secret-toggle {
+  height: var(--info-control-height);
+  color: var(--text-tertiary);
+}
+.info-edit-row > .info-secret-toggle.on {
+  color: var(--violet-300);
+}
+.info-edit-row > .info-secret-toggle + .info-hint {
+  margin-left: -4px;
+}
+.article-title-secret {
+  display: inline-flex;
+  align-self: center;
+  color: var(--violet-300);
+}
+.info-secret-mark {
+  display: inline-block;
+  margin-right: 4px;
+  vertical-align: -1px;
+  color: var(--violet-300);
+}
 
 /* The ? and ✕ buttons read as one pair. */
 .info-edit-row > .info-hint + .btn {

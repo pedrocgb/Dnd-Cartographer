@@ -1,7 +1,7 @@
 import { and, eq, inArray, isNull, or } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { articles, calendars, organizations, people, relations, seasonProfiles, shareLinks, territories } from "@/server/db/schema";
-import { addedInfo, parseWorldDay, type InfoValues } from "@/server/articles/info-fields";
+import { INFO_SECRETS_KEY, addedInfo, infoSecrets, isNameSecret, parseWorldDay, type InfoValues } from "@/server/articles/info-fields";
 import { INFO_FIELD_SETS } from "@/server/articles/info-sets";
 import type { ArticleTemplateKey } from "@/server/articles/templates";
 import { relationFieldValues } from "@/server/relations/info-backing";
@@ -13,7 +13,8 @@ import { sharePath } from "./load";
 /**
  * A shared article's Info Bar, resolved on the server: the viewer has no
  * session, so every link name and date label comes ready to show. Secret
- * relations stay out, like unrevealed secrets in the text.
+ * fields and secret relations stay out, like unrevealed secrets in the text,
+ * and so does a link to a record whose name is secret.
  */
 export interface SharedInfo {
   values: InfoValues;
@@ -45,26 +46,26 @@ export async function loadSharedInfo(worldId: string, token: string, template: A
   // Names and templates of everything the values (or relation ends) can point at.
   const stored = addedInfo(set, row);
   const ids = [...new Set([...candidateIds, ...linkIdsOf(stored)])];
-  const found = new Map<string, { name: string; template: ArticleTemplateKey | "seasonProfile" }>();
+  const found = new Map<string, { name: string; template: ArticleTemplateKey | "seasonProfile"; info?: string }>();
   if (ids.length) {
     const [ps, os, ts, as, sp] = await Promise.all([
-      db.select({ id: people.id, name: people.name, kind: people.kind }).from(people).where(and(eq(people.worldId, worldId), inArray(people.id, ids), isNull(people.deletedAt))),
-      db.select({ id: organizations.id, name: organizations.name }).from(organizations).where(and(eq(organizations.worldId, worldId), inArray(organizations.id, ids), isNull(organizations.deletedAt))),
-      db.select({ id: territories.id, name: territories.name }).from(territories).where(and(eq(territories.worldId, worldId), inArray(territories.id, ids), isNull(territories.deletedAt))),
-      db.select({ id: articles.id, name: articles.title, template: articles.template }).from(articles).where(and(eq(articles.worldId, worldId), inArray(articles.id, ids), isNull(articles.deletedAt))),
+      db.select({ id: people.id, name: people.name, kind: people.kind, info: people.info }).from(people).where(and(eq(people.worldId, worldId), inArray(people.id, ids), isNull(people.deletedAt))),
+      db.select({ id: organizations.id, name: organizations.name, info: organizations.info }).from(organizations).where(and(eq(organizations.worldId, worldId), inArray(organizations.id, ids), isNull(organizations.deletedAt))),
+      db.select({ id: territories.id, name: territories.name, info: territories.info }).from(territories).where(and(eq(territories.worldId, worldId), inArray(territories.id, ids), isNull(territories.deletedAt))),
+      db.select({ id: articles.id, name: articles.title, template: articles.template, info: articles.info }).from(articles).where(and(eq(articles.worldId, worldId), inArray(articles.id, ids), isNull(articles.deletedAt))),
       db.select({ id: seasonProfiles.id, name: seasonProfiles.name }).from(seasonProfiles).where(and(eq(seasonProfiles.worldId, worldId), inArray(seasonProfiles.id, ids))),
     ]);
-    for (const p of ps) found.set(p.id, { name: p.name, template: p.kind === "player" ? "playerCharacter" : "character" });
-    for (const o of os) found.set(o.id, { name: o.name, template: "organization" });
-    for (const t of ts) found.set(t.id, { name: t.name, template: "territory" });
-    for (const a of as) found.set(a.id, { name: a.name, template: a.template as ArticleTemplateKey });
+    for (const p of ps) found.set(p.id, { name: p.name, template: p.kind === "player" ? "playerCharacter" : "character", info: p.info });
+    for (const o of os) found.set(o.id, { name: o.name, template: "organization", info: o.info });
+    for (const t of ts) found.set(t.id, { name: t.name, template: "territory", info: t.info });
+    for (const a of as) found.set(a.id, { name: a.name, template: a.template as ArticleTemplateKey, info: a.info });
     for (const s of sp) found.set(s.id, { name: s.name, template: "seasonProfile" });
   }
   const templateOf = (other: string) => {
     const t = found.get(other)?.template;
     return t && t !== "seasonProfile" ? t : null;
   };
-  const values = addedInfo(set, row, relationFieldValues(set, id, backing, templateOf));
+  const values = withoutSecrets(addedInfo(set, row, relationFieldValues(set, id, backing, templateOf)), (other) => isNameSecret(found.get(other)?.info));
 
   // Only links whose target has its own active share open anything.
   const linked = linkIdsOf(values).filter((x) => found.has(x));
@@ -88,6 +89,20 @@ export async function loadSharedInfo(worldId: string, token: string, template: A
     if (def) for (const d of days) dates[String(d)] = dayLabel(def, d, { weekday: false });
   }
   return { values, links, dates };
+}
+
+/** The values without secret fields, and without links to records whose name is secret (a field left empty is dropped). */
+function withoutSecrets(values: InfoValues, hiddenLink: (id: string) => boolean): InfoValues {
+  const secrets = infoSecrets(values);
+  const out: InfoValues = {};
+  for (const [key, value] of Object.entries(values)) {
+    if (key === INFO_SECRETS_KEY || secrets.includes(key)) continue;
+    if (Array.isArray(value)) {
+      const kept = value.filter((v) => !hiddenLink(v));
+      if (kept.length || !value.length) out[key] = kept;
+    } else if (value === null || !hiddenLink(value)) out[key] = value;
+  }
+  return out;
 }
 
 /** The world's default calendar (else its first live one), as the app's Info Bar picks it. */

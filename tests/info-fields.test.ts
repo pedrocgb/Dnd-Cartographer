@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { MAX_INFO_TEXT_LENGTH, addedInfo, columnPatch, defineFieldSet, emptyRequiredInfo, encodeWorldDay, parseWorldDay, sanitizeColor, sanitizeInfo, sanitizeUrl } from "../src/server/articles/info-fields";
+import { INFO_NAME_SECRET, INFO_SECRETS_KEY, MAX_INFO_TEXT_LENGTH, addedInfo, columnPatch, defineFieldSet, emptyRequiredInfo, encodeWorldDay, parseWorldDay, sanitizeColor, sanitizeInfo, sanitizeUrl } from "../src/server/articles/info-fields";
 import { CHARACTER_INFO, FAUNA_INFO, GEOGRAPHY_INFO, INFO_FIELD_SETS, MONSTER_INFO, ORGANIZATION_INFO, PLAYER_CHARACTER_INFO, TERRITORY_INFO, TITLE_INFO, personInfoSet } from "../src/server/articles/info-sets";
 import { ARTICLE_TEMPLATE_GROUPS, ARTICLE_TEMPLATE_KEYS, isArticleTemplate, type ArticleTemplateKey } from "../src/server/articles/templates";
 import { relationFieldValues } from "../src/server/relations/info-backing";
@@ -22,6 +22,19 @@ describe("date fields", () => {
     expect(parseWorldDay(out!.dateOfBirth)).toBe(-1234);
     expect(parseWorldDay("Year 402")).toBeNull();
     expect(sanitizeInfo(CHARACTER_INFO, { dateOfBirth: "wd:1.5", dateOfDeath: "wd:999999999999" })).toMatchObject({ dateOfBirth: null, dateOfDeath: null });
+  });
+});
+
+describe("secret fields", () => {
+  it("keep the secret keys of added fields and the name, dropping the rest", () => {
+    const out = sanitizeInfo(CHARACTER_INFO, { nickname: "Red", [INFO_SECRETS_KEY]: ["nickname", INFO_NAME_SECRET, "hair", "bogus", 3, "nickname"] });
+    expect(out).toEqual({ nickname: "Red", [INFO_SECRETS_KEY]: ["nickname", INFO_NAME_SECRET] });
+    expect(sanitizeInfo(CHARACTER_INFO, { nickname: "Red", [INFO_SECRETS_KEY]: "nickname" })).toEqual({ nickname: "Red" });
+  });
+
+  it("ride along in addedInfo, so the edit form saves them back", () => {
+    const values = addedInfo(CHARACTER_INFO, { info: JSON.stringify({ nickname: "Red", [INFO_SECRETS_KEY]: ["nickname", "hair"] }) });
+    expect(values[INFO_SECRETS_KEY]).toEqual(["nickname"]);
   });
 });
 

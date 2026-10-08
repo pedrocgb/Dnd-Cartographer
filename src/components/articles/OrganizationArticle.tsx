@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { Pencil } from "lucide-react";
 import { ORGANIZATION_KINDS, organizationKindLabel } from "@/server/politics/hierarchy-config";
 import { parseTags } from "@/server/articles/tags";
-import { addedInfo, columnPatch, emptyRequiredInfo } from "@/server/articles/info-fields";
+import { addedInfo, columnPatch, emptyRequiredInfo, isNameSecret } from "@/server/articles/info-fields";
 import { ORGANIZATION_INFO } from "@/server/articles/info-sets";
 import PortraitUploader from "@/components/PortraitUploader";
 import ArticleView from "./ArticleView";
@@ -85,6 +85,7 @@ export function OrganizationArticle({
     <ArticleView
       template="organization"
       title={organization.name}
+      nameSecret={isNameSecret(organization.info)}
       subtitle={organizationKindLabel(organization.kind, tp)}
       tags={parseTags(organization.tags)}
       tagSuggestions={tagSuggestions}

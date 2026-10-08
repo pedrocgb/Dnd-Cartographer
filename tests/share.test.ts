@@ -39,6 +39,15 @@ describe("rewriteForShare", () => {
     ]);
   });
 
+  it("swaps a secret name for the replacement text, keeping its link", () => {
+    const secret = { ...ctx, mentionText: (_kind: string, id: string) => (id === "shared" ? "Settlement" : null) };
+    const custom: JsonNode = { ...mention("private"), attrs: { ...mention("private").attrs, text: "the city" } };
+    const out = rewriteForShare(doc({ type: "paragraph", content: [mention("shared"), custom] }), secret);
+    expect(out.content![0].content!.map((n) => n.text)).toEqual(["Settlement", "the city"]);
+    expect(out.content![0].content![0].marks).toEqual([{ type: "bold" }, { type: "italic" }, { type: "underline" }, { type: "link", attrs: { href: "/share/tok", target: null, rel: null } }]);
+    expect(out.content![0].content![1].marks).toEqual([{ type: "bold" }]);
+  });
+
   it("keeps external links, drops app links, and turns dates into text", () => {
     const link = (href: string): JsonNode => ({ type: "text", text: href, marks: [{ type: "link", attrs: { href } }] });
     const out = rewriteForShare(doc({ type: "paragraph", content: [link("https://x.org"), link("/maps?id=1"), { type: "calendarDate", attrs: { day: 3, label: "3 Hammer" } }] }), ctx);

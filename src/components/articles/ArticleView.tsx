@@ -2,7 +2,7 @@
 
 import { useContext, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { CirclePlus, Footprints, Info, PanelRightClose, Pencil, Share2, TextAlignStart, Trash2, type LucideIcon } from "lucide-react";
+import { CirclePlus, Footprints, Info, Lock, PanelRightClose, Pencil, Share2, TextAlignStart, Trash2, type LucideIcon } from "lucide-react";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import RichEditor from "@/components/RichEditor";
 import CalendarBacklinks from "@/components/calendars/CalendarBacklinks";
@@ -227,6 +227,7 @@ export default function ArticleView({
   template,
   title,
   subtitle,
+  nameSecret = false,
   onRename,
   tags,
   tagSuggestions,
@@ -242,6 +243,8 @@ export default function ArticleView({
   template: ArticleTemplateKey;
   title: string;
   subtitle?: string;
+  /** The name is secret (left out of share links): a padlock beside it says so. */
+  nameSecret?: boolean;
   /** Inline title editing; records rename through their own form instead. */
   onRename?: (title: string) => void;
   tags: string[];
@@ -298,6 +301,11 @@ export default function ArticleView({
         <h1 className="article-title">
           <Icon size={24} strokeWidth={2} aria-label={label} />
           <EditableTitle key={title} title={title} onRename={onRename} />
+          {nameSecret && (
+            <span className="article-title-secret" data-tooltip={ta("info.nameSecret")}>
+              <Lock size={16} strokeWidth={2.25} aria-label={ta("info.nameSecret")} />
+            </span>
+          )}
           {subtitle && <span className="field-label article-subtitle">({subtitle})</span>}
         </h1>
         {(createNew || actions || articleId) && (

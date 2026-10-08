@@ -14,6 +14,8 @@ import {
   Palette,
   GripVertical,
   Link2,
+  Lock,
+  LockOpen,
   Maximize2,
   Plus,
   Search,
@@ -24,7 +26,10 @@ import {
 import {
   MAX_INFO_TEXT_LENGTH,
   MAX_INFO_URL_LENGTH,
+  INFO_NAME_SECRET,
+  INFO_SECRETS_KEY,
   encodeWorldDay,
+  infoSecrets,
   isListField,
   parseWorldDay,
   sanitizeUrl,
@@ -40,6 +45,7 @@ import { COLOR_PRESETS } from "@/server/markers/icon-registry";
 import WorldDatePicker from "@/components/calendars/WorldDatePicker";
 import { dayLabel } from "@/components/calendars/evaluate";
 import { useDefaultCalendarStatus } from "@/components/relations/use-default-calendar";
+import { useHideSecrets } from "@/components/relations/relations-context";
 import InfoPicker, { type PickerOption } from "./InfoPicker";
 import type { OpenArticle } from "./types";
 import { useSettings } from "@/components/settings/SettingsProvider";
@@ -104,10 +110,14 @@ function moveKey(order: string[], key: string, target: string): string[] {
 }
 
 /** A read-only Info Bar row, for template-specific lines around the fields. */
-export function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
+export function InfoRow({ label, secret = false, children }: { label: string; secret?: boolean; children: React.ReactNode }) {
+  const ta = useT("articles");
   return (
-    <div className="info-row">
-      <dt data-tooltip={label}>{label}</dt>
+    <div className={secret ? "info-row info-row-secret" : "info-row"}>
+      <dt data-tooltip={secret ? `${label} · ${ta("info.secretMark")}` : label}>
+        {secret && <Lock size={11} strokeWidth={2.5} className="info-secret-mark" aria-label={ta("info.secretMark")} />}
+        {label}
+      </dt>
       <dd>{children}</dd>
     </div>
   );
@@ -202,7 +212,10 @@ export function InfoView({
   extra?: React.ReactNode;
 }) {
   const ta = useT("articles");
-  const fields = fieldsInOrder(set, values);
+  // Secret fields carry a padlock; "hide secrets" (for screen sharing) hides them like secret ties.
+  const [hideSecrets] = useHideSecrets();
+  const secrets = infoSecrets(values);
+  const fields = fieldsInOrder(set, values).filter((f) => !(hideSecrets && secrets.includes(f.key)));
   // Dates are world days, shown in the world's default calendar.
   const { calendar, loading } = useDefaultCalendarStatus(!resolve && fields.some((f) => f.kind === "date"));
 
@@ -288,7 +301,7 @@ export function InfoView({
           shown = <CollapsedList items={value.map((v, i) => <span key={v}>{i < value.length - 1 ? `${word(v)},` : word(v)}</span>)} />;
         } else shown = <ClampedText text={field.kind === "select" ? optionLabel(String(value)) : String(value)} />;
         return (
-          <InfoRow key={field.key} label={field.label}>
+          <InfoRow key={field.key} label={field.label} secret={secrets.includes(field.key)}>
             {shown}
           </InfoRow>
         );
@@ -423,6 +436,17 @@ function FieldHint({ field }: { field: InfoField }) {
         {field.hint}
       </span>
     </span>
+  );
+}
+
+/** The padlock beside a field's hint: a secret field (or name) is left out of share links. */
+function SecretToggle({ label, secret, onToggle }: { label: string; secret: boolean; onToggle: () => void }) {
+  const ta = useT("articles");
+  const text = ta(secret ? "info.unsetSecret" : "info.setSecret", { field: label });
+  return (
+    <button type="button" className={secret ? "btn btn-ghost btn-icon info-secret-toggle on" : "btn btn-ghost btn-icon info-secret-toggle"} aria-pressed={secret} aria-label={text} data-tooltip={text} onClick={onToggle}>
+      {secret ? <Lock size={13} strokeWidth={2.25} /> : <LockOpen size={13} strokeWidth={2.25} />}
+    </button>
   );
 }
 
@@ -740,6 +764,13 @@ export function InfoForm({
   const available = useMemo(() => set.fields.filter((f) => !f.required && !(f.key in values)), [set, values]);
 
   const setValue = (key: string, value: InfoValue) => setValues((prev) => ({ ...prev, [key]: value }));
+  const secrets = infoSecrets(values);
+  const toggleSecret = (key: string) =>
+    setValues((prev) => {
+      const current = infoSecrets(prev);
+      return { ...prev, [INFO_SECRETS_KEY]: current.includes(key) ? current.filter((k) => k !== key) : [...current, key] };
+    });
+  const secretToggle = (key: string, label: string) => <SecretToggle label={label} secret={secrets.includes(key)} onToggle={() => toggleSecret(key)} />;
   const editor = (field: InfoField) =>
     editorFor?.(field) ?? <FieldEditor field={field} value={values[field.key]} lookups={lookups} onChange={(value) => setValue(field.key, value)} />;
 
@@ -800,6 +831,7 @@ export function InfoForm({
       <div className="info-edit-row info-edit-name">
         <InfoEditLabel Icon={Type} label={tc("name")} htmlFor={nameId} />
         <input id={nameId} type="text" value={name} autoFocus={!initialName} onChange={(e) => setName(e.target.value)} />
+        {secretToggle(INFO_NAME_SECRET, tc("name"))}
       </div>
 
       {fixedRows}
@@ -811,6 +843,7 @@ export function InfoForm({
           <div key={field.key} className="info-edit-row info-edit-required">
             <InfoEditLabel Icon={Icon} label={field.label} title={hint} />
             {editor(field)}
+            {secretToggle(field.key, field.label)}
             <FieldHint field={field} />
           </div>
         );
@@ -871,6 +904,7 @@ export function InfoForm({
                 </button>
                 <InfoEditLabel Icon={Icon} label={field.label} title={hint} />
                 {editor(field)}
+                {secretToggle(field.key, field.label)}
                 <FieldHint field={field} />
                 <button type="button" className="btn btn-ghost btn-icon" onClick={() => removeField(field.key)} aria-label={ta("info.removeField", { field: field.label })} data-tooltip={ta("info.removeField", { field: field.label })}>
                   <X size={13} strokeWidth={2.25} />
