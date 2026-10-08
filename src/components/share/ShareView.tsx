@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Link2Off, PanelRightClose, TextAlignStart, Footprints, type LucideIcon } from "lucide-react";
+import { Info, Link2Off, PanelRightClose, TextAlignStart, Footprints, type LucideIcon } from "lucide-react";
 import ReadOnlyRich from "@/components/rich-editor/ReadOnlyRich";
 import ImageLightbox, { type ZoomedImage } from "@/components/rich-editor/ImageLightbox";
 import { templateOf } from "@/components/articles/templates";
+import { InfoRow, InfoView, type InfoResolver } from "@/components/articles/InfoBar";
+import { INFO_FIELD_SETS } from "@/server/articles/info-sets";
+import { territoryTypeLabel } from "@/server/politics/hierarchy-config";
 import { NODE_KIND_LABELS } from "@/server/writer/types";
 import type { SharedSection, ShareView as View } from "@/server/share/load";
 import { sectionAnchor as anchorId, type JsonNode } from "@/server/share/transform";
@@ -106,16 +109,23 @@ function SharedArticle({ view }: { view: Extract<View, { kind: "article" }> }) {
           <span className="article-title-text">{view.title}</span>
         </h1>
       </header>
-      {view.portraitUrl && (
-        <button
-          type="button"
-          className="share-portrait-button"
-          aria-label={ta("share.viewImage", { name: view.title })}
-          onClick={() => setZoomed({ src: view.portraitFullUrl ?? view.portraitUrl!, alt: view.title, caption: null })}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element -- served by the share's own route, not a static asset */}
-          <img className="share-portrait" src={view.portraitUrl} alt={view.title} />
-        </button>
+      {(view.portraitUrl || view.info) && (
+        <div className={view.portraitUrl ? "article-top" : "article-top no-image"}>
+          {view.portraitUrl && (
+            <section className="article-card article-image-card" aria-label={ta("view.image")}>
+              <button
+                type="button"
+                className="share-portrait-button"
+                aria-label={ta("share.viewImage", { name: view.title })}
+                onClick={() => setZoomed({ src: view.portraitFullUrl ?? view.portraitUrl!, alt: view.title, caption: null })}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element -- served by the share's own route, not a static asset */}
+                <img className="share-portrait" src={view.portraitUrl} alt={view.title} />
+              </button>
+            </section>
+          )}
+          {view.info && <SharedInfoCard view={view} info={view.info} />}
+        </div>
       )}
       <ImageLightbox image={zoomed} onClose={() => setZoomed(null)} />
       <div className={view.footer ? "article-cards has-footer" : "article-cards"}>
@@ -178,6 +188,31 @@ function StorySection({ section, depth }: { section: SharedSection; depth: numbe
       {section.children.map((c) => (
         <StorySection key={c.id} section={c} depth={depth + 1} />
       ))}
+    </section>
+  );
+}
+
+function SharedInfoCard({ view, info }: { view: Extract<View, { kind: "article" }>; info: NonNullable<Extract<View, { kind: "article" }>["info"]> }) {
+  const ta = useT("articles");
+  const tp = useT("politics");
+  const set = INFO_FIELD_SETS[view.template];
+  if (!set) return null;
+  const resolve: InfoResolver = { link: (id) => info.links[id] ?? null, date: (day) => info.dates[String(day)] ?? null };
+  return (
+    <section className="article-card article-info-card" aria-label={ta("view.info")}>
+      <header className="article-card-header">
+        <span className="article-card-label">
+          <Info size={13} strokeWidth={2.25} aria-hidden />
+          <span className="field-label">{ta("view.info")}</span>
+        </span>
+      </header>
+      <InfoView
+        set={set}
+        values={info.values}
+        lookups={{}}
+        resolve={resolve}
+        leading={view.territoryType ? <InfoRow label={ta("territory.type")}>{territoryTypeLabel(view.territoryType, tp)}</InfoRow> : undefined}
+      />
     </section>
   );
 }

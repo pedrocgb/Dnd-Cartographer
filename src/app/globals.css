@@ -16875,11 +16875,13 @@ textarea.rel-notes {
 }
 .share-portrait {
   display: block;
-  width: 208px;
-  max-width: 100%;
+  width: 100%;
   height: auto;
   border-radius: var(--radius-md);
   border: 1px solid var(--border-subtle);
+}
+.share-page .article-top.no-image {
+  grid-template-columns: minmax(0, 1fr);
 }
 .share-status {
   margin: var(--space-12) auto;

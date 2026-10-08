@@ -9,6 +9,7 @@ import { readSetup } from "@/server/writer/parse";
 import type { NodeKind } from "@/server/writer/types";
 import { imageKeysOf, isBlankDoc, sectionAnchor, rewriteForShare, stripSecrets, type JsonNode } from "./transform";
 import { serverT } from "@/i18n/server";
+import { loadSharedInfo, type SharedInfo } from "./info";
 
 export const SHARE_KINDS = ["article", "campaign", "outline"] as const;
 export type ShareKind = (typeof SHARE_KINDS)[number];
@@ -46,12 +47,14 @@ interface ArticleRecord {
   sidebarId: string | null;
   footerId: string | null;
   updatedAt: Date;
+  /** The row itself: its info JSON and the columns Info Bar fields read. */
+  row: { info?: string; type?: string };
 }
 
 /** A live article of the world, from whichever table its template lives in. */
 async function findArticleRecord(worldId: string, template: ArticleTemplateKey, id: string): Promise<ArticleRecord | null> {
-  const record = (r: { name: string; portraitKey: string | null; descriptionDocumentId: string | null; sidebarDocumentId: string | null; footerDocumentId: string | null; deletedAt: Date | null; updatedAt: Date } | undefined) =>
-    r && !r.deletedAt ? { title: r.name, portraitKey: r.portraitKey, bodyId: r.descriptionDocumentId, sidebarId: r.sidebarDocumentId, footerId: r.footerDocumentId, updatedAt: r.updatedAt } : null;
+  const record = (r: { name: string; info: string; type?: string; portraitKey: string | null; descriptionDocumentId: string | null; sidebarDocumentId: string | null; footerDocumentId: string | null; deletedAt: Date | null; updatedAt: Date } | undefined) =>
+    r && !r.deletedAt ? { title: r.name, portraitKey: r.portraitKey, bodyId: r.descriptionDocumentId, sidebarId: r.sidebarDocumentId, footerId: r.footerDocumentId, updatedAt: r.updatedAt, row: r } : null;
   if (template === "character" || template === "playerCharacter") {
     const r = await db.query.people.findFirst({ where: and(eq(people.id, id), eq(people.worldId, worldId)) });
     return r && (r.kind === "player") === (template === "playerCharacter") ? record(r) : null;
@@ -60,7 +63,7 @@ async function findArticleRecord(worldId: string, template: ArticleTemplateKey, 
   if (template === "territory") return record(await db.query.territories.findFirst({ where: and(eq(territories.id, id), eq(territories.worldId, worldId)) }));
   const r = await db.query.articles.findFirst({ where: and(eq(articles.id, id), eq(articles.worldId, worldId)) });
   if (!r || r.deletedAt || r.template !== template || !isGenericTemplate(r.template)) return null;
-  return { title: r.title, portraitKey: r.portraitKey, bodyId: r.bodyDocumentId, sidebarId: r.sidebarDocumentId, footerId: r.footerDocumentId, updatedAt: r.updatedAt };
+  return { title: r.title, portraitKey: r.portraitKey, bodyId: r.bodyDocumentId, sidebarId: r.sidebarDocumentId, footerId: r.footerDocumentId, updatedAt: r.updatedAt, row: r };
 }
 
 /** Whether the target exists (live) in the world. */
@@ -92,7 +95,7 @@ export interface SharedSection {
 }
 
 export type ShareView =
-  | { kind: "article"; title: string; template: ArticleTemplateKey; templateLabel: string; portraitUrl: string | null; portraitFullUrl: string | null; body: JsonNode | null; sidebar: JsonNode | null; footer: JsonNode | null }
+  | { kind: "article"; title: string; template: ArticleTemplateKey; templateLabel: string; portraitUrl: string | null; portraitFullUrl: string | null; info: SharedInfo | null; territoryType: string | null; body: JsonNode | null; sidebar: JsonNode | null; footer: JsonNode | null }
   | { kind: "writer"; campaign: string; root: { kind: NodeKind | null; title: string; lead: string; doc: JsonNode | null }; sections: SharedSection[] };
 
 export interface LoadedShare {
@@ -164,6 +167,8 @@ async function loadArticleView(worldId: string, token: string, template: Article
       templateLabel: templateLabel(template, await serverT("articles")),
       portraitUrl: record.portraitKey ? `/api/share/${token}/portrait` : null,
       portraitFullUrl: record.portraitKey ? `/api/share/${token}/portrait/full` : null,
+      info: await loadSharedInfo(worldId, token, template, id, record.row),
+      territoryType: template === "territory" ? (record.row.type ?? null) : null,
       body: shown(record.bodyId),
       sidebar: shown(record.sidebarId),
       footer: shown(record.footerId),

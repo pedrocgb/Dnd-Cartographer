@@ -176,18 +176,26 @@ function CollapsedList({ items }: { items: React.ReactNode[] }) {
  * and before any `extra` rows. Link values open their article; long text and
  * long lists start collapsed.
  */
+/** Where a read-only copy (a share link, no session) takes link names and date labels from instead of lookups and the calendar API. */
+export interface InfoResolver {
+  link: (id: string) => { name: string; href: string | null } | null;
+  date: (day: number) => string | null;
+}
+
 export function InfoView({
   set,
   values,
   lookups,
   onOpenArticle,
+  resolve,
   leading,
   extra,
 }: {
   set: InfoFieldSet;
   values: InfoValues;
   lookups: InfoLookups;
-  onOpenArticle: OpenArticle;
+  onOpenArticle?: OpenArticle;
+  resolve?: InfoResolver;
   /** Read-only rows before the fields (e.g. a territory's type and parent). */
   leading?: React.ReactNode;
   /** Read-only rows after the fields (e.g. authorities). */
@@ -196,9 +204,20 @@ export function InfoView({
   const ta = useT("articles");
   const fields = fieldsInOrder(set, values);
   // Dates are world days, shown in the world's default calendar.
-  const { calendar, loading } = useDefaultCalendarStatus(fields.some((f) => f.kind === "date"));
+  const { calendar, loading } = useDefaultCalendarStatus(!resolve && fields.some((f) => f.kind === "date"));
 
   function linkButton(targets: readonly InfoLinkTarget[], id: string) {
+    if (resolve) {
+      const linked = resolve.link(id);
+      if (!linked) return <span key={id} className="field-label">{ta("info.removed")}</span>;
+      return linked.href ? (
+        <a key={id} className="politics-link-button" href={linked.href}>
+          {linked.name}
+        </a>
+      ) : (
+        <span key={id}>{linked.name}</span>
+      );
+    }
     const found = findLinked(targets, lookups, id);
     if (!found) {
       return (
@@ -219,7 +238,7 @@ export function InfoView({
       );
     }
     return (
-      <button key={id} type="button" className="politics-link-button" onClick={() => onOpenArticle(target, id)}>
+      <button key={id} type="button" className="politics-link-button" onClick={() => onOpenArticle?.(target, id)}>
         {found.item.name}
       </button>
     );
@@ -243,7 +262,10 @@ export function InfoView({
           );
         } else if (field.kind === "date" && parseWorldDay(value) !== null) {
           const day = parseWorldDay(value)!;
-          shown = calendar ? (
+          const resolved = resolve?.date(day);
+          shown = resolve ? (
+            resolved ? <span className="info-value">{resolved}</span> : <span className="field-label">—</span>
+          ) : calendar ? (
             <span className="info-value">
               <Link className="politics-link-button" href={`/calendars?day=${day}`} data-tooltip={ta("info.openDay")}>
                 {dayLabel(calendar.def, day, { weekday: false })}
