@@ -5,6 +5,10 @@ import { generateCharacter, type Rng } from "../src/lib/character-on-demand/gene
 import { BEARDS, DEFAULT_OPTIONS, FEMALE_HAIRSTYLES, MALE_HAIRSTYLES, type GenerateOptions, type Species } from "../src/lib/character-on-demand/options";
 import { parseNameCollection, type NameCollection } from "../src/lib/character-on-demand/parse-names";
 import { buildCharacterDocument } from "../src/server/character-on-demand/document";
+import { createTranslator } from "../src/i18n/translate";
+import { LOCALES } from "../src/i18n/config";
+
+const en = createTranslator("en-US", "character");
 import { deriveText, validateDocument } from "../src/server/documents/schema";
 import dwarf from "../src/lib/character-on-demand/names/dwarf.json";
 import { generateBackstory, tablesFor } from "../src/lib/character-on-demand/backstory";
@@ -116,7 +120,7 @@ describe("parseNameCollection", () => {
 describe("buildCharacterDocument", () => {
   it("adds the backstory with the secret in a secret block", () => {
     const backstory = { appearance: "Wears a cloak.", want: "He wants his cart.", quirk: "Whistles", fear: "Owls", secret: "He can read." };
-    const doc = buildCharacterDocument([{ label: "Species", value: "Elf" }], backstory);
+    const doc = buildCharacterDocument([{ label: "Species", value: "Elf" }], backstory, en);
     expect(() => validateDocument(doc)).not.toThrow();
     expect(doc.content.at(-1)).toMatchObject({ type: "secret" });
     expect(deriveText(doc)).toContain("Secret: He can read.");
@@ -126,7 +130,7 @@ describe("buildCharacterDocument", () => {
     const doc = buildCharacterDocument([
       { label: "Species", value: "Dwarf" },
       { label: "Beard", value: "Forked Beard" },
-    ]);
+    ], null, en);
     expect(() => validateDocument(doc)).not.toThrow();
     expect(deriveText(doc)).toBe("Generated details\nSpecies: Dwarf\nBeard: Forked Beard");
   });
@@ -135,24 +139,40 @@ describe("buildCharacterDocument", () => {
 describe("backstory", () => {
   const backgrounds = [null, ...BACKGROUNDS];
 
-  it("expands every entry of every table for both genders", () => {
-    for (const background of backgrounds) {
-      const tables = tablesFor(background);
-      for (const [name, entries] of Object.entries(tables)) {
-        for (const entry of entries) {
-          for (const gender of ["Male", "Female"] as const) {
-            const out = expand(entry, tables, gender, Math.random);
-            expect(out, `${background ?? "none"}.${name}: ${entry}`).not.toMatch(/[{}]/);
+  it("expands every entry of every table for both genders, in every language", () => {
+    for (const locale of LOCALES) {
+      for (const background of backgrounds) {
+        const tables = tablesFor(background, locale);
+        for (const [name, entries] of Object.entries(tables)) {
+          for (const entry of entries) {
+            for (const gender of ["Male", "Female"] as const) {
+              const out = expand(entry, tables, gender, Math.random);
+              expect(out, `${locale} ${background ?? "none"}.${name}: ${entry}`).not.toMatch(/[{}|]/);
+            }
           }
         }
       }
     }
   });
 
+  it("has the same tables, with as many entries, in every language", () => {
+    for (const background of backgrounds) {
+      const source = tablesFor(background, "en-US");
+      const counts = (tables: typeof source) => Object.fromEntries(Object.entries(tables).map(([k, v]) => [k, v.length]));
+      for (const locale of LOCALES) expect(counts(tablesFor(background, locale)), `${locale} ${background ?? "none"}`).toEqual(counts(source));
+    }
+  });
+
+  it("picks the word form for the character's gender", () => {
+    const tables = { wants: ["Foi mandad{o|a} embora por {ele|ela} mesm{o|a}."] };
+    expect(expand("{wants}", tables, "Female", Math.random)).toBe("Foi mandada embora por ela mesma.");
+    expect(expand("{wants}", tables, "Male", Math.random)).toBe("Foi mandado embora por ele mesmo.");
+  });
+
   it("never repeats a slot in one entry (each would pick a different value)", () => {
     const pronouns = new Set(["they", "their", "them", "theirs", "themself"]);
     for (const background of backgrounds) {
-      for (const entries of Object.values(tablesFor(background))) {
+      for (const entries of LOCALES.flatMap((locale) => Object.values(tablesFor(background, locale)))) {
         for (const entry of entries) {
           const slots = [...entry.matchAll(/\{(\w+)\}/g)].map((m) => m[1].toLowerCase()).filter((slot) => !pronouns.has(slot));
           expect(new Set(slots).size, entry).toBe(slots.length);
@@ -176,8 +196,8 @@ describe("backstory", () => {
   });
 
   it("starts every line with a capital and keeps want and fear short enough for their fields", () => {
-    for (let i = 0; i < 300; i++) {
-      const b = generateBackstory(pickBackground(i), i % 2 ? "Male" : "Female");
+    for (let i = 0; i < 600; i++) {
+      const b = generateBackstory(pickBackground(i), i % 2 ? "Male" : "Female", Math.random, LOCALES[Math.floor(i / 2) % LOCALES.length]);
       for (const line of Object.values(b)) expect(line.charAt(0)).toBe(line.charAt(0).toUpperCase());
       expect(b.fear.length).toBeLessThanOrEqual(200);
     }

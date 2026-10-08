@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/components/calendars/api";
 import type { ClientLegend, LegendConfig } from "@/server/legends/legend-config";
+import { activeT } from "@/i18n/active";
 
 const SAVE_DELAY_MS = 250;
 
@@ -58,7 +59,7 @@ export function useMapLegends(mapId: string): MapLegendsApi {
   const create = useCallback(async (layerId: string) => {
     const res = await api<{ legend: ClientLegend | null }>("POST", `/api/layers/${layerId}/legend`);
     const legend = res.data.legend;
-    if (!res.ok || !legend) return setError(res.data.error ?? "Could not create the legend.");
+    if (!res.ok || !legend) return setError(res.data.error ?? activeT("maps")("error.createLegend"));
     setError(null);
     setLegends((prev) => [...prev.filter((l) => l.layerId !== layerId), legend]);
   }, []);
@@ -74,7 +75,7 @@ export function useMapLegends(mapId: string): MapLegendsApi {
     const timer = setTimeout(async () => {
       queue.delete(layerId);
       const res = await api<{ legend: ClientLegend }>("PATCH", `/api/layers/${layerId}/legend`, merged);
-      if (!res.ok) setError(res.data.error ?? "Could not save the legend.");
+      if (!res.ok) setError(res.data.error ?? activeT("maps")("error.saveLegend"));
       else setError(null);
     }, SAVE_DELAY_MS);
     queue.set(layerId, { patch: merged, timer });
@@ -85,7 +86,7 @@ export function useMapLegends(mapId: string): MapLegendsApi {
     if (queued) clearTimeout(queued.timer);
     pending.current.delete(layerId);
     const res = await api("DELETE", `/api/layers/${layerId}/legend`);
-    if (!res.ok) return setError(res.data.error ?? "Could not delete the legend.");
+    if (!res.ok) return setError(res.data.error ?? activeT("maps")("error.deleteLegend"));
     setLegends((prev) => prev.filter((l) => l.layerId !== layerId));
   }, []);
 

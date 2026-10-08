@@ -1,5 +1,6 @@
 import { Moon, Orbit, Shapes, Sparkles, Star, Sun, Telescope, type LucideIcon } from "lucide-react";
 import type { CelestialType } from "@/server/calendars/celestial";
+import { activeT } from "@/i18n/active";
 
 export interface CelestialTypeInfo {
   type: CelestialType;
@@ -12,13 +13,32 @@ export interface CelestialTypeInfo {
   detail: string;
 }
 
+/** `label`, `plural` and `detail` are worded on read, in the active language. */
+function typeInfo(type: CelestialType, Icon: LucideIcon, symbol: string, color: string): CelestialTypeInfo {
+  return {
+    type,
+    Icon,
+    symbol,
+    color,
+    get label() {
+      return activeT("calendars")(`type.${type}.label`);
+    },
+    get plural() {
+      return activeT("calendars")(`type.${type}.plural`);
+    },
+    get detail() {
+      return activeT("calendars")(`type.${type}.detail`);
+    },
+  };
+}
+
 /** Every celestial type, in display order (type chooser and Sky folders). */
 export const CELESTIAL_TYPES: CelestialTypeInfo[] = [
-  { type: "moon", label: "Moon", plural: "Moons", Icon: Moon, symbol: "☾", color: "#E8E3D5", detail: "Phases that repeat on a cycle: new, full and everything between." },
-  { type: "sun", label: "Sun", plural: "Suns", Icon: Sun, symbol: "☀", color: "#E8BD7C", detail: "Lore, with optional states like eclipsed or blazing." },
-  { type: "star", label: "Star", plural: "Stars", Icon: Star, symbol: "★", color: "#9CC3F5", detail: "A star whose brightness or visibility can change." },
-  { type: "constellation", label: "Constellation", plural: "Constellations", Icon: Sparkles, symbol: "✧", color: "#7AD9C8", detail: "Visible during part of every year." },
-  { type: "planet", label: "Planet", plural: "Planets", Icon: Orbit, symbol: "♁", color: "#D29C53", detail: "Appearance cycles and rare phenomena." },
-  { type: "comet", label: "Comet", plural: "Comets", Icon: Telescope, symbol: "☄", color: "#F5A397", detail: "Appears on a date, and may return." },
-  { type: "custom", label: "Custom", plural: "Custom", Icon: Shapes, symbol: "◈", color: "#A7ADB5", detail: "Anything else, with states of your own." },
+  typeInfo("moon", Moon, "☾", "#E8E3D5"),
+  typeInfo("sun", Sun, "☀", "#E8BD7C"),
+  typeInfo("star", Star, "★", "#9CC3F5"),
+  typeInfo("constellation", Sparkles, "✧", "#7AD9C8"),
+  typeInfo("planet", Orbit, "♁", "#D29C53"),
+  typeInfo("comet", Telescope, "☄", "#F5A397"),
+  typeInfo("custom", Shapes, "◈", "#A7ADB5"),
 ];

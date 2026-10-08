@@ -7,8 +7,8 @@ import { verifiedArticleName } from "@/server/articles/lookup";
 import { MAX_WORLD_DAY, attachedDays, weatherOnDay } from "@/server/calendars/weather";
 import { readWeatherDay } from "@/lib/weather/validate";
 import { HISTORY_MAX } from "@/lib/tool-history";
+import { errorResponse } from "@/i18n/server";
 
-const bad = (error: string) => NextResponse.json({ error }, { status: 400 });
 const isWorldDay = (v: unknown): v is number => Number.isInteger(v) && Math.abs(v as number) <= MAX_WORLD_DAY;
 
 /**
@@ -21,21 +21,21 @@ export async function GET(request: Request) {
   const ids = params.get("ids");
   if (ids !== null) {
     const list = [...new Set(ids.split(",").filter(Boolean))];
-    if (list.length > HISTORY_MAX * 10) return bad("Too many ids.");
+    if (list.length > HISTORY_MAX * 10) return errorResponse("weatherTooManyIds", 400);
     return NextResponse.json({ days: await attachedDays(worldId, list) });
   }
   const day = Number(params.get("day"));
-  if (!params.get("day") || !isWorldDay(day)) return bad("A day is required.");
+  if (!params.get("day") || !isWorldDay(day)) return errorResponse("weatherDayRequired", 400);
   return NextResponse.json({ weather: await weatherOnDay(worldId, day) });
 }
 
 /** Attaches a generated day: `{ worldDay, day, settlementId?, territoryId? }`. */
 export async function POST(request: Request) {
   const body = await readBody(request);
-  if (!body) return bad("Invalid request body.");
-  if (!isWorldDay(body.worldDay)) return bad("Pick a valid calendar day.");
+  if (!body) return errorResponse("invalidBody", 400);
+  if (!isWorldDay(body.worldDay)) return errorResponse("weatherDayInvalid", 400);
   const day = readWeatherDay(body.day);
-  if (!day) return bad("That weather report is incomplete or invalid.");
+  if (!day) return errorResponse("weatherReportInvalid", 400);
 
   const worldId = await requireWorldId();
   const place = async (template: "settlement" | "territory", id: unknown) => {
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
   };
   const settlementId = await place("settlement", body.settlementId);
   const territoryId = await place("territory", body.territoryId);
-  if (settlementId === false || territoryId === false) return bad("That settlement or territory doesn't exist anymore.");
+  if (settlementId === false || territoryId === false) return errorResponse("weatherPlaceMissing", 400);
 
   const [row] = await db.insert(calendarWeather).values({ worldId, worldDay: body.worldDay, data: JSON.stringify(day), settlementId, territoryId }).returning();
   return NextResponse.json({ id: row.id, worldDay: row.worldDay }, { status: 201 });

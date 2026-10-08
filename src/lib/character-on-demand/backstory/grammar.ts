@@ -11,6 +11,8 @@ const PRONOUNS: Record<Gender, Record<string, string>> = {
 };
 
 const SLOT = /\{(\w+)\}/g;
+/** `{masculine|feminine}`: words that agree with the character's gender (pt-BR tables). */
+const AGREE = /\{([^{}|]*)\|([^{}|]*)\}/g;
 const MAX_DEPTH = 6;
 
 const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -18,12 +20,14 @@ const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 /**
  * Fills every `{slot}` of a template with a random entry of the table of the
  * same name, recursively. `{They}`/`{their}`… are the character's pronouns;
+ * `{o|a}` picks the masculine or feminine form for the character's gender;
  * a capitalized slot (`{Item}`) capitalizes what it picks. An unknown slot
  * throws, so a typo in the tables fails the tests instead of reaching a character.
  */
 export function expand(template: string, tables: Tables, gender: Gender, rng: Rng, depth = 0): string {
   if (depth > MAX_DEPTH) throw new Error(`Backstory template nests too deep: ${template}`);
-  return template.replace(SLOT, (_, slot: string) => {
+  const agreed = template.replace(AGREE, (_, masculine: string, feminine: string) => (gender === "Male" ? masculine : feminine));
+  return agreed.replace(SLOT, (_, slot: string) => {
     const key = slot.charAt(0).toLowerCase() + slot.slice(1);
     const pronoun = PRONOUNS[gender][key];
     const options = tables[key];

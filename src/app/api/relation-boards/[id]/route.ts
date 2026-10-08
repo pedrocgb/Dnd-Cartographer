@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { errorResponse } from "@/i18n/server";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { relationshipBoards } from "@/server/db/schema";
@@ -14,18 +15,18 @@ async function boardOf(id: string) {
   });
 }
 
-const notFound = () => NextResponse.json({ error: "Board not found." }, { status: 404 });
+const notFound = () => errorResponse("boardNotFound", 404);
 
 /** Renames a board or replaces its cards / filters (each optional). */
 export async function PATCH(request: Request, { params }: RouteContext) {
   const { id } = await params;
   if (!(await boardOf(id))) return notFound();
   const body = await request.json().catch(() => null);
-  if (!body || typeof body !== "object") return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+  if (!body || typeof body !== "object") return errorResponse("invalidBody", 400);
   const patch: Partial<typeof relationshipBoards.$inferInsert> = { updatedAt: new Date() };
   if ("name" in body) {
     const name = sanitizeBoardName(body.name);
-    if (!name) return NextResponse.json({ error: "A board needs a name." }, { status: 400 });
+    if (!name) return errorResponse("boardNameRequired", 400);
     patch.name = name;
   }
   if ("cards" in body) {

@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
+import { errorResponse } from "@/i18n/server";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { campaignCharacters, campaigns, sessions, quests, fronts, outlineNodes, plotThreads, threadBeats, campaignStatusLog } from "@/server/db/schema";
 import { requireWorldId } from "@/server/world/active-world";
 import { cleanName } from "@/server/calendars/parse";
 import { checkCalendarIds } from "@/server/calendars/store";
-import { badRequest, calendarErrorResponse, notFound, readBody } from "@/server/calendars/respond";
+import { calendarErrorResponse, readBody } from "@/server/calendars/respond";
 import { parseCurrencies } from "@/server/sessions/parse";
 import { campaignOf, rosterOf, sessionsOf, sessionsUsingCurrency, toClientCampaign } from "@/server/sessions/store";
 import type { Currency } from "@/server/sessions/types";
@@ -19,19 +20,19 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   const { id } = await params;
   const worldId = await requireWorldId();
   const row = await campaignOf(worldId, id);
-  if (!row) return notFound("Campaign not found.");
+  if (!row) return errorResponse("campaignNotFound", 404);
   const body = await readBody(request);
-  if (!body) return badRequest("Invalid request body.");
+  if (!body) return errorResponse("invalidBody", 400);
   try {
     const patch: Partial<typeof campaigns.$inferInsert> = { updatedAt: new Date() };
     if ("name" in body) {
       const name = cleanName(body.name);
-      if (!name) return badRequest("A campaign name is required.");
+      if (!name) return errorResponse("campaignNameRequired", 400);
       patch.name = name;
     }
     if ("description" in body) patch.description = cleanName(body.description, 4000);
     if ("calendarId" in body) {
-      if (typeof body.calendarId !== "string" || !body.calendarId) return badRequest("Pick the calendar this campaign's dates are read in.");
+      if (typeof body.calendarId !== "string" || !body.calendarId) return errorResponse("campaignCalendarRequired", 400);
       await checkCalendarIds(worldId, [body.calendarId]);
       patch.calendarId = body.calendarId;
     }
@@ -40,12 +41,12 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       const removed = new Set(safeJson<Currency[]>(row.currencies, []).map((c) => c.id).filter((cid) => !next.some((c) => c.id === cid)));
       if (removed.size) {
         const users = sessionsUsingCurrency(await sessionsOf(id), removed);
-        if (users.length) return NextResponse.json({ error: `A removed coin is still used in session ${users.map((s) => s.number).join(", ")}. Remove it there first.` }, { status: 409 });
+        if (users.length) return errorResponse("campaignCoinInUse", 409, undefined, { sessions: users.map((s) => s.number).join(", ") });
       }
       patch.currencies = JSON.stringify(next);
     }
     if ("status" in body) {
-      if (body.status !== "active" && body.status !== "finished") return badRequest("Status must be active or finished.");
+      if (body.status !== "active" && body.status !== "finished") return errorResponse("campaignStatusInvalid", 400);
       patch.status = body.status;
     }
     if ("setup" in body) patch.setup = JSON.stringify(parseSetup(body.setup, readSetup(safeJson<unknown>(row.setup, {}))));
@@ -61,15 +62,15 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 export async function DELETE(_request: Request, { params }: RouteContext) {
   const { id } = await params;
   const worldId = await requireWorldId();
-  if (!(await campaignOf(worldId, id))) return notFound("Campaign not found.");
+  if (!(await campaignOf(worldId, id))) return errorResponse("campaignNotFound", 404);
   const live = await db.select({ id: sessions.id }).from(sessions).where(and(eq(sessions.campaignId, id), isNull(sessions.deletedAt)));
-  if (live.length) return NextResponse.json({ error: `It still has ${live.length} session${live.length === 1 ? "" : "s"}. Delete them first, or archive the campaign instead.` }, { status: 409 });
+  if (live.length) return errorResponse("campaignHasSessions", 409, undefined, { count: live.length });
   const liveQuests = await db.select({ id: quests.id }).from(quests).where(and(eq(quests.campaignId, id), isNull(quests.deletedAt)));
-  if (liveQuests.length) return NextResponse.json({ error: `It still has ${liveQuests.length} quest${liveQuests.length === 1 ? "" : "s"}. Delete them first, or archive the campaign instead.` }, { status: 409 });
+  if (liveQuests.length) return errorResponse("campaignHasQuests", 409, undefined, { count: liveQuests.length });
   const liveFronts = await db.select({ id: fronts.id }).from(fronts).where(and(eq(fronts.campaignId, id), isNull(fronts.deletedAt)));
-  if (liveFronts.length) return NextResponse.json({ error: `It still has ${liveFronts.length} front${liveFronts.length === 1 ? "" : "s"}. Delete them first, or archive the campaign instead.` }, { status: 409 });
+  if (liveFronts.length) return errorResponse("campaignHasFronts", 409, undefined, { count: liveFronts.length });
   const liveOutline = await db.select({ id: outlineNodes.id }).from(outlineNodes).where(and(eq(outlineNodes.campaignId, id), isNull(outlineNodes.deletedAt)));
-  if (liveOutline.length) return NextResponse.json({ error: `Its story outline still has ${liveOutline.length} item${liveOutline.length === 1 ? "" : "s"}. Delete them in the Writer first, or archive the campaign instead.` }, { status: 409 });
+  if (liveOutline.length) return errorResponse("campaignHasOutline", 409, undefined, { count: liveOutline.length });
   const threadIds = (await db.select({ id: plotThreads.id }).from(plotThreads).where(eq(plotThreads.campaignId, id))).map((t) => t.id);
   await db.transaction(async (tx) => {
     if (threadIds.length) await tx.delete(threadBeats).where(inArray(threadBeats.threadId, threadIds));

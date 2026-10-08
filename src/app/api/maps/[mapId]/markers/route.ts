@@ -23,10 +23,11 @@ import { isLayerOfMap } from "@/server/layers/layers";
 import { isArticleTemplate, type ArticleTemplateKey } from "@/server/articles/templates";
 import { verifiedArticleName } from "@/server/articles/lookup";
 import { notInWorld } from "@/server/world/guards";
+import { errorResponse } from "@/i18n/server";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ mapId: string }> }) {
   const { mapId } = await params;
-  const denied = await notInWorld("maps", mapId, "Map not found.");
+  const denied = await notInWorld("maps", mapId, "mapNotFound");
   if (denied) return denied;
   const rows = await db
     .select()
@@ -43,11 +44,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ map
  */
 export async function POST(request: Request, { params }: { params: Promise<{ mapId: string }> }) {
   const { mapId } = await params;
-  const denied = await notInWorld("maps", mapId, "Map not found.");
+  const denied = await notInWorld("maps", mapId, "mapNotFound");
   if (denied) return denied;
   const map = await db.query.maps.findFirst({ where: eq(maps.id, mapId) });
   if (!map) {
-    return NextResponse.json({ error: "Map not found." }, { status: 404 });
+    return errorResponse("mapNotFound", 404);
   }
 
   const body = await request.json().catch(() => null);
@@ -59,17 +60,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ map
     const template = body.article.template;
     const id = typeof body.article.id === "string" ? body.article.id : "";
     const articleName = isArticleTemplate(template) && id ? await verifiedArticleName(map.worldId, template, id) : null;
-    if (!articleName) return NextResponse.json({ error: "Article not found." }, { status: 404 });
+    if (!articleName) return errorResponse("articleNotFound", 404);
     article = { template, id, name: articleName };
   }
   const templateDefaults = article ? TEMPLATE_MARKER_DEFAULTS[article.template] : undefined;
 
   const name = (typeof body?.name === "string" ? body.name.trim() : "") || article?.name || "";
   if (!name) {
-    return NextResponse.json({ error: "A marker name is required." }, { status: 400 });
+    return errorResponse("markerNameRequired", 400);
   }
   if (!Number.isFinite(u) || !Number.isFinite(v) || u < 0 || u > 1 || v < 0 || v > 1) {
-    return NextResponse.json({ error: "Marker position must be normalized u/v in [0, 1]." }, { status: 400 });
+    return errorResponse("markerPositionInvalid", 400);
   }
 
   const iconKey =
@@ -93,14 +94,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ map
   const category = templateDefaults?.category ?? DEFAULT_MARKER_CATEGORY;
 
   if (!(await isLayerOfMap(body?.layerId, mapId))) {
-    return NextResponse.json({ error: "A layer of this map is required." }, { status: 400 });
+    return errorResponse("layerOfMapRequired", 400);
   }
   const layerId: string = body.layerId;
 
   if (linkedMapId) {
     const linked = await db.query.maps.findFirst({ where: eq(maps.id, linkedMapId) });
     if (!linked || linked.worldId !== map.worldId) {
-      return NextResponse.json({ error: "Linked map must exist in the same world." }, { status: 400 });
+      return errorResponse("linkedMapSameWorld", 400);
     }
   }
 

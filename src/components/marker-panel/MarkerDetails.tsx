@@ -2,16 +2,16 @@
 
 import InfoPicker, { type PickerOption } from "@/components/articles/InfoPicker";
 import LayerChecklist from "../LayerChecklist";
-import { MARKER_CATEGORIES, DEFAULT_MARKER_CATEGORY } from "@/server/markers/icon-registry";
-import { STATUS_TAGS, ENVIRONMENT_TAGS, OWNERSHIP_TAGS } from "@/server/markers/tag-registry";
+import { MARKER_CATEGORIES, DEFAULT_MARKER_CATEGORY, markerCategoryLabel } from "@/server/markers/icon-registry";
+import { STATUS_TAGS, ENVIRONMENT_TAGS, OWNERSHIP_TAGS, markerTagLabel } from "@/server/markers/tag-registry";
+import { useT } from "@/i18n/useT";
 import type { Marker } from "../MarkerLayer";
 import type { MapLayerData } from "../layer-images";
 import type { MarkerUpdate } from "./types";
 import MarkerCard from "./MarkerCard";
 
-const toOptions = (values: readonly string[]): PickerOption[] => values.map((v) => ({ value: v, label: v }));
-const ENVIRONMENT_OPTIONS = toOptions(ENVIRONMENT_TAGS);
-const OWNERSHIP_OPTIONS = toOptions(OWNERSHIP_TAGS);
+/** Stored English values as picker rows, labeled in the user's language. */
+const toOptions = (values: readonly string[], label: (value: string) => string): PickerOption[] => values.map((v) => ({ value: v, label: label(v) }));
 
 /** A labelled field: label on the left, control on the right. */
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -37,9 +37,12 @@ export default function MarkerDetails({
   layers: MapLayerData[];
   onUpdate: MarkerUpdate;
 }) {
+  const t = useT("maps");
   const category = marker.category ?? DEFAULT_MARKER_CATEGORY;
   // Covers a category saved under an older list — shown as-is instead of silently becoming another.
-  const categoryOptions = toOptions((MARKER_CATEGORIES as readonly string[]).includes(category) ? MARKER_CATEGORIES : [category, ...MARKER_CATEGORIES]);
+  const categoryOptions = toOptions((MARKER_CATEGORIES as readonly string[]).includes(category) ? MARKER_CATEGORIES : [category, ...MARKER_CATEGORIES], markerCategoryLabel);
+  const environmentOptions = toOptions(ENVIRONMENT_TAGS, (v) => markerTagLabel("environment", v));
+  const ownershipOptions = toOptions(OWNERSHIP_TAGS, (v) => markerTagLabel("ownership", v));
 
   function toggleStatus(tag: string) {
     const next = marker.statusTags.includes(tag) ? marker.statusTags.filter((t) => t !== tag) : [...marker.statusTags, tag];
@@ -47,43 +50,43 @@ export default function MarkerDetails({
   }
 
   return (
-    <MarkerCard title="Details">
-      <Field label="Category">
+    <MarkerCard title={t("marker.details")}>
+      <Field label={t("field.category")}>
         <InfoPicker
           options={categoryOptions}
           value={category}
-          placeholder="Category"
-          ariaLabel="Category"
+          placeholder={t("field.category")}
+          ariaLabel={t("field.category")}
           searchable={false}
           onChange={(v) => v && onUpdate({ category: v })}
         />
       </Field>
-      <Field label="Environment">
+      <Field label={t("marker.environment")}>
         <InfoPicker
-          options={ENVIRONMENT_OPTIONS}
+          options={environmentOptions}
           value={marker.environment}
-          placeholder="None"
-          clearLabel="None"
-          ariaLabel="Environment"
+          placeholder={t("marker.none")}
+          clearLabel={t("marker.none")}
+          ariaLabel={t("marker.environment")}
           onChange={(environment) => onUpdate({ environment })}
         />
       </Field>
-      <Field label="Ownership">
+      <Field label={t("marker.ownership")}>
         <InfoPicker
-          options={OWNERSHIP_OPTIONS}
+          options={ownershipOptions}
           value={marker.ownership}
-          placeholder="None"
-          clearLabel="None"
-          ariaLabel="Ownership"
+          placeholder={t("marker.none")}
+          clearLabel={t("marker.none")}
+          ariaLabel={t("marker.ownership")}
           onChange={(ownership) => onUpdate({ ownership })}
         />
       </Field>
-      <Field label="Layer">
+      <Field label={t("field.layer")}>
         <InfoPicker
           options={layers.map((l) => ({ value: l.id, label: l.name }))}
           value={marker.layerId}
-          placeholder="Layer"
-          ariaLabel="Layer"
+          placeholder={t("field.layer")}
+          ariaLabel={t("field.layer")}
           searchable={layers.length > 8}
           onChange={(layerId) => layerId && onUpdate({ layerId })}
         />
@@ -96,7 +99,7 @@ export default function MarkerDetails({
         onChange={(extraLayerIds) => onUpdate({ extraLayerIds })}
       />
       <div className="marker-field">
-        <span className="field-label">Status</span>
+        <span className="field-label">{t("marker.status")}</span>
         <div className="tag-toggle-grid">
           {STATUS_TAGS.map((tag) => (
             <button
@@ -106,7 +109,7 @@ export default function MarkerDetails({
               aria-pressed={marker.statusTags.includes(tag)}
               onClick={() => toggleStatus(tag)}
             >
-              {tag}
+              {markerTagLabel("status", tag)}
             </button>
           ))}
         </div>

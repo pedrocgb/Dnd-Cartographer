@@ -11,6 +11,7 @@ import { CELESTIAL_TYPES } from "./celestial-types";
 import { dayLabel, safe } from "./evaluate";
 import { Block, LinkedArticles, relative } from "./view-parts";
 import type { ClientCalendar, ClientCelestial } from "./types";
+import { useT } from "@/i18n/useT";
 
 /** How far ahead appearances are looked up (physical days). */
 const HORIZON = 50_000;
@@ -33,6 +34,7 @@ function upcomingPhases(object: ClientCelestial, from: number) {
 }
 
 function MoonCycle({ object, def, day }: { object: ClientCelestial; def: CalendarDefinition; day: number }) {
+  const t = useT("calendars");
   const phases = object.config.phases ?? [];
   const total = cycleTotal(phases);
   const spans = safe(() => phaseSpans(object.config, day, day + total - 1), []);
@@ -40,22 +42,18 @@ function MoonCycle({ object, def, day }: { object: ClientCelestial; def: Calenda
   // A cycle storing several lunations repeats its phase names (e.g. 29 + 30 days for a 29.5-day month).
   const distinct = new Set(phases.map((p) => p.name)).size;
   const lunations = distinct > 0 && phases.length % distinct === 0 ? phases.length / distinct : 1;
+  // {days} is left in place, then split so it can be bold.
+  const [leadBefore, leadAfter] = (lunations > 1 ? t("cv.lunations", { phases: distinct, total, lunations }) : t("cv.cycle", { phases: phases.length })).split("{days}");
   return (
-    <Block title="Lunar cycle" Icon={CalendarClock}>
+    <Block title={t("cv.lunarCycle")} Icon={CalendarClock}>
       <p className="cv-lead">
-        {lunations > 1 ? (
-          <>
-            Each lunation lasts about <strong>{formatDecimal(total / lunations, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} days</strong> across {distinct} phases; the pattern repeats every {total} days ({lunations} lunations).
-          </>
-        ) : (
-          <>
-            A full cycle lasts <strong>{total} days</strong> across {phases.length} phases.
-          </>
-        )}
+        {leadBefore}
+        <strong>{t("cv.daysBold", { n: lunations > 1 ? formatDecimal(total / lunations, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : total })}</strong>
+        {leadAfter}
       </p>
-      <div className="cv-cycle" aria-label="The next cycle, from this day">
+      <div className="cv-cycle" aria-label={t("cv.nextCycle")}>
         {spans.map((s) => (
-          <span key={s.start} className="cv-cycle-span" style={{ flexGrow: s.end - s.start + 1 }} data-tooltip={`${s.name}: ${dayLabel(def, s.start, { weekday: false })}${s.end > s.start ? ` – ${dayLabel(def, s.end, { weekday: false })}` : ""}`}>
+          <span key={s.start} className="cv-cycle-span" style={{ flexGrow: s.end - s.start + 1 }} data-tooltip={t("cv.span", { name: s.name, dates: `${dayLabel(def, s.start, { weekday: false })}${s.end > s.start ? ` – ${dayLabel(def, s.end, { weekday: false })}` : ""}` })}>
             <span aria-hidden>{s.icon}</span>
           </span>
         ))}
@@ -68,7 +66,7 @@ function MoonCycle({ object, def, day }: { object: ClientCelestial; def: Calenda
                 {p.icon || "•"}
               </span>
               <span className="cv-list-main">
-                <strong>Next {p.name}</strong>
+                <strong>{t("cv.next", { name: p.name })}</strong>
                 <span className="cal-help">{dayLabel(def, p.start)}</span>
               </span>
               <span className="cv-chip">{relative(p.start, day)}</span>
@@ -81,12 +79,13 @@ function MoonCycle({ object, def, day }: { object: ClientCelestial; def: Calenda
 }
 
 function Appearances({ object, def, day, calendars, resolve }: { object: ClientCelestial; def: CalendarDefinition; day: number; calendars: ClientCalendar[]; resolve: CalendarResolver }) {
+  const t = useT("calendars");
   const schedules = (object.config.schedules ?? []).map(normalizeSchedule);
   const states = object.config.states ?? [];
   return (
-    <Block title="Appearances" Icon={CalendarClock}>
+    <Block title={t("cv.appearances")} Icon={CalendarClock}>
       {schedules.length === 0 ? (
-        <p className="cal-help">No appearance rules: it isn&apos;t tied to any dates.</p>
+        <p className="cal-help">{t("cv.noRules")}</p>
       ) : (
         <ul className="cv-list">
           {schedules.map((s) => {
@@ -98,8 +97,8 @@ function Appearances({ object, def, day, calendars, resolve }: { object: ClientC
                   {state?.icon || object.icon || "•"}
                 </span>
                 <span className="cv-list-main">
-                  <strong>{ruleSummary(s, state?.name ?? "Appears", calendars)}</strong>
-                  <span className="cal-help">{next.length ? `Next: ${next.map((d) => `${dayLabel(def, d, { weekday: false })} (${relative(d, day)})`).join(" · ")}` : "No upcoming appearance."}</span>
+                  <strong>{ruleSummary(s, state?.name ?? t("cv.appears"), calendars)}</strong>
+                  <span className="cal-help">{next.length ? t("cv.nextList", { list: next.map((d) => `${dayLabel(def, d, { weekday: false })} (${relative(d, day)})`).join(" · ") }) : t("sched.noUpcoming")}</span>
                 </span>
               </li>
             );
@@ -111,6 +110,7 @@ function Appearances({ object, def, day, calendars, resolve }: { object: ClientC
 }
 
 function SpecialDates({ object, def, day }: { object: ClientCelestial; def: CalendarDefinition; day: number }) {
+  const t = useT("calendars");
   const phases = object.config.phases ?? [];
   const states = object.config.states ?? [];
   const nameOf = (id: string) => phases.find((p) => p.id === id)?.name ?? states.find((s) => s.id === id)?.name ?? "?";
@@ -118,7 +118,7 @@ function SpecialDates({ object, def, day }: { object: ClientCelestial; def: Cale
   const restarts = (object.config.segments ?? []).length;
   if (overrides.length === 0 && restarts === 0) return null;
   return (
-    <Block title="Special dates" Icon={Sparkles}>
+    <Block title={t("cv.specialDates")} Icon={Sparkles}>
       {overrides.length > 0 ? (
         <ul className="cv-list">
           {overrides.slice(0, 5).map((o) => (
@@ -138,14 +138,10 @@ function SpecialDates({ object, def, day }: { object: ClientCelestial; def: Cale
           ))}
         </ul>
       ) : (
-        <p className="cal-help">No upcoming special dates.</p>
+        <p className="cal-help">{t("cv.noSpecial")}</p>
       )}
-      {overrides.length > 5 && <p className="cal-help">and {overrides.length - 5} more.</p>}
-      {restarts > 0 && (
-        <p className="cal-help">
-          Its cycle restarts on {restarts} set date{restarts === 1 ? "" : "s"}.
-        </p>
-      )}
+      {overrides.length > 5 && <p className="cal-help">{t("cv.andMore", { n: overrides.length - 5 })}</p>}
+      {restarts > 0 && <p className="cal-help">{t("cv.restarts", { count: restarts, n: restarts })}</p>}
     </Block>
   );
 }
@@ -156,10 +152,12 @@ function SpecialDates({ object, def, day }: { object: ClientCelestial; def: Cale
  * shown in `def` (the calendar being viewed). "Edit" hands over to the editor.
  */
 export default function CelestialView({ object, def, day, calendars, onEdit, onClose }: { object: ClientCelestial; def: CalendarDefinition; day: number; calendars: ClientCalendar[]; onEdit: () => void; onClose: () => void }) {
-  const info = CELESTIAL_TYPES.find((t) => t.type === object.type) ?? CELESTIAL_TYPES[CELESTIAL_TYPES.length - 1];
+  const t = useT("calendars");
+  const tc = useT("common");
+  const info = CELESTIAL_TYPES.find((x) => x.type === object.type) ?? CELESTIAL_TYPES[CELESTIAL_TYPES.length - 1];
   const resolve: CalendarResolver = (id) => calendars.find((c) => c.id === id)?.definition ?? null;
   const today = safe(() => evaluateCelestial(object.type, object.config, day, resolve), []);
-  const shownIn = object.calendarIds === null ? "Every calendar" : object.calendarIds.map((id) => calendars.find((c) => c.id === id)?.name).filter(Boolean).join(", ") || "No calendar";
+  const shownIn = object.calendarIds === null ? t("cv.everyCalendar") : object.calendarIds.map((id) => calendars.find((c) => c.id === id)?.name).filter(Boolean).join(", ") || t("cv.noCalendar");
   return (
     <Modal open onClose={onClose} title={info.label} size="wide">
       <div className="cv" style={{ "--cv-color": object.color } as CSSProperties}>
@@ -174,7 +172,7 @@ export default function CelestialView({ object, def, day, calendars, onEdit, onC
               <span className="cv-tag">
                 <info.Icon size={13} aria-hidden /> {info.label}
               </span>
-              <span className="cv-tag" data-tooltip="Calendars that show it">
+              <span className="cv-tag" data-tooltip={t("cv.shownInHint")}>
                 <CalendarDays size={13} aria-hidden /> {shownIn}
               </span>
             </div>
@@ -188,16 +186,16 @@ export default function CelestialView({ object, def, day, calendars, onEdit, onC
               {today.map((s) => (
                 <span key={s.id} className="cv-state">
                   <span aria-hidden>{s.icon || object.icon || "•"}</span> {s.name}
-                  {s.override && <span className="cal-help"> · special date</span>}
+                  {s.override && <span className="cal-help">{t("cv.specialSuffix")}</span>}
                 </span>
               ))}
             </div>
           ) : (
-            <span className="cal-help">Not in the sky on this day.</span>
+            <span className="cal-help">{t("cv.notInSky")}</span>
           )}
         </div>
 
-        {object.description ? <p className="cv-description">{object.description}</p> : <p className="cal-help">No description yet.</p>}
+        {object.description ? <p className="cv-description">{object.description}</p> : <p className="cal-help">{t("cv.noDescription")}</p>}
 
         <div className="cv-grid">
           {object.type === "moon" ? <MoonCycle object={object} def={def} day={day} /> : <Appearances object={object} def={def} day={day} calendars={calendars} resolve={resolve} />}
@@ -207,10 +205,10 @@ export default function CelestialView({ object, def, day, calendars, onEdit, onC
 
         <div className="cel-footer">
           <button type="button" className="btn btn-sm" onClick={onClose}>
-            Close
+            {tc("close")}
           </button>
           <button type="button" className="btn btn-sm btn-primary" onClick={onEdit}>
-            <Pencil size={14} /> Edit
+            <Pencil size={14} /> {t("sidebar.edit")}
           </button>
         </div>
       </div>

@@ -7,13 +7,14 @@ import { api } from "./api";
 import { dayLabel, inCalendar } from "./evaluate";
 import { CELESTIAL_TYPES } from "./celestial-types";
 import type { ClientCalendar, ClientCelestial, ClientEntry, ClientProfile, EntryKind, WorldCalendars } from "./types";
+import { useT } from "@/i18n/useT";
 
 export interface Filters {
   kinds: Set<EntryKind>;
   category: string;
 }
 
-const KIND_LABELS: Record<EntryKind, string> = { note: "Notes", event: "Events", link: "Article links" };
+const KINDS: EntryKind[] = ["note", "event", "link"];
 
 /** A sidebar section's title, with an optional icon action at its right. */
 function SideHead({ title, action }: { title: string; action?: { label: string; Icon: typeof Plus; onClick: () => void } }) {
@@ -45,6 +46,8 @@ function CalendarMenu({
   onMakeDefault: () => void;
   onDelete: () => void;
 }) {
+  const t = useT("calendars");
+  const tc = useT("common");
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -71,10 +74,10 @@ function CalendarMenu({
       <button
         type="button"
         className="btn btn-ghost btn-icon btn-sm"
-        aria-label={`${calendar.name} actions`}
+        aria-label={t("sidebar.actions", { name: calendar.name })}
         aria-haspopup="menu"
         aria-expanded={open}
-        data-tooltip={open ? undefined : "Actions"}
+        data-tooltip={open ? undefined : t("sidebar.actionsHint")}
         onClick={() => setOpen(!open)}
       >
         <Ellipsis size={15} />
@@ -82,18 +85,18 @@ function CalendarMenu({
       {open && (
         <div className="cal-row-menu-pop" role="menu">
           <button type="button" role="menuitem" onClick={pick(onEdit)}>
-            <Pencil size={14} /> Edit
+            <Pencil size={14} /> {t("sidebar.edit")}
           </button>
           <button type="button" role="menuitem" onClick={pick(onDuplicate)}>
-            <Copy size={14} /> Duplicate
+            <Copy size={14} /> {t("sidebar.duplicate")}
           </button>
           {!isDefault && (
             <>
               <button type="button" role="menuitem" onClick={pick(onMakeDefault)}>
-                <Star size={14} /> Make default
+                <Star size={14} /> {t("sidebar.makeDefault")}
               </button>
               <button type="button" role="menuitem" className="danger" onClick={pick(onDelete)}>
-                <Trash2 size={14} /> Delete
+                <Trash2 size={14} /> {tc("delete")}
               </button>
             </>
           )}
@@ -148,6 +151,7 @@ export default function CalendarsSidebar({
   onFilters: (f: Filters) => void;
   onJump: (worldDay: number) => void;
 }) {
+  const t = useT("calendars");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ClientEntry[] | null>(null);
   const [names, setNames] = useState<Record<string, string>>({});
@@ -179,9 +183,9 @@ export default function CalendarsSidebar({
   }
 
   return (
-    <aside className="articles-sidebar cal-sidebar" aria-label="Calendars">
+    <aside className="articles-sidebar cal-sidebar" aria-label={t("manager.title")}>
       <section className="cal-side-section">
-        <SideHead title="Calendars" action={{ label: "New calendar", Icon: Plus, onClick: onNewCalendar }} />
+        <SideHead title={t("manager.title")} action={{ label: t("manager.new"), Icon: Plus, onClick: onNewCalendar }} />
         <ul className="cal-side-list">
           {calendars.map((c) => {
             const isDefault = world.chronology.defaultCalendarId === c.id;
@@ -191,8 +195,8 @@ export default function CalendarsSidebar({
                   <CalendarDays size={16} />
                   <span className="articles-folder-name">{c.name}</span>
                   {isDefault && (
-                    <span className="cal-default-star" data-tooltip="The world's default calendar">
-                      <Star size={13} fill="currentColor" aria-label="Default" />
+                    <span className="cal-default-star" data-tooltip={t("sidebar.defaultHint")}>
+                      <Star size={13} fill="currentColor" aria-label={t("sidebar.default")} />
                     </span>
                   )}
                 </button>
@@ -201,32 +205,32 @@ export default function CalendarsSidebar({
             );
           })}
         </ul>
-        {calendars.length === 0 && <p className="cal-help">No calendars yet.</p>}
+        {calendars.length === 0 && <p className="cal-help">{t("sidebar.none")}</p>}
       </section>
 
       {def && (
         <>
           <section className="cal-side-section">
-            <SideHead title="Filter" />
+            <SideHead title={t("sidebar.filter")} />
             <label className="cal-search">
               <Search size={14} aria-hidden />
-              <input type="search" placeholder="Search notes and events" value={query} onChange={(e) => search(e.target.value)} aria-label="Search notes and events" />
+              <input type="search" placeholder={t("sidebar.search")} value={query} onChange={(e) => search(e.target.value)} aria-label={t("sidebar.search")} />
             </label>
             {results && (
               <ul className="cal-search-results">
-                {results.length === 0 && <li className="cal-help">No matches.</li>}
+                {results.length === 0 && <li className="cal-help">{t("sidebar.noMatches")}</li>}
                 {results.map((e) => (
                   <li key={e.id}>
                     <button type="button" className="cal-search-result" onClick={() => onJump(e.worldDay)}>
-                      <span>{e.title || (e.kind === "link" ? (names[e.articleId ?? ""] ?? "(removed)") : "Note")}</span>
+                      <span>{e.title || (e.kind === "link" ? (names[e.articleId ?? ""] ?? t("sidebar.removed")) : t("views.note"))}</span>
                       <span className="cal-help">{dayLabel(def, e.worldDay, { weekday: false })}</span>
                     </button>
                   </li>
                 ))}
               </ul>
             )}
-            <div className="cal-kind-toggles" role="group" aria-label="Show on the calendar">
-              {(Object.keys(KIND_LABELS) as EntryKind[]).map((k) => {
+            <div className="cal-kind-toggles" role="group" aria-label={t("sidebar.showOn")}>
+              {KINDS.map((k) => {
                 const on = filters.kinds.has(k);
                 return (
                   <button
@@ -242,14 +246,14 @@ export default function CalendarsSidebar({
                     }}
                   >
                     <span className="cal-kind-dot" aria-hidden />
-                    {KIND_LABELS[k]}
+                    {t(`sidebar.kind.${k}`)}
                   </button>
                 );
               })}
             </div>
             {categories.length > 0 && (
-              <select aria-label="Category filter" value={filters.category} onChange={(e) => onFilters({ ...filters, category: e.target.value })}>
-                <option value="">All categories</option>
+              <select aria-label={t("sidebar.categoryFilter")} value={filters.category} onChange={(e) => onFilters({ ...filters, category: e.target.value })}>
+                <option value="">{t("sidebar.allCategories")}</option>
                 {categories.map((c) => (
                   <option key={c} value={c}>
                     {c}
@@ -260,26 +264,26 @@ export default function CalendarsSidebar({
           </section>
 
           <section className="cal-side-section">
-            <SideHead title="Seasons" />
+            <SideHead title={t("sidebar.seasons")} />
             <ul className="cal-side-list">
               <li>
                 <button type="button" className="articles-folder" onClick={onOpenSeasons}>
                   <Leaf size={16} aria-hidden />
-                  <span className="articles-folder-name">Seasons</span>
+                  <span className="articles-folder-name">{t("sidebar.seasons")}</span>
                   <span className="articles-folder-count">{seasonCount}</span>
                 </button>
               </li>
               <li>
                 <button type="button" className="articles-folder" onClick={onOpenProfiles}>
                   <Layers size={16} aria-hidden />
-                  <span className="articles-folder-name">Season profiles</span>
+                  <span className="articles-folder-name">{t("sidebar.profiles")}</span>
                   <span className="articles-folder-count">{profileCount}</span>
                 </button>
               </li>
             </ul>
-            <span className="field-label">Preview on the calendar</span>
-            <select aria-label="Season profile to preview" value={previewProfile?.id ?? ""} onChange={(e) => onPreviewProfile(e.target.value || null)}>
-              <option value="">None</option>
+            <span className="field-label">{t("sidebar.preview")}</span>
+            <select aria-label={t("sidebar.previewAria")} value={previewProfile?.id ?? ""} onChange={(e) => onPreviewProfile(e.target.value || null)}>
+              <option value="">{t("sidebar.noProfile")}</option>
               {world.profiles
                 .filter((p) => !p.archived)
                 .map((p) => (
@@ -291,18 +295,18 @@ export default function CalendarsSidebar({
           </section>
 
           <section className="cal-side-section">
-            <SideHead title="Sky" action={{ label: "New celestial object", Icon: Plus, onClick: onNewObject }} />
-            {skyHere.length === 0 && <p className="cal-help">No suns, moons or stars in this calendar yet.</p>}
-            {CELESTIAL_TYPES.map((t) => {
-              const objects = skyHere.filter((o) => o.type === t.type);
+            <SideHead title={t("sidebar.sky")} action={{ label: t("sidebar.newObject"), Icon: Plus, onClick: onNewObject }} />
+            {skyHere.length === 0 && <p className="cal-help">{t("sidebar.noSky")}</p>}
+            {CELESTIAL_TYPES.map((kind) => {
+              const objects = skyHere.filter((o) => o.type === kind.type);
               if (objects.length === 0) return null;
-              const open = !closedFolders.has(t.type);
+              const open = !closedFolders.has(kind.type);
               return (
-                <div key={t.type} className="cal-sky-folder">
-                  <button type="button" className="articles-folder cal-sky-folder-head" aria-expanded={open} onClick={() => toggleFolder(t.type)}>
+                <div key={kind.type} className="cal-sky-folder">
+                  <button type="button" className="articles-folder cal-sky-folder-head" aria-expanded={open} onClick={() => toggleFolder(kind.type)}>
                     {open ? <ChevronDown size={14} aria-hidden /> : <ChevronRight size={14} aria-hidden />}
-                    <t.Icon size={16} aria-hidden />
-                    <span className="articles-folder-name">{t.plural}</span>
+                    <kind.Icon size={16} aria-hidden />
+                    <span className="articles-folder-name">{kind.plural}</span>
                     <span className="articles-folder-count">{objects.length}</span>
                   </button>
                   {open && (
@@ -311,15 +315,15 @@ export default function CalendarsSidebar({
                         <li key={o.id} className="cal-side-item cal-side-row">
                           <button type="button" className="articles-folder" onClick={() => onEditObject(o)}>
                             <span style={{ color: o.color }} aria-hidden>
-                              {o.icon || t.symbol}
+                              {o.icon || kind.symbol}
                             </span>
                             <span className="articles-folder-name">{o.name}</span>
                           </button>
                           <button
                             type="button"
                             className="btn btn-ghost btn-icon btn-sm"
-                            aria-label={hiddenObjects.has(o.id) ? `Show ${o.name} on this calendar` : `Hide ${o.name} on this calendar`}
-                            data-tooltip={hiddenObjects.has(o.id) ? "Hidden here" : "Shown here"}
+                            aria-label={hiddenObjects.has(o.id) ? t("sidebar.showObject", { name: o.name }) : t("sidebar.hideObject", { name: o.name })}
+                            data-tooltip={hiddenObjects.has(o.id) ? t("sidebar.hiddenHere") : t("sidebar.shownHere")}
                             onClick={() => onToggleObject(o.id)}
                           >
                             {hiddenObjects.has(o.id) ? <EyeOff size={13} /> : <Eye size={13} />}

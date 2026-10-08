@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { Check, Copy, EyeOff, Link2, Link2Off, TriangleAlert } from "lucide-react";
 import Modal from "@/components/Modal";
 import type { ClientShare, ShareTarget } from "@/server/share/load";
+import { useT } from "@/i18n/useT";
+import { activeT } from "@/i18n/active";
 
 export interface ShareScope {
   /** What the option reads as ("Whole campaign", "Chapter: The Heist"). */
@@ -21,7 +23,7 @@ const targetQuery = (t: ShareTarget) => new URLSearchParams({ kind: t.kind, id: 
 
 async function errorOf(res: Response): Promise<string> {
   const data: { error?: string } = await res.json().catch(() => ({}));
-  return data.error ?? `Request failed (${res.status}).`;
+  return data.error ?? activeT("articles")("share.requestFailed", { status: res.status });
 }
 
 /**
@@ -30,6 +32,8 @@ async function errorOf(res: Response): Promise<string> {
  * (always the current text) and leaves unrevealed secrets out.
  */
 export default function ShareDialog({ scopes, initialScope = 0, onClose }: { scopes: ShareScope[]; initialScope?: number; onClose: () => void }) {
+  const ta = useT("articles");
+  const tc = useT("common");
   const [index, setIndex] = useState(initialScope);
   const [status, setStatus] = useState<Status>({ state: "loading" });
   const [busy, setBusy] = useState(false);
@@ -73,7 +77,7 @@ export default function ShareDialog({ scopes, initialScope = 0, onClose }: { sco
     try {
       setStatus({ state: "ready", share: await action() });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
+      setError(err instanceof Error ? err.message : tc("somethingWrong"));
     } finally {
       setBusy(false);
     }
@@ -99,7 +103,7 @@ export default function ShareDialog({ scopes, initialScope = 0, onClose }: { sco
       await navigator.clipboard.writeText(url);
       setCopied(true);
     } catch {
-      setError("Couldn't copy: select the link and copy it by hand.");
+      setError(ta("share.copyFailed"));
     }
   }
 
@@ -107,10 +111,10 @@ export default function ShareDialog({ scopes, initialScope = 0, onClose }: { sco
   const url = share ? `${window.location.origin}/share/${share.token}` : "";
 
   return (
-    <Modal open onClose={() => !busy && onClose()} title="Share a read-only link">
+    <Modal open onClose={() => !busy && onClose()} title={ta("share.title")}>
       {scopes.length > 1 && (
         <label className="field">
-          <span className="field-label">What to share</span>
+          <span className="field-label">{ta("share.what")}</span>
           <select value={index} onChange={(e) => pickScope(Number(e.target.value))} disabled={busy}>
             {scopes.map((s, i) => (
               <option key={`${s.target.kind}:${s.target.id}`} value={i}>
@@ -132,22 +136,22 @@ export default function ShareDialog({ scopes, initialScope = 0, onClose }: { sco
           {scopes[index].note}
         </p>
       )}
-      <p className="cal-help">Anyone with the link can read this, without editing it. Unrevealed secrets are left out; revealed ones read as plain text.</p>
+      <p className="cal-help">{ta("share.explain")}</p>
 
       {status.state === "loading" ? (
         <p className="field-label" role="status">
-          Checking for a link…
+          {ta("share.checking")}
         </p>
       ) : share ? (
         <div className="share-link-row">
-          <input type="text" readOnly value={url} aria-label="Share link" onFocus={(e) => e.currentTarget.select()} />
+          <input type="text" readOnly value={url} aria-label={ta("share.linkLabel")} onFocus={(e) => e.currentTarget.select()} />
           <button type="button" className="btn btn-sm" onClick={() => void copy(url)} disabled={busy}>
             {copied ? <Check size={14} strokeWidth={2.25} /> : <Copy size={14} strokeWidth={2.25} />}
-            {copied ? "Copied" : "Copy"}
+            {copied ? ta("share.copied") : ta("share.copy")}
           </button>
         </div>
       ) : (
-        <p className="field-label">No link yet.</p>
+        <p className="field-label">{ta("share.none")}</p>
       )}
 
       {error && (
@@ -157,18 +161,18 @@ export default function ShareDialog({ scopes, initialScope = 0, onClose }: { sco
       )}
       <div className="confirm-dialog-actions">
         {share ? (
-          <button type="button" className="btn btn-sm btn-danger" onClick={() => void revoke(share)} disabled={busy} data-tooltip="The link stops working for everyone">
+          <button type="button" className="btn btn-sm btn-danger" onClick={() => void revoke(share)} disabled={busy} data-tooltip={ta("share.revokeHint")}>
             <Link2Off size={14} strokeWidth={2.25} />
-            {busy ? "Revoking…" : "Revoke link"}
+            {busy ? ta("share.revoking") : ta("share.revoke")}
           </button>
         ) : (
           <button type="button" className="btn btn-sm btn-primary" onClick={() => void create()} disabled={busy || status.state === "loading"}>
             <Link2 size={14} strokeWidth={2.25} />
-            {busy ? "Creating…" : "Create link"}
+            {busy ? tc("creating") : ta("share.create")}
           </button>
         )}
         <button type="button" className="btn btn-sm" onClick={onClose} disabled={busy}>
-          Done
+          {tc("done")}
         </button>
       </div>
     </Modal>

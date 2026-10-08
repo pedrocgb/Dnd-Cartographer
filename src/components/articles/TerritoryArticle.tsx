@@ -20,6 +20,8 @@ import { InfoEditLabel, InfoForm, InfoRow, InfoView, type InfoLookups } from "./
 import { CollapsibleBlock, TypeSelect, json, patchRecord, useEditingResetOnSelect } from "./shared";
 import type { AffiliatedMarker, Authority, HierarchyProfile, OpenArticle, Territory } from "./types";
 import { writeArticleDrag } from "./article-drag";
+import { useT } from "@/i18n/useT";
+import { authorityRoleLabel, hierarchyProfileName, territoryTypeLabel } from "@/server/politics/hierarchy-config";
 
 const recordUrl = (id: string) => `/api/politics/territories/${id}`;
 
@@ -84,9 +86,10 @@ function useHierarchy(profiles: HierarchyProfile[], territories: Territory[], in
 
 /** Territory Type, first under the name (a fixed row). */
 function TypeRow({ h }: { h: ReturnType<typeof useHierarchy> }) {
+  const ta = useT("articles");
   return (
     <div className="info-edit-row info-edit-fixed">
-      <InfoEditLabel Icon={ArrowDownWideNarrow} label="Territory Type" />
+      <InfoEditLabel Icon={ArrowDownWideNarrow} label={ta("territory.type")} />
       <div className="info-edit-stack">
         <TypeSelect value={h.type} onChange={h.setType} />
       </div>
@@ -96,13 +99,15 @@ function TypeRow({ h }: { h: ReturnType<typeof useHierarchy> }) {
 
 /** Hierarchy Profile, after the required Government Form (a fixed row). */
 function ProfileRow({ h, profiles }: { h: ReturnType<typeof useHierarchy>; profiles: HierarchyProfile[] }) {
+  const ta = useT("articles");
+  const tp = useT("politics");
   return (
     <div className="info-edit-row info-edit-fixed">
-      <InfoEditLabel Icon={ArrowDownWideNarrow} label="Hierarchy Profile" />
-      <select aria-label="Hierarchy Profile" value={h.hierarchyProfileId} onChange={(e) => h.setHierarchyProfileId(e.target.value)}>
+      <InfoEditLabel Icon={ArrowDownWideNarrow} label={ta("territory.profile")} />
+      <select aria-label={ta("territory.profile")} value={h.hierarchyProfileId} onChange={(e) => h.setHierarchyProfileId(e.target.value)}>
         {profiles.map((p) => (
           <option key={p.id} value={p.id}>
-            {p.name}
+            {hierarchyProfileName(p.name, tp)}
           </option>
         ))}
       </select>
@@ -112,19 +117,21 @@ function ProfileRow({ h, profiles }: { h: ReturnType<typeof useHierarchy>; profi
 
 /** Parent Territory's editor: only the territories the type and profile allow. Its value lives in `h`, not the info values. */
 function ParentPicker({ h }: { h: ReturnType<typeof useHierarchy> }) {
+  const ta = useT("articles");
+  const tp = useT("politics");
   return (
     <div className="info-edit-stack">
       <InfoPicker
-        options={h.validParents.map((t) => ({ value: t.id, label: `${t.name} (${t.type})` }))}
+        options={h.validParents.map((t) => ({ value: t.id, label: tp("nameWithType", { name: t.name, type: territoryTypeLabel(t.type, tp) }) }))}
         value={h.parentId || null}
-        placeholder="None (root)"
-        clearLabel="None (root)"
-        ariaLabel="Parent Territory"
+        placeholder={ta("territory.noneRoot")}
+        clearLabel={ta("territory.noneRoot")}
+        ariaLabel={ta("territory.parent")}
         dataField="parentTerritory"
         onChange={(id) => h.setParentId(id ?? "")}
       />
       {h.type && h.validParents.length === 0 && (
-        <p className="info-edit-note">No territory of a valid parent type exists yet for &ldquo;{h.type}&rdquo; under this profile.</p>
+        <p className="info-edit-note">{ta("territory.noValidParent", { type: territoryTypeLabel(h.type, tp) })}</p>
       )}
     </div>
   );
@@ -154,6 +161,7 @@ export function TerritoryForm({
   onCancel: () => void;
   onBack?: () => void;
 }) {
+  const tc = useT("common");
   const h = useHierarchy(profiles, territories);
   return (
     <InfoForm
@@ -164,8 +172,8 @@ export function TerritoryForm({
       fixedRows={<TypeRow h={h} />}
       fixedRowsAfter={<ProfileRow h={h} profiles={profiles} />}
       allowAdding={false}
-      saveLabel="Create"
-      savingLabel="Creating…"
+      saveLabel={tc("create")}
+      savingLabel={tc("creating")}
       onSave={(name, values) =>
         fetch("/api/politics/territories", {
           method: "POST",
@@ -233,6 +241,8 @@ export function TerritoryArticle({
   onDeleted: () => void;
   onOpenArticle: OpenArticle;
 }) {
+  const ta = useT("articles");
+  const tp = useT("politics");
   const [editing, setEditing] = useEditingResetOnSelect(territory.id);
   const [chain, setChain] = useState<Territory[]>([]);
   const [authorities, setAuthorities] = useState<Authority[]>([]);
@@ -266,7 +276,7 @@ export function TerritoryArticle({
     <ArticleView
       template="territory"
       title={territory.name}
-      subtitle={territory.type}
+      subtitle={territoryTypeLabel(territory.type, tp)}
       tags={parseTags(territory.tags)}
       tagSuggestions={tagSuggestions}
       onChangeTags={(tags) => void update({ tags })}
@@ -278,7 +288,7 @@ export function TerritoryArticle({
           endpoint={`${recordUrl(territory.id)}/portrait`}
           portraitKey={territory.portraitKey}
           updatedAt={territory.updatedAt}
-          label="Coat of arms"
+          label={ta("portrait.coatOfArms")}
           onChanged={onChanged}
         />
       }
@@ -286,7 +296,7 @@ export function TerritoryArticle({
         !editing && (
           <button className="btn btn-sm btn-ghost" onClick={() => setEditing(true)}>
             <Pencil size={13} strokeWidth={2.25} />
-            Edit
+            {ta("view.edit")}
           </button>
         )
       }
@@ -323,12 +333,12 @@ export function TerritoryArticle({
               values={addedInfo(TERRITORY_INFO, territory, shownRelationValues)}
               lookups={lookups}
               onOpenArticle={onOpenArticle}
-              leading={<InfoRow label="Territory Type">{territory.type}</InfoRow>}
+              leading={<InfoRow label={ta("territory.type")}>{territoryTypeLabel(territory.type, tp)}</InfoRow>}
             />
             {/* Set apart from the info above by a larger gap. */}
             <div className="info-bar-sections">
-            {isAttachmentPoint && missing.length > 0 && <p className="form-error">Incomplete ancestry — missing: {missing.join(", ")}</p>}
-            <CollapsibleBlock title="Authorities">
+            {isAttachmentPoint && missing.length > 0 && <p className="form-error">{ta("territory.incomplete", { types: missing.map((type) => territoryTypeLabel(type, tp)).join(", ") })}</p>}
+            <CollapsibleBlock title={ta("territory.authorities")}>
               <AuthorityManager
                 territoryId={territory.id}
                 authorities={authorities}
@@ -337,7 +347,7 @@ export function TerritoryArticle({
                 onOpenHolder={(type, id) => onOpenArticle(type === "person" ? "character" : "organization", id)}
               />
             </CollapsibleBlock>
-            <CollapsibleBlock title="Affiliated markers">
+            <CollapsibleBlock title={ta("territory.affiliated")}>
               <AffiliatedMarkersSection markers={affiliatedMarkers} territoryId={territory.id} />
             </CollapsibleBlock>
             </div>
@@ -367,6 +377,7 @@ function loadStoredPageSize(): number {
 }
 
 function AffiliatedMarkersSection({ markers, territoryId }: { markers: AffiliatedMarker[]; territoryId: string }) {
+  const ta = useT("articles");
   const [query, setQuery] = useState("");
   const [pageSize, setPageSize] = useState(loadStoredPageSize);
   const [page, setPage] = useState(0);
@@ -390,7 +401,7 @@ function AffiliatedMarkersSection({ markers, territoryId }: { markers: Affiliate
       <div className="affiliated-markers-controls">
         <input
           type="text"
-          placeholder="Search affiliated markers…"
+          placeholder={ta("territory.searchMarkers")}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -398,7 +409,7 @@ function AffiliatedMarkersSection({ markers, territoryId }: { markers: Affiliate
           }}
         />
         <select
-          aria-label="Markers per page"
+          aria-label={ta("territory.perPageLabel")}
           value={pageSize}
           onChange={(e) => {
             const next = Number(e.target.value);
@@ -409,14 +420,14 @@ function AffiliatedMarkersSection({ markers, territoryId }: { markers: Affiliate
         >
           {AFFILIATED_MARKERS_PAGE_SIZES.map((n) => (
             <option key={n} value={n}>
-              {n} / page
+              {ta("territory.perPage", { n })}
             </option>
           ))}
         </select>
       </div>
 
       {filtered.length === 0 && (
-        <p className="field-label">{markers.length === 0 ? "No markers are affiliated with this territory yet." : "No affiliated markers match your search."}</p>
+        <p className="field-label">{markers.length === 0 ? ta("territory.noMarkers") : ta("territory.noMarkerMatch")}</p>
       )}
       <ul className="politics-list affiliated-markers-list">
         {pageItems.map((m) => (
@@ -424,8 +435,7 @@ function AffiliatedMarkersSection({ markers, territoryId }: { markers: Affiliate
             <a href={`/maps/${m.mapId}?marker=${m.id}`} target="_blank" rel="noopener noreferrer" className="politics-list-pick">
               {m.name}{" "}
               <span className="field-label">
-                ({m.mapName}
-                {m.viaTerritoryId !== territoryId ? ` — via ${m.viaTerritoryName}` : ""})
+                {m.viaTerritoryId !== territoryId ? ta("territory.onMapVia", { map: m.mapName, via: m.viaTerritoryName }) : ta("territory.onMap", { map: m.mapName })}
               </span>
             </a>
           </li>
@@ -435,13 +445,13 @@ function AffiliatedMarkersSection({ markers, territoryId }: { markers: Affiliate
       {pageCount > 1 && (
         <div className="affiliated-markers-pagination">
           <button className="btn btn-sm" disabled={clampedPage === 0} onClick={() => setPage(clampedPage - 1)}>
-            Previous
+            {ta("territory.previous")}
           </button>
           <span className="field-label">
-            Page {clampedPage + 1} of {pageCount}
+            {ta("territory.page", { page: clampedPage + 1, count: pageCount })}
           </span>
           <button className="btn btn-sm" disabled={clampedPage >= pageCount - 1} onClick={() => setPage(clampedPage + 1)}>
-            Next
+            {ta("territory.next")}
           </button>
         </div>
       )}
@@ -462,6 +472,9 @@ function AuthorityManager({
   onChanged: () => void;
   onOpenHolder: (type: "person" | "organization", id: string) => void;
 }) {
+  const ta = useT("articles");
+  const tc = useT("common");
+  const tp = useT("politics");
   const [adding, setAdding] = useState(false);
   const [holderType, setHolderType] = useState<"person" | "organization">("person");
   const [holderId, setHolderId] = useState("");
@@ -503,11 +516,11 @@ function AuthorityManager({
       {adding ? (
         <div className="politics-picker">
           <select value={holderType} onChange={(e) => setHolderType(e.target.value as "person" | "organization")}>
-            <option value="person">Character</option>
-            <option value="organization">Organization</option>
+            <option value="person">{ta("territory.holder.person")}</option>
+            <option value="organization">{ta("territory.holder.organization")}</option>
           </select>
           <select value={holderId} onChange={(e) => setHolderId(e.target.value)}>
-            <option value="">Select…</option>
+            <option value="">{ta("select")}</option>
             {candidates.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -517,24 +530,24 @@ function AuthorityManager({
           <select value={role} onChange={(e) => setRole(e.target.value)}>
             {AUTHORITY_ROLES.map((r) => (
               <option key={r} value={r}>
-                {r}
+                {authorityRoleLabel(r, tp)}
               </option>
             ))}
           </select>
-          <input type="text" placeholder="Title (e.g. King)" value={title} onChange={(e) => setTitle(e.target.value)} />
+          <input type="text" placeholder={ta("territory.titlePlaceholder")} value={title} onChange={(e) => setTitle(e.target.value)} />
           <div className="marker-panel-actions">
             <button className="btn btn-sm btn-primary" disabled={!holderId} onClick={submit}>
-              Save
+              {tc("save")}
             </button>
             <button className="btn btn-sm" onClick={() => setAdding(false)}>
-              Cancel
+              {tc("cancel")}
             </button>
           </div>
         </div>
       ) : (
         <button className="btn btn-sm authority-add" onClick={() => setAdding(true)}>
           <Plus size={13} strokeWidth={2.25} />
-          Add authority
+          {ta("territory.addAuthority")}
         </button>
       )}
       <ul className="politics-list">
@@ -546,23 +559,23 @@ function AuthorityManager({
             <Fragment key={a.id}>
               {isNewGroup && (
                 <li className="politics-authority-group-label">
-                  <span className="field-label">{territory ? `${territory.name} (${territory.type})` : "Other"}</span>
+                  <span className="field-label">{territory ? tp("nameWithType", { name: territory.name, type: territoryTypeLabel(territory.type, tp) }) : ta("territory.otherGroup")}</span>
                 </li>
               )}
               <li className="politics-list-row">
                 <span>
-                  <strong>{a.role}</strong>
+                  <strong>{authorityRoleLabel(a.role, tp)}</strong>
                   {a.title ? ` (${a.title})` : ""} —{" "}
                   <button
                     type="button"
                     className="politics-link-button"
                     onClick={() => onOpenHolder(a.holderType, a.holderId)}
-                    data-tooltip={a.holderType === "person" ? "Open in Characters" : "Open in Organizations"}
+                    data-tooltip={a.holderType === "person" ? ta("territory.openCharacter") : ta("territory.openOrganization")}
                   >
                     {a.holderName}
                   </button>
                 </span>
-                <button className="btn btn-ghost btn-icon" onClick={() => remove(a.id)} aria-label="Remove authority">
+                <button className="btn btn-ghost btn-icon" onClick={() => remove(a.id)} aria-label={ta("territory.removeAuthority")}>
                   <Trash2 size={13} strokeWidth={2.25} />
                 </button>
               </li>

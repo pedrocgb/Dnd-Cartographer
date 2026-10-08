@@ -5,6 +5,7 @@ import { hierarchyProfiles } from "@/server/db/schema";
 import { requireWorldId } from "@/server/world/active-world";
 import { ensureDefaultHierarchyProfile } from "@/server/politics/seed";
 import { encodeHierarchyLevels, parseHierarchyLevels, type HierarchyLevel } from "@/server/politics/hierarchy-config";
+import { errorResponse } from "@/i18n/server";
 
 function serialize(row: typeof hierarchyProfiles.$inferSelect) {
   return { ...row, levels: parseHierarchyLevels(row.levels) };
@@ -37,9 +38,9 @@ function isValidLevels(value: unknown): value is HierarchyLevel[] {
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const name = typeof body?.name === "string" ? body.name.trim() : "";
-  if (!name) return NextResponse.json({ error: "A profile name is required." }, { status: 400 });
+  if (!name) return errorResponse("profileNameRequired", 400);
   if (!isValidLevels(body?.levels)) {
-    return NextResponse.json({ error: "levels must be an array of valid HierarchyLevel objects." }, { status: 400 });
+    return errorResponse("hierarchyLevelsInvalid", 400);
   }
 
   const worldId = await requireWorldId();

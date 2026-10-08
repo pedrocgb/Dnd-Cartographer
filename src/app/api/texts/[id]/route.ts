@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { errorResponse } from "@/i18n/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { mapTexts, maps } from "@/server/db/schema";
@@ -15,15 +16,15 @@ import { notInWorld } from "@/server/world/guards";
  */
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const denied = await notInWorld("map_texts", id, "Text not found.");
+  const denied = await notInWorld("map_texts", id, "textNotFound");
   if (denied) return denied;
   const existing = await db.query.mapTexts.findFirst({ where: eq(mapTexts.id, id) });
-  if (!existing || existing.deletedAt) return NextResponse.json({ error: "Text not found." }, { status: 404 });
+  if (!existing || existing.deletedAt) return errorResponse("textNotFound", 404);
   const map = await db.query.maps.findFirst({ where: eq(maps.id, existing.mapId) });
-  if (!map?.frameWidth || !map.frameHeight) return NextResponse.json({ error: "Map has no frame." }, { status: 409 });
+  if (!map?.frameWidth || !map.frameHeight) return errorResponse("mapNoFrame", 409);
 
   const body = await request.json().catch(() => null);
-  if (!body || typeof body !== "object") return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+  if (!body || typeof body !== "object") return errorResponse("invalidBody", 400);
 
   const patch: Partial<typeof mapTexts.$inferInsert> = {
     ...sanitizeTextPatch(body, { width: map.frameWidth, height: map.frameHeight }),
@@ -34,20 +35,20 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   // Its place in its folder (drag and drop in the tool panel).
   if (Number.isInteger(body.sortOrder)) patch.sortOrder = body.sortOrder;
   if (patch.text !== undefined && !patch.text.trim()) {
-    return NextResponse.json({ error: "Text can't be empty." }, { status: 400 });
+    return errorResponse("textEmpty", 400);
   }
   if ("layerId" in body) {
     if (!(await isLayerOfMap(body.layerId, existing.mapId))) {
-      return NextResponse.json({ error: "Layer must belong to the text's map." }, { status: 400 });
+      return errorResponse("layerOfTextMap", 400);
     }
     patch.layerId = body.layerId;
   }
   const homeLayerId = patch.layerId ?? existing.layerId;
   if ("groupId" in body && body.groupId !== existing.groupId) {
     // Leaving a locked folder is refused like entering one.
-    if (await inLockedFolder("text", existing.groupId)) return NextResponse.json({ error: "The folder is locked." }, { status: 409 });
+    if (await inLockedFolder("text", existing.groupId)) return errorResponse("folderLocked", 409);
     const groupError = await folderError("text", body.groupId, existing.mapId, homeLayerId);
-    if (groupError) return NextResponse.json({ error: groupError }, { status: 409 });
+    if (groupError) return errorResponse(groupError, 409);
     patch.groupId = body.groupId;
   } else if (patch.layerId !== undefined && patch.layerId !== existing.layerId) {
     // A folder belongs to one layer: moving the text elsewhere ungroups it.
@@ -67,7 +68,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const denied = await notInWorld("map_texts", id, "Text not found.");
+  const denied = await notInWorld("map_texts", id, "textNotFound");
   if (denied) return denied;
   await db.update(mapTexts).set({ deletedAt: new Date(), updatedAt: new Date() }).where(eq(mapTexts.id, id));
   return NextResponse.json({ ok: true });

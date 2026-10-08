@@ -6,7 +6,8 @@ import { requireWorldId } from "@/server/world/active-world";
 import { cleanName, parseProfileData } from "@/server/calendars/parse";
 import { checkProfile, profileUsers } from "@/server/calendars/profiles";
 import { recordRevision, toClientProfile } from "@/server/calendars/store";
-import { badRequest, calendarErrorResponse, notFound, readBody } from "@/server/calendars/respond";
+import { calendarErrorResponse, readBody } from "@/server/calendars/respond";
+import { errorResponse, serverT } from "@/i18n/server";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -15,7 +16,7 @@ async function profileOf(worldId: string, id: string) {
   return row ?? null;
 }
 
-const stale = () => NextResponse.json({ error: "This profile was changed elsewhere. Reload it and try again.", stale: true }, { status: 409 });
+const stale = () => errorResponse("seasonProfileStale", 409, { stale: true });
 
 /**
  * Edits a profile (`expectedVersion` required). A changed schedule or
@@ -27,16 +28,16 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   const { id } = await params;
   const worldId = await requireWorldId();
   const row = await profileOf(worldId, id);
-  if (!row) return notFound("Season profile not found.");
+  if (!row) return errorResponse("seasonProfileNotFound", 404);
   const body = await readBody(request);
-  if (!body) return badRequest("Invalid request body.");
+  if (!body) return errorResponse("invalidBody", 400);
   if (body.expectedVersion !== row.version) return stale();
 
   try {
     const patch: Partial<typeof seasonProfiles.$inferInsert> = { version: row.version + 1, updatedAt: new Date() };
     if ("name" in body) {
       const name = cleanName(body.name);
-      if (!name) return badRequest("A profile name is required.");
+      if (!name) return errorResponse("profileNameRequired", 400);
       patch.name = name;
     }
     if ("description" in body) patch.description = cleanName(body.description, 4000);
@@ -77,11 +78,12 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 export async function DELETE(_request: Request, { params }: RouteContext) {
   const { id } = await params;
   const worldId = await requireWorldId();
-  if (!(await profileOf(worldId, id))) return notFound("Season profile not found.");
+  if (!(await profileOf(worldId, id))) return errorResponse("seasonProfileNotFound", 404);
   const users = await profileUsers(worldId, id);
   if (users.articles.length || users.events.length) {
-    const who = [...users.articles.map((n) => `article "${n}"`), ...users.events.map((n) => `event "${n}"`)];
-    return NextResponse.json({ error: `Still used by ${who.slice(0, 5).join(", ")}${who.length > 5 ? ` and ${who.length - 5} more` : ""}. Change those first, or archive this profile.`, users }, { status: 409 });
+    const t = await serverT("errors");
+    const who = [...users.articles.map((name) => t("usedByArticle", { name })), ...users.events.map((name) => t("usedByEvent", { name }))];
+    return errorResponse("seasonProfileInUse", 409, { users }, { list: who.slice(0, 5).join(", "), more: who.length > 5 ? t("andMore", { n: who.length - 5 }) : "" });
   }
   await db.delete(seasonProfiles).where(eq(seasonProfiles.id, id));
   return NextResponse.json({ ok: true });

@@ -4,6 +4,10 @@ import { articles, authorityAssignments, markerArticleLinks, organizations, peop
 import { isArticleTemplate, personTemplate, type ArticleTemplateKey } from "../articles/templates";
 import type { RecordKind } from "./types";
 import { validateRelation, type ExistingRelation } from "./validate";
+import { createTranslator, translate } from "../../i18n/translate";
+import type { Locale } from "../../i18n/config";
+import { authorityRoleLabel } from "../politics/hierarchy-config";
+import type { MessageKey } from "../../i18n/messages";
 
 /** The database or an open transaction. */
 export type Executor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -44,7 +48,22 @@ export function listRelations(worldId: string, ex: Executor = db): Promise<Relat
 
 const existingOf = (rows: readonly RelationRow[]): ExistingRelation[] => rows.map(({ id, type, fromId, toId, pairKey }) => ({ id, type, fromId, toId, pairKey }));
 
-export class RelationError extends Error {}
+/** A relation that failed validation; `key`/`params` are an `errors` message for the route to word. */
+export class RelationError extends Error {
+  constructor(
+    readonly key: MessageKey<"errors">,
+    /** `type` holds the relation type's key; `relationTypeName` words it for the message. */
+    readonly params?: Record<string, string>,
+  ) {
+    super(translate("en-US", "errors", key, params && { ...params, ...(params.type ? { type: relationTypeName(params.type, "en-US") } : {}) }));
+  }
+}
+
+/** A relation type's name ("Parent of") in `locale`, or the key when it isn't a known type. */
+export function relationTypeName(key: string, locale: Locale): string {
+  const label = translate(locale, "relations", `type.${key}.label` as Parameters<typeof translate<"relations">>[2]);
+  return label === `type.${key}.label` ? key : label;
+}
 
 /**
  * Validates and stores a relation (a POST body or a stored row merged with a
@@ -57,7 +76,7 @@ export async function saveRelation(worldId: string, raw: Record<string, unknown>
   const refs = await resolveRecords(worldId, [fromId, toId], ex);
   const live = await listRelations(worldId, ex);
   const checked = validateRelation(raw, { from: refs.get(fromId)?.template ?? null, to: refs.get(toId)?.template ?? null }, existingOf(live), selfId);
-  if (!checked.ok) throw new RelationError(checked.error);
+  if (!checked.ok) throw new RelationError(checked.error, checked.params);
   const values = { ...checked.value, fromKind: refs.get(fromId)!.kind, toKind: refs.get(toId)!.kind, updatedAt: new Date() };
 
   if (selfId) {
@@ -105,18 +124,19 @@ export interface ServerDerivedEdge {
   label: string;
 }
 
-/** Rulers (authority assignments) and seats (a territory's capital/seat marker's linked articles). */
-export async function serverDerivedEdges(worldId: string): Promise<ServerDerivedEdge[]> {
+/** Rulers (authority assignments) and seats (a territory's capital/seat marker's linked articles), labeled in `locale`. */
+export async function serverDerivedEdges(worldId: string, locale: Locale = "en-US"): Promise<ServerDerivedEdge[]> {
+  const t = createTranslator(locale, "relations");
   const [authorities, seats] = await Promise.all([
     db.select().from(authorityAssignments).where(eq(authorityAssignments.worldId, worldId)),
     db.select().from(territorySeats).where(eq(territorySeats.worldId, worldId)),
   ]);
   const markerIds = [...new Set(seats.map((s) => s.markerId))];
   const links = markerIds.length ? await db.select().from(markerArticleLinks).where(inArray(markerArticleLinks.markerId, markerIds)) : [];
-  const edges: ServerDerivedEdge[] = authorities.map((a) => ({ kind: "rules", fromId: a.holderId, toId: a.territoryId, label: a.title || a.role }));
+  const edges: ServerDerivedEdge[] = authorities.map((a) => ({ kind: "rules", fromId: a.holderId, toId: a.territoryId, label: a.title || authorityRoleLabel(a.role, createTranslator(locale, "politics")) }));
   for (const seat of seats) {
     for (const link of links.filter((l) => l.markerId === seat.markerId)) {
-      edges.push({ kind: "seat", fromId: link.articleId, toId: seat.territoryId, label: seat.role === "capital" ? "Capital of" : "Seat of" });
+      edges.push({ kind: "seat", fromId: link.articleId, toId: seat.territoryId, label: seat.role === "capital" ? t("derived.capital") : t("derived.seat") });
     }
   }
   return edges;

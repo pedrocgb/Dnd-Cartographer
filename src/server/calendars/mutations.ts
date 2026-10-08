@@ -4,8 +4,9 @@
  */
 import { and, eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
+import { serverT } from "@/i18n/server";
 import { calendarEntries, calendars, celestialObjects, definitionRevisions, seasonProfiles, seasons } from "@/server/db/schema";
-import { validateDefinition, type CalendarDefinition } from "./engine";
+import { CalendarError, validateDefinition, type CalendarDefinition, type Problem } from "./engine";
 import { calendarImpact, shiftEntryNamed, type Impact } from "./impact";
 import { safeJson } from "./parse";
 import { chronologyOf, liveEntries, recordRevision, StaleError, toClientCalendar, type CalendarRow } from "./store";
@@ -13,16 +14,16 @@ import type { OccurrenceException, Recurrence } from "./recurrence";
 import type { CelestialConfig } from "./celestial";
 import type { SeasonProfileData } from "./seasons";
 
-export class ReviewError extends Error {
+export class ReviewError extends CalendarError {
   constructor(
-    message: string,
+    problem: Problem,
     readonly impact: Impact
   ) {
-    super(message);
+    super(problem);
   }
 }
 
-export class InvalidError extends Error {}
+export class InvalidError extends CalendarError {}
 
 export interface Migration {
   mode: "physical" | "named";
@@ -52,6 +53,7 @@ export async function previewImpact(worldId: string, row: CalendarRow, next: Cal
     db.select({ id: seasons.id, name: seasons.name }).from(seasons).where(eq(seasons.worldId, worldId)),
   ]);
   const seasonNames = new Map(seasonRows.map((s) => [s.id, s.name]));
+  const t = await serverT("calendars");
   return calendarImpact({
     calendarId: row.id,
     prev,
@@ -59,14 +61,14 @@ export async function previewImpact(worldId: string, row: CalendarRow, next: Cal
     currentDay: chronology.currentDay,
     entries: entries.map((e) => ({
       id: e.id,
-      title: e.title || (e.kind === "link" ? "Article link" : e.kind === "note" ? "Note" : "Event"),
+      title: e.title || t(e.kind === "link" ? "views.articleLink" : e.kind === "note" ? "views.note" : "views.event"),
       worldDay: e.worldDay,
       recurrence: safeJson<Recurrence>(e.recurrence, { kind: "none" }),
       exceptions: safeJson<Record<string, OccurrenceException>>(e.exceptions, {}),
     })),
     profiles: profiles.map((p) => ({ id: p.id, name: p.name, calendarId: p.calendarId, data: safeJson<Omit<SeasonProfileData, "calendarId">>(p.data, { mode: "sequential", allowGaps: false, allowOverlaps: false, memberships: [] }) })),
     celestial: celestial.map((c) => ({ id: c.id, name: c.name, config: safeJson<CelestialConfig>(c.config, {}) })),
-    seasonName: (id) => seasonNames.get(id) ?? "A season",
+    seasonName: (id) => seasonNames.get(id) ?? t("default.aSeason"),
   });
 }
 
@@ -78,16 +80,16 @@ export async function previewImpact(worldId: string, row: CalendarRow, next: Cal
  */
 export async function applyDefinition(worldId: string, row: CalendarRow, next: CalendarDefinition, migration: Migration | null, extra: Partial<typeof calendars.$inferInsert>) {
   const issues = validateDefinition(next);
-  if (issues.length) throw new InvalidError(issues[0].message);
+  if (issues.length) throw new InvalidError(issues[0].problem);
   const prev = safeJson<CalendarDefinition>(row.definition, next);
   const impact = await previewImpact(worldId, row, next);
-  if (!impact.harmless && !migration) throw new ReviewError("Review how this change affects existing dates before saving.", impact);
-  if (impact.references.length && !migration?.acknowledgeReferences) throw new ReviewError("Some rules or profiles point at dates this change removes.", impact);
+  if (!impact.harmless && !migration) throw new ReviewError({ key: "problem.reviewChange" }, impact);
+  if (impact.references.length && !migration?.acknowledgeReferences) throw new ReviewError({ key: "problem.reviewReferences" }, impact);
 
   const named = migration?.mode === "named";
   const unresolved = named ? impact.entries.filter((e) => "error" in e.named && !migration!.keepPhysical.includes(e.id)) : [];
-  if (unresolved.length) throw new ReviewError(`${unresolved.length} record${unresolved.length === 1 ? "" : "s"} fall on dates that no longer exist; choose what to do with each.`, impact);
-  if (named && impact.entryCount > impact.entries.length) throw new ReviewError("Too many records change to review at once with Preserve Named Dates; use Preserve Physical Day.", impact);
+  if (unresolved.length) throw new ReviewError({ key: "problem.unresolved", params: { count: unresolved.length, n: unresolved.length } }, impact);
+  if (named && impact.entryCount > impact.entries.length) throw new ReviewError({ key: "problem.tooManyNamed" }, impact);
 
   return db.transaction(async (tx) => {
     const changedEntries: { id: string; worldDay: number; exceptions: string }[] = [];
@@ -106,7 +108,7 @@ export async function applyDefinition(worldId: string, row: CalendarRow, next: C
       .set({ ...extra, definition: JSON.stringify(next), version: row.version + 1, updatedAt: new Date() })
       .where(and(eq(calendars.id, row.id), eq(calendars.version, row.version)))
       .returning();
-    if (updated.length === 0) throw new StaleError("This calendar was changed elsewhere. Reload it and try again.");
+    if (updated.length === 0) throw new StaleError({ key: "problem.calendarStale" });
     return toClientCalendar(updated[0]);
   });
 }
@@ -117,9 +119,9 @@ export async function restoreCalendarRevision(worldId: string, row: CalendarRow,
     .select()
     .from(definitionRevisions)
     .where(and(eq(definitionRevisions.id, revisionId), eq(definitionRevisions.worldId, worldId), eq(definitionRevisions.subjectId, row.id)));
-  if (!revision) throw new InvalidError("That revision doesn't exist.");
+  if (!revision) throw new InvalidError({ key: "problem.revisionMissing" });
   const snapshot = safeJson<{ definition: CalendarDefinition; entries?: { id: string; worldDay: number; exceptions: string }[] } | null>(revision.snapshot, null);
-  if (!snapshot?.definition) throw new InvalidError("That revision can't be read.");
+  if (!snapshot?.definition) throw new InvalidError({ key: "problem.revisionUnreadable" });
 
   return db.transaction(async (tx) => {
     const current: { id: string; worldDay: number; exceptions: string }[] = [];
@@ -135,7 +137,7 @@ export async function restoreCalendarRevision(worldId: string, row: CalendarRow,
       .set({ definition: JSON.stringify(snapshot.definition), version: row.version + 1, updatedAt: new Date() })
       .where(and(eq(calendars.id, row.id), eq(calendars.version, row.version)))
       .returning();
-    if (updated.length === 0) throw new StaleError("This calendar was changed elsewhere. Reload it and try again.");
+    if (updated.length === 0) throw new StaleError({ key: "problem.calendarStale" });
     return toClientCalendar(updated[0]);
   });
 }

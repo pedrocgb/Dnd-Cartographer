@@ -17,6 +17,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { TABLE_LIMITS, currentTable, resizeTable } from "./tables";
+import { useT } from "@/i18n/useT";
 
 /** Marks editor UI rendered outside the card (see BubbleMenus). */
 const FLOATING_CLASS = "rich-floating";
@@ -59,7 +60,15 @@ const ColumnLeftIcon = insertIcon("left");
 const ColumnRightIcon = insertIcon("right");
 
 /** A number with − / + around it; typing a value applies it on Enter or blur. */
-function Stepper({ label, short, value, max, onChange }: { label: string; short: string; value: number; max: number; onChange: (next: number) => void }) {
+const STEPPER_WORDS = {
+  rows: { label: "table.rows", short: "table.rowsShort", fewer: "table.fewerRows", more: "table.moreRows" },
+  cols: { label: "table.cols", short: "table.colsShort", fewer: "table.fewerCols", more: "table.moreCols" },
+} as const;
+
+function Stepper({ kind, value, max, onChange }: { kind: keyof typeof STEPPER_WORDS; value: number; max: number; onChange: (next: number) => void }) {
+  const t = useT("editor");
+  const words = STEPPER_WORDS[kind];
+  const label = t(words.label);
   const [draft, setDraft] = useState<string | null>(null);
   const commit = () => {
     if (draft !== null && draft.trim() !== "") onChange(clamp(Number(draft), max));
@@ -68,9 +77,9 @@ function Stepper({ label, short, value, max, onChange }: { label: string; short:
   return (
     <span className="rich-stepper" data-tooltip={label}>
       <span className="rich-stepper-label" aria-hidden>
-        {short}
+        {t(words.short)}
       </span>
-      <button type="button" aria-label={`Fewer ${label.toLowerCase()}`} disabled={value <= 1} onMouseDown={keepSelection} onClick={() => onChange(value - 1)}>
+      <button type="button" aria-label={t(words.fewer)} disabled={value <= 1} onMouseDown={keepSelection} onClick={() => onChange(value - 1)}>
         <Minus size={13} strokeWidth={2.5} />
       </button>
       <input
@@ -93,7 +102,7 @@ function Stepper({ label, short, value, max, onChange }: { label: string; short:
           }
         }}
       />
-      <button type="button" aria-label={`More ${label.toLowerCase()}`} disabled={value >= max} onMouseDown={keepSelection} onClick={() => onChange(value + 1)}>
+      <button type="button" aria-label={t(words.more)} disabled={value >= max} onMouseDown={keepSelection} onClick={() => onChange(value + 1)}>
         <Plus size={13} strokeWidth={2.5} />
       </button>
     </span>
@@ -105,6 +114,7 @@ function Stepper({ label, short, value, max, onChange }: { label: string; short:
  * Google Docs), or type the rows and columns for a bigger one.
  */
 export function TableInsertPicker({ anchor, onInsert, onClose }: { anchor: { left: number; top: number }; onInsert: (rows: number, cols: number, withHeaderRow: boolean) => void; onClose: () => void }) {
+  const t = useT("editor");
   const [hover, setHover] = useState<{ rows: number; cols: number } | null>(null);
   const [size, setSize] = useState(DEFAULT_SIZE);
   const [header, setHeader] = useState(true);
@@ -134,8 +144,8 @@ export function TableInsertPicker({ anchor, onInsert, onClose }: { anchor: { lef
   const style = anchor.top + 320 > window.innerHeight ? { bottom: window.innerHeight - anchor.top + 24, left: anchor.left } : { top: anchor.top, left: anchor.left };
 
   return createPortal(
-    <div className={`${FLOATING_CLASS} rich-table-picker`} role="dialog" aria-label="Insert table" style={style} ref={rootRef}>
-      <div className="rich-table-grid" role="grid" aria-label="Table size" onMouseLeave={() => setHover(null)}>
+    <div className={`${FLOATING_CLASS} rich-table-picker`} role="dialog" aria-label={t("table.picker")} style={style} ref={rootRef}>
+      <div className="rich-table-grid" role="grid" aria-label={t("table.size")} onMouseLeave={() => setHover(null)}>
         {Array.from({ length: GRID_ROWS }, (_, r) => (
           <div key={r} role="row" className="rich-table-grid-row">
             {Array.from({ length: GRID_COLS }, (_, c) => {
@@ -157,7 +167,7 @@ export function TableInsertPicker({ anchor, onInsert, onClose }: { anchor: { lef
         ))}
       </div>
       <p className="rich-table-picker-size" aria-live="polite">
-        {shown.rows} {shown.rows === 1 ? "row" : "rows"} × {shown.cols} {shown.cols === 1 ? "column" : "columns"}
+        {t("table.rowCount", { count: shown.rows, n: shown.rows })} × {t("table.colCount", { count: shown.cols, n: shown.cols })}
       </p>
       <form
         className="rich-table-picker-form"
@@ -167,19 +177,19 @@ export function TableInsertPicker({ anchor, onInsert, onClose }: { anchor: { lef
         }}
       >
         <label>
-          Rows
+          {t("table.rows")}
           <input type="number" min={1} max={TABLE_LIMITS.maxRows} value={size.rows} onChange={(e) => setSize((s) => ({ ...s, rows: clamp(Number(e.target.value), TABLE_LIMITS.maxRows) }))} />
         </label>
         <label>
-          Columns
+          {t("table.cols")}
           <input type="number" min={1} max={TABLE_LIMITS.maxCols} value={size.cols} onChange={(e) => setSize((s) => ({ ...s, cols: clamp(Number(e.target.value), TABLE_LIMITS.maxCols) }))} />
         </label>
         <label className="rich-table-picker-check">
           <input type="checkbox" checked={header} onChange={(e) => setHeader(e.target.checked)} />
-          Header row
+          {t("table.headerRow")}
         </label>
         <button type="submit" className="btn btn-sm btn-primary">
-          Insert
+          {t("table.insert")}
         </button>
       </form>
     </div>,
@@ -219,6 +229,7 @@ function tableAnchor(editor: Editor) {
  * around the caret's cell, header row and column, merge / split, delete table.
  */
 export function TableBubbleMenu({ editor }: { editor: Editor }) {
+  const t = useT("editor");
   const table = currentTable(editor);
   // Stable per editor: BubbleMenu re-dispatches whenever this changes identity.
   const anchor = useMemo(() => tableAnchor(editor), [editor]);
@@ -234,24 +245,24 @@ export function TableBubbleMenu({ editor }: { editor: Editor }) {
       getReferencedVirtualElement={anchor}
     >
       {table && (
-        <div className="rich-bubble-row" role="toolbar" aria-label="Table">
-          <Stepper label="Rows" short="Rows" value={table.rows} max={TABLE_LIMITS.maxRows} onChange={(rows) => resizeTable(editor, rows, table.cols)} />
-          <Stepper label="Columns" short="Cols" value={table.cols} max={TABLE_LIMITS.maxCols} onChange={(cols) => resizeTable(editor, table.rows, cols)} />
+        <div className="rich-bubble-row" role="toolbar" aria-label={t("table.toolbar")}>
+          <Stepper kind="rows" value={table.rows} max={TABLE_LIMITS.maxRows} onChange={(rows) => resizeTable(editor, rows, table.cols)} />
+          <Stepper kind="cols" value={table.cols} max={TABLE_LIMITS.maxCols} onChange={(cols) => resizeTable(editor, table.rows, cols)} />
           <span className="rich-toolbar-divider" aria-hidden />
-          <ToolButton label="Insert row above" Icon={RowAboveIcon} onClick={() => run((c) => c.addRowBefore())} />
-          <ToolButton label="Insert row below" Icon={RowBelowIcon} onClick={() => run((c) => c.addRowAfter())} />
-          <ToolButton label="Insert column left" Icon={ColumnLeftIcon} onClick={() => run((c) => c.addColumnBefore())} />
-          <ToolButton label="Insert column right" Icon={ColumnRightIcon} onClick={() => run((c) => c.addColumnAfter())} />
+          <ToolButton label={t("table.rowAbove")} Icon={RowAboveIcon} onClick={() => run((c) => c.addRowBefore())} />
+          <ToolButton label={t("table.rowBelow")} Icon={RowBelowIcon} onClick={() => run((c) => c.addRowAfter())} />
+          <ToolButton label={t("table.colLeft")} Icon={ColumnLeftIcon} onClick={() => run((c) => c.addColumnBefore())} />
+          <ToolButton label={t("table.colRight")} Icon={ColumnRightIcon} onClick={() => run((c) => c.addColumnAfter())} />
           <span className="rich-toolbar-divider" aria-hidden />
-          <ToolButton label="Delete row" Icon={Rows3} onClick={() => run((c) => c.deleteRow())} />
-          <ToolButton label="Delete column" Icon={Columns3} onClick={() => run((c) => c.deleteColumn())} />
+          <ToolButton label={t("table.deleteRow")} Icon={Rows3} onClick={() => run((c) => c.deleteRow())} />
+          <ToolButton label={t("table.deleteCol")} Icon={Columns3} onClick={() => run((c) => c.deleteColumn())} />
           <span className="rich-toolbar-divider" aria-hidden />
-          <ToolButton label="Header row" Icon={Heading} onClick={() => run((c) => c.toggleHeaderRow())} />
-          <ToolButton label="Header column" Icon={PanelLeft} onClick={() => run((c) => c.toggleHeaderColumn())} />
-          {editor.can().mergeCells() && <ToolButton label="Merge cells" Icon={TableCellsMerge} onClick={() => run((c) => c.mergeCells())} />}
-          {editor.can().splitCell() && <ToolButton label="Split cell" Icon={TableCellsSplit} onClick={() => run((c) => c.splitCell())} />}
+          <ToolButton label={t("table.headerRow")} Icon={Heading} onClick={() => run((c) => c.toggleHeaderRow())} />
+          <ToolButton label={t("table.headerCol")} Icon={PanelLeft} onClick={() => run((c) => c.toggleHeaderColumn())} />
+          {editor.can().mergeCells() && <ToolButton label={t("table.merge")} Icon={TableCellsMerge} onClick={() => run((c) => c.mergeCells())} />}
+          {editor.can().splitCell() && <ToolButton label={t("table.split")} Icon={TableCellsSplit} onClick={() => run((c) => c.splitCell())} />}
           <span className="rich-toolbar-divider" aria-hidden />
-          <ToolButton label="Delete table" Icon={Trash2} onClick={() => run((c) => c.deleteTable())} />
+          <ToolButton label={t("table.delete")} Icon={Trash2} onClick={() => run((c) => c.deleteTable())} />
         </div>
       )}
     </BubbleMenu>

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import RichEditor from "./RichEditor";
+import { useT } from "@/i18n/useT";
 
 async function createDocument(): Promise<string> {
   const res = await fetch("/api/documents", { method: "POST" });
@@ -24,6 +25,7 @@ export default function DescriptionSection({
   editable: boolean;
   onDocumentCreated: (id: string) => void;
 }) {
+  const t = useT("common");
   const [failed, setFailed] = useState(false);
   // One request per mount, also under Strict Mode's doubled effects.
   const requested = useRef(false);
@@ -54,7 +56,7 @@ export default function DescriptionSection({
     if (failed) {
       return (
         <p className="form-error">
-          Could not create the description.{" "}
+          {t("description.failed")}{" "}
           <button
             type="button"
             className="btn btn-sm"
@@ -63,12 +65,12 @@ export default function DescriptionSection({
               create();
             }}
           >
-            Try again
+            {t("description.tryAgain")}
           </button>
         </p>
       );
     }
-    return <p className="field-label">Preparing the description…</p>;
+    return <p className="field-label">{t("description.preparing")}</p>;
   }
 
   return <RichEditor documentId={documentId} editable={editable} />;

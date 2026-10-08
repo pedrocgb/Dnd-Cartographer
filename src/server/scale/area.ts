@@ -4,7 +4,8 @@
  * and the Zones panel (each zone's live area).
  */
 import * as ClipperLib from "clipper-lib";
-import { formatNumber, type ScaleConfig, type ScaleUnit } from "./scale-config";
+import { formatNumber, unitSuffix, type ScaleConfig, type ScaleUnit } from "./scale-config";
+import { activeT } from "../../i18n/active";
 
 export interface Pt {
   x: number;
@@ -121,8 +122,12 @@ const UNIT_METERS: Record<Exclude<ScaleUnit, "custom">, number> = {
   leagues: 3 * 1609.344,
 };
 
-const SQUARE_LABELS: Record<Exclude<ScaleUnit, "custom">, string> = { km: "km²", m: "m²", mi: "mi²", ft: "ft²", yd: "yd²", leagues: "sq leagues" };
-const LENGTH_LABELS: Record<Exclude<ScaleUnit, "custom">, string> = { km: "km", m: "m", mi: "mi", ft: "ft", yd: "yd", leagues: "leagues" };
+const SQUARE_LABELS: Record<Exclude<ScaleUnit, "custom" | "leagues">, string> = { km: "km²", m: "m²", mi: "mi²", ft: "ft²", yd: "yd²" };
+/** A squared unit's label in the user's language ("km²", "sq leagues", "hectares"). */
+const squareLabel = (key: Exclude<ScaleUnit, "custom"> | "hectares" | "acres") => {
+  if (key === "leagues" || key === "hectares" || key === "acres") return activeT("maps")(`scale.area.${key}`);
+  return SQUARE_LABELS[key];
+};
 
 /** Order of the readings after the map's own unit. */
 const AREA_ORDER = ["km", "m", "hectares", "mi", "acres", "ft", "yd", "leagues"] as const;
@@ -144,12 +149,12 @@ export function areaReadings(areaPx: number, config: Pick<ScaleConfig, "framePxP
   const ppu = config.framePxPerUnit;
   if (!ppu) return [];
   const inScaleUnit = areaPx / (ppu * ppu);
-  if (config.unit === "custom") return [{ key: "custom", unit: `${config.customLabel || "units"}²`, value: inScaleUnit }];
+  if (config.unit === "custom") return [{ key: "custom", unit: `${unitSuffix(config)}²`, value: inScaleUnit }];
   const sqMeters = inScaleUnit * UNIT_METERS[config.unit] ** 2;
   const all: AreaReading[] = AREA_ORDER.map((key) =>
     key === "hectares" || key === "acres"
-      ? { key, unit: key, value: sqMeters / SQ_METERS_PER[key] }
-      : { key, unit: SQUARE_LABELS[key], value: sqMeters / UNIT_METERS[key] ** 2 },
+      ? { key, unit: squareLabel(key), value: sqMeters / SQ_METERS_PER[key] }
+      : { key, unit: squareLabel(key), value: sqMeters / UNIT_METERS[key] ** 2 },
   );
   return [...all.filter((r) => r.key === config.unit), ...all.filter((r) => r.key !== config.unit)];
 }
@@ -176,8 +181,7 @@ export function splitReadings(readings: AreaReading[], system: "metric" | "imper
 export function formatLength(lengthPx: number, config: Pick<ScaleConfig, "framePxPerUnit" | "unit" | "customLabel">): string | null {
   const ppu = config.framePxPerUnit;
   if (!ppu) return null;
-  const unit = config.unit === "custom" ? config.customLabel || "units" : LENGTH_LABELS[config.unit];
-  return `${formatNumber(lengthPx / ppu)} ${unit}`;
+  return `${formatNumber(lengthPx / ppu)} ${unitSuffix(config)}`;
 }
 
 export const formatReading = (r: AreaReading) => `${formatNumber(r.value)} ${r.unit}`;

@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import { useT } from "@/i18n/useT";
+import { formatInteger } from "@/server/settings/number-format";
 
 /**
  * The app's delete-map confirmation (maps list and inside a map). The map
@@ -19,6 +21,8 @@ export default function DeleteMapDialog({
   onDeleted: () => void;
   onCancel: () => void;
 }) {
+  const t = useT("maps");
+  const tc = useT("common");
   const [strategy, setStrategy] = useState<"orphan" | "cascade">("orphan");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,12 +37,12 @@ export default function DeleteMapDialog({
         body: JSON.stringify(childCount > 0 ? { strategy } : {}),
       });
       if (!res.ok) {
-        setError((await res.json().catch(() => ({}))).error ?? "Could not delete the map.");
+        setError((await res.json().catch(() => ({}))).error ?? t("deleteMap.failed"));
         return;
       }
       onDeleted();
     } catch {
-      setError("Could not reach the server. Try again.");
+      setError(tc("serverUnreachable"));
     } finally {
       setBusy(false);
     }
@@ -47,32 +51,30 @@ export default function DeleteMapDialog({
   return (
     <ConfirmDialog
       open
-      title={`Delete "${map.name}"?`}
-      confirmLabel="Delete map"
-      busyLabel="Deleting…"
+      title={t("deleteMap.title", { name: map.name })}
+      confirmLabel={t("deleteMap.confirm")}
+      busyLabel={tc("deleting")}
       busy={busy}
       error={error}
       onConfirm={remove}
       onCancel={onCancel}
     >
-      <p>The map moves to the Trash together with its layers, markers, zones, texts and lines.</p>
+      <p>{t("deleteMap.body")}</p>
       {childCount > 0 && (
         <fieldset className="confirm-dialog-choice">
-          <legend>
-            It has {childCount} child map{childCount === 1 ? "" : "s"}:
-          </legend>
+          <legend>{t("deleteMap.children", { count: childCount, n: formatInteger(childCount) })}</legend>
           <label>
             <input type="radio" name="child-maps" checked={strategy === "orphan"} onChange={() => setStrategy("orphan")} />
-            Keep them, moved to the root
+            {t("deleteMap.keepChildren")}
           </label>
           <label>
             <input type="radio" name="child-maps" checked={strategy === "cascade"} onChange={() => setStrategy("cascade")} />
-            Move them (and their own children) to the Trash too
+            {t("deleteMap.cascadeChildren")}
           </label>
         </fieldset>
       )}
       <ul>
-        <li>You can restore it from Settings → Trash.</li>
+        <li>{t("deleteMap.restoreHint")}</li>
       </ul>
     </ConfirmDialog>
   );

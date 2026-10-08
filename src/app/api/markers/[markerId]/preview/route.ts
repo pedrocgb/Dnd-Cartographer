@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { errorResponse } from "@/i18n/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { markers } from "@/server/db/schema";
@@ -15,10 +16,10 @@ import { notInWorld } from "@/server/world/guards";
  */
 export async function GET(_request: Request, { params }: { params: Promise<{ markerId: string }> }) {
   const { markerId } = await params;
-  const denied = await notInWorld("markers", markerId, "Marker not found.");
+  const denied = await notInWorld("markers", markerId, "markerNotFound");
   if (denied) return denied;
   const marker = await db.query.markers.findFirst({ where: eq(markers.id, markerId), columns: { descriptionDocumentId: true } });
-  if (!marker) return NextResponse.json({ error: "Marker not found." }, { status: 404 });
+  if (!marker) return errorResponse("markerNotFound", 404);
 
   const [primary, ...others] = await linksOfMarker(markerId);
   const article = primary && isArticleTemplate(primary.template) ? await resolveArticleCard(await requireWorldId(), primary.template, primary.articleId) : null;

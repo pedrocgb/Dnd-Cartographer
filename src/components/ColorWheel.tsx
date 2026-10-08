@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useT } from "@/i18n/useT";
 
 const WHEEL_SIZE = 140;
 const RADIUS = WHEEL_SIZE / 2;
@@ -62,6 +63,7 @@ function rgbToHsv(r: number, g: number, b: number): { h: number; s: number; v: n
  * hsvToHex(h, s, v), never the filtered pixel.
  */
 export default function ColorWheel({ value, mixed = false, onChange }: { value: string; /** The edited items have different colors: shown as "Mixed" until one is picked. */ mixed?: boolean; onChange: (hex: string) => void }) {
+  const t = useT("common");
   const [hsv, setHsv] = useState(() => {
     const rgb = hexToRgb(value);
     return rgb ? rgbToHsv(...rgb) : { h: 0, s: 1, v: 1 };
@@ -189,20 +191,20 @@ export default function ColorWheel({ value, mixed = false, onChange }: { value: 
 
       <div className="color-wheel-controls">
         <label className="color-wheel-field">
-          <span className="field-label">Value</span>
+          <span className="field-label">{t("color.value")}</span>
           <input type="range" min={0} max={1} step={0.01} value={hsv.v} onChange={(e) => updateValue(Number(e.target.value))} />
         </label>
 
         {showMixed ? (
-          <div className="color-wheel-preview mixed-swatch" data-tooltip="The selected items have different colors. Picking one sets it on all of them.">
-            Mixed
+          <div className="color-wheel-preview mixed-swatch" data-tooltip={t("color.mixedHint")}>
+            {t("color.mixed")}
           </div>
         ) : (
           <div className="color-wheel-preview" style={{ background: currentHex }} />
         )}
 
         <label className="color-wheel-field">
-          <span className="field-label">Hex</span>
+          <span className="field-label">{t("color.hex")}</span>
           <input
             type="text"
             value={showMixed ? "" : hexText}

@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server";
+import { errorResponse, serverT } from "@/i18n/server";
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { campaigns } from "@/server/db/schema";
 import { requireWorldId } from "@/server/world/active-world";
 import { cleanName } from "@/server/calendars/parse";
 import { checkCalendarIds } from "@/server/calendars/store";
-import { badRequest, calendarErrorResponse, readBody } from "@/server/calendars/respond";
+import { calendarErrorResponse, readBody } from "@/server/calendars/respond";
 import { parseCurrencies } from "@/server/sessions/parse";
 import { rosterOf, toClientCampaign } from "@/server/sessions/store";
-import { D_AND_D_COINS } from "@/server/sessions/types";
+import { dndCoins } from "@/server/sessions/types";
 
 /** The world's campaigns with their party rosters. */
 export async function GET() {
@@ -21,14 +22,14 @@ export async function GET() {
 /** Creates a campaign read in `calendarId`; coins default to the D&D set. */
 export async function POST(request: Request) {
   const body = await readBody(request);
-  if (!body) return badRequest("Invalid request body.");
+  if (!body) return errorResponse("invalidBody", 400);
   try {
     const name = cleanName(body.name);
-    if (!name) return badRequest("A campaign name is required.");
-    if (typeof body.calendarId !== "string" || !body.calendarId) return badRequest("Pick the calendar this campaign's dates are read in.");
+    if (!name) return errorResponse("campaignNameRequired", 400);
+    if (typeof body.calendarId !== "string" || !body.calendarId) return errorResponse("campaignCalendarRequired", 400);
     const worldId = await requireWorldId();
     await checkCalendarIds(worldId, [body.calendarId]);
-    const currencies = body.currencies === undefined ? D_AND_D_COINS : parseCurrencies(body.currencies);
+    const currencies = body.currencies === undefined ? dndCoins(await serverT("campaign")) : parseCurrencies(body.currencies);
     const existing = await db.select({ id: campaigns.id }).from(campaigns).where(eq(campaigns.worldId, worldId));
     const [row] = await db
       .insert(campaigns)

@@ -12,6 +12,7 @@ import {
 } from "@/server/grid/grid-config";
 import { COLOR_PRESETS } from "@/server/markers/icon-registry";
 import type { MapGrid } from "./GridLayer";
+import { useT } from "@/i18n/useT";
 
 function VerticalHexagonIcon({ size = 16, strokeWidth = 2.25 }: { size?: number; strokeWidth?: number }) {
   return (
@@ -152,6 +153,7 @@ export default function GridPanel({
   imageWidth: number;
   imageHeight: number;
 }) {
+  const t = useT("maps");
   function updateShape(shape: GridShape) {
     if (grid.linkedColumnsRows) {
       onUpdate({ shape, rows: computeLinkedRows(grid.columns, shape, imageWidth, imageHeight) });
@@ -192,15 +194,15 @@ export default function GridPanel({
       <div className="marker-side-panel-header">
         <h2>
           <Grid3x3 size={16} strokeWidth={2.25} style={{ verticalAlign: "-2px", marginRight: "6px" }} />
-          Grid
+          {t("grid.title")}
         </h2>
-        <button className="btn btn-ghost btn-icon" onClick={onClose} aria-label="Close grid panel">
+        <button className="btn btn-ghost btn-icon" onClick={onClose} aria-label={t("grid.close")}>
           <X size={16} strokeWidth={2.25} />
         </button>
       </div>
-      <p className="panel-layer-label">Layer: {layerName}</p>
+      <p className="panel-layer-label">{t("panel.layer", { name: layerName })}</p>
 
-      <span className="field-label">Shape</span>
+      <span className="field-label">{t("grid.shape")}</span>
       <div className="grid-shape-row">
         {GRID_SHAPES.map((shape) => {
           const Icon = SHAPE_ICONS[shape.key];
@@ -209,7 +211,7 @@ export default function GridPanel({
               key={shape.key}
               className={grid.shape === shape.key ? "active" : ""}
               data-tooltip={shape.label}
-              aria-label={shape.label}
+              aria-label={t(`grid.shape.${shape.key}`)}
               aria-pressed={grid.shape === shape.key}
               onClick={() => updateShape(shape.key)}
             >
@@ -225,11 +227,11 @@ export default function GridPanel({
           checked={grid.linkedColumnsRows}
           onChange={(e) => toggleLinked(e.target.checked)}
         />
-        <span>Linked Columns and Rows</span>
+        <span>{t("grid.linked")}</span>
       </label>
 
       <SliderField
-        label="Columns"
+        label={t("grid.columns")}
         value={grid.columns}
         min={1}
         max={MAX_GRID_LINES}
@@ -237,7 +239,7 @@ export default function GridPanel({
         onChange={updateColumns}
       />
       <SliderField
-        label="Rows"
+        label={t("grid.rows")}
         value={grid.rows}
         min={1}
         max={MAX_GRID_LINES}
@@ -245,7 +247,7 @@ export default function GridPanel({
         onChange={updateRows}
       />
       <SliderField
-        label="Horizontal Offset"
+        label={t("grid.offsetX")}
         value={grid.horizontalOffset}
         min={-100}
         max={100}
@@ -253,7 +255,7 @@ export default function GridPanel({
         onChange={(horizontalOffset) => onUpdate({ horizontalOffset })}
       />
       <SliderField
-        label="Vertical Offset"
+        label={t("grid.offsetY")}
         value={grid.verticalOffset}
         min={-100}
         max={100}
@@ -261,7 +263,7 @@ export default function GridPanel({
         onChange={(verticalOffset) => onUpdate({ verticalOffset })}
       />
       <SliderField
-        label="Opacity"
+        label={t("grid.opacity")}
         value={Math.round(grid.opacity * 100)}
         min={0}
         max={100}
@@ -270,7 +272,7 @@ export default function GridPanel({
         onChange={(pct) => onUpdate({ opacity: pct / 100 })}
       />
       <SliderField
-        label="Width"
+        label={t("grid.width")}
         value={grid.lineWidth}
         min={0}
         max={5}
@@ -279,7 +281,7 @@ export default function GridPanel({
         onChange={(lineWidth) => onUpdate({ lineWidth })}
       />
 
-      <span className="field-label">Color</span>
+      <span className="field-label">{t("grid.color")}</span>
       <div className="color-swatch-row">
         {COLOR_PRESETS.map((color) => (
           <button
@@ -287,7 +289,7 @@ export default function GridPanel({
             className={color === grid.color ? "color-swatch active" : "color-swatch"}
             style={{ background: color }}
             onClick={() => onUpdate({ color })}
-            aria-label={`Grid color ${color}`}
+            aria-label={t("grid.colorValue", { color })}
             aria-pressed={color === grid.color}
           />
         ))}
@@ -295,7 +297,7 @@ export default function GridPanel({
 
       <button className="btn btn-danger" onClick={onDelete}>
         <Trash2 size={15} strokeWidth={2.25} />
-        Delete Grid
+        {t("grid.delete")}
       </button>
     </div>
   );

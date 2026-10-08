@@ -16,6 +16,9 @@ import { buildMapTree, countMaps, type TreeEntry } from "./maps/map-tree";
 import type { FolderSummary, MapSummary } from "./maps/types";
 import { SkeletonList } from "@/components/Skeleton";
 import { parseIdList, readStored, subscribeToStorage, writeStored } from "./stored";
+import { useT } from "@/i18n/useT";
+import { activeT } from "@/i18n/active";
+import { formatInteger } from "@/server/settings/number-format";
 
 type Entry = TreeEntry<MapSummary, FolderSummary>;
 /** Which settings panel is open. */
@@ -31,7 +34,12 @@ const saveOpenFolders = (open: Set<string>) => writeStored(OPEN_FOLDERS_KEY, JSO
 
 async function sendJson(url: string, method: string, body?: unknown): Promise<string | null> {
   const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
-  return res.ok ? null : ((await res.json().catch(() => ({}))).error ?? "Something went wrong.");
+  return res.ok ? null : ((await res.json().catch(() => ({}))).error ?? activeT("common")("somethingWrong"));
+}
+
+/** A message with `{placeholders}` rendered as bold values (names inside a sentence). */
+function withStrong(template: string, values: Record<string, string>): React.ReactNode[] {
+  return template.split(/\{(\w+)\}/).map((part, i) => (i % 2 ? <strong key={i}>{values[part] ?? part}</strong> : part));
 }
 
 /** "Parent / Child" path of a folder, for the New Map folder picker. */
@@ -69,6 +77,9 @@ function mapSubtree(maps: MapSummary[], mapId: string): Set<string> {
  * preview of the map the pointer rests on.
  */
 export default function MapManager() {
+  const t = useT("maps");
+  const tc = useT("common");
+  const te = useT("errors");
   const router = useRouter();
   const searchParams = useSearchParams();
   const [maps, setMaps] = useState<MapSummary[] | null>(null);
@@ -121,7 +132,7 @@ export default function MapManager() {
 
   async function run(action: Promise<string | null>) {
     setActionError(null);
-    const problem = await action.catch(() => "Could not reach the server. Try again.");
+    const problem = await action.catch(() => tc("serverUnreachable"));
     if (problem) setActionError(problem);
     await refresh();
   }
@@ -133,7 +144,7 @@ export default function MapManager() {
       const folder = folders.find((f) => f.id === item.id);
       if (!folder || folder.parentId === folderId) return;
       const problem = folderMoveError(folders, item.id, folderId);
-      if (problem) return setActionError(problem);
+      if (problem) return setActionError(te(problem));
       void run(sendJson(`/api/map-folders/${item.id}`, "PATCH", { parentId: folderId }));
       if (folderId && !openFolders.has(folderId)) toggleFolder(folderId);
       return;
@@ -143,7 +154,7 @@ export default function MapManager() {
     if (target.kind === "map") {
       const parent = maps?.find((m) => m.id === target.id);
       if (!parent || (map.parentId === parent.id && !map.folderId)) return;
-      if (mapSubtree(maps ?? [], map.id).has(parent.id)) return setActionError("A map can't go inside itself or one of its child maps.");
+      if (mapSubtree(maps ?? [], map.id).has(parent.id)) return setActionError(t("manager.nestIntoSelf"));
       setHierarchyChange({ kind: "nest", map, parent });
       return;
     }
@@ -213,7 +224,7 @@ export default function MapManager() {
   /** A settings-panel save: PATCH, then reload the lists. */
   function patchAndRefresh(url: string) {
     return async (body: Record<string, unknown>) => {
-      const problem = await sendJson(url, "PATCH", body).catch(() => "Could not reach the server. Try again.");
+      const problem = await sendJson(url, "PATCH", body).catch(() => tc("serverUnreachable"));
       await refresh();
       return problem;
     };
@@ -293,22 +304,22 @@ export default function MapManager() {
           </p>
         )}
         {maps === null ? (
-          <SkeletonList rows={6} label="Loading maps…" />
+          <SkeletonList rows={6} label={t("manager.loading")} />
         ) : maps.length === 0 ? (
           <div className="articles-landing">
             <Compass size={44} strokeWidth={1.5} aria-hidden />
-            <h1>Maps</h1>
-            <p>No maps yet — create one to start placing markers on it.</p>
+            <h1>{t("title")}</h1>
+            <p>{t("manager.empty")}</p>
             <button type="button" className="btn btn-primary" onClick={() => setNewMap({ folderId: null })}>
               <Plus size={16} strokeWidth={2.25} />
-              New Map
+              {t("newMap")}
             </button>
           </div>
         ) : (
           <>
             <p className={previewVisible ? "maps-idle-hint hidden" : "maps-idle-hint"}>
               <Compass size={16} strokeWidth={2} aria-hidden />
-              Rest the pointer on a map to preview it, or click it to open.
+              {t("manager.idleHint")}
             </p>
             <MapPreview map={previewMap} parentName={previewParent} visible={previewVisible} />
           </>
@@ -327,9 +338,9 @@ export default function MapManager() {
 
       {creatingFolder && (
         <NameDialog
-          title="Create folder"
-          label="Folder name"
-          saveLabel="Create folder"
+          title={t("createFolder")}
+          label={t("folderName")}
+          saveLabel={t("createFolder")}
           maxLength={MAX_FOLDER_NAME_LENGTH}
           onSave={createFolder}
           onCancel={() => setCreatingFolder(false)}
@@ -340,22 +351,22 @@ export default function MapManager() {
         <ConfirmDialog
           open
           danger={false}
-          title={hierarchyChange.kind === "nest" ? "Make it a child map?" : "Remove it from the hierarchy?"}
-          confirmLabel={hierarchyChange.kind === "nest" ? "Yes" : "Remove hierarchy"}
-          busyLabel="Saving…"
+          title={hierarchyChange.kind === "nest" ? t("hierarchy.nestTitle") : t("hierarchy.detachTitle")}
+          confirmLabel={hierarchyChange.kind === "nest" ? tc("yes") : t("hierarchy.detachConfirm")}
+          busyLabel={tc("saving")}
           busy={hierarchyBusy}
           onConfirm={() => void applyHierarchyChange(hierarchyChange)}
           onCancel={() => setHierarchyChange(null)}
         >
           {hierarchyChange.kind === "nest" ? (
             <p>
-              Dragging <strong>{hierarchyChange.map.name}</strong> inside <strong>{hierarchyChange.parent.name}</strong> will make it a child of it
-              {hierarchyChange.map.folderId ? " (and take it out of its folder)" : ""}. Want to proceed?
+              {withStrong(t(hierarchyChange.map.folderId ? "hierarchy.nestBodyFromFolder" : "hierarchy.nestBody"), {
+                map: hierarchyChange.map.name,
+                parent: hierarchyChange.parent.name,
+              })}
             </p>
           ) : (
-            <p>
-              Dragging <strong>{hierarchyChange.map.name}</strong> here will remove it as child of <strong>{hierarchyChange.parentName}</strong>.
-            </p>
+            <p>{withStrong(t("hierarchy.detachBody"), { map: hierarchyChange.map.name, parent: hierarchyChange.parentName })}</p>
           )}
         </ConfirmDialog>
       )}
@@ -376,21 +387,19 @@ export default function MapManager() {
       {deletingFolder && (
         <ConfirmDialog
           open
-          title={`Delete the folder "${deletingFolder.item.name}"?`}
-          confirmLabel="Delete folder"
-          busyLabel="Deleting…"
+          title={t("deleteFolder.title", { name: deletingFolder.item.name })}
+          confirmLabel={t("deleteFolder")}
+          busyLabel={tc("deleting")}
           busy={folderDeleteBusy}
           onConfirm={() => void deleteFolder(deletingFolder)}
           onCancel={() => setDeletingFolder(null)}
         >
-          <p>The folder and every folder inside it will be deleted.</p>
+          <p>{t("deleteFolder.body")}</p>
           <ul>
             {countMaps(deletingFolder) > 0 && (
-              <li>
-                Its {countMaps(deletingFolder)} map{countMaps(deletingFolder) === 1 ? "" : "s"} will return to the root (no folder).
-              </li>
+              <li>{t("deleteFolder.mapsReturn", { count: countMaps(deletingFolder), n: formatInteger(countMaps(deletingFolder)) })}</li>
             )}
-            <li>No map is ever deleted with a folder.</li>
+            <li>{t("deleteFolder.noMapDeleted")}</li>
           </ul>
         </ConfirmDialog>
       )}

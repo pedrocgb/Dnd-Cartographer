@@ -1,21 +1,22 @@
 import { NextResponse } from "next/server";
+import { errorResponse } from "@/i18n/server";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { quests } from "@/server/db/schema";
 import { requireWorldId } from "@/server/world/active-world";
-import { badRequest, calendarErrorResponse, notFound, readBody } from "@/server/calendars/respond";
+import { calendarErrorResponse, readBody } from "@/server/calendars/respond";
 import { questFields } from "@/server/quests/fields";
 import { questContextOf, questOf, toClientQuest } from "@/server/quests/store";
 import { campaignOf } from "@/server/sessions/store";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-const stale = () => NextResponse.json({ error: "This quest was changed elsewhere. Reload it and try again.", stale: true }, { status: 409 });
+const stale = () => errorResponse("questStale", 409, { stale: true });
 
 export async function GET(_request: Request, { params }: RouteContext) {
   const { id } = await params;
   const row = await questOf(await requireWorldId(), id);
-  if (!row) return notFound("Quest not found.");
+  if (!row) return errorResponse("questNotFound", 404);
   return NextResponse.json({ quest: toClientQuest(row) });
 }
 
@@ -24,11 +25,11 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   const { id } = await params;
   const worldId = await requireWorldId();
   const row = await questOf(worldId, id);
-  if (!row) return notFound("Quest not found.");
+  if (!row) return errorResponse("questNotFound", 404);
   const campaign = await campaignOf(worldId, row.campaignId);
-  if (!campaign) return notFound("Campaign not found.");
+  if (!campaign) return errorResponse("campaignNotFound", 404);
   const body = await readBody(request);
-  if (!body) return badRequest("Invalid request body.");
+  if (!body) return errorResponse("invalidBody", 400);
   if (body.expectedVersion !== row.version) return stale();
   try {
     const fields = await questFields(body, await questContextOf(campaign), id);
@@ -47,7 +48,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 export async function DELETE(_request: Request, { params }: RouteContext) {
   const { id } = await params;
   const row = await questOf(await requireWorldId(), id);
-  if (!row) return notFound("Quest not found.");
+  if (!row) return errorResponse("questNotFound", 404);
   await db.transaction(async (tx) => {
     await tx
       .update(quests)

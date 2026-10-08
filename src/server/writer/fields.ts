@@ -45,18 +45,18 @@ export function nodeFields(body: Record<string, unknown>, { questIds, frontIds, 
   }
   if ("beatTemplate" in body) {
     const key = parseOptionalId(body.beatTemplate, "The story structure");
-    if (key !== null && !templateByKey(key)) throw new InvalidError("That story structure doesn't exist.");
+    if (key !== null && !templateByKey(key)) throw new InvalidError({ ns: "campaign", key: "problem.noStructure" });
     patch.beatTemplate = key;
   }
   if ("plannedSessionId" in body) {
     const sessionId = parseOptionalId(body.plannedSessionId, "The session");
-    if (sessionId !== null && !sessionIds.has(sessionId)) throw new InvalidError("That session isn't in this campaign.");
+    if (sessionId !== null && !sessionIds.has(sessionId)) throw new InvalidError({ ns: "campaign", key: "problem.sessionNotInCampaign" });
     patch.plannedSessionId = sessionId;
   }
   if ("links" in body) {
     const links = parseOutlineLinks(body.links);
     for (const l of links) {
-      if (!(l.kind === "quest" ? questIds : frontIds).has(l.id)) throw new InvalidError(`A linked ${l.kind} isn't in this campaign.`);
+      if (!(l.kind === "quest" ? questIds : frontIds).has(l.id)) throw new InvalidError({ ns: "campaign", key: l.kind === "quest" ? "problem.linkedQuest" : "problem.linkedFront" });
     }
     patch.links = JSON.stringify(links);
   }
@@ -75,7 +75,7 @@ export function threadFields(body: Record<string, unknown>, { questIds }: Pick<W
   if ("sortOrder" in body) patch.sortOrder = parseSortIndex(body.sortOrder);
   if ("questId" in body) {
     const questId = parseOptionalId(body.questId, "The quest");
-    if (questId !== null && !questIds.has(questId)) throw new InvalidError("That quest isn't in this campaign.");
+    if (questId !== null && !questIds.has(questId)) throw new InvalidError({ ns: "campaign", key: "problem.questNotInCampaign" });
     patch.questId = questId;
   }
   return patch;

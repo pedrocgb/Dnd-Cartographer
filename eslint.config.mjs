@@ -2,29 +2,8 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
-const LOCALIZED_GLOBS = [
-  // Batch 0: foundation
-  "src/app/layout.tsx",
-  "src/components/settings/GeneralSettings.tsx",
-  "src/components/settings/SettingsProvider.tsx",
-  // Batch 1: shell and shared primitives
-  "src/components/AppNav.tsx",
-  "src/components/WorldDateLabel.tsx",
-  "src/components/Modal.tsx",
-  "src/components/ConfirmDialog.tsx",
-  "src/components/Skeleton.tsx",
-  "src/components/LoadingScreen.tsx",
-  "src/components/SearchBox.tsx",
-  "src/components/DatePicker.tsx",
-  "src/components/IconPicker.tsx",
-  "src/components/Toggle.tsx",
-  "src/components/ToolSection.tsx",
-  "src/components/worlds/**",
-  "src/app/worlds/**",
-  // Batch 2: settings, trash, import/export
-  "src/components/settings/**",
-  "src/app/settings/**",
-];
+// Every screen is localized (docs/localization.md, batches 0–13): no bare text in JSX anywhere in the UI.
+const LOCALIZED_GLOBS = ["src/components/**", "src/app/**"];
 
 const eslintConfig = defineConfig([
   ...nextVitals,
@@ -38,12 +17,12 @@ const eslintConfig = defineConfig([
     },
   },
   // Localized files (docs/localization.md): visible text goes through t(), so no bare strings in JSX.
-  // Each localization batch adds its files here. Props aren't checked; the batch's grep covers them.
+  // Props aren't checked; grep for them when adding UI.
   // Allowed: punctuation, and the app's name (a brand, never translated).
   {
     files: LOCALIZED_GLOBS,
     rules: {
-      "react/jsx-no-literals": ["error", { noStrings: true, ignoreProps: true, allowedStrings: ["·", "—", "–", "/", "×", "%", ":", "(", ")", "…", "+", "-", "|", "World Wiki"] }],
+      "react/jsx-no-literals": ["error", { noStrings: true, ignoreProps: true, allowedStrings: ["·", "—", "–", "/", "×", "%", ":", "(", ")", "…", "+", "-", "|", "→", "›", "📜", "⏳", "✦", "✓", "px", "X", "Y", "World Wiki"] }],
     },
   },
   // Override default ignores of eslint-config-next.

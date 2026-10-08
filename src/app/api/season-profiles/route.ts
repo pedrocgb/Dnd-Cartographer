@@ -6,16 +6,17 @@ import { requireWorldId } from "@/server/world/active-world";
 import { cleanName, parseProfileData } from "@/server/calendars/parse";
 import { checkProfile } from "@/server/calendars/profiles";
 import { toClientProfile } from "@/server/calendars/store";
-import { badRequest, calendarErrorResponse, readBody } from "@/server/calendars/respond";
+import { calendarErrorResponse, readBody } from "@/server/calendars/respond";
+import { errorResponse } from "@/i18n/server";
 
 /** Creates a named season profile (schedule data only — articles choose it through their Season Profile field). */
 export async function POST(request: Request) {
   const body = await readBody(request);
-  if (!body) return badRequest("Invalid request body.");
+  if (!body) return errorResponse("invalidBody", 400);
   try {
     const name = cleanName(body.name);
-    if (!name) return badRequest("A profile name is required.");
-    if (typeof body.calendarId !== "string") return badRequest("Pick the calendar this profile's dates are read in.");
+    if (!name) return errorResponse("profileNameRequired", 400);
+    if (typeof body.calendarId !== "string") return errorResponse("profileCalendarPick", 400);
     const worldId = await requireWorldId();
     const data = { ...parseProfileData(body.data), calendarId: body.calendarId };
     await checkProfile(worldId, data);

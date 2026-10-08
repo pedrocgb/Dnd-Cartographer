@@ -4,6 +4,7 @@ import { db } from "@/server/db/client";
 import { articleFolderItems, articleFolders } from "@/server/db/schema";
 import { requireWorldId } from "@/server/world/active-world";
 import { cleanFolderColor, cleanFolderName, folderMoveError, folderSubtree } from "@/server/maps/folders";
+import { errorResponse } from "@/i18n/server";
 import { worldArticleFolders } from "@/server/articles/folders";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -12,26 +13,26 @@ type RouteContext = { params: Promise<{ id: string }> };
 export async function PATCH(request: Request, { params }: RouteContext) {
   const { id } = await params;
   const folders = await worldArticleFolders(await requireWorldId());
-  if (!folders.some((f) => f.id === id)) return NextResponse.json({ error: "Folder not found." }, { status: 404 });
+  if (!folders.some((f) => f.id === id)) return errorResponse("folderNotFound", 404);
 
   const body = await request.json().catch(() => null);
-  if (!body || typeof body !== "object") return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+  if (!body || typeof body !== "object") return errorResponse("invalidBody", 400);
 
   const patch: Partial<typeof articleFolders.$inferInsert> = { updatedAt: new Date() };
   if ("name" in body) {
     const name = cleanFolderName(body.name);
-    if (!name) return NextResponse.json({ error: "A folder name is required." }, { status: 400 });
+    if (!name) return errorResponse("folderNameRequired", 400);
     patch.name = name;
   }
   if ("color" in body) {
     const color = cleanFolderColor(body.color);
-    if (color === undefined) return NextResponse.json({ error: "A color must look like #RRGGBB." }, { status: 400 });
+    if (color === undefined) return errorResponse("colorInvalid", 400);
     patch.color = color;
   }
   if ("parentId" in body) {
     const parentId = typeof body.parentId === "string" && body.parentId ? body.parentId : null;
     const error = folderMoveError(folders, id, parentId);
-    if (error) return NextResponse.json({ error }, { status: 400 });
+    if (error) return errorResponse(error, 400);
     patch.parentId = parentId;
   }
 
@@ -43,7 +44,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 export async function DELETE(_request: Request, { params }: RouteContext) {
   const { id } = await params;
   const folders = await worldArticleFolders(await requireWorldId());
-  if (!folders.some((f) => f.id === id)) return NextResponse.json({ error: "Folder not found." }, { status: 404 });
+  if (!folders.some((f) => f.id === id)) return errorResponse("folderNotFound", 404);
 
   const ids = [...folderSubtree(folders, id)];
   await db.transaction(async (tx) => {

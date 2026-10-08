@@ -5,10 +5,11 @@ import { zoneRegions, maps } from "@/server/db/schema";
 import { isLayerOfMap } from "@/server/layers/layers";
 import { toClientFolder } from "@/server/maps/layer-folders";
 import { notInWorld } from "@/server/world/guards";
+import { errorResponse } from "@/i18n/server";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ mapId: string }> }) {
   const { mapId } = await params;
-  const denied = await notInWorld("maps", mapId, "Map not found.");
+  const denied = await notInWorld("maps", mapId, "mapNotFound");
   if (denied) return denied;
   const regions = await db.query.zoneRegions.findMany({
     where: and(eq(zoneRegions.mapId, mapId), isNull(zoneRegions.deletedAt)),
@@ -19,16 +20,16 @@ export async function GET(_request: Request, { params }: { params: Promise<{ map
 
 export async function POST(request: Request, { params }: { params: Promise<{ mapId: string }> }) {
   const { mapId } = await params;
-  const denied = await notInWorld("maps", mapId, "Map not found.");
+  const denied = await notInWorld("maps", mapId, "mapNotFound");
   if (denied) return denied;
   const map = await db.query.maps.findFirst({ where: eq(maps.id, mapId) });
-  if (!map) return NextResponse.json({ error: "Map not found." }, { status: 404 });
+  if (!map) return errorResponse("mapNotFound", 404);
 
   const body = await request.json().catch(() => null);
   const name = typeof body?.name === "string" ? body.name.trim() : "";
-  if (!name) return NextResponse.json({ error: "A Region name is required." }, { status: 400 });
+  if (!name) return errorResponse("regionNameRequired", 400);
   if (!(await isLayerOfMap(body?.layerId, mapId))) {
-    return NextResponse.json({ error: "A layer of this map is required." }, { status: 400 });
+    return errorResponse("layerOfMapRequired", 400);
   }
   const layerId: string = body.layerId;
 

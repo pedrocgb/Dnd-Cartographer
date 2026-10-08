@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
+import { errorResponse } from "@/i18n/server";
 import { db } from "@/server/db/client";
 import { quests } from "@/server/db/schema";
 import { requireWorldId } from "@/server/world/active-world";
 import { createEmptyDocument } from "@/server/documents/create";
-import { badRequest, calendarErrorResponse, notFound, readBody } from "@/server/calendars/respond";
+import { calendarErrorResponse, readBody } from "@/server/calendars/respond";
 import { campaignOf } from "@/server/sessions/store";
 import { questFields } from "@/server/quests/fields";
 import { questContextOf, questsOf, toClientQuest } from "@/server/quests/store";
@@ -14,7 +15,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 export async function GET(_request: Request, { params }: RouteContext) {
   const { id } = await params;
   const worldId = await requireWorldId();
-  if (!(await campaignOf(worldId, id))) return notFound("Campaign not found.");
+  if (!(await campaignOf(worldId, id))) return errorResponse("campaignNotFound", 404);
   return NextResponse.json({ quests: (await questsOf(id)).map(toClientQuest) });
 }
 
@@ -23,10 +24,10 @@ export async function POST(request: Request, { params }: RouteContext) {
   const { id } = await params;
   const worldId = await requireWorldId();
   const campaign = await campaignOf(worldId, id);
-  if (!campaign) return notFound("Campaign not found.");
+  if (!campaign) return errorResponse("campaignNotFound", 404);
   const body = await readBody(request);
-  if (!body) return badRequest("Invalid request body.");
-  if (!("title" in body)) return badRequest("A quest needs a title.");
+  if (!body) return errorResponse("invalidBody", 400);
+  if (!("title" in body)) return errorResponse("questTitleRequired", 400);
   try {
     const context = await questContextOf(campaign);
     const existing = context.campaignQuests;

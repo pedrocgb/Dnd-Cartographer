@@ -10,6 +10,9 @@ import { requireWorldId } from "@/server/world/active-world";
 import type { Backstory } from "@/lib/character-on-demand/backstory";
 import { HISTORY_MAX } from "@/lib/character-on-demand/history";
 import { BACKGROUNDS, BEARDS, FEMALE_HAIRSTYLES, GENDERS, MALE_HAIRSTYLES, SPECIES, hairColorsFor } from "@/lib/character-on-demand/options";
+import { beardLabel, genderLabel, hairLabel, speciesLabel } from "@/lib/character-on-demand/labels";
+import { errorResponse, serverT } from "@/i18n/server";
+import type { MessageKey } from "@/i18n/messages";
 
 const MAX_NAME = 200;
 const MAX_BACKSTORY_LINE = 400;
@@ -38,11 +41,11 @@ function readBackstory(raw: unknown): Backstory | null | false {
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const name = typeof body?.name === "string" ? body.name.trim() : "";
-  if (!name || name.length > MAX_NAME) return NextResponse.json({ error: "A name of up to 200 characters is required." }, { status: 400 });
+  if (!name || name.length > MAX_NAME) return errorResponse("characterNameRequired", 400, undefined, { max: MAX_NAME });
 
   const gender = oneOf(GENDERS, body?.gender);
   const species = SPECIES.find((s) => s.key === body?.species);
-  if (!gender || !species) return NextResponse.json({ error: "Unknown gender or species." }, { status: 400 });
+  if (!gender || !species) return errorResponse("characterUnknownKind", 400);
 
   const optional = (value: unknown, allowed: readonly string[]) => (value == null ? null : (oneOf(allowed, value) ?? false));
   const background = optional(body?.background, BACKGROUNDS);
@@ -50,18 +53,21 @@ export async function POST(request: Request) {
   const hairColor = optional(body?.hairColor, hairColorsFor(species.key));
   const beard = optional(body?.beard, BEARDS);
   if (background === false || hairstyle === false || hairColor === false || beard === false) {
-    return NextResponse.json({ error: "Unknown background, hair or beard." }, { status: 400 });
+    return errorResponse("characterUnknownLook", 400);
   }
   const backstory = readBackstory(body?.backstory);
-  if (backstory === false) return NextResponse.json({ error: "Invalid backstory." }, { status: 400 });
+  if (backstory === false) return errorResponse("characterBackstoryInvalid", 400);
 
-  const hair = [hairstyle, hairColor?.toLowerCase()].filter(Boolean).join(", ");
+  // The article is written in the user's language (then it is user content); Social Background keeps its stored English option.
+  const t = await serverT("character");
+  const ti = await serverT("info");
+  const hair = hairLabel(hairstyle, hairColor, t);
   const details: DetailLine[] = [
-    { label: "Species", value: species.label },
-    { label: "Gender", value: gender },
-    ...(background ? [{ label: "Background", value: background }] : []),
-    ...(hair ? [{ label: "Hair", value: hair }] : []),
-    ...(beard ? [{ label: "Beard", value: beard }] : []),
+    { label: t("doc.species"), value: speciesLabel(species.key, t) },
+    { label: t("doc.gender"), value: genderLabel(gender, t) },
+    ...(background ? [{ label: t("doc.background"), value: ti(`option.${background}` as MessageKey<"info">) }] : []),
+    ...(hair ? [{ label: t("modal.hair"), value: hair }] : []),
+    ...(beard ? [{ label: t("modal.beard"), value: beardLabel(beard, t) }] : []),
   ];
   // A field longer than its limit would be cut mid-sentence: such a line stays in the body only.
   const fits = (line: string | undefined) => (line && line.length <= MAX_INFO_TEXT_LENGTH ? line : undefined);
@@ -69,7 +75,7 @@ export async function POST(request: Request) {
   const fears = fits(backstory?.fear);
   const info =
     sanitizeInfo(personInfoSet("npc"), {
-      gender,
+      gender: genderLabel(gender, t),
       ...(hair && { hair }),
       ...(background && { socialBackground: background }),
       ...(ambitions && { ambitions }),
@@ -78,7 +84,7 @@ export async function POST(request: Request) {
 
   const worldId = await requireWorldId();
   const person = await db.transaction(async (tx) => {
-    const doc = await createDocument(worldId, buildCharacterDocument(details, backstory), tx);
+    const doc = await createDocument(worldId, buildCharacterDocument(details, backstory, t), tx);
     const [created] = await tx
       .insert(people)
       .values({ worldId, name, kind: "npc", descriptionDocumentId: doc.id, info: JSON.stringify(info) })
@@ -91,7 +97,7 @@ export async function POST(request: Request) {
 /** `?ids=a,b`: which of these Character articles still exist (not deleted or in the trash), for the history. */
 export async function GET(request: Request) {
   const ids = [...new Set((new URL(request.url).searchParams.get("ids") ?? "").split(",").filter(Boolean))];
-  if (ids.length > HISTORY_MAX) return NextResponse.json({ error: `At most ${HISTORY_MAX} ids.` }, { status: 400 });
+  if (ids.length > HISTORY_MAX) return errorResponse("characterTooManyIds", 400, undefined, { max: HISTORY_MAX });
   if (!ids.length) return NextResponse.json({ ids: [] });
 
   const worldId = await requireWorldId();

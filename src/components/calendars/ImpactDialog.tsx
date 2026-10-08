@@ -3,6 +3,8 @@
 import { useState } from "react";
 import Modal from "@/components/Modal";
 import type { Impact } from "./types";
+import { useT } from "@/i18n/useT";
+import { problemText } from "@/server/calendars/engine";
 
 export interface MigrationChoice {
   mode: "physical" | "named";
@@ -29,6 +31,8 @@ export default function ImpactDialog({
   onApply: (choice: MigrationChoice) => void;
   onCancel: () => void;
 }) {
+  const t = useT("calendars");
+  const tc = useT("common");
   const [mode, setMode] = useState<"physical" | "named">("physical");
   const [keep, setKeep] = useState<Set<string>>(new Set());
   const [ack, setAck] = useState(false);
@@ -38,14 +42,14 @@ export default function ImpactDialog({
   const canApply = !busy && unresolved.length === 0 && (impact.references.length === 0 || ack) && !(mode === "named" && truncated);
 
   return (
-    <Modal open onClose={() => !busy && onCancel()} title="Review this change" size="wide">
-      <p>The shared world date stays on the same physical day. Only how dates are labeled in this calendar can change.</p>
+    <Modal open onClose={() => !busy && onCancel()} title={t("impact.title")} size="wide">
+      <p>{t("impact.intro")}</p>
       <p className="cal-impact-current">
-        Current date: <strong>{impact.currentDay.before}</strong>
+        {t("impact.current")} <strong>{impact.currentDay.before}</strong>
         {impact.currentDay.after !== impact.currentDay.before && (
           <>
             {" "}
-            will read <strong>{impact.currentDay.after}</strong>
+            {t("impact.willRead")} <strong>{impact.currentDay.after}</strong>
           </>
         )}
       </p>
@@ -54,29 +58,29 @@ export default function ImpactDialog({
         <>
           <fieldset className="cal-radio">
             <legend className="field-label">
-              {impact.entryCount} record{impact.entryCount === 1 ? "" : "s"} affected
+              {t("impact.affected", { count: impact.entryCount, n: impact.entryCount })}
             </legend>
             <label className="cal-check">
               <input type="radio" name="impact-mode" checked={mode === "physical"} onChange={() => setMode("physical")} />
               <span>
-                <strong>Preserve physical day</strong> (recommended) — records stay on the same day; their label in this calendar changes. Other calendars are unaffected.
+                <strong>{t("impact.physical")}</strong> {t("impact.physicalHelp")}
               </span>
             </label>
             <label className="cal-check">
               <input type="radio" name="impact-mode" checked={mode === "named"} onChange={() => setMode("named")} />
               <span>
-                <strong>Preserve named dates</strong> — records keep their label in this calendar and move to a different physical day (so they move in every other calendar, and relative to moons).
+                <strong>{t("impact.named")}</strong> {t("impact.namedHelp")}
               </span>
             </label>
           </fieldset>
-          {mode === "named" && truncated && <p className="form-error">Too many records to review one by one; use Preserve physical day.</p>}
+          {mode === "named" && truncated && <p className="form-error">{t("impact.tooMany")}</p>}
           <div className="cal-impact-table-wrap">
             <table className="cal-impact-table">
               <thead>
                 <tr>
-                  <th>Record</th>
-                  <th>Now</th>
-                  <th>{mode === "physical" ? "After (same day)" : "After (same name)"}</th>
+                  <th>{t("impact.record")}</th>
+                  <th>{t("impact.now")}</th>
+                  <th>{mode === "physical" ? t("impact.afterSame") : t("impact.afterName")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -100,7 +104,7 @@ export default function ImpactDialog({
                             }}
                           />
                           <span>
-                            {e.named.error} Keep it on its physical day ({e.afterPhysical}).
+                            {t("impact.keepPhysical", { error: problemText(e.named.error), date: e.afterPhysical })}
                           </span>
                         </label>
                       ) : (
@@ -112,26 +116,26 @@ export default function ImpactDialog({
               </tbody>
             </table>
           </div>
-          {truncated && <p className="cal-help">Showing the first {impact.entries.length} of {impact.entryCount}.</p>}
+          {truncated && <p className="cal-help">{t("impact.showing", { shown: impact.entries.length, total: impact.entryCount })}</p>}
         </>
       )}
 
       {impact.references.length > 0 && (
         <div className="cal-impact-refs">
-          <p className="field-label">Rules that point at removed dates</p>
+          <p className="field-label">{t("impact.references")}</p>
           <ul>
             {impact.references.map((r, i) => (
-              <li key={i}>{r}</li>
+              <li key={i}>{problemText(r)}</li>
             ))}
           </ul>
           <label className="cal-check">
             <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} />
-            Keep them as they are (nothing is deleted; fix them afterwards)
+            {t("impact.keepRefs")}
           </label>
         </div>
       )}
 
-      <p className="cal-help">The previous definition is saved as a revision you can restore.</p>
+      <p className="cal-help">{t("impact.revisionNote")}</p>
       {error && (
         <p className="form-error" role="alert">
           {error}
@@ -139,10 +143,10 @@ export default function ImpactDialog({
       )}
       <div className="confirm-dialog-actions">
         <button type="button" className="btn btn-sm" onClick={onCancel} disabled={busy} autoFocus>
-          Back to editing
+          {t("impact.backToEditing")}
         </button>
         <button type="button" className="btn btn-sm btn-primary" disabled={!canApply} onClick={() => onApply({ mode, keepPhysical: [...keep], acknowledgeReferences: ack })}>
-          {busy ? "Saving…" : unresolved.length ? `Resolve ${unresolved.length} date${unresolved.length === 1 ? "" : "s"} first` : "Apply change"}
+          {busy ? tc("saving") : unresolved.length ? t("impact.resolve", { count: unresolved.length, n: unresolved.length }) : t("impact.apply")}
         </button>
       </div>
     </Modal>

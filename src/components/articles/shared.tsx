@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { ChevronRight, ChevronDown } from "lucide-react";
-import { TERRITORY_TYPE_CATALOG } from "@/server/politics/hierarchy-config";
+import { TERRITORY_TYPE_CATALOG, territoryTypeLabel } from "@/server/politics/hierarchy-config";
+import { useT } from "@/i18n/useT";
 import { writeArticleDrag } from "./article-drag";
 
 export async function json<T>(res: Response): Promise<T> {
@@ -123,6 +124,7 @@ export function PickGroupRow({
   onSelect: (id: string) => void;
   selectedId?: string | null;
 }) {
+  const tc = useT("common");
   const isExpanded = expanded.has(groupId);
   return (
     <>
@@ -131,7 +133,7 @@ export function PickGroupRow({
           type="button"
           className="politics-tree-toggle"
           onClick={() => onToggleExpand(groupId)}
-          aria-label={isExpanded ? "Collapse" : "Expand"}
+          aria-label={isExpanded ? tc("collapse") : tc("expand")}
           aria-expanded={isExpanded}
         >
           {isExpanded ? <ChevronDown size={13} strokeWidth={2.25} /> : <ChevronRight size={13} strokeWidth={2.25} />}
@@ -156,6 +158,7 @@ const CUSTOM_TYPE_VALUE = "__custom__";
 export function TypeSelect({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   const isCatalogType = TERRITORY_TYPE_CATALOG.some((c) => c.type === value);
   const [customMode, setCustomMode] = useState(value !== "" && !isCatalogType);
+  const t = useT("politics");
 
   return (
     <>
@@ -171,15 +174,15 @@ export function TypeSelect({ value, onChange }: { value: string; onChange: (valu
           }
         }}
       >
-        <option value="">Select a type…</option>
+        <option value="">{t("typeSelect.placeholder")}</option>
         {TERRITORY_TYPE_CATALOG.map((c) => (
           <option key={c.type} value={c.type}>
-            {c.type}
+            {territoryTypeLabel(c.type, t)}
           </option>
         ))}
-        <option value={CUSTOM_TYPE_VALUE}>Custom…</option>
+        <option value={CUSTOM_TYPE_VALUE}>{t("typeSelect.custom")}</option>
       </select>
-      {customMode && <input type="text" placeholder="Custom type name" value={value} onChange={(e) => onChange(e.target.value)} />}
+      {customMode && <input type="text" placeholder={t("typeSelect.customName")} value={value} onChange={(e) => onChange(e.target.value)} />}
     </>
   );
 }

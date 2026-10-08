@@ -23,6 +23,8 @@ import type { CatalogEntry, GraphEdge } from "@/server/relations/graph";
 import type { Point } from "@/server/relations/layout";
 import { DERIVED_KINDS, relationType } from "@/server/relations/types";
 import { attitudeColor, portraitSrc, templateTint } from "./edge-style";
+import { useT } from "@/i18n/useT";
+import { activeT } from "@/i18n/active";
 
 /** What a canvas card shows. */
 export type CanvasCard =
@@ -93,6 +95,7 @@ function RecordCard({ data }: NodeProps<FlowNode>) {
 }
 
 function NoteCard({ data }: NodeProps<FlowNode>) {
+  const t = useT("relations");
   const card = data.card as Extract<CanvasCard, { kind: "note" }>;
   const { onNoteText } = useContext(CanvasUiContext);
   const [draft, setDraft] = useState<string | null>(null);
@@ -125,8 +128,8 @@ function NoteCard({ data }: NodeProps<FlowNode>) {
           className="nodrag nowheel nopan rel-note-input"
           value={draft}
           maxLength={1000}
-          aria-label="Note text"
-          placeholder="Write the note…"
+          aria-label={t("canvas.noteText")}
+          placeholder={t("canvas.notePlaceholder")}
           onChange={(e) => setDraft(e.target.value)}
           onBlur={commit}
           onKeyDown={(e) => {
@@ -141,22 +144,23 @@ function NoteCard({ data }: NodeProps<FlowNode>) {
           }}
         />
       ) : (
-        <span className={card.text ? "rel-note-text" : "rel-note-text rel-note-empty"}>{card.text || (onNoteText ? "Double-click to write…" : "Empty note")}</span>
+        <span className={card.text ? "rel-note-text" : "rel-note-text rel-note-empty"}>{card.text || (onNoteText ? t("canvas.noteEmptyEdit") : t("canvas.noteEmpty"))}</span>
       )}
     </div>
   );
 }
 
 function UnknownCard() {
+  const t = useT("relations");
   return (
-    <div className="rel-node rel-node-unknown" data-tooltip="Unknown parent">
+    <div className="rel-node rel-node-unknown" data-tooltip={t("canvas.unknownParent")}>
       <Handle type="target" position={Position.Top} isConnectable={false} />
       <span className="rel-avatar rel-avatar-icon" aria-hidden>
         <HelpCircle size={15} />
       </span>
       <span className="rel-node-text">
-        <span className="rel-node-label">Unknown</span>
-        <span className="rel-node-kind">Parent</span>
+        <span className="rel-node-label">{t("canvas.unknown")}</span>
+        <span className="rel-node-kind">{t("canvas.parent")}</span>
       </span>
       <Handle type="source" position={Position.Bottom} isConnectable={false} />
     </div>
@@ -164,9 +168,10 @@ function UnknownCard() {
 }
 
 function UnionDot({ data }: NodeProps<FlowNode>) {
+  const t = useT("relations");
   const card = data.card as Extract<CanvasCard, { kind: "union" }>;
   return (
-    <div className={card.inferred ? "rel-union rel-union-inferred" : "rel-union"} data-tooltip={card.inferred ? "Parents with a child, not married here" : "Partners"}>
+    <div className={card.inferred ? "rel-union rel-union-inferred" : "rel-union"} data-tooltip={card.inferred ? t("canvas.unmarried") : t("canvas.partners")}>
       <Handle type="target" position={Position.Top} isConnectable={false} />
       <Handle type="source" position={Position.Bottom} isConnectable={false} />
     </div>
@@ -206,7 +211,7 @@ function toFlowEdge(line: CanvasLine, attitudeMode: boolean, state: LineState, s
     id: e.id,
     source: e.fromId,
     target: e.toId,
-    label: showLabel ? (e.secret ? `Secret · ${e.label}` : e.label) : undefined,
+    label: showLabel ? (e.secret ? activeT("relations")("edge.secret", { label: e.label }) : e.label) : undefined,
     selectable: false,
     zIndex: state === "lit" ? 1 : 0,
     className: ["rel-edge", e.secret && "rel-edge-secret", e.derived && "rel-edge-derived"].filter(Boolean).join(" "),

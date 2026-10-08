@@ -7,6 +7,7 @@ import { AtSign } from "lucide-react";
 import { api } from "@/components/calendars/api";
 import { addMenuKeyHandler, triggerMatch, type TriggerMatch } from "./menu-keys";
 import type { MentionOption } from "@/server/mentions/kinds";
+import { useT } from "@/i18n/useT";
 
 const MAX_QUERY = 40;
 const SEARCH_DELAY_MS = 120;
@@ -28,6 +29,7 @@ export default function MentionMenu({
   /** Opens the article link dialog for the "@query" range. */
   onLinkArticle: (match: TriggerMatch) => void;
 }) {
+  const t = useT("editor");
   const match = triggerMatch(editor, "@", MAX_QUERY);
   const [results, setResults] = useState<{ query: string; options: MentionOption[] } | null>(null);
   const [active, setActive] = useState(0);
@@ -103,7 +105,7 @@ export default function MentionMenu({
   const coords = editor.view.coordsAtPos(match.from);
   const activeRow = Math.min(active, rows - 1);
   return createPortal(
-    <ul className="mention-menu rich-floating" role="listbox" aria-label="Mention" style={{ top: coords.bottom + 4, left: coords.left }}>
+    <ul className="mention-menu rich-floating" role="listbox" aria-label={t("mention.label")} style={{ top: coords.bottom + 4, left: coords.left }}>
       <li role="option" aria-selected={activeRow === 0}>
         <button
           type="button"
@@ -114,9 +116,9 @@ export default function MentionMenu({
         >
           <span className="mention-option-label">
             <AtSign size={14} strokeWidth={2.25} aria-hidden />
-            Article…
+            {t("mention.article")}
           </span>
-          <span className="mention-option-group">Search, filter, set the text</span>
+          <span className="mention-option-group">{t("mention.articleHint")}</span>
         </button>
       </li>
       {options.map((o, i) => (

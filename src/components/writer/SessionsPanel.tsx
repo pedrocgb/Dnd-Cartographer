@@ -11,6 +11,7 @@ import { NODE_STATUS_LABELS, type OutlineNode } from "@/server/writer/types";
 import SessionPrepDialog from "./SessionPrepDialog";
 import SessionReviewDialog from "./SessionReviewDialog";
 import { upsert, type WriterData } from "./useWriterData";
+import { useT } from "@/i18n/useT";
 
 /**
  * The Sessions tab: each session's planned scenes and prep, newest first.
@@ -33,6 +34,7 @@ export default function SessionsPanel({
   guides: boolean;
   onOpenNode: (id: string) => void;
 }) {
+  const t = useT("writer");
   const [prepping, setPrepping] = useState<string | null>(null);
   const [reviewing, setReviewing] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -42,14 +44,14 @@ export default function SessionsPanel({
   async function newSession() {
     const res = await api<{ session: ClientSession }>("POST", "/api/sessions", { campaignId: campaign.id });
     if (res.ok) replaceSession(res.data.session);
-    else setError(res.data.error ?? "Could not create the session.");
+    else setError(res.data.error ?? t("sessions.couldNotCreate"));
   }
 
   async function plan(node: OutlineNode, sessionId: string | null) {
     const res = await api<{ node: OutlineNode }>("PATCH", `/api/outline/${node.id}`, { plannedSessionId: sessionId, expectedVersion: node.version });
     if (res.ok) update((d) => ({ ...d, nodes: upsert(d.nodes, res.data.node) }));
     else {
-      setError(res.data.error ?? "Could not plan the scene.");
+      setError(res.data.error ?? t("sessions.couldNotPlan"));
       if (res.status === 409) await reload();
     }
   }
@@ -60,19 +62,19 @@ export default function SessionsPanel({
 
   return (
     <div className="wr-sessions">
-      {guides && <p className="wr-tip">Prep light: a strong start, a few scenes, ten secrets. After the game, mark what happened; what you didn&apos;t reach moves to the next session.</p>}
+      {guides && <p className="wr-tip">{t("sessions.tip")}</p>}
       <div className="wr-inline-actions">
         <button type="button" className="btn btn-sm btn-primary" onClick={() => void newSession()}>
-          <Plus size={14} /> New session
+          <Plus size={14} /> {t("sessions.newSession")}
         </button>
-        {unplanned.length > 0 && <span className="cal-help">{unplanned.length} scene{unplanned.length === 1 ? "" : "s"} not planned for a session yet.</span>}
+        {unplanned.length > 0 && <span className="cal-help">{t("sessions.unplanned", { count: unplanned.length })}</span>}
       </div>
       {error && (
         <p className="form-error" role="alert">
           {error}
         </p>
       )}
-      {ordered.length === 0 && <p className="cal-help">No sessions yet. Create one to prep it.</p>}
+      {ordered.length === 0 && <p className="cal-help">{t("sessions.none")}</p>}
       <ul className="wr-session-list">
         {ordered.map((s) => {
           const scenes = data.nodes.filter((n) => n.kind === "scene" && n.plannedSessionId === s.id);
@@ -83,21 +85,21 @@ export default function SessionsPanel({
                 <strong>{sessionLabel(s)}</strong>
                 {s.prep.reviewed && (
                   <span className="cv-chip wr-reviewed">
-                    <CheckCircle2 size={12} aria-hidden /> Reviewed
+                    <CheckCircle2 size={12} aria-hidden /> {t("sessions.reviewed")}
                   </span>
                 )}
                 <Link className="cal-help" href={sessionHref(s)}>
-                  Session log
+                  {t("sessions.log")}
                 </Link>
               </header>
               {s.prep.strongStart && (
                 <p className="wr-session-start">
-                  <strong>Strong start:</strong> {s.prep.strongStart}
+                  <strong>{t("sessions.strongStart")}</strong> {s.prep.strongStart}
                 </p>
               )}
               <p className="cal-help">
-                {secrets.length}/{SUGGESTED_SECRETS} secrets
-                {secrets.length > 0 ? ` · ${secrets.filter((x) => x.state === "revealed").length} revealed` : ""}
+                {t("sessions.secrets", { n: secrets.length, total: SUGGESTED_SECRETS })}
+                {secrets.length > 0 ? ` · ${t("sessions.revealed", { n: secrets.filter((x) => x.state === "revealed").length })}` : ""}
               </p>
               <ul className="wr-session-scenes">
                 {scenes.map((n) => (
@@ -108,18 +110,18 @@ export default function SessionsPanel({
                     </button>
                     {!s.prep.reviewed && (
                       <button type="button" className="btn btn-ghost btn-sm" onClick={() => void plan(n, null)}>
-                        Unplan
+                        {t("sessions.unplan")}
                       </button>
                     )}
                   </li>
                 ))}
               </ul>
               {!s.prep.reviewed && unplanned.length > 0 && (
-                <select aria-label={`Plan a scene for ${sessionLabel(s)}`} value="" onChange={(e) => {
+                <select aria-label={t("sessions.planFor", { session: sessionLabel(s) })} value="" onChange={(e) => {
                   const node = unplanned.find((n) => n.id === e.target.value);
                   if (node) void plan(node, s.id);
                 }}>
-                  <option value="">Plan a scene…</option>
+                  <option value="">{t("sessions.planPick")}</option>
                   {unplanned.map((n) => (
                     <option key={n.id} value={n.id}>
                       {n.title}
@@ -129,10 +131,10 @@ export default function SessionsPanel({
               )}
               <div className="wr-inline-actions">
                 <button type="button" className="btn btn-sm" onClick={() => setPrepping(s.id)}>
-                  <ClipboardList size={14} /> Prep
+                  <ClipboardList size={14} /> {t("sessions.prep")}
                 </button>
                 <button type="button" className="btn btn-sm" data-tooltip={TIPS.review} onClick={() => setReviewing(s.id)}>
-                  <MessageSquareQuote size={14} /> What happened?
+                  <MessageSquareQuote size={14} /> {t("sessions.whatHappened")}
                 </button>
               </div>
             </li>

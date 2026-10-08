@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { parseAttendance, parseCoins, parseCurrencies, parseDays, parseLoot, parseNotes, parsePlayedOn, parseXpOverrides } from "../src/server/sessions/parse";
 import { campaignTotals, inCoins, nextSessionNumber, xpShares, type SessionTotalsInput } from "../src/server/sessions/totals";
-import { D_AND_D_COINS, EMPTY_NOTES, PARTY } from "../src/server/sessions/types";
+import { dndCoins, EMPTY_NOTES, PARTY } from "../src/server/sessions/types";
+
+const D_AND_D_COINS = dndCoins();
 
 const roster = new Set(["ana", "bo", "cy"]);
 const coins = new Set(D_AND_D_COINS.map((c) => c.id));

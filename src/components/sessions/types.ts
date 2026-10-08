@@ -2,6 +2,7 @@ import type { CoinLine, Currency, LootLine, SessionNotes } from "@/server/sessio
 import type { ArticleRef } from "@/components/calendars/types";
 import type { QuestLogLine } from "@/server/quests/types";
 import type { CampaignSetup, SessionPrep } from "@/server/writer/types";
+import { activeT } from "@/i18n/active";
 
 export interface RosterMember {
   /** The roster row id (for PATCH/DELETE). */
@@ -64,6 +65,7 @@ export interface BriefSession {
 /** "/sessions?campaign=…&session=…": opens that session. */
 export const sessionHref = (s: { campaignId: string; id: string }) => `/sessions?campaign=${encodeURIComponent(s.campaignId)}&session=${encodeURIComponent(s.id)}`;
 
-export const sessionLabel = (s: { number: number; title: string }) => `Session ${s.number}${s.title ? ` · ${s.title}` : ""}`;
+/** "Session 3 · The Ambush", in the active language. */
+export const sessionLabel = (s: { number: number; title: string }) => (s.title ? activeT("campaign")("session.labelNamed", { n: s.number, title: s.title }) : activeT("campaign")("session.label", { n: s.number }));
 
 export const portraitSrc = (key: string) => `/api/politics/portraits/${key}?v=${encodeURIComponent(key)}`;

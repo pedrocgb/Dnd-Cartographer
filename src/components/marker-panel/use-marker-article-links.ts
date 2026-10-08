@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { ArticleTemplateKey } from "@/server/articles/templates";
 import { loadCandidates, type Candidate } from "@/components/articles/candidates";
 import { invalidateMarkerPreview } from "@/components/MarkerHoverCard";
+import { activeT } from "@/i18n/active";
 
 export interface MarkerArticleLink {
   id: string;
@@ -63,7 +64,7 @@ export function useMarkerArticleLinks(markerId: string): MarkerArticleLinks {
       body: JSON.stringify({ template: article.template, articleId: article.id, label: options.label ?? "", primary: options.primary }),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) return data.error ?? "Could not link the article.";
+    if (!res.ok) return data.error ?? activeT("maps")("marker.linkFailed");
     await reload();
     return null;
   };

@@ -9,6 +9,7 @@ import { formatArea, shapeAreaPx, type AreaShape, type Pt } from "@/server/scale
 import { formatNumber, type ScaleConfig } from "@/server/scale/scale-config";
 import { useViewportTick } from "./MapScaleBar";
 import { useSettings } from "@/components/settings/SettingsProvider";
+import { useT } from "@/i18n/useT";
 
 export type AreaTool = "rectangle" | "circle" | "polygon";
 
@@ -103,6 +104,7 @@ export default function AreaLayer({
   config: ScaleConfig;
   onAdd: (shape: AreaShape) => void;
 }) {
+  const t = useT("maps");
   useViewportTick(viewer);
   const { settings } = useSettings();
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -257,9 +259,11 @@ export default function AreaLayer({
       <div className="measure-hint" role="status">
         {tool === "polygon"
           ? draft
-            ? "Click to add points · click the first point, Enter or right-click to close · Backspace undoes · Esc cancels"
-            : "Click on the map to start the polygon, point by point."
-          : `Drag on the map to draw a ${tool === "circle" ? "circle from its center" : "rectangle (Shift: a square)"} · middle-drag pans.`}
+            ? t("area.polygonHint")
+            : t("area.polygonStart")
+          : tool === "circle"
+            ? t("area.dragCircle")
+            : t("area.dragRectangle")}
       </div>
     </div>
   );

@@ -9,9 +9,10 @@ import InfoPicker from "@/components/articles/InfoPicker";
 import { candidateOptions, loadCandidates, type Candidate } from "@/components/articles/candidates";
 import { api, newId } from "@/components/calendars/api";
 import type { ClientCalendar } from "@/components/calendars/types";
-import { D_AND_D_COINS, type Currency } from "@/server/sessions/types";
+import { dndCoins, type Currency } from "@/server/sessions/types";
 import { Avatar, STATUS_LABELS } from "./parts";
 import type { ClientCampaign, RosterMember } from "./types";
+import { useT } from "@/i18n/useT";
 
 type Tab = "general" | "coins" | "party";
 
@@ -23,34 +24,35 @@ function exchangeLine(coin: Currency, coins: readonly Currency[]): string | null
 }
 
 function CoinsTab({ coins, onChange }: { coins: Currency[]; onChange: (c: Currency[]) => void }) {
+  const t = useT("campaign");
   const set = (id: string, patch: Partial<Currency>) => onChange(coins.map((c) => (c.id === id ? { ...c, ...patch } : c)));
   return (
     <div className="cel-section">
       <header className="cel-section-head">
         <div>
-          <h3>Coins</h3>
-          <p className="cal-help">Each coin&apos;s value is counted in the smallest coin (value 1).</p>
+          <h3>{t("campaignEditor.coins")}</h3>
+          <p className="cal-help">{t("campaignEditor.coinsHelp")}</p>
         </div>
-        <button type="button" className="btn btn-sm" onClick={() => onChange(D_AND_D_COINS.map((c) => ({ ...c })))}>
-          Use D&amp;D coins
+        <button type="button" className="btn btn-sm" onClick={() => onChange(dndCoins(t))}>
+          {t("campaignEditor.useDnd")}
         </button>
       </header>
-      <div className="ss-coin-table" role="table" aria-label="Coins">
+      <div className="ss-coin-table" role="table" aria-label={t("campaignEditor.coins")}>
         <div className="ss-coin-row ss-coin-head" role="row">
-          <span role="columnheader">Name</span>
-          <span role="columnheader">Short</span>
-          <span role="columnheader">Value</span>
+          <span role="columnheader">{t("campaignEditor.name")}</span>
+          <span role="columnheader">{t("campaignEditor.short")}</span>
+          <span role="columnheader">{t("campaignEditor.value")}</span>
           <span />
         </div>
         {coins.map((c) => (
           <div key={c.id} className="ss-coin-row" role="row">
-            <input type="text" aria-label="Coin name" value={c.name} maxLength={40} placeholder="Gold piece" onChange={(e) => set(c.id, { name: e.target.value })} />
-            <input type="text" aria-label="Short name" value={c.short} maxLength={8} placeholder="gp" onChange={(e) => set(c.id, { short: e.target.value })} />
+            <input type="text" aria-label={t("campaignEditor.coinName")} value={c.name} maxLength={40} placeholder={t("campaignEditor.coinNamePlaceholder")} onChange={(e) => set(c.id, { name: e.target.value })} />
+            <input type="text" aria-label={t("campaignEditor.shortName")} value={c.short} maxLength={8} placeholder={t("campaignEditor.shortPlaceholder")} onChange={(e) => set(c.id, { short: e.target.value })} />
             <span className="ss-coin-value">
-              <input type="number" aria-label="Value" min={1} value={c.value} onChange={(e) => set(c.id, { value: Math.max(1, Math.floor(Number(e.target.value)) || 1) })} />
+              <input type="number" aria-label={t("campaignEditor.value")} min={1} value={c.value} onChange={(e) => set(c.id, { value: Math.max(1, Math.floor(Number(e.target.value)) || 1) })} />
               <span className="cal-help">{exchangeLine(c, coins)}</span>
             </span>
-            <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={`Remove ${c.name || "coin"}`} disabled={coins.length === 1} onClick={() => onChange(coins.filter((x) => x.id !== c.id))}>
+            <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={t("campaignEditor.removeNamed", { name: c.name || t("campaignEditor.coin") })} disabled={coins.length === 1} onClick={() => onChange(coins.filter((x) => x.id !== c.id))}>
               <Trash2 size={14} />
             </button>
           </div>
@@ -58,7 +60,7 @@ function CoinsTab({ coins, onChange }: { coins: Currency[]; onChange: (c: Curren
       </div>
       <div>
         <button type="button" className="btn btn-sm" disabled={coins.length >= 10} onClick={() => onChange([...coins, { id: newId("coin"), name: "", short: "", value: 1 }])}>
-          <Plus size={14} /> Add a coin
+          <Plus size={14} /> {t("campaignEditor.addCoin")}
         </button>
       </div>
     </div>
@@ -66,6 +68,7 @@ function CoinsTab({ coins, onChange }: { coins: Currency[]; onChange: (c: Curren
 }
 
 function PartyTab({ campaign, onChanged }: { campaign: ClientCampaign; onChanged: () => void }) {
+  const t = useT("campaign");
   const [candidates, setCandidates] = useState<Candidate[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [removing, setRemoving] = useState<RosterMember | null>(null);
@@ -74,18 +77,18 @@ function PartyTab({ campaign, onChanged }: { campaign: ClientCampaign; onChanged
     let cancelled = false;
     loadCandidates()
       .then((c) => !cancelled && setCandidates(c.filter((x) => x.template === "playerCharacter")))
-      .catch(() => !cancelled && setError("Could not load the player characters."));
+      .catch(() => !cancelled && setError(t("campaignEditor.couldNotLoadPcs")));
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [t]);
   const inParty = useMemo(() => new Set(campaign.roster.map((m) => m.personId)), [campaign.roster]);
 
   async function call(method: string, url: string, body?: unknown) {
     setError(null);
     const res = await api(method, url, body);
     if (res.ok) onChanged();
-    else setError(res.data.error ?? "Could not update the party.");
+    else setError(res.data.error ?? t("campaignEditor.couldNotUpdateParty"));
     return res;
   }
   async function remove() {
@@ -94,34 +97,34 @@ function PartyTab({ campaign, onChanged }: { campaign: ClientCampaign; onChanged
     if (res.ok) {
       setRemoving(null);
       onChanged();
-    } else setRemoveError(res.data.error ?? "Could not remove them.");
+    } else setRemoveError(res.data.error ?? t("campaignEditor.couldNotRemove"));
   }
 
   return (
     <div className="cel-section">
       <header className="cel-section-head">
         <div>
-          <h3>Party</h3>
-          <p className="cal-help">Party members are Player Character articles; each one&apos;s player comes from its Controlling Player field. Changes here are saved right away.</p>
+          <h3>{t("manager.party")}</h3>
+          <p className="cal-help">{t("campaignEditor.partyHelp")}</p>
         </div>
       </header>
       {campaign.roster.length === 0 ? (
-        <p className="cel-empty">No characters in the party yet.</p>
+        <p className="cel-empty">{t("campaignEditor.noParty")}</p>
       ) : (
         <ul className="ss-roster-edit">
           {campaign.roster.map((m) => (
             <li key={m.id}>
               <Avatar member={m} size={34} />
-              <strong className="ss-roster-name">{m.name ?? "(deleted character)"}</strong>
-              <span className={m.playerName ? "ss-roster-player" : "ss-roster-player empty"}>{m.playerName || "No Controlling Player set"}</span>
-              <select aria-label="Status" value={m.status} onChange={(e) => call("PATCH", `/api/campaigns/${campaign.id}/characters/${m.id}`, { status: e.target.value })}>
+              <strong className="ss-roster-name">{m.name ?? t("parts.deletedCharacter")}</strong>
+              <span className={m.playerName ? "ss-roster-player" : "ss-roster-player empty"}>{m.playerName || t("campaignEditor.noPlayer")}</span>
+              <select aria-label={t("campaignEditor.status")} value={m.status} onChange={(e) => call("PATCH", `/api/campaigns/${campaign.id}/characters/${m.id}`, { status: e.target.value })}>
                 {(Object.keys(STATUS_LABELS) as RosterMember["status"][]).map((s) => (
                   <option key={s} value={s}>
                     {STATUS_LABELS[s]}
                   </option>
                 ))}
               </select>
-              <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={`Remove ${m.name ?? "character"} from the party`} onClick={() => setRemoving(m)}>
+              <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={t("campaignEditor.removeFromParty", { name: m.name ?? t("campaignEditor.character") })} onClick={() => setRemoving(m)}>
                 <Trash2 size={14} />
               </button>
             </li>
@@ -132,8 +135,8 @@ function PartyTab({ campaign, onChanged }: { campaign: ClientCampaign; onChanged
         <InfoPicker
           options={candidateOptions(candidates ?? [], inParty)}
           value={null}
-          placeholder={candidates ? "Add a player character to the party…" : "Loading player characters…"}
-          ariaLabel="Add a player character to the party"
+          placeholder={candidates ? t("campaignEditor.addPc") : t("campaignEditor.loadingPcs")}
+          ariaLabel={t("campaignEditor.addPcLabel")}
           disabled={!candidates}
           onChange={(personId) => personId && call("POST", `/api/campaigns/${campaign.id}/characters`, { personId })}
         />
@@ -147,8 +150,8 @@ function PartyTab({ campaign, onChanged }: { campaign: ClientCampaign; onChanged
         <ConfirmDialog
           open
           danger
-          title={`Remove ${removing.name ?? "this character"}?`}
-          confirmLabel="Remove"
+          title={t("campaignEditor.removeTitle", { name: removing.name ?? t("campaignEditor.thisCharacter") })}
+          confirmLabel={t("campaignEditor.remove")}
           error={removeError}
           onConfirm={remove}
           onCancel={() => {
@@ -156,7 +159,7 @@ function PartyTab({ campaign, onChanged }: { campaign: ClientCampaign; onChanged
             setRemoveError(null);
           }}
         >
-          They leave the party. Someone who already played or received loot can&apos;t be removed: mark them retired instead.
+          {t("campaignEditor.removeBody")}
         </ConfirmDialog>
       )}
     </div>
@@ -169,12 +172,14 @@ function PartyTab({ campaign, onChanged }: { campaign: ClientCampaign; onChanged
  * opens once it exists.
  */
 export default function CampaignEditor({ campaign, calendars, defaultCalendarId, onSaved, onChanged, onDeleted, onClose }: { campaign: ClientCampaign | null; calendars: ClientCalendar[]; defaultCalendarId: string | null; onSaved: (c: ClientCampaign) => void; onChanged: () => void; onDeleted: () => void; onClose: () => void }) {
+  const t = useT("campaign");
+  const tc = useT("common");
   const live = calendars.filter((c) => !c.trashed || c.id === campaign?.calendarId);
   const [tab, setTab] = useState<Tab>("general");
   const [name, setName] = useState(campaign?.name ?? "");
   const [description, setDescription] = useState(campaign?.description ?? "");
   const [calendarId, setCalendarId] = useState(campaign?.calendarId ?? live.find((c) => c.id === defaultCalendarId)?.id ?? live[0]?.id ?? "");
-  const [coins, setCoins] = useState<Currency[]>(campaign?.currencies ?? D_AND_D_COINS.map((c) => ({ ...c })));
+  const [coins, setCoins] = useState<Currency[]>(() => campaign?.currencies ?? dndCoins(t));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -183,7 +188,7 @@ export default function CampaignEditor({ campaign, calendars, defaultCalendarId,
   async function save() {
     if (!name.trim()) {
       setTab("general");
-      setError("Give the campaign a name.");
+      setError(t("campaignEditor.nameRequired"));
       return;
     }
     setSaving(true);
@@ -192,35 +197,35 @@ export default function CampaignEditor({ campaign, calendars, defaultCalendarId,
     const res = campaign ? await api<{ campaign: ClientCampaign }>("PATCH", `/api/campaigns/${campaign.id}`, body) : await api<{ campaign: ClientCampaign }>("POST", "/api/campaigns", body);
     setSaving(false);
     if (res.ok) onSaved(res.data.campaign);
-    else setError(res.data.error ?? "Could not save the campaign.");
+    else setError(res.data.error ?? t("campaignEditor.couldNotSave"));
   }
   async function patch(body: Record<string, unknown>) {
     if (!campaign) return;
     const res = await api<{ campaign: ClientCampaign }>("PATCH", `/api/campaigns/${campaign.id}`, body);
     if (res.ok) onChanged();
-    else setError(res.data.error ?? "Could not save the campaign.");
+    else setError(res.data.error ?? t("campaignEditor.couldNotSave"));
   }
   async function remove() {
     if (!campaign) return;
     const res = await api("DELETE", `/api/campaigns/${campaign.id}`);
     if (res.ok) onDeleted();
-    else setDeleteError(res.data.error ?? "Could not delete it.");
+    else setDeleteError(res.data.error ?? t("quest.couldNotDelete"));
   }
 
   const tabs: { key: Tab; label: string; Icon: typeof Users; count?: number }[] = [
-    { key: "general", label: "General", Icon: ScrollText },
-    { key: "coins", label: "Coins", Icon: Coins, count: coins.length },
-    ...(campaign ? [{ key: "party" as const, label: "Party", Icon: Users, count: campaign.roster.length }] : []),
+    { key: "general", label: t("campaignEditor.tab.general"), Icon: ScrollText },
+    { key: "coins", label: t("campaignEditor.coins"), Icon: Coins, count: coins.length },
+    ...(campaign ? [{ key: "party" as const, label: t("manager.party"), Icon: Users, count: campaign.roster.length }] : []),
   ];
 
   return (
-    <Modal open onClose={onClose} title={campaign ? `Edit ${campaign.name}` : "New campaign"} size="wide">
+    <Modal open onClose={onClose} title={campaign ? t("quest.editNamed", { name: campaign.name }) : t("manager.newCampaign")} size="wide">
       <div className="cel-editor">
         <nav className="cal-editor-tabs" role="tablist">
-          {tabs.map((t) => (
-            <button key={t.key} type="button" role="tab" aria-selected={tab === t.key} className={tab === t.key ? "cal-tab active" : "cal-tab"} onClick={() => setTab(t.key)}>
-              <t.Icon size={14} aria-hidden /> {t.label}
-              {t.count ? <span className="cel-tab-count">{t.count}</span> : null}
+          {tabs.map((x) => (
+            <button key={x.key} type="button" role="tab" aria-selected={tab === x.key} className={tab === x.key ? "cal-tab active" : "cal-tab"} onClick={() => setTab(x.key)}>
+              <x.Icon size={14} aria-hidden /> {x.label}
+              {x.count ? <span className="cel-tab-count">{x.count}</span> : null}
             </button>
           ))}
         </nav>
@@ -228,15 +233,15 @@ export default function CampaignEditor({ campaign, calendars, defaultCalendarId,
           {tab === "general" && (
             <div className="cel-section">
               <label className="cal-field">
-                <span className="field-label">Name</span>
-                <input type="text" value={name} maxLength={80} autoFocus placeholder="e.g. The Sunroot Succession" onChange={(e) => setName(e.target.value)} />
+                <span className="field-label">{t("campaignEditor.name")}</span>
+                <input type="text" value={name} maxLength={80} autoFocus placeholder={t("campaignEditor.namePlaceholder")} onChange={(e) => setName(e.target.value)} />
               </label>
               <label className="cal-field">
-                <span className="field-label">Description</span>
-                <textarea rows={4} value={description} maxLength={4000} placeholder="The premise, the table, the tone…" onChange={(e) => setDescription(e.target.value)} />
+                <span className="field-label">{t("campaignEditor.description")}</span>
+                <textarea rows={4} value={description} maxLength={4000} placeholder={t("campaignEditor.descriptionPlaceholder")} onChange={(e) => setDescription(e.target.value)} />
               </label>
               <label className="cal-field">
-                <span className="field-label">In-world dates read in</span>
+                <span className="field-label">{t("campaignEditor.calendar")}</span>
                 <select value={calendarId} onChange={(e) => setCalendarId(e.target.value)}>
                   {live.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -248,10 +253,10 @@ export default function CampaignEditor({ campaign, calendars, defaultCalendarId,
               {campaign && (
                 <div className="ss-inline">
                   <button type="button" className="btn btn-sm" onClick={() => patch({ status: campaign.status === "active" ? "finished" : "active" })}>
-                    {campaign.status === "active" ? "Mark as finished" : "Mark as active"}
+                    {campaign.status === "active" ? t("campaignEditor.markFinished") : t("campaignEditor.markActive")}
                   </button>
                   <button type="button" className="btn btn-sm" onClick={() => patch({ archived: !campaign.archived })}>
-                    {campaign.archived ? "Unarchive" : "Archive"}
+                    {campaign.archived ? t("campaignEditor.unarchive") : t("campaignEditor.archive")}
                   </button>
                 </div>
               )}
@@ -260,7 +265,7 @@ export default function CampaignEditor({ campaign, calendars, defaultCalendarId,
           {tab === "coins" && <CoinsTab coins={coins} onChange={setCoins} />}
           {tab === "party" && campaign && <PartyTab campaign={campaign} onChanged={onChanged} />}
         </div>
-        {!campaign && <p className="cal-help">Once it&apos;s created you can add the party&apos;s characters.</p>}
+        {!campaign && <p className="cal-help">{t("campaignEditor.partyAfterCreate")}</p>}
         {error && (
           <p className="form-error" role="alert">
             {error}
@@ -269,14 +274,14 @@ export default function CampaignEditor({ campaign, calendars, defaultCalendarId,
         <div className="cel-footer">
           {campaign && (
             <button type="button" className="btn btn-sm btn-danger cel-footer-delete" onClick={() => setConfirmDelete(true)} disabled={saving}>
-              <Trash2 size={14} /> Delete
+              <Trash2 size={14} /> {tc("delete")}
             </button>
           )}
           <button type="button" className="btn btn-sm" onClick={onClose} disabled={saving}>
-            {campaign ? "Close" : "Cancel"}
+            {campaign ? tc("close") : tc("cancel")}
           </button>
           <button type="button" className="btn btn-sm btn-primary" disabled={saving} onClick={save}>
-            {saving ? "Saving…" : campaign ? "Save" : "Create campaign"}
+            {saving ? tc("saving") : campaign ? tc("save") : t("campaignEditor.create")}
           </button>
         </div>
       </div>
@@ -284,8 +289,8 @@ export default function CampaignEditor({ campaign, calendars, defaultCalendarId,
         <ConfirmDialog
           open={confirmDelete}
           danger
-          title={`Delete ${campaign.name}?`}
-          confirmLabel="Delete"
+          title={t("quest.deleteNamed", { name: campaign.name })}
+          confirmLabel={tc("delete")}
           error={deleteError}
           onConfirm={remove}
           onCancel={() => {
@@ -293,7 +298,7 @@ export default function CampaignEditor({ campaign, calendars, defaultCalendarId,
             setDeleteError(null);
           }}
         >
-          The campaign and its party list are removed for good. A campaign that still has sessions can&apos;t be deleted: archive it instead.
+          {t("campaignEditor.deleteBody")}
         </ConfirmDialog>
       )}
     </Modal>

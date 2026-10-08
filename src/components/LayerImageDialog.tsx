@@ -6,6 +6,7 @@ import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Crosshair, ImageOff, ImageUp
 import ConfirmDialog from "./ConfirmDialog";
 import Modal from "./Modal";
 import type { AlwaysDrawFlag, LayerPatch, MapLayerData } from "./layer-images";
+import { useT } from "@/i18n/useT";
 
 export interface Frame {
   width: number;
@@ -15,12 +16,12 @@ export interface Frame {
 const STEPS = [1, 10, 100] as const;
 const SCALE_STEP = 0.5;
 
-const ALWAYS_DRAW_OPTIONS: { flag: AlwaysDrawFlag; noun: string }[] = [
-  { flag: "zonesAlwaysVisible", noun: "zones" },
-  { flag: "markersAlwaysVisible", noun: "markers" },
-  { flag: "textsAlwaysVisible", noun: "texts" },
-  { flag: "linesAlwaysVisible", noun: "lines" },
-  { flag: "routesAlwaysVisible", noun: "routes" },
+const ALWAYS_DRAW_OPTIONS: { flag: AlwaysDrawFlag; key: "Zones" | "Markers" | "Texts" | "Lines" | "Routes" }[] = [
+  { flag: "zonesAlwaysVisible", key: "Zones" },
+  { flag: "markersAlwaysVisible", key: "Markers" },
+  { flag: "textsAlwaysVisible", key: "Texts" },
+  { flag: "linesAlwaysVisible", key: "Lines" },
+  { flag: "routesAlwaysVisible", key: "Routes" },
 ];
 
 const round1 = (v: number) => Math.round(v * 10) / 10;
@@ -30,6 +31,7 @@ const MAX_LAYER_NAME = 120;
 
 /** The layer's name: saved on Enter or leaving the field, Esc restores it. */
 function LayerNameField({ name, onRename }: { name: string; onRename: (name: string) => void }) {
+  const t = useT("maps");
   const [draft, setDraft] = useState(name);
   const [lastName, setLastName] = useState(name);
   // Follow renames made elsewhere (the Layers list) without clobbering typing.
@@ -44,12 +46,12 @@ function LayerNameField({ name, onRename }: { name: string; onRename: (name: str
   };
   return (
     <label className="grid-field lid-name">
-      <span className="field-label">Name</span>
+      <span className="field-label">{t("layerImage.name")}</span>
       <input
         type="text"
         value={draft}
         maxLength={MAX_LAYER_NAME}
-        aria-label="Layer name"
+        aria-label={t("layerImage.nameAria")}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => {
@@ -133,6 +135,8 @@ export default function LayerImageDialog({
   onRemoveImage: () => void;
   onClose: () => void;
 }) {
+  const t = useT("maps");
+  const tc = useT("common");
   const [minimized, setMinimized] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [step, setStep] = useState<(typeof STEPS)[number]>(10);
@@ -151,9 +155,9 @@ export default function LayerImageDialog({
   const nudge = (dx: number, dy: number, big = false) => moveTo(x + dx * step * (big ? 10 : 1), y + dy * step * (big ? 10 : 1));
   const setScale = (percent: number) => Number.isFinite(percent) && percent >= 1 && onUpdate({ imageScale: round2(percent) / 100 });
   const presets = [
-    { key: "width", label: "Map width", hint: "As wide as the map", scale: 1 },
-    { key: "height", label: "Map height", hint: "As tall as the map", scale: aspect ? frame.height / frame.width / aspect : null },
-    { key: "pixels", label: "Actual size", hint: "One image pixel per map pixel", scale: asset?.width ? asset.width / frame.width : null },
+    { key: "width", label: t("layerImage.preset.width"), hint: t("layerImage.preset.widthHint"), scale: 1 },
+    { key: "height", label: t("layerImage.preset.height"), hint: t("layerImage.preset.heightHint"), scale: aspect ? frame.height / frame.width / aspect : null },
+    { key: "pixels", label: t("layerImage.preset.pixels"), hint: t("layerImage.preset.pixelsHint"), scale: asset?.width ? asset.width / frame.width : null },
   ];
   const center = () => {
     const w = layer.imageScale * frame.width;
@@ -177,7 +181,7 @@ export default function LayerImageDialog({
 
   return (
     <>
-      <Modal open onClose={onClose} title={`Layer settings · ${layer.name}`} minimized={minimized} onMinimize={setMinimized}>
+      <Modal open onClose={onClose} title={t("layerImage.title", { name: layer.name })} minimized={minimized} onMinimize={setMinimized}>
         <div className="lid">
           <LayerNameField name={layer.name} onRename={(name) => onUpdate({ name })} />
           <div className="lid-summary">
@@ -189,24 +193,22 @@ export default function LayerImageDialog({
             )}
             <dl className="lid-sizes">
               <div>
-                <dt>Image</dt>
-                <dd>{asset?.width && asset.height ? `${asset.width} × ${asset.height} px` : "—"}</dd>
+                <dt>{t("layerImage.image")}</dt>
+                <dd>{asset?.width && asset.height ? t("layerImage.px", { w: asset.width, h: asset.height }) : "—"}</dd>
               </div>
               <div>
-                <dt>Map</dt>
-                <dd>
-                  {frame.width} × {frame.height} px
-                </dd>
+                <dt>{t("layerImage.map")}</dt>
+                <dd>{t("layerImage.px", { w: frame.width, h: frame.height })}</dd>
               </div>
               <div>
-                <dt>Shown at</dt>
-                <dd>{asset && shownHeight ? `${shownWidth} × ${shownHeight} px` : "—"}</dd>
+                <dt>{t("layerImage.shownAt")}</dt>
+                <dd>{asset && shownHeight ? t("layerImage.px", { w: shownWidth, h: shownHeight }) : "—"}</dd>
               </div>
             </dl>
             <div className="lid-image-actions">
               <label className={processing ? "btn btn-sm disabled" : "btn btn-sm"}>
                 <ImageUp size={13} strokeWidth={2.25} />
-                {asset ? "Replace" : "Add image"}
+                {asset ? t("layerImage.replace") : t("layerImage.add")}
                 <input
                   type="file"
                   accept="image/png,image/jpeg,image/webp"
@@ -222,7 +224,7 @@ export default function LayerImageDialog({
               {asset && (
                 <button type="button" className="btn btn-sm btn-danger" disabled={processing} onClick={() => setConfirmRemove(true)}>
                   <ImageOff size={13} strokeWidth={2.25} />
-                  Delete
+                  {t("layerImage.delete")}
                 </button>
               )}
             </div>
@@ -236,28 +238,28 @@ export default function LayerImageDialog({
           {processing ? (
             <p className="lid-processing" role="status">
               <LoaderCircle size={16} className="lid-spin" aria-hidden />
-              Processing the new image… You can line it up as soon as it&apos;s ready.
+              {t("layerImage.processing")}
             </p>
           ) : !ready ? (
-            <p className="lid-processing">This layer has no image yet. Add one to place it on the map.</p>
+            <p className="lid-processing">{t("layerImage.noImage")}</p>
           ) : (
             <>
               <section className="lid-section" aria-labelledby="lid-size">
                 <header className="lid-section-head">
-                  <h3 id="lid-size">Size</h3>
+                  <h3 id="lid-size">{t("layerImage.size")}</h3>
                   <div className="lid-stepper">
-                    <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label="Smaller" onClick={() => setScale(scale - SCALE_STEP)}>
+                    <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={t("layerImage.smaller")} onClick={() => setScale(scale - SCALE_STEP)}>
                       <Minus size={13} strokeWidth={2.25} />
                     </button>
-                    <NumberField value={scale} decimals={2} step={0.1} label="Scale in percent" onCommit={setScale} />
+                    <NumberField value={scale} decimals={2} step={0.1} label={t("layerImage.scalePercent")} onCommit={setScale} />
                     <span className="lid-unit">%</span>
-                    <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label="Bigger" onClick={() => setScale(scale + SCALE_STEP)}>
+                    <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={t("layerImage.bigger")} onClick={() => setScale(scale + SCALE_STEP)}>
                       <Plus size={13} strokeWidth={2.25} />
                     </button>
                   </div>
                 </header>
-                <input className="lid-range" type="range" min={10} max={300} step={0.5} value={Math.min(300, Math.max(10, scale))} aria-label="Scale" onChange={(e) => setScale(Number(e.target.value))} />
-                <div className="lid-chips" role="group" aria-label="Size presets">
+                <input className="lid-range" type="range" min={10} max={300} step={0.5} value={Math.min(300, Math.max(10, scale))} aria-label={t("layerImage.scale")} onChange={(e) => setScale(Number(e.target.value))} />
+                <div className="lid-chips" role="group" aria-label={t("layerImage.presets")}>
                   {presets.map((p) =>
                     p.scale === null ? null : (
                       <button key={p.key} type="button" className={Math.abs(p.scale - layer.imageScale) < 0.0005 ? "lid-chip active" : "lid-chip"} data-tooltip={p.hint} onClick={() => onUpdate({ imageScale: p.scale! })}>
@@ -270,33 +272,33 @@ export default function LayerImageDialog({
 
               <section className="lid-section" aria-labelledby="lid-position">
                 <header className="lid-section-head">
-                  <h3 id="lid-position">Position</h3>
-                  <div className="lid-chips" role="radiogroup" aria-label="Nudge step">
+                  <h3 id="lid-position">{t("layerImage.position")}</h3>
+                  <div className="lid-chips" role="radiogroup" aria-label={t("layerImage.nudgeStep")}>
                     {STEPS.map((s) => (
                       <button key={s} type="button" role="radio" aria-checked={step === s} className={step === s ? "lid-chip active" : "lid-chip"} onClick={() => setStep(s)}>
-                        {s} px
+                        {t("layerImage.stepPx", { n: s })}
                       </button>
                     ))}
                   </div>
                 </header>
                 <div className="lid-position">
-                  <div className="lid-pad" role="group" aria-label="Nudge the image">
+                  <div className="lid-pad" role="group" aria-label={t("layerImage.nudge")}>
                     <span />
-                    <button type="button" aria-label={`Up ${step} px`} onClick={(e) => nudge(0, -1, e.shiftKey)}>
+                    <button type="button" aria-label={t("layerImage.up", { n: step })} onClick={(e) => nudge(0, -1, e.shiftKey)}>
                       <ArrowUp size={15} strokeWidth={2.25} />
                     </button>
                     <span />
-                    <button type="button" aria-label={`Left ${step} px`} onClick={(e) => nudge(-1, 0, e.shiftKey)}>
+                    <button type="button" aria-label={t("layerImage.left", { n: step })} onClick={(e) => nudge(-1, 0, e.shiftKey)}>
                       <ArrowLeft size={15} strokeWidth={2.25} />
                     </button>
-                    <button type="button" className="lid-pad-center" aria-label="Center on the map" data-tooltip="Center on the map" onClick={center}>
+                    <button type="button" className="lid-pad-center" aria-label={t("layerImage.center")} data-tooltip={t("layerImage.center")} onClick={center}>
                       <Crosshair size={15} strokeWidth={2.25} />
                     </button>
-                    <button type="button" aria-label={`Right ${step} px`} onClick={(e) => nudge(1, 0, e.shiftKey)}>
+                    <button type="button" aria-label={t("layerImage.right", { n: step })} onClick={(e) => nudge(1, 0, e.shiftKey)}>
                       <ArrowRight size={15} strokeWidth={2.25} />
                     </button>
                     <span />
-                    <button type="button" aria-label={`Down ${step} px`} onClick={(e) => nudge(0, 1, e.shiftKey)}>
+                    <button type="button" aria-label={t("layerImage.down", { n: step })} onClick={(e) => nudge(0, 1, e.shiftKey)}>
                       <ArrowDown size={15} strokeWidth={2.25} />
                     </button>
                     <span />
@@ -304,44 +306,44 @@ export default function LayerImageDialog({
                   <div className="lid-coords">
                     <label>
                       <span>X</span>
-                      <NumberField value={x} decimals={1} step={1} label="X in map pixels" onCommit={(v) => moveTo(v, y)} />
+                      <NumberField value={x} decimals={1} step={1} label={t("layerImage.xLabel")} onCommit={(v) => moveTo(v, y)} />
                       <span className="lid-unit">px</span>
                     </label>
                     <label>
                       <span>Y</span>
-                      <NumberField value={y} decimals={1} step={1} label="Y in map pixels" onCommit={(v) => moveTo(x, v)} />
+                      <NumberField value={y} decimals={1} step={1} label={t("layerImage.yLabel")} onCommit={(v) => moveTo(x, v)} />
                       <span className="lid-unit">px</span>
                     </label>
-                    <p className="lid-hint">Arrow keys nudge too · Shift moves 10×</p>
+                    <p className="lid-hint">{t("layerImage.keysHint")}</p>
                   </div>
                 </div>
               </section>
 
               <section className="lid-section" aria-labelledby="lid-opacity">
                 <header className="lid-section-head">
-                  <h3 id="lid-opacity">Opacity</h3>
+                  <h3 id="lid-opacity">{t("layerImage.opacity")}</h3>
                   <span className="lid-value">{Math.round(layer.imageOpacity * 100)}%</span>
                 </header>
-                <input className="lid-range" type="range" min={0} max={100} value={Math.round(layer.imageOpacity * 100)} aria-label="Image opacity" onChange={(e) => onUpdate({ imageOpacity: Number(e.target.value) / 100 })} />
+                <input className="lid-range" type="range" min={0} max={100} value={Math.round(layer.imageOpacity * 100)} aria-label={t("layerImage.opacityAria")} onChange={(e) => onUpdate({ imageOpacity: Number(e.target.value) / 100 })} />
               </section>
             </>
           )}
 
           <section className="lid-section" aria-labelledby="lid-always">
             <header className="lid-section-head">
-              <h3 id="lid-always">While another layer is active</h3>
+              <h3 id="lid-always">{t("layerImage.always")}</h3>
             </header>
             <div className="lid-checks">
               {asset && (
-                <label className="lid-check" data-tooltip="Draw this image under every layer, not only when this layer is active">
+                <label className="lid-check" data-tooltip={t("layerImage.alwaysImageHint")}>
                   <input type="checkbox" checked={layer.imageAlwaysVisible} onChange={(e) => onUpdate({ imageAlwaysVisible: e.target.checked })} />
-                  Always draw this image
+                  {t("layerImage.alwaysImage")}
                 </label>
               )}
               {ALWAYS_DRAW_OPTIONS.map((o) => (
-                <label key={o.flag} className="lid-check" data-tooltip={`Draw this layer's ${o.noun} even while another layer is active (display only)`}>
+                <label key={o.flag} className="lid-check" data-tooltip={t(`layerImage.always${o.key}Hint`)}>
                   <input type="checkbox" checked={layer[o.flag]} onChange={(e) => onUpdate({ [o.flag]: e.target.checked })} />
-                  Always draw {o.noun}
+                  {t(`layerImage.always${o.key}`)}
                 </label>
               ))}
             </div>
@@ -350,25 +352,25 @@ export default function LayerImageDialog({
           <footer className="lid-footer">
             <button type="button" className="btn btn-sm btn-ghost" disabled={!ready || (layer.imageX === 0 && layer.imageY === 0 && layer.imageScale === 1)} onClick={() => onUpdate({ imageX: 0, imageY: 0, imageScale: 1 })}>
               <RotateCcw size={13} strokeWidth={2.25} />
-              Reset
+              {t("layerImage.reset")}
             </button>
             <button type="button" className="btn btn-sm btn-primary" onClick={onClose}>
-              Done
+              {tc("done")}
             </button>
           </footer>
         </div>
       </Modal>
       <ConfirmDialog
         open={confirmRemove}
-        title={`Delete the image of ${layer.name}?`}
-        confirmLabel="Delete image"
+        title={t("layerImage.deleteTitle", { name: layer.name })}
+        confirmLabel={t("layerImage.deleteConfirm")}
         onConfirm={() => {
           setConfirmRemove(false);
           onRemoveImage();
         }}
         onCancel={() => setConfirmRemove(false)}
       >
-        The layer stays, with its markers, zones, texts and lines. Only its image is removed.
+        {t("layerImage.deleteBody")}
       </ConfirmDialog>
     </>
   );

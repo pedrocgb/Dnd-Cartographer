@@ -11,7 +11,7 @@
  * the next season starts (the last wraps to the first).
  */
 import { annualInterval, previousYear } from "./celestial";
-import { fromWorldDay, toInternalYear, yearPeriods, type CalendarDefinition } from "./engine";
+import { fromWorldDay, problemText, toInternalYear, yearPeriods, type CalendarDefinition, type Problem } from "./engine";
 
 export interface MonthDay {
   periodId: string;
@@ -101,8 +101,12 @@ export function activeSeasons(def: CalendarDefinition, profile: SeasonProfileDat
 
 export interface ProfileIssue {
   kind: "invalid" | "gap" | "overlap";
+  problem: Problem;
+  /** `problem` in the active language. */
   message: string;
 }
+
+const issue = (kind: ProfileIssue["kind"], problem: Problem): ProfileIssue => ({ kind, problem, message: problemText(problem) });
 
 /**
  * Invalid boundaries, and gaps/overlaps across representative years (every
@@ -116,9 +120,9 @@ export function profileIssues(def: CalendarDefinition, profile: SeasonProfileDat
     for (const [label, md] of [["start", m.start], ["end", profile.mode === "manual" ? m.end : null]] as const) {
       if (!md || m.allYear) continue;
       const period = unconditional.find((p) => p.id === md.periodId);
-      if (!period) issues.push({ kind: "invalid", message: `${seasonName(m.seasonId)}: its ${label} month doesn't exist every year.` });
+      if (!period) issues.push(issue("invalid", { key: label === "start" ? "seasonIssue.startMonth" : "seasonIssue.endMonth", params: { season: seasonName(m.seasonId) } }));
       else if (!Number.isInteger(md.day) || md.day < 1 || md.day > period.days) {
-        issues.push({ kind: "invalid", message: `${seasonName(m.seasonId)}: ${period.name} ${md.day} doesn't exist every year (it has ${period.days} days).` });
+        issues.push(issue("invalid", { key: "seasonIssue.day", params: { season: seasonName(m.seasonId), month: period.name, day: md.day, n: period.days } }));
       }
     }
   }
@@ -128,7 +132,7 @@ export function profileIssues(def: CalendarDefinition, profile: SeasonProfileDat
     const starts = new Set<string>();
     for (const m of profile.memberships) {
       const key = `${m.start.periodId}:${m.start.day}`;
-      if (starts.has(key)) issues.push({ kind: "overlap", message: `${seasonName(m.seasonId)} starts on the same day as another season.` });
+      if (starts.has(key)) issues.push(issue("overlap", { key: "seasonIssue.sameStart", params: { season: seasonName(m.seasonId) } }));
       starts.add(key);
     }
     return issues;
@@ -164,7 +168,7 @@ export function profileIssues(def: CalendarDefinition, profile: SeasonProfileDat
     if (counts.some((c) => c === 0)) gap = true;
     if (counts.some((c) => c > 1)) overlap = true;
   }
-  if (gap && !profile.allowGaps) issues.push({ kind: "gap", message: "Some days belong to no season. Close the gap, or allow gaps for this profile." });
-  if (overlap && !profile.allowOverlaps) issues.push({ kind: "overlap", message: "Some days belong to two seasons. Fix the overlap, or allow overlaps for this profile." });
+  if (gap && !profile.allowGaps) issues.push(issue("gap", { key: "seasonIssue.gap" }));
+  if (overlap && !profile.allowOverlaps) issues.push(issue("overlap", { key: "seasonIssue.overlap" }));
   return issues;
 }

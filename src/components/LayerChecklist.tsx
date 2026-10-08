@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { sortLayers, type AlwaysDrawFlag, type MapLayerData } from "./layer-images";
+import { useT } from "@/i18n/useT";
 
 /** Past this many layers the dropdown gets a filter box. */
 const FILTER_THRESHOLD = 6;
@@ -37,6 +38,7 @@ export default function LayerChecklist({
   onEdit?: (add: string[], remove: string[]) => void;
   onChange: (extraLayerIds: string[]) => void;
 }) {
+  const t = useT("maps");
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -63,14 +65,14 @@ export default function LayerChecklist({
   const chosen = others.filter((l) => value.includes(l.id) || viaFolder(l.id));
   const mixedCount = others.filter((l) => isMixed(l.id)).length;
   const summary = homeAlwaysDraws
-    ? "Every layer (Always draw is on)"
+    ? t("checklist.everyLayer")
     : mixedCount > 0
-      ? `Mixed (${chosen.length ? `${chosen.length} on all, ` : ""}${mixedCount} on some)`
+      ? chosen.length ? t("checklist.mixedAll", { all: chosen.length, some: mixedCount }) : t("checklist.mixed", { some: mixedCount })
       : chosen.length === 0
-      ? "None"
+      ? t("checklist.none")
       : chosen.length <= 2
         ? chosen.map((l) => l.name).join(", ")
-        : `${chosen.length} layers`;
+        : t("checklist.layers", { n: chosen.length });
   const q = query.trim().toLowerCase();
   const shown = q ? others.filter((l) => l.name.toLowerCase().includes(q)) : others;
 
@@ -97,7 +99,7 @@ export default function LayerChecklist({
       }}
     >
       <span id={labelId} className="field-label">
-        Also show on
+        {t("checklist.alsoShowOn")}
       </span>
       <button
         ref={triggerRef}
@@ -107,7 +109,7 @@ export default function LayerChecklist({
         aria-expanded={open}
         aria-controls={popupId}
         aria-labelledby={`${labelId} ${popupId}-summary`}
-        data-tooltip={homeAlwaysDraws ? "Its layer has “Always draw” on, so it already shows on every layer." : chosen.map((l) => l.name).join(", ") || undefined}
+        data-tooltip={homeAlwaysDraws ? t("checklist.alwaysDrawHint") : chosen.map((l) => l.name).join(", ") || undefined}
         onClick={() => (open ? close() : setOpen(true))}
       >
         <span id={`${popupId}-summary`} className={chosen.length ? "layer-multi-summary" : "layer-multi-summary muted"}>
@@ -122,8 +124,8 @@ export default function LayerChecklist({
             <input
               type="search"
               className="layer-multi-filter"
-              placeholder="Filter layers"
-              aria-label="Filter layers"
+              placeholder={t("checklist.filter")}
+              aria-label={t("checklist.filter")}
               value={query}
               autoFocus
               onChange={(e) => setQuery(e.target.value)}
@@ -131,15 +133,15 @@ export default function LayerChecklist({
           )}
           <div className="layer-multi-actions">
             <button type="button" className="layer-multi-action" onClick={() => (onEdit ? onEdit(others.map((l) => l.id), []) : onChange(others.map((l) => l.id)))}>
-              All
+              {t("checklist.all")}
             </button>
             <button type="button" className="layer-multi-action" onClick={() => (onEdit ? onEdit([], others.map((l) => l.id)) : onChange([]))}>
-              None
+              {t("checklist.none")}
             </button>
           </div>
           <div role="group" aria-labelledby={labelId} className="layer-multi-options">
             {shown.map((l) => (
-              <label key={l.id} className="layer-checkbox layer-multi-option" data-tooltip={viaFolder(l.id) ? `Shown here through its folder “${inherited?.from}”` : undefined}>
+              <label key={l.id} className="layer-checkbox layer-multi-option" data-tooltip={viaFolder(l.id) ? t("checklist.viaFolderHint", { folder: inherited?.from ?? "" }) : undefined}>
                 <input
                   type="checkbox"
                   checked={value.includes(l.id) || viaFolder(l.id)}
@@ -151,15 +153,15 @@ export default function LayerChecklist({
                 />
                 <span>
                   {l.name}
-                  {viaFolder(l.id) && <span className="field-label"> (via folder)</span>}
-                  {isMixed(l.id) && <span className="field-label"> (some)</span>}
-                  {!l.visible && <span className="field-label"> (hidden)</span>}
+                  {viaFolder(l.id) && <span className="field-label"> {t("checklist.viaFolder")}</span>}
+                  {isMixed(l.id) && <span className="field-label"> {t("checklist.some")}</span>}
+                  {!l.visible && <span className="field-label"> {t("checklist.hidden")}</span>}
                 </span>
               </label>
             ))}
-            {shown.length === 0 && <p className="field-label layer-multi-empty">No layer matches.</p>}
+            {shown.length === 0 && <p className="field-label layer-multi-empty">{t("checklist.noMatch")}</p>}
           </div>
-          {home && <p className="field-label layer-multi-home">Always on: {home.name}</p>}
+          {home && <p className="field-label layer-multi-home">{t("checklist.alwaysOn", { name: home.name })}</p>}
         </div>
       )}
     </div>

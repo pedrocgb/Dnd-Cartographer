@@ -17,6 +17,8 @@ import ArticleFoldersControl from "./ArticleFoldersControl";
 import { CreateArticleContext } from "./create-context";
 import RelationshipsCard from "@/components/relations/RelationshipsCard";
 import ShareDialog from "@/components/share/ShareDialog";
+import { useT } from "@/i18n/useT";
+import { activeT } from "@/i18n/active";
 
 /** Floating editor UI (bubble menus, popovers) lives outside the card; clicks there keep it editing. */
 // Editor UI outside the card: menus, dialogs, and the date picker popover they can open (.dp-pop).
@@ -35,7 +37,7 @@ export interface FooterDocument extends CardDocument {
 
 async function createDocument(): Promise<string> {
   const res = await fetch("/api/documents", { method: "POST" });
-  if (!res.ok) throw new Error("Could not create the document.");
+  if (!res.ok) throw new Error(activeT("articles")("view.createDocFailed"));
   return (await res.json()).document.id;
 }
 
@@ -55,10 +57,11 @@ function CardHeader({ Icon, label, hint, children }: { Icon: LucideIcon; label: 
   );
 }
 
+/** Each card's words are `articles` `card.<variant>.label|placeholder|empty`. */
 const CARD_KIND = {
-  body: { Icon: TextAlignStart, label: "Body", placeholder: "Start writing this article…", empty: "Nothing written yet. Use the edit button to write the article." },
-  sidebar: { Icon: PanelRightClose, label: "Sidebar", placeholder: "Add sidebar notes…", empty: "No sidebar notes yet. Use the edit button to add some." },
-  footer: { Icon: Footprints, label: "Footer", placeholder: "Write the footer…", empty: "The footer is empty. Use the edit button to write it." },
+  body: { Icon: TextAlignStart },
+  sidebar: { Icon: PanelRightClose },
+  footer: { Icon: Footprints },
 } as const;
 
 /**
@@ -87,7 +90,12 @@ function ArticleCard({
   const [creating, setCreating] = useState(false);
   const ref = useRef<HTMLElement>(null);
   const editButtonRef = useRef<HTMLButtonElement>(null);
-  const { Icon, label, placeholder, empty } = CARD_KIND[variant];
+  const ta = useT("articles");
+  const tc = useT("common");
+  const { Icon } = CARD_KIND[variant];
+  const label = ta(`card.${variant}.label`);
+  const placeholder = ta(`card.${variant}.placeholder`);
+  const empty = ta(`card.${variant}.empty`);
 
   useEffect(() => {
     if (!editing) return;
@@ -138,7 +146,7 @@ function ArticleCard({
         }
       }}
     >
-      <CardHeader Icon={Icon} label={label} hint={editing ? "Esc to finish" : undefined}>
+      <CardHeader Icon={Icon} label={label} hint={editing ? ta("view.escToFinish") : undefined}>
         {headerActions}
         {!editing && (
           <button
@@ -147,8 +155,8 @@ function ArticleCard({
             className="btn btn-ghost btn-icon btn-sm article-card-edit"
             onClick={() => void beginEditing()}
             disabled={creating}
-            aria-label={`Edit ${label.toLowerCase()}`}
-            data-tooltip={`Edit ${label.toLowerCase()}`}
+            aria-label={ta("view.editCard", { card: label.toLowerCase() })}
+            data-tooltip={ta("view.editCard", { card: label.toLowerCase() })}
           >
             <Pencil size={14} strokeWidth={2.25} />
           </button>
@@ -157,13 +165,14 @@ function ArticleCard({
       {doc.documentId ? (
         <RichEditor documentId={doc.documentId} editable={editing} placeholder={editing ? placeholder : empty} footerActions={footerActions} />
       ) : (
-        <p className="article-card-placeholder">{creating ? "Creating…" : empty}</p>
+        <p className="article-card-placeholder">{creating ? tc("creating") : empty}</p>
       )}
     </section>
   );
 }
 
 function EditableTitle({ title, onRename }: { title: string; onRename?: (title: string) => void }) {
+  const ta = useT("articles");
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(title);
 
@@ -172,7 +181,7 @@ function EditableTitle({ title, onRename }: { title: string; onRename?: (title: 
       <button
         type="button"
         className="article-title-text editable"
-        data-tooltip="Click to rename"
+        data-tooltip={ta("view.rename")}
         onClick={() => {
           setDraft(title);
           setEditing(true);
@@ -194,7 +203,7 @@ function EditableTitle({ title, onRename }: { title: string; onRename?: (title: 
   return (
     <input
       className="article-title-input"
-      aria-label="Article title"
+      aria-label={ta("view.titleLabel")}
       value={draft}
       autoFocus
       maxLength={200}
@@ -250,6 +259,7 @@ export default function ArticleView({
   sidebar: CardDocument;
   footer: FooterDocument;
 }) {
+  const ta = useT("articles");
   const { Icon, label } = templateOf(template);
   const createNew = useContext(CreateArticleContext);
   const [addingFooter, setAddingFooter] = useState(false);
@@ -293,15 +303,15 @@ export default function ArticleView({
         {(createNew || actions || articleId) && (
           <div className="article-actions">
             {articleId && (
-              <button type="button" className="btn btn-sm btn-share" data-tooltip="A read-only link to this article" onClick={() => setSharing(true)}>
+              <button type="button" className="btn btn-sm btn-share" data-tooltip={ta("view.shareHint")} onClick={() => setSharing(true)}>
                 <Share2 size={13} strokeWidth={2.25} />
-                Share
+                {ta("view.share")}
               </button>
             )}
             {createNew && (
               <button type="button" className="btn btn-sm btn-create" onClick={() => createNew(template)}>
                 <CirclePlus size={13} strokeWidth={2.25} />
-                Add new {label}
+                {ta("view.addNew", { label })}
               </button>
             )}
             {actions}
@@ -312,14 +322,14 @@ export default function ArticleView({
       {articleId && <ArticleFoldersControl articleId={articleId} />}
 
       <div className="article-top">
-        <section className="article-card article-image-card" aria-label="Image">
+        <section className="article-card article-image-card" aria-label={ta("view.image")}>
           {image}
         </section>
-        <section className="article-card article-info-card" aria-label="Informations">
-          <CardHeader Icon={Info} label="Informations">
+        <section className="article-card article-info-card" aria-label={ta("view.info")}>
+          <CardHeader Icon={Info} label={ta("view.info")}>
             {infoActions}
           </CardHeader>
-          {info ?? <p className="article-card-placeholder">No information yet.</p>}
+          {info ?? <p className="article-card-placeholder">{ta("view.noInfo")}</p>}
         </section>
       </div>
 
@@ -333,12 +343,12 @@ export default function ArticleView({
                 type="button"
                 className="btn btn-sm btn-ghost"
                 disabled={addingFooter}
-                data-tooltip="Add a footer section below the body"
+                data-tooltip={ta("view.addFooterHint")}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => void addFooter()}
               >
                 <Footprints size={14} strokeWidth={2.25} />
-                {addingFooter ? "Adding…" : "Add footer"}
+                {addingFooter ? ta("folderView.adding") : ta("view.addFooter")}
               </button>
             )
           }
@@ -352,10 +362,10 @@ export default function ArticleView({
             startEditing={footerJustAdded}
             headerActions={
               <button type="button" className="btn btn-sm btn-ghost article-card-remove" onClick={() => setConfirmingFooterRemoval(true)}
-                data-tooltip="Remove the footer"
+                data-tooltip={ta("view.removeFooterHint")}
               >
                 <Trash2 size={13} strokeWidth={2.25} />
-                Remove footer
+                {ta("view.removeFooter")}
               </button>
             }
           />
@@ -370,17 +380,17 @@ export default function ArticleView({
       {sharing && articleId && <ShareDialog scopes={[{ label: title, target: { kind: "article", template, id: articleId } }]} onClose={() => setSharing(false)} />}
       <ConfirmDialog
         open={confirmingFooterRemoval}
-        title="Remove the footer?"
-        confirmLabel="Remove footer"
-        busyLabel="Removing…"
+        title={ta("view.removeFooterTitle")}
+        confirmLabel={ta("view.removeFooter")}
+        busyLabel={ta("view.removing")}
         busy={removingFooter}
         onConfirm={removeFooter}
         onCancel={() => setConfirmingFooterRemoval(false)}
       >
-        <p>The footer and all of its text will be removed from this article.</p>
+        <p>{ta("view.removeFooterBody")}</p>
         <ul>
-          <li>You can add a new, empty footer at any time.</li>
-          <li>The removed text can&rsquo;t be brought back.</li>
+          <li>{ta("view.removeFooterAgain")}</li>
+          <li>{ta("view.removeFooterLost")}</li>
         </ul>
       </ConfirmDialog>
     </article>

@@ -5,7 +5,8 @@ import { useMemo, useState } from "react";
 import { ExternalLink, GitFork, Minus, Network, Plus } from "lucide-react";
 import InfoPicker, { type PickerOption } from "@/components/articles/InfoPicker";
 import { Skeleton } from "@/components/Skeleton";
-import { TEMPLATE_LABELS } from "@/server/articles/templates";
+import { templateOf } from "@/components/articles/templates";
+import { useT } from "@/i18n/useT";
 import { layoutFamily } from "@/server/relations/family";
 import { webEdges } from "@/server/relations/graph";
 import type { CanvasCard, CanvasLine } from "./RelationsCanvas";
@@ -20,14 +21,15 @@ const MAX_GENERATIONS = 6;
 const PERSON_ORDER: Record<string, number> = { playerCharacter: 0, character: 1 };
 
 function Stepper({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+  const t = useT("relations");
   return (
     <div className="rel-stepper">
       <span>{label}</span>
-      <button type="button" className="rel-icon-btn" onClick={() => onChange(Math.max(0, value - 1))} disabled={value === 0} aria-label={`Fewer: ${label}`}>
+      <button type="button" className="rel-icon-btn" onClick={() => onChange(Math.max(0, value - 1))} disabled={value === 0} aria-label={t("family.fewer", { label })}>
         <Minus size={13} />
       </button>
       <strong aria-live="polite">{value}</strong>
-      <button type="button" className="rel-icon-btn" onClick={() => onChange(Math.min(MAX_GENERATIONS, value + 1))} disabled={value === MAX_GENERATIONS} aria-label={`More: ${label}`}>
+      <button type="button" className="rel-icon-btn" onClick={() => onChange(Math.min(MAX_GENERATIONS, value + 1))} disabled={value === MAX_GENERATIONS} aria-label={t("family.more", { label })}>
         <Plus size={13} />
       </button>
     </div>
@@ -41,6 +43,7 @@ function Stepper({ label, value, onChange }: { label: string; value: number; onC
  * far as it goes, with partners faint.
  */
 export default function FamilyTreePage({ personId, bloodline, onChange }: { personId: string | null; bloodline: boolean; onChange: (personId: string | null, bloodline: boolean) => void }) {
+  const t = useT("relations");
   const { relations, catalog, openArticle, openWeb } = useRelations();
   const [hideSecrets] = useHideSecrets();
   const [up, setUp] = useState(2);
@@ -53,7 +56,7 @@ export default function FamilyTreePage({ personId, bloodline, onChange }: { pers
       [...catalog.values()]
         .filter((e) => e.template in PERSON_ORDER)
         .sort((a, b) => PERSON_ORDER[a.template] - PERSON_ORDER[b.template] || a.name.localeCompare(b.name))
-        .map((e) => ({ value: e.id, label: e.name, group: `${TEMPLATE_LABELS[e.template]}s` })),
+        .map((e) => ({ value: e.id, label: e.name, group: templateOf(e.template).plural })),
     [catalog]
   );
   const focus = personId && catalog.has(personId) ? personId : null;
@@ -90,31 +93,31 @@ export default function FamilyTreePage({ personId, bloodline, onChange }: { pers
 
   const rail = (
     <>
-      <RailHeader Icon={GitFork} title="Family trees" subtitle={focus ? `${personCount} ${personCount === 1 ? "person" : "people"} · ${generations} ${generations === 1 ? "generation" : "generations"}` : "Parents, partners and children"} />
-      <RailSection title="Whose family">
-        <InfoPicker options={people} value={focus} placeholder="Pick a character…" ariaLabel="Character" onChange={(id) => onChange(id, bloodline)} />
+      <RailHeader Icon={GitFork} title={t("family.title")} subtitle={focus ? `${t("family.people", { count: personCount })} · ${t("family.generations", { count: generations })}` : t("family.subtitle")} />
+      <RailSection title={t("family.whose")}>
+        <InfoPicker options={people} value={focus} placeholder={t("family.pick")} ariaLabel={t("family.character")} onChange={(id) => onChange(id, bloodline)} />
       </RailSection>
-      <RailSection title="View">
-        <div className="rel-segmented" role="radiogroup" aria-label="Tree kind">
-          <button type="button" role="radio" aria-checked={!bloodline} className={!bloodline ? "active" : undefined} onClick={() => onChange(focus, false)} data-tooltip="A few generations around them, with everyone's partners">
-            Family
+      <RailSection title={t("family.view")}>
+        <div className="rel-segmented" role="radiogroup" aria-label={t("family.kind")}>
+          <button type="button" role="radio" aria-checked={!bloodline} className={!bloodline ? "active" : undefined} onClick={() => onChange(focus, false)} data-tooltip={t("family.familyHint")}>
+            {t("family.family")}
           </button>
-          <button type="button" role="radio" aria-checked={bloodline} className={bloodline ? "active" : undefined} onClick={() => onChange(focus, true)} data-tooltip="Every blood relative, as far back and down as known">
-            Bloodline
+          <button type="button" role="radio" aria-checked={bloodline} className={bloodline ? "active" : undefined} onClick={() => onChange(focus, true)} data-tooltip={t("family.bloodlineHint")}>
+            {t("family.bloodline")}
           </button>
         </div>
         {bloodline ? (
-          <RailSwitch label="Show partners" hint="Partners who aren't blood relatives, shown faint" checked={inLaws} onChange={setInLaws} />
+          <RailSwitch label={t("family.showPartners")} hint={t("family.showPartnersHint")} checked={inLaws} onChange={setInLaws} />
         ) : (
           <>
-            <Stepper label="Generations up" value={up} onChange={setUp} />
-            <Stepper label="Generations down" value={down} onChange={setDown} />
+            <Stepper label={t("family.up")} value={up} onChange={setUp} />
+            <Stepper label={t("family.down")} value={down} onChange={setDown} />
           </>
         )}
         <HideSecretsSwitch />
       </RailSection>
       {houses.length > 0 && (
-        <RailSection title="Houses">
+        <RailSection title={t("family.houses")}>
           <ul className="rel-houses">
             {houses.map((h) => (
               <li key={h.id}>
@@ -122,41 +125,41 @@ export default function FamilyTreePage({ personId, bloodline, onChange }: { pers
                 <button type="button" className="btn-link" onClick={() => openArticle("organization", h.id)}>
                   {h.name}
                 </button>
-                {!h.color && <span className="rel-muted" data-tooltip="Set one on the house's Info Bar">no color</span>}
+                {!h.color && <span className="rel-muted" data-tooltip={t("family.noColorHint")}>{t("family.noColor")}</span>}
               </li>
             ))}
           </ul>
         </RailSection>
       )}
-      <RailSection title="Lines">
+      <RailSection title={t("family.lines")}>
         <ul className="rel-key">
           <li>
-            <span className="rel-key-line" style={{ borderColor: "#D4A24C" }} /> Parent and child
+            <span className="rel-key-line" style={{ borderColor: "#D4A24C" }} /> {t("family.lineParent")}
           </li>
           <li>
-            <span className="rel-key-line" style={{ borderColor: "#E879A6" }} /> Partners
+            <span className="rel-key-line" style={{ borderColor: "#E879A6" }} /> {t("family.linePartners")}
           </li>
           <li>
-            <span className="rel-key-line dotted" style={{ borderColor: "#D4A24C" }} /> Adoptive or step parent
+            <span className="rel-key-line dotted" style={{ borderColor: "#D4A24C" }} /> {t("family.lineAdoptive")}
           </li>
           <li>
-            <span className="rel-key-line dotted" style={{ borderColor: "#6B7280" }} /> Co-parents, no marriage recorded
+            <span className="rel-key-line dotted" style={{ borderColor: "#6B7280" }} /> {t("family.lineCoParents")}
           </li>
         </ul>
       </RailSection>
-      <p className="rel-rail-tip">Click a card for details, double-click to open it, Shift-click to see that person&apos;s tree.</p>
+      <p className="rel-rail-tip">{t("family.tip")}</p>
     </>
   );
 
   return (
     <RelWorkspace rail={rail}>
       {!focus ? (
-        <StageEmpty Icon={GitFork} title="Pick a character">
-          Their parents, partners and children come from their Info Bar or Relationships card.
+        <StageEmpty Icon={GitFork} title={t("family.pickTitle")}>
+          {t("family.pickBody")}
         </StageEmpty>
       ) : cards.length <= 1 ? (
-        <StageEmpty Icon={GitFork} title="No family recorded">
-          Add parents, partners or children to {catalog.get(focus)?.name}&apos;s Info Bar.
+        <StageEmpty Icon={GitFork} title={t("family.noneTitle")}>
+          {t("family.noneBody", { name: catalog.get(focus)?.name ?? "" })}
         </StageEmpty>
       ) : (
         <>
@@ -178,15 +181,15 @@ export default function FamilyTreePage({ personId, bloodline, onChange }: { pers
               actions={
                 <>
                   <button type="button" className="btn btn-sm" onClick={() => openArticle(selectedEntry.template, selectedEntry.id)}>
-                    <ExternalLink size={13} /> Open
+                    <ExternalLink size={13} /> {t("ui.open")}
                   </button>
                   {selectedEntry.id !== focus && (
                     <button type="button" className="btn btn-sm btn-ghost" onClick={() => onChange(selectedEntry.id, bloodline)}>
-                      <GitFork size={13} /> Their tree
+                      <GitFork size={13} /> {t("family.theirTree")}
                     </button>
                   )}
                   <button type="button" className="btn btn-sm btn-ghost" onClick={() => openWeb(selectedEntry.id)}>
-                    <Network size={13} /> Web
+                    <Network size={13} /> {t("family.web")}
                   </button>
                 </>
               }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { errorResponse } from "@/i18n/server";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { lineGroups, mapGrids, mapLayers, mapLegends, mapLines, mapRoutes, routeGroups, textGroups, mapTexts, markers, zoneRegions, zones } from "@/server/db/schema";
@@ -7,13 +8,13 @@ import { notInWorld } from "@/server/world/guards";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const denied = await notInWorld("map_layers", id, "Layer not found.");
+  const denied = await notInWorld("map_layers", id, "layerNotFound");
   if (denied) return denied;
   const layer = await findLayer(id);
-  if (!layer) return NextResponse.json({ error: "Layer not found." }, { status: 404 });
+  if (!layer) return errorResponse("layerNotFound", 404);
 
   const body = await request.json().catch(() => null);
-  if (!body) return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+  if (!body) return errorResponse("invalidBody", 400);
 
   const patch: Partial<typeof mapLayers.$inferInsert> = { updatedAt: new Date() };
   if (typeof body.name === "string" && body.name.trim()) patch.name = body.name.trim().slice(0, 120);
@@ -46,14 +47,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
  */
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const denied = await notInWorld("map_layers", id, "Layer not found.");
+  const denied = await notInWorld("map_layers", id, "layerNotFound");
   if (denied) return denied;
   const layer = await findLayer(id);
-  if (!layer) return NextResponse.json({ error: "Layer not found." }, { status: 404 });
+  if (!layer) return errorResponse("layerNotFound", 404);
 
   const siblings = await listLayerRows(layer.mapId);
   if (siblings.length <= 1) {
-    return NextResponse.json({ error: "A map needs at least one layer." }, { status: 409 });
+    return errorResponse("mapNeedsLayer", 409);
   }
 
   const [markerRows, regionRows, textRows, lineRows, grid, legend, routeRows] = await Promise.all([
@@ -68,10 +69,15 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   const hasContent = markerRows.length > 0 || regionRows.length > 0 || textRows.length > 0 || lineRows.length > 0 || Boolean(grid) || Boolean(legend) || routeRows.length > 0;
   const mode = new URL(request.url).searchParams.get("mode");
   if (hasContent && mode !== "cascade") {
-    return NextResponse.json(
-      { error: "This layer still has content.", markerCount: markerRows.length, regionCount: regionRows.length, textCount: textRows.length, lineCount: lineRows.length, hasGrid: Boolean(grid), hasLegend: Boolean(legend), routeCount: routeRows.length },
-      { status: 409 }
-    );
+    return errorResponse("layerHasContent", 409, {
+      markerCount: markerRows.length,
+      regionCount: regionRows.length,
+      textCount: textRows.length,
+      lineCount: lineRows.length,
+      hasGrid: Boolean(grid),
+      hasLegend: Boolean(legend),
+      routeCount: routeRows.length,
+    });
   }
 
   const now = new Date();

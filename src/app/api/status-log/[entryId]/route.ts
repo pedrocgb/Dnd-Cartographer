@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
+import { errorResponse } from "@/i18n/server";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { campaignStatusLog } from "@/server/db/schema";
 import { requireWorldId } from "@/server/world/active-world";
 import { checkArticles } from "@/server/calendars/entries";
-import { badRequest, calendarErrorResponse, notFound, readBody } from "@/server/calendars/respond";
+import { calendarErrorResponse, readBody } from "@/server/calendars/respond";
 import { parseStatusKind, parseStatusText, parseSubject } from "@/server/writer/parse";
 import { toClientEntry } from "@/server/writer/store";
 
@@ -20,9 +21,9 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   const { entryId } = await params;
   const worldId = await requireWorldId();
   const row = await entryOf(worldId, entryId);
-  if (!row) return notFound("Change not found.");
+  if (!row) return errorResponse("statusChangeNotFound", 404);
   const body = await readBody(request);
-  if (!body) return badRequest("Invalid request body.");
+  if (!body) return errorResponse("invalidBody", 400);
   try {
     const patch: Partial<typeof campaignStatusLog.$inferInsert> = { updatedAt: new Date() };
     if ("text" in body) patch.text = parseStatusText(body.text);
@@ -41,7 +42,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 
 export async function DELETE(_request: Request, { params }: RouteContext) {
   const { entryId } = await params;
-  if (!(await entryOf(await requireWorldId(), entryId))) return notFound("Change not found.");
+  if (!(await entryOf(await requireWorldId(), entryId))) return errorResponse("statusChangeNotFound", 404);
   await db.delete(campaignStatusLog).where(eq(campaignStatusLog.id, entryId));
   return NextResponse.json({ ok: true });
 }

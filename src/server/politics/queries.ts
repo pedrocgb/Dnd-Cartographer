@@ -2,6 +2,7 @@ import { eq, inArray, and, isNull } from "drizzle-orm";
 import { db } from "../db/client";
 import { territories, hierarchyProfiles, markerAffiliations, authorityAssignments, markers, maps, people, organizations } from "../db/schema";
 import { parseHierarchyLevels, type HierarchyLevel, type TerritoryLike } from "./hierarchy-config";
+import { serverT } from "@/i18n/server";
 
 export type TerritoryRow = typeof territories.$inferSelect;
 
@@ -80,10 +81,11 @@ export async function getAuthoritiesForPerson(worldId: string, personId: string)
   const territoryIds = Array.from(new Set(rows.map((r) => r.territoryId)));
   const territoryRows = await db.query.territories.findMany({ where: inArray(territories.id, territoryIds) });
   const territoryNameById = new Map(territoryRows.map((t) => [t.id, t.name]));
+  const unknown = (await serverT("politics"))("unknownTerritory");
 
   return rows.map((r) => ({
     territoryId: r.territoryId,
-    territoryName: territoryNameById.get(r.territoryId) ?? "Unknown territory",
+    territoryName: territoryNameById.get(r.territoryId) ?? unknown,
     role: r.role,
     title: r.title,
   }));

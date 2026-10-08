@@ -8,6 +8,7 @@ import { isGenericTemplate } from "@/server/articles/templates";
 import { MAX_TITLE_LENGTH, toClientArticle } from "@/server/articles/articles";
 import { sanitizeInfo } from "@/server/articles/info-fields";
 import { INFO_FIELD_SETS } from "@/server/articles/info-sets";
+import { errorResponse } from "@/i18n/server";
 
 /** Generic-template articles, optionally of one template (`?template=`) and title-filtered (`?q=`). */
 export async function GET(request: Request) {
@@ -17,7 +18,7 @@ export async function GET(request: Request) {
   const q = searchParams.get("q")?.trim();
   const conditions = [eq(articles.worldId, worldId), isNull(articles.deletedAt)];
   if (template) {
-    if (!isGenericTemplate(template)) return NextResponse.json({ error: "Unknown template." }, { status: 400 });
+    if (!isGenericTemplate(template)) return errorResponse("unknownArticleTemplate", 400);
     conditions.push(eq(articles.template, template));
   }
   if (q) conditions.push(like(articles.title, `%${q}%`));
@@ -29,10 +30,10 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   if (!isGenericTemplate(body?.template)) {
-    return NextResponse.json({ error: "Unknown or non-generic template." }, { status: 400 });
+    return errorResponse("nonGenericTemplate", 400);
   }
   const title = typeof body.title === "string" ? body.title.trim().slice(0, MAX_TITLE_LENGTH) : "";
-  if (!title) return NextResponse.json({ error: "A title is required." }, { status: 400 });
+  if (!title) return errorResponse("titleRequired", 400);
 
   const infoSet = INFO_FIELD_SETS[body.template as keyof typeof INFO_FIELD_SETS];
   const info = infoSet ? sanitizeInfo(infoSet, body.info) : null;

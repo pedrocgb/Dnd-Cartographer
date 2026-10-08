@@ -8,6 +8,8 @@ import { loadCandidates, type Candidate } from "@/components/articles/candidates
 import { ARTICLE_TEMPLATES, templateOf } from "@/components/articles/templates";
 import { MAX_MENTION_LABEL } from "@/server/mentions/kinds";
 import type { ArticleTemplateKey } from "@/server/articles/templates";
+import { useT } from "@/i18n/useT";
+import { formatInteger } from "@/server/settings/number-format";
 
 const MAX_RESULTS = 100;
 
@@ -67,6 +69,8 @@ export default function ArticleLinkModal({
   onPick: (choice: ArticleLinkChoice) => void;
   onClose: () => void;
 }) {
+  const t = useT("editor");
+  const tc = useT("common");
   const [candidates, setCandidates] = useState<Candidate[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [query, setQuery] = useState(initialQuery);
@@ -148,8 +152,9 @@ export default function ArticleLinkModal({
     }
   }
 
+  const linksTo = t("articleLink.linksTo").split("{name}");
   return (
-    <Modal open onClose={onClose} title="Link an article" className="rich-floating">
+    <Modal open onClose={onClose} title={t("articleLink.title")} className="rich-floating">
       <div
         className="article-link"
         onKeyDown={(e) => {
@@ -164,11 +169,11 @@ export default function ArticleLinkModal({
           <input
             type="text"
             role="combobox"
-            aria-label="Search articles"
+            aria-label={t("articleLink.search")}
             aria-expanded
             aria-controls="article-link-results"
             aria-activedescendant={results[activeIndex] ? `article-link-${results[activeIndex].id}` : undefined}
-            placeholder="Search articles by name…"
+            placeholder={t("articleLink.searchPlaceholder")}
             value={query}
             autoFocus
             onChange={(e) => {
@@ -178,39 +183,39 @@ export default function ArticleLinkModal({
             onKeyDown={onSearchKeyDown}
           />
           {query && (
-            <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label="Clear search" data-tooltip="Clear search" onClick={() => setQuery("")}>
+            <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={t("articleLink.clear")} data-tooltip={t("articleLink.clear")} onClick={() => setQuery("")}>
               <X size={14} strokeWidth={2.25} />
             </button>
           )}
         </div>
 
         {chips.length > 1 && (
-          <div className="tag-toggle-grid article-link-types" role="group" aria-label="Filter by type">
+          <div className="tag-toggle-grid article-link-types" role="group" aria-label={t("articleLink.filter")}>
             <button type="button" className={types.size === 0 ? "tag-toggle active" : "tag-toggle"} aria-pressed={types.size === 0} onClick={() => setTypes(new Set())}>
-              All <span className="article-link-count">{matches.length}</span>
+              {t("articleLink.all")} <span className="article-link-count">{matches.length}</span>
             </button>
-            {chips.map((t) => (
+            {chips.map((chip) => (
               <button
-                key={t.key}
+                key={chip.key}
                 type="button"
-                className={types.has(t.key) ? "tag-toggle active" : "tag-toggle"}
-                aria-pressed={types.has(t.key)}
-                onClick={() => toggleType(t.key)}
+                className={types.has(chip.key) ? "tag-toggle active" : "tag-toggle"}
+                aria-pressed={types.has(chip.key)}
+                onClick={() => toggleType(chip.key)}
               >
-                <t.Icon size={12} strokeWidth={2.25} aria-hidden />
-                {t.plural} <span className="article-link-count">{counts.get(t.key) ?? 0}</span>
+                <chip.Icon size={12} strokeWidth={2.25} aria-hidden />
+                {chip.plural} <span className="article-link-count">{counts.get(chip.key) ?? 0}</span>
               </button>
             ))}
           </div>
         )}
 
-        {failed && <p className="form-error">Couldn&rsquo;t load the articles.</p>}
-        {!failed && !candidates && <SkeletonList rows={5} avatar label="Loading articles…" />}
-        {candidates && results.length === 0 && <p className="field-label">No articles match{query ? ` "${query}"` : ""}.</p>}
+        {failed && <p className="form-error">{t("articleLink.loadFailed")}</p>}
+        {!failed && !candidates && <SkeletonList rows={5} avatar label={t("articleLink.loading")} />}
+        {candidates && results.length === 0 && <p className="field-label">{query ? t("articleLink.noMatchQuery", { query }) : t("articleLink.noMatch")}</p>}
         {results.length > 0 && (
-          <ul className="article-link-results" id="article-link-results" role="listbox" aria-label="Articles" ref={listRef}>
+          <ul className="article-link-results" id="article-link-results" role="listbox" aria-label={t("articleLink.results")} ref={listRef}>
             {results.map((c, i) => {
-              const t = templateOf(c.template);
+              const tpl = templateOf(c.template);
               const selected = chosen?.id === c.id;
               return (
                 <li key={`${c.template}:${c.id}`} role="none">
@@ -225,18 +230,18 @@ export default function ArticleLinkModal({
                     onClick={() => choose(c)}
                     onDoubleClick={() => insert(c)}
                   >
-                    <t.Icon size={15} strokeWidth={2} aria-hidden />
+                    <tpl.Icon size={15} strokeWidth={2} aria-hidden />
                     <span className="article-link-name">
                       <Highlighted name={c.name} words={words} />
                     </span>
-                    <span className="article-link-type">{t.label}</span>
+                    <span className="article-link-type">{tpl.label}</span>
                   </button>
                 </li>
               );
             })}
           </ul>
         )}
-        {filtered.length > MAX_RESULTS && <p className="field-label">Showing the first {MAX_RESULTS} of {filtered.length}. Type more to narrow it down.</p>}
+        {filtered.length > MAX_RESULTS && <p className="field-label">{t("articleLink.truncated", { max: formatInteger(MAX_RESULTS), n: formatInteger(filtered.length) })}</p>}
 
         <form
           className="article-link-footer"
@@ -246,24 +251,34 @@ export default function ArticleLinkModal({
           }}
         >
           <label className="field-label" htmlFor="article-link-text">
-            Link text
+            {t("articleLink.text")}
           </label>
           <input
             ref={textRef}
             id="article-link-text"
             type="text"
             maxLength={MAX_MENTION_LABEL}
-            placeholder={chosen ? `${chosen.name} (the article's name)` : "The article's name"}
+            placeholder={chosen ? t("articleLink.textPlaceholderChosen", { name: chosen.name }) : t("articleLink.textPlaceholder")}
             value={text}
             onChange={(e) => setText(e.target.value)}
           />
-          <p className="field-label">{chosen ? <>Links to <strong>{chosen.name}</strong>. Leave the text empty to show its name.</> : "Pick an article above."}</p>
+          <p className="field-label">
+            {chosen ? (
+              <>
+                {linksTo[0]}
+                <strong>{chosen.name}</strong>
+                {linksTo[1]}
+              </>
+            ) : (
+              t("articleLink.pick")
+            )}
+          </p>
           <div className="marker-panel-actions">
             <button type="submit" className="btn btn-sm btn-primary" disabled={!chosen}>
-              Insert link
+              {t("articleLink.insert")}
             </button>
             <button type="button" className="btn btn-sm" onClick={onClose}>
-              Cancel
+              {tc("cancel")}
             </button>
           </div>
         </form>

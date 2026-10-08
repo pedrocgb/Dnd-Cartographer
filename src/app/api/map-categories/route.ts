@@ -4,6 +4,7 @@ import { db } from "@/server/db/client";
 import { mapCategories } from "@/server/db/schema";
 import { requireWorldId } from "@/server/world/active-world";
 import { ensureSeededCategories } from "@/server/maps/seed-categories";
+import { errorResponse } from "@/i18n/server";
 
 export async function GET() {
   const worldId = await requireWorldId();
@@ -20,7 +21,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const label = typeof body?.label === "string" ? body.label.trim() : "";
   if (!label) {
-    return NextResponse.json({ error: "A category label is required." }, { status: 400 });
+    return errorResponse("categoryLabelRequired", 400);
   }
 
   const worldId = await requireWorldId();

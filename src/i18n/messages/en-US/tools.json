@@ -2,5 +2,8 @@
   "characterOnDemand.label": "Character On Demand",
   "characterOnDemand.description": "Random named characters",
   "weather.label": "Weather Generator",
-  "weather.description": "Weather by climate and place"
+  "weather.description": "Weather by climate and place",
+  "recent.about": "The last {max} {noun} you generated in this world, kept in this browser for {days} days.",
+  "recent.empty": "Nothing yet. Generated {noun} show up here.",
+  "nav.title": "Advanced Tools"
 }

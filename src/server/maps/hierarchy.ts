@@ -1,10 +1,18 @@
+import { translate } from "../../i18n/translate";
+import type { MessageKey } from "../../i18n/messages";
+
 export interface MapNode {
   id: string;
   worldId: string;
   parentId: string | null;
 }
 
-export class InvalidReparentError extends Error {}
+/** A refused move in the map hierarchy. `key` words it for the user (errors namespace); `message` is the en-US text. */
+export class InvalidReparentError extends Error {
+  constructor(readonly key: MessageKey<"errors">) {
+    super(translate("en-US", "errors", key));
+  }
+}
 
 /**
  * Pure validation, independent of the database, so it can be unit tested
@@ -18,7 +26,7 @@ export function validateReparent(
   if (newParentId === null) return;
 
   if (newParentId === mapId) {
-    throw new InvalidReparentError("A map cannot be its own parent.");
+    throw new InvalidReparentError("mapOwnParent");
   }
 
   const byId = new Map(allMaps.map((m) => [m.id, m]));
@@ -26,13 +34,13 @@ export function validateReparent(
   const newParent = byId.get(newParentId);
 
   if (!map) {
-    throw new InvalidReparentError(`Unknown map: ${mapId}`);
+    throw new InvalidReparentError("mapNotFound");
   }
   if (!newParent) {
-    throw new InvalidReparentError(`Unknown parent map: ${newParentId}`);
+    throw new InvalidReparentError("unknownParentMap");
   }
   if (newParent.worldId !== map.worldId) {
-    throw new InvalidReparentError("Maps must share the same world to be linked.");
+    throw new InvalidReparentError("mapsSameWorld");
   }
 
   // Walk up from the proposed parent; if we hit mapId, this would create a cycle.
@@ -40,10 +48,10 @@ export function validateReparent(
   const seen = new Set<string>();
   while (cursor) {
     if (cursor.id === mapId) {
-      throw new InvalidReparentError("This move would create a cycle.");
+      throw new InvalidReparentError("mapCycle");
     }
     if (seen.has(cursor.id)) {
-      throw new InvalidReparentError("Existing hierarchy already contains a cycle.");
+      throw new InvalidReparentError("mapHierarchyCycle");
     }
     seen.add(cursor.id);
     cursor = cursor.parentId ? byId.get(cursor.parentId) : undefined;

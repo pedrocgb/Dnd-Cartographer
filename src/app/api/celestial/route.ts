@@ -6,19 +6,20 @@ import { celestialIssues } from "@/server/calendars/celestial";
 import { cleanColor, cleanName, parseArticleLinks, parseCalendarIds, parseCelestialConfig, parseCelestialType } from "@/server/calendars/parse";
 import { checkCalendarIds, toClientCelestial } from "@/server/calendars/store";
 import { checkArticles } from "@/server/calendars/entries";
-import { badRequest, calendarErrorResponse, readBody } from "@/server/calendars/respond";
+import { calendarErrorResponse, problemWords, readBody } from "@/server/calendars/respond";
+import { errorResponse } from "@/i18n/server";
 
 /** Creates a celestial object, shown in the given `calendarIds` (null = every calendar). */
 export async function POST(request: Request) {
   const body = await readBody(request);
-  if (!body) return badRequest("Invalid request body.");
+  if (!body) return errorResponse("invalidBody", 400);
   try {
     const name = cleanName(body.name);
-    if (!name) return badRequest("A name is required.");
+    if (!name) return errorResponse("nameRequired", 400);
     const type = parseCelestialType(body.type);
     const config = parseCelestialConfig(body.config);
     const issues = celestialIssues(type, config);
-    if (issues.length) return NextResponse.json({ error: issues[0], issues }, { status: 400 });
+    if (issues.length) return NextResponse.json({ error: await problemWords(issues[0]), issues }, { status: 400 });
     const worldId = await requireWorldId();
     const articleLinks = parseArticleLinks(body.articleLinks);
     await checkArticles(worldId, articleLinks);

@@ -7,6 +7,7 @@ import type { ClientCampaign } from "@/components/sessions/types";
 import { SESSION_ZERO, WIZARD_STEPS } from "@/server/writer/guides";
 import { STORY_TEMPLATES } from "@/server/writer/templates";
 import type { CampaignSetup } from "@/server/writer/types";
+import { useT } from "@/i18n/useT";
 
 type Step = "pitch" | "truths" | "safety" | "sessionZero" | "structure";
 
@@ -29,6 +30,8 @@ export default function CampaignSetupDialog({
   onApplyTemplate: (key: string) => void;
   onClose: () => void;
 }) {
+  const t = useT("writer");
+  const tc = useT("common");
   const steps: Step[] = ["pitch", "truths", "safety", "sessionZero", ...(outlineEmpty ? (["structure"] as const) : [])];
   const [step, setStep] = useState<Step>("pitch");
   const [setup, setSetup] = useState<CampaignSetup>(campaign.setup);
@@ -48,12 +51,12 @@ export default function CampaignSetupDialog({
 
   const guide = (key: string) => WIZARD_STEPS.find((w) => w.key === key);
   return (
-    <Modal open onClose={onClose} title="Campaign setup" size="wide">
-      <ol className="wr-steps" aria-label="Steps">
+    <Modal open onClose={onClose} title={t("setup.title")} size="wide">
+      <ol className="wr-steps" aria-label={t("setup.steps")}>
         {steps.map((s, i) => (
           <li key={s}>
             <button type="button" className={s === step ? "wr-step active" : i < index ? "wr-step done" : "wr-step"} aria-current={s === step ? "step" : undefined} onClick={() => setStep(s)}>
-              {i + 1}. {s === "sessionZero" ? "Session zero" : (guide(s)?.label ?? s)}
+              {t("setup.stepN", { n: i + 1, label: s === "sessionZero" ? t("setup.sessionZero") : (guide(s)?.label ?? s) })}
             </button>
           </li>
         ))}
@@ -64,18 +67,18 @@ export default function CampaignSetupDialog({
           <label className="cal-field">
             <span className="field-label">{guide("pitch")!.label}</span>
             <span className="cal-help">{guide("pitch")!.hint}</span>
-            <textarea rows={4} maxLength={4000} autoFocus value={setup.pitch} placeholder="Five strangers wake in the salt mines of Karsa with no memory of the last year. The mine is flooding, and someone down there knows why." onChange={(e) => set({ pitch: e.target.value })} />
+            <textarea rows={4} maxLength={4000} autoFocus value={setup.pitch} placeholder={t("setup.pitchPlaceholder")} onChange={(e) => set({ pitch: e.target.value })} />
           </label>
         )}
         {step === "truths" && (
-          <LinesField label={guide("truths")!.label} hint={guide("truths")!.hint} values={setup.truths} max={12} placeholder="The gods went silent a hundred years ago." onChange={(truths) => set({ truths })} warn={setup.truths.filter((t) => t.trim()).length > 7 ? "More than seven truths starts to read like homework. Keep the ones the players need." : null} />
+          <LinesField label={guide("truths")!.label} hint={guide("truths")!.hint} values={setup.truths} max={12} placeholder={t("setup.truthPlaceholder")} onChange={(truths) => set({ truths })} warn={setup.truths.filter((x) => x.trim()).length > 7 ? t("setup.tooManyTruths") : null} />
         )}
         {step === "safety" && (
           <>
             <p className="cal-help">{guide("safety")!.hint}</p>
             <div className="qs-general-grid">
-              <LinesField label="Lines (never appear)" values={setup.lines} max={40} placeholder="Harm to children" onChange={(lines) => set({ lines })} />
-              <LinesField label="Veils (happen off-screen)" values={setup.veils} max={40} placeholder="Torture" onChange={(veils) => set({ veils })} />
+              <LinesField label={t("setup.lines")} values={setup.lines} max={40} placeholder={t("setup.linesPlaceholder")} onChange={(lines) => set({ lines })} />
+              <LinesField label={t("setup.veils")} values={setup.veils} max={40} placeholder={t("setup.veilsPlaceholder")} onChange={(veils) => set({ veils })} />
             </div>
           </>
         )}
@@ -97,18 +100,18 @@ export default function CampaignSetupDialog({
         {step === "structure" && (
           <>
             <p className="cal-help">{guide("structure")!.hint}</p>
-            <ul className="wr-template-choices" role="radiogroup" aria-label="Story structure">
+            <ul className="wr-template-choices" role="radiogroup" aria-label={t("setup.structureLabel")}>
               <li>
                 <label className="cal-check">
-                  <input type="radio" name="structure" checked={template === null} onChange={() => setTemplate(null)} /> Start blank
+                  <input type="radio" name="structure" checked={template === null} onChange={() => setTemplate(null)} /> {t("setup.startBlank")}
                 </label>
               </li>
-              {STORY_TEMPLATES.map((t) => (
-                <li key={t.key}>
+              {STORY_TEMPLATES.map((s) => (
+                <li key={s.key}>
                   <label className="cal-check">
-                    <input type="radio" name="structure" checked={template === t.key} onChange={() => setTemplate(t.key)} />
+                    <input type="radio" name="structure" checked={template === s.key} onChange={() => setTemplate(s.key)} />
                     <span>
-                      <strong>{t.name}</strong> <span className="cal-help">· {t.beats.length} arcs · {t.summary}</span>
+                      <strong>{s.name}</strong> <span className="cal-help">{t("setup.structureLine", { count: s.beats.length, summary: s.summary })}</span>
                     </span>
                   </label>
                 </li>
@@ -120,15 +123,15 @@ export default function CampaignSetupDialog({
 
       <div className="cel-footer">
         <button type="button" className="btn btn-sm" disabled={index === 0} onClick={() => setStep(steps[index - 1])}>
-          Back
+          {t("setup.back")}
         </button>
         {index < steps.length - 1 && (
           <button type="button" className="btn btn-sm" onClick={() => setStep(steps[index + 1])}>
-            Next
+            {t("setup.next")}
           </button>
         )}
         <button type="button" className="btn btn-sm btn-primary" disabled={saving} onClick={() => void finish()}>
-          <Check size={14} /> {saving ? "Saving…" : "Save setup"}
+          <Check size={14} /> {saving ? tc("saving") : t("setup.save")}
         </button>
       </div>
     </Modal>
@@ -137,21 +140,22 @@ export default function CampaignSetupDialog({
 
 /** An editable list of one-line entries. */
 function LinesField({ label, hint, values, max, placeholder, warn, onChange }: { label: string; hint?: string; values: string[]; max: number; placeholder: string; warn?: string | null; onChange: (v: string[]) => void }) {
+  const t = useT("writer");
   return (
     <div className="cal-field">
       <span className="field-label">{label}</span>
       {hint && <span className="cal-help">{hint}</span>}
       {values.map((v, i) => (
         <div key={i} className="ss-line">
-          <input type="text" aria-label={`${label} ${i + 1}`} maxLength={500} value={v} placeholder={placeholder} onChange={(e) => onChange(values.map((x, j) => (j === i ? e.target.value : x)))} />
-          <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={`Remove ${label.toLowerCase()} ${i + 1}`} data-tooltip="Remove" onClick={() => onChange(values.filter((_, j) => j !== i))}>
+          <input type="text" aria-label={t("setup.lineN", { label, n: i + 1 })} maxLength={500} value={v} placeholder={placeholder} onChange={(e) => onChange(values.map((x, j) => (j === i ? e.target.value : x)))} />
+          <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={t("setup.removeLineN", { label: label.toLowerCase(), n: i + 1 })} data-tooltip={t("ui.remove")} onClick={() => onChange(values.filter((_, j) => j !== i))}>
             <X size={14} />
           </button>
         </div>
       ))}
       <div>
         <button type="button" className="btn btn-sm" disabled={values.length >= max} onClick={() => onChange([...values, ""])}>
-          <Plus size={14} /> Add
+          <Plus size={14} /> {t("ui.add")}
         </button>
       </div>
       {warn && <span className="cal-help wr-warn-text">{warn}</span>}

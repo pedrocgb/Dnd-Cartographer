@@ -8,14 +8,15 @@ import { InvalidReparentError } from "@/server/maps/hierarchy";
 import { validFolderId } from "@/server/maps/folder-lookup";
 import { notInWorld } from "@/server/world/guards";
 import { foreignIdResponse, idsInWorld } from "@/server/world/guards";
+import { errorResponse } from "@/i18n/server";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ mapId: string }> }) {
   const { mapId } = await params;
-  const denied = await notInWorld("maps", mapId, "Map not found.");
+  const denied = await notInWorld("maps", mapId, "mapNotFound");
   if (denied) return denied;
   const map = await db.query.maps.findFirst({ where: eq(maps.id, mapId) });
   if (!map) {
-    return NextResponse.json({ error: "Map not found." }, { status: 404 });
+    return errorResponse("mapNotFound", 404);
   }
 
   const category = map.categoryId
@@ -49,28 +50,28 @@ export async function GET(_request: Request, { params }: { params: Promise<{ map
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ mapId: string }> }) {
   const { mapId } = await params;
-  const denied = await notInWorld("maps", mapId, "Map not found.");
+  const denied = await notInWorld("maps", mapId, "mapNotFound");
   if (denied) return denied;
   const map = await db.query.maps.findFirst({ where: eq(maps.id, mapId) });
   if (!map) {
-    return NextResponse.json({ error: "Map not found." }, { status: 404 });
+    return errorResponse("mapNotFound", 404);
   }
 
   const body = await request.json().catch(() => null);
   if (!body) {
-    return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+    return errorResponse("invalidBody", 400);
   }
 
   // Validated before anything is written, so a bad folder doesn't leave a half-applied patch.
   const folderId = "folderId" in body ? await validFolderId(map.worldId, body.folderId) : null;
-  if (folderId === undefined) return NextResponse.json({ error: "Unknown folder." }, { status: 400 });
+  if (folderId === undefined) return errorResponse("unknownFolder", 400);
 
   if ("parentId" in body) {
     try {
       await reparentMap(mapId, body.parentId === null ? null : String(body.parentId));
     } catch (err) {
       if (err instanceof InvalidReparentError) {
-        return NextResponse.json({ error: err.message }, { status: 400 });
+        return errorResponse(err.key, 400);
       }
       throw err;
     }
@@ -91,11 +92,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ma
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ mapId: string }> }) {
   const { mapId } = await params;
-  const denied = await notInWorld("maps", mapId, "Map not found.");
+  const denied = await notInWorld("maps", mapId, "mapNotFound");
   if (denied) return denied;
   const map = await db.query.maps.findFirst({ where: eq(maps.id, mapId) });
   if (!map) {
-    return NextResponse.json({ error: "Map not found." }, { status: 404 });
+    return errorResponse("mapNotFound", 404);
   }
 
   // Sub-maps already in the Trash stay there as they are (their own deletion date).
@@ -106,14 +107,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ m
   const strategy = body?.strategy as "cascade" | "orphan" | undefined;
 
   if (activeChildren.length > 0 && !strategy) {
-    return NextResponse.json(
-      {
-        error: "This map has child maps.",
-        childCount: activeChildren.length,
-        childIds: activeChildren.map((c) => c.id),
-      },
-      { status: 409 }
-    );
+    return errorResponse("mapHasChildren", 409, { childCount: activeChildren.length, childIds: activeChildren.map((c) => c.id) });
   }
 
   const now = new Date();

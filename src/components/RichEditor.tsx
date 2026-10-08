@@ -14,6 +14,7 @@ import { imageFilesOf, insertImageFiles } from "./rich-editor/images";
 import { SECRET_REVEAL_META } from "./rich-editor/secret";
 import ImageLightbox, { openReaderImage, type ZoomedImage } from "./rich-editor/ImageLightbox";
 import { SkeletonRegion, SkeletonText } from "./Skeleton";
+import { useT } from "@/i18n/useT";
 
 const AUTOSAVE_IDLE_MS = 1500;
 const INSTANCE_ID_KEY = "world-wiki-instance-id";
@@ -70,8 +71,9 @@ async function fetchDocument(documentId: string): Promise<DocumentRecord> {
 
 /** A read-only document still arriving: lines of skeleton instead of a blank that pops in. */
 function DocumentSkeleton() {
+  const t = useT("editor");
   return (
-    <SkeletonRegion label="Loading the text…" className="rich-skeleton">
+    <SkeletonRegion label={t("loadingText")} className="rich-skeleton">
       <SkeletonText lines={3} />
     </SkeletonRegion>
   );
@@ -99,6 +101,8 @@ export default function RichEditor({
   /** The @ menu also offers this campaign's quests, fronts and outline items (articles are always offered). */
   mentionCampaignId?: string | null;
 }) {
+  const t = useT("editor");
+  const tc = useT("common");
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -149,7 +153,7 @@ export default function RichEditor({
     // a plain transaction otherwise.
     shouldRerenderOnTransaction: true,
     editable,
-    extensions: buildExtensions("Write here… type / for styles, colors and inserts, @ to link an article; select text to format it."),
+    extensions: buildExtensions(t("placeholder")),
     editorProps: {
       // Ctrl/Cmd+K: link an article in place of the selection (or at the caret).
       handleKeyDown: (view, event) => {
@@ -449,18 +453,18 @@ export default function RichEditor({
         <button
           type="button"
           className="btn btn-sm btn-ghost"
-          data-tooltip="Insert an image at the caret (or drop one into the text)"
+          data-tooltip={t("insertImageHint")}
           // Keep the caret where it is: the image goes there.
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => fileInputRef.current?.click()}
         >
           <ImagePlus size={14} strokeWidth={2.25} />
-          Insert image
+          {t("insertImage")}
         </button>
         <button
           type="button"
           className="btn btn-sm btn-ghost"
-          data-tooltip="Insert a table at the caret (or type /table)"
+          data-tooltip={t("insertTableHint")}
           onMouseDown={(e) => e.preventDefault()}
           onClick={(e) => {
             const box = e.currentTarget.getBoundingClientRect();
@@ -468,7 +472,7 @@ export default function RichEditor({
           }}
         >
           <Table size={14} strokeWidth={2.25} />
-          Insert table
+          {t("insertTable")}
         </button>
         <input
           ref={fileInputRef}
@@ -489,9 +493,9 @@ export default function RichEditor({
           </span>
         )}
         <span className="rich-save-state">
-          {saveState === "saving" && "Saving…"}
-          {saveState === "saved" && "Saved"}
-          {saveState === "failed" && "Save failed"}
+          {saveState === "saving" && tc("saving")}
+          {saveState === "saved" && t("saved")}
+          {saveState === "failed" && t("saveFailed")}
         </span>
       </div>
     </div>

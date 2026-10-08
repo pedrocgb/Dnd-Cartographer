@@ -5,6 +5,7 @@ import { X, Layers, Plus, Eye, EyeOff, Trash2, GripVertical, RefreshCw, Check, S
 import ConfirmDialog from "./ConfirmDialog";
 import LayerImageDialog, { type Frame } from "./LayerImageDialog";
 import { moveLayer, type LayerPatch, type MapLayerData } from "./layer-images";
+import { useT } from "@/i18n/useT";
 
 function LayerRow({
   layer,
@@ -41,6 +42,7 @@ function LayerRow({
   frame: Frame;
   onImageDialogClose: () => void;
 }) {
+  const t = useT("maps");
   const [renaming, setRenaming] = useState(false);
   const [draftName, setDraftName] = useState(layer.name);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -81,8 +83,8 @@ function LayerRow({
         <button
           type="button"
           className="layer-drag-handle"
-          data-tooltip="Drag to reorder (or focus and use ↑/↓)"
-          aria-label={`Reorder ${layer.name}`}
+          data-tooltip={t("layers.reorderHint")}
+          aria-label={t("layers.reorder", { name: layer.name })}
           onMouseDown={() => onArm(true)}
           onMouseUp={() => onArm(false)}
           onKeyDown={(e) => {
@@ -116,7 +118,7 @@ function LayerRow({
             className="layer-name"
             onClick={onSetActive}
             onDoubleClick={() => setRenaming(true)}
-            data-tooltip="Click to make active, double-click to rename"
+            data-tooltip={t("layers.activateHint")}
           >
             {isActive && <Check size={13} strokeWidth={2.5} />}
             {layer.name}
@@ -126,8 +128,8 @@ function LayerRow({
           <button
             className="btn btn-ghost btn-icon btn-sm"
             onClick={() => onUpdate({ visible: !layer.visible })}
-            data-tooltip={layer.visible ? "Hide layer" : "Show layer"}
-            aria-label={layer.visible ? `Hide ${layer.name}` : `Show ${layer.name}`}
+            data-tooltip={layer.visible ? t("layers.hideHint") : t("layers.showHint")}
+            aria-label={layer.visible ? t("layers.hide", { name: layer.name }) : t("layers.show", { name: layer.name })}
           >
             {layer.visible ? <Eye size={14} strokeWidth={2.25} /> : <EyeOff size={14} strokeWidth={2.25} />}
           </button>
@@ -135,8 +137,8 @@ function LayerRow({
             className="btn btn-ghost btn-icon btn-sm"
             onClick={onDelete}
             disabled={isOnly}
-            data-tooltip={isOnly ? "A map needs at least one layer" : "Delete layer"}
-            aria-label={`Delete ${layer.name}`}
+            data-tooltip={isOnly ? t("layers.onlyOne") : t("layers.deleteHint")}
+            aria-label={t("layers.delete", { name: layer.name })}
           >
             <Trash2 size={14} strokeWidth={2.25} />
           </button>
@@ -171,8 +173,8 @@ function LayerRow({
           }}
         />
       )}
-      <ConfirmDialog open={replacing !== null} danger={false} title={`Replace the image of ${layer.name}?`} confirmLabel="Replace image" onConfirm={() => replacing && void upload(replacing)} onCancel={() => setReplacing(null)}>
-        The new image starts at the map&apos;s top-left corner, as wide as the map. You&apos;ll line it up right after it uploads. Markers, zones and the grid stay where they are.
+      <ConfirmDialog open={replacing !== null} danger={false} title={t("layers.replaceTitle", { name: layer.name })} confirmLabel={t("layers.replaceConfirm")} onConfirm={() => replacing && void upload(replacing)} onCancel={() => setReplacing(null)}>
+        {t("layers.replaceBody")}
       </ConfirmDialog>
     </li>
   );
@@ -192,6 +194,7 @@ function LayerOptions({
   onOpenSettings: () => void;
   onRetry: (assetId: string) => void;
 }) {
+  const t = useT("maps");
   const pending = layer.pendingAsset;
   return (
     <>
@@ -200,22 +203,22 @@ function LayerOptions({
           // eslint-disable-next-line @next/next/no-img-element -- small local thumbnail, not worth next/image's remote-optimization machinery
           <img className="layer-thumb" src={`/api/thumbnails/${layer.asset.id}`} alt="" />
         ) : (
-          <div className="layer-thumb layer-thumb-empty">No image</div>
+          <div className="layer-thumb layer-thumb-empty">{t("layers.noImage")}</div>
         )}
         <div className="layer-image-actions">
-          <button type="button" className="btn btn-sm" onClick={onOpenSettings} data-tooltip="Image, position, size, opacity and what this layer always draws">
+          <button type="button" className="btn btn-sm" onClick={onOpenSettings} data-tooltip={t("layers.settingsHint")}>
             <Settings size={13} strokeWidth={2.25} />
-            Settings
+            {t("layers.settings")}
           </button>
         </div>
       </div>
-      {processing && <p className="field-label zone-tool-hint">Processing image…</p>}
+      {processing && <p className="field-label zone-tool-hint">{t("layers.processing")}</p>}
       {pending?.state === "failed" && (
         <p className="form-error layer-error">
-          Image processing failed.{" "}
+          {t("layers.processingFailed")}{" "}
           <button type="button" className="btn btn-sm" onClick={() => onRetry(pending.id)}>
             <RefreshCw size={12} strokeWidth={2.25} />
-            Retry
+            {t("layers.retry")}
           </button>
         </p>
       )}
@@ -256,6 +259,7 @@ export default function LayersPanel({
   /** The map's frame in pixels (what markers, zones and the grid are placed on). */
   frame: Frame;
 }) {
+  const t = useT("maps");
   const [armedId, setArmedId] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
@@ -278,13 +282,13 @@ export default function LayersPanel({
       <div className="marker-side-panel-header">
         <h2>
           <Layers size={16} strokeWidth={2.25} style={{ verticalAlign: "-2px", marginRight: "6px" }} />
-          Layers
+          {t("layers.title")}
         </h2>
-        <button className="btn btn-ghost btn-icon" onClick={onClose} aria-label="Close layers panel">
+        <button className="btn btn-ghost btn-icon" onClick={onClose} aria-label={t("layers.close")}>
           <X size={16} strokeWidth={2.25} />
         </button>
       </div>
-      <p className="field-label zone-tool-hint">Top of the list is drawn on top. Markers, zones and the grid belong to the active layer.</p>
+      <p className="field-label zone-tool-hint">{t("layers.hint")}</p>
 
       <ul className="layer-list">
         {layers.map((layer) => (
@@ -330,7 +334,7 @@ export default function LayersPanel({
 
       <button className="btn btn-sm" onClick={onCreate}>
         <Plus size={14} strokeWidth={2.25} />
-        Create new layer
+        {t("layers.create")}
       </button>
     </div>
   );

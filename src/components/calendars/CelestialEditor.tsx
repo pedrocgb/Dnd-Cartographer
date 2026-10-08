@@ -13,6 +13,9 @@ import RevisionsList from "./RevisionsList";
 import ArticleLinksSection from "./ArticleLinksSection";
 import { CELESTIAL_TYPES, type CelestialTypeInfo } from "./celestial-types";
 import type { ArticleRef, ClientCalendar, ClientCelestial } from "./types";
+import { useT } from "@/i18n/useT";
+import { activeT } from "@/i18n/active";
+import { problemText } from "@/server/calendars/engine";
 
 type TypeInfo = CelestialTypeInfo;
 const TYPES = CELESTIAL_TYPES;
@@ -28,7 +31,7 @@ function starterConfig(type: CelestialType, today: number, calendars: ClientCale
     return { phases, anchor: { worldDay: today, phaseId: phases[0]?.id ?? "" } };
   }
   if (type === "sun") return {};
-  const visible = { id: newId("st"), name: "Visible", icon: TYPES.find((t) => t.type === type)!.symbol };
+  const visible = { id: newId("st"), name: activeT("calendars")("default.visible"), icon: TYPES.find((t) => t.type === type)!.symbol };
   if (type === "comet") return { states: [visible], schedules: [{ id: newId("sch"), stateId: visible.id, kind: "once", startWorldDay: today, duration: 14, repeatEvery: null }] };
   if (type === "constellation" && calendars[0]) {
     const month = calendars[0].definition.periods.find((p) => !p.condition)?.id ?? "";
@@ -40,14 +43,15 @@ function starterConfig(type: CelestialType, today: number, calendars: ClientCale
 
 /** Which calendars show the object: All (new ones included) or a chosen few. Ids of trashed calendars are kept. */
 function CalendarsSection({ calendars, value, onChange }: { calendars: ClientCalendar[]; value: string[] | null; onChange: (ids: string[] | null) => void }) {
+  const t = useT("calendars");
   const all = value === null;
   const toggle = (id: string, on: boolean) => onChange(on ? [...(value ?? []), id] : (value ?? []).filter((x) => x !== id));
   return (
     <div className="cel-section">
       <header className="cel-section-head">
         <div>
-          <h3>Shown in calendars</h3>
-          <p className="cal-help">Its sky only appears in these calendars.</p>
+          <h3>{t("cel.shownIn")}</h3>
+          <p className="cal-help">{t("cel.shownInHelp")}</p>
         </div>
       </header>
       <label className="cel-toggle">
@@ -56,8 +60,8 @@ function CalendarsSection({ calendars, value, onChange }: { calendars: ClientCal
           <span className="cel-toggle-thumb" />
         </span>
         <span>
-          <strong>All</strong>
-          <span className="cal-help">Every calendar, including ones created later.</span>
+          <strong>{t("cel.all")}</strong>
+          <span className="cal-help">{t("cel.allHelp")}</span>
         </span>
       </label>
       {!all && (
@@ -74,7 +78,7 @@ function CalendarsSection({ calendars, value, onChange }: { calendars: ClientCal
       )}
       {!all && value.length === 0 && (
         <p className="form-error" role="alert">
-          Pick at least one calendar, or All.
+          {t("cel.pickCalendars")}
         </p>
       )}
     </div>
@@ -82,17 +86,18 @@ function CalendarsSection({ calendars, value, onChange }: { calendars: ClientCal
 }
 
 function TypeChooser({ calendarName, onPick }: { calendarName: string; onPick: (t: TypeInfo) => void }) {
+  const t = useT("calendars");
   return (
     <div className="cel-types">
-      <p className="cal-help">What kind of object is it? It&apos;s added to {calendarName}; you can show it in other calendars too.</p>
+      <p className="cal-help">{t("cel.whatKind", { calendar: calendarName })}</p>
       <div className="cel-type-grid">
-        {TYPES.map((t) => (
-          <button key={t.type} type="button" className="cel-type-card" onClick={() => onPick(t)}>
-            <span className="cel-type-icon" style={{ color: t.color }}>
-              <t.Icon size={22} strokeWidth={1.75} />
+        {TYPES.map((x) => (
+          <button key={x.type} type="button" className="cel-type-card" onClick={() => onPick(x)}>
+            <span className="cel-type-icon" style={{ color: x.color }}>
+              <x.Icon size={22} strokeWidth={1.75} />
             </span>
-            <strong>{t.label}</strong>
-            <span className="cal-help">{t.detail}</span>
+            <strong>{x.label}</strong>
+            <span className="cal-help">{x.detail}</span>
           </button>
         ))}
       </div>
@@ -123,6 +128,8 @@ export default function CelestialEditor({
   onSaved: (o: ClientCelestial) => void;
   onClose: () => void;
 }) {
+  const t = useT("calendars");
+  const tc = useT("common");
   const [type, setType] = useState<CelestialType | null>(object?.type ?? null);
   const [name, setName] = useState(object?.name ?? "");
   const [color, setColor] = useState(object?.color ?? "#E8E3D5");
@@ -142,19 +149,19 @@ export default function CelestialEditor({
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  const info = TYPES.find((t) => t.type === type) ?? null;
-  const title = object ? `Edit ${object.name}` : info ? `New ${info.label}` : "New Celestial Object";
+  const info = TYPES.find((x) => x.type === type) ?? null;
+  const title = object ? t("cel.editTitle", { name: object.name }) : info ? t("cel.newTitle", { type: info.label }) : t("cel.newObject");
 
   if (!type || !info) {
     return (
       <Modal open onClose={onClose} title={title} size="wide">
         <TypeChooser
-          calendarName={calendars.find((c) => c.id === calendarId)?.name ?? "this calendar"}
-          onPick={(t) => {
-            setType(t.type);
-            setIcon(t.symbol);
-            setColor(t.color);
-            setConfig(starterConfig(t.type, today, calendars));
+          calendarName={calendars.find((c) => c.id === calendarId)?.name ?? t("cel.thisCalendar")}
+          onPick={(x) => {
+            setType(x.type);
+            setIcon(x.symbol);
+            setColor(x.color);
+            setConfig(starterConfig(x.type, today, calendars));
           }}
         />
       </Modal>
@@ -164,10 +171,10 @@ export default function CelestialEditor({
   const isMoon = type === "moon";
   const issues = celestialIssues(type, config);
   const tabs: { key: Tab; label: string; count?: number }[] = [
-    { key: "general", label: "General" },
-    { key: "behavior", label: isMoon ? "Phases" : "Appearance" },
-    { key: "exceptions", label: "Special dates", count: (config.overrides?.length ?? 0) + (config.segments?.length ?? 0) },
-    { key: "articles", label: "Articles", count: links.length },
+    { key: "general", label: t("cel.tab.general") },
+    { key: "behavior", label: isMoon ? t("cel.tab.phases") : t("cel.tab.appearance") },
+    { key: "exceptions", label: t("cel.tab.exceptions"), count: (config.overrides?.length ?? 0) + (config.segments?.length ?? 0) },
+    { key: "articles", label: t("cel.tab.articles"), count: links.length },
   ];
 
   async function remove() {
@@ -179,7 +186,7 @@ export default function CelestialEditor({
     if (res.ok) {
       setConfirmDelete(false);
       onClose();
-    } else setDeleteError(res.data.error ?? "Could not delete it.");
+    } else setDeleteError(res.data.error ?? t("cel.deleteFailed"));
   }
 
   async function archive() {
@@ -188,18 +195,18 @@ export default function CelestialEditor({
     if (res.ok) {
       setConfirmDelete(false);
       onClose();
-    } else setDeleteError(res.data.error ?? "Could not archive it.");
+    } else setDeleteError(res.data.error ?? t("cel.archiveFailed"));
   }
 
   async function save() {
     if (!name.trim()) {
       setTab("general");
-      setError("Give it a name.");
+      setError(t("cel.nameRequired"));
       return;
     }
     if (calendarIds !== null && calendarIds.length === 0) {
       setTab("general");
-      setError("Pick at least one calendar to show it in, or All.");
+      setError(t("cel.calendarsRequired"));
       return;
     }
     setSaving(true);
@@ -210,26 +217,26 @@ export default function CelestialEditor({
       : await api<{ object: ClientCelestial }>("POST", "/api/celestial", { ...body, type });
     setSaving(false);
     if (res.ok) onSaved(res.data.object);
-    else setError(res.data.error ?? "Could not save.");
+    else setError(res.data.error ?? t("cel.saveFailed"));
   }
 
   return (
     <Modal open onClose={onClose} title={title} size="wide">
       <div className="cel-editor">
         <div className="cel-hero">
-          <button type="button" className="cel-badge" style={{ color, borderColor: color }} aria-label="Change color" onClick={() => {
+          <button type="button" className="cel-badge" style={{ color, borderColor: color }} aria-label={t("cel.changeColor")} onClick={() => {
               setTab("general");
               setColorOpen(true);
             }}>
             {icon || info.symbol}
           </button>
           <div className="cel-hero-text">
-            <input type="text" className="cel-name-input" value={name} maxLength={80} autoFocus placeholder={`Name this ${info.label.toLowerCase()}`} aria-label="Name" onChange={(e) => setName(e.target.value)} />
+            <input type="text" className="cel-name-input" value={name} maxLength={80} autoFocus placeholder={t("cel.namePlaceholder", { type: info.label.toLowerCase() })} aria-label={t("cel.name")} onChange={(e) => setName(e.target.value)} />
             <span className="cel-type-pill">
               <info.Icon size={12} aria-hidden /> {info.label}
               {!object && (
                 <button type="button" className="cel-change-type" onClick={() => setType(null)}>
-                  <ArrowLeft size={12} aria-hidden /> change
+                  <ArrowLeft size={12} aria-hidden /> {t("cel.changeType")}
                 </button>
               )}
             </span>
@@ -237,10 +244,10 @@ export default function CelestialEditor({
         </div>
 
         <nav className="cal-editor-tabs" role="tablist">
-          {tabs.map((t) => (
-            <button key={t.key} type="button" role="tab" aria-selected={tab === t.key} className={tab === t.key ? "cal-tab active" : "cal-tab"} onClick={() => setTab(t.key)}>
-              {t.label}
-              {t.count ? <span className="cel-tab-count">{t.count}</span> : null}
+          {tabs.map((x) => (
+            <button key={x.key} type="button" role="tab" aria-selected={tab === x.key} className={tab === x.key ? "cal-tab active" : "cal-tab"} onClick={() => setTab(x.key)}>
+              {x.label}
+              {x.count ? <span className="cel-tab-count">{x.count}</span> : null}
             </button>
           ))}
         </nav>
@@ -251,8 +258,8 @@ export default function CelestialEditor({
               <div className="cel-section">
                 <header className="cel-section-head">
                   <div>
-                    <h3>Symbol</h3>
-                    <p className="cal-help">Shown on calendar days and in the sky list. Pick one or type your own.</p>
+                    <h3>{t("cel.symbol")}</h3>
+                    <p className="cal-help">{t("cel.symbolHelp")}</p>
                   </div>
                 </header>
                 <div className="cel-symbols">
@@ -261,7 +268,7 @@ export default function CelestialEditor({
                       {s}
                     </button>
                   ))}
-                  <input type="text" className="cel-symbol-input" maxLength={4} value={icon} aria-label="Custom symbol" onChange={(e) => setIcon(e.target.value)} />
+                  <input type="text" className="cel-symbol-input" maxLength={4} value={icon} aria-label={t("cel.customSymbol")} onChange={(e) => setIcon(e.target.value)} />
                 </div>
                 <label className="cel-toggle">
                   <input type="checkbox" role="switch" checked={showDayIcon} onChange={(e) => setShowDayIcon(e.target.checked)} />
@@ -269,8 +276,8 @@ export default function CelestialEditor({
                     <span className="cel-toggle-thumb" />
                   </span>
                   <span>
-                    <strong>Show mini-icon on calendar days</strong>
-                    <span className="cal-help">Turn it off for something that&apos;s always there, like the sun. It still appears in each day&apos;s details.</span>
+                    <strong>{t("cel.showDayIcon")}</strong>
+                    <span className="cal-help">{t("cel.showDayIconHelp")}</span>
                   </span>
                 </label>
                 {showDayIcon && (
@@ -280,8 +287,8 @@ export default function CelestialEditor({
                       <span className="cel-toggle-thumb" />
                     </span>
                     <span>
-                      <strong>Prioritize mini-icon</strong>
-                      <span className="cal-help">Drawn first on calendar days, so it stays visible when a day is crowded. Several prioritized objects go in alphabetical order.</span>
+                      <strong>{t("cel.prioritize")}</strong>
+                      <span className="cal-help">{t("cel.prioritizeHelp")}</span>
                     </span>
                   </label>
                 )}
@@ -289,10 +296,10 @@ export default function CelestialEditor({
               <div className="cel-section">
                 <header className="cel-section-head">
                   <div>
-                    <h3>Color</h3>
+                    <h3>{t("cel.color")}</h3>
                   </div>
                   <button type="button" className="btn btn-sm" onClick={() => setColorOpen(!colorOpen)}>
-                    <span className="cal-swatch" style={{ background: color }} aria-hidden /> {colorOpen ? "Close color wheel" : "Change color"}
+                    <span className="cal-swatch" style={{ background: color }} aria-hidden /> {colorOpen ? t("cel.closeWheel") : t("cel.changeColor")}
                   </button>
                 </header>
                 {colorOpen && (
@@ -303,21 +310,21 @@ export default function CelestialEditor({
               </div>
               <CalendarsSection calendars={calendars} value={calendarIds} onChange={setCalendarIds} />
               <label className="cel-section">
-                <h3>Description</h3>
-                <textarea rows={4} maxLength={4000} value={description} placeholder="What people know and believe about it." onChange={(e) => setDescription(e.target.value)} />
+                <h3>{t("cel.description")}</h3>
+                <textarea rows={4} maxLength={4000} value={description} placeholder={t("cel.descriptionPlaceholder")} onChange={(e) => setDescription(e.target.value)} />
               </label>
               {object && <RevisionsList subjectType="celestial" subjectId={object.id} version={object.version} onRestored={() => onClose()} />}
             </>
           )}
           {tab === "behavior" && (isMoon ? <PhasesSection config={config} setConfig={setConfig} def={def} today={today} /> : <AppearanceSection config={config} setConfig={setConfig} def={def} calendarId={calendars.find((c) => c.definition === def)?.id ?? calendars[0]?.id ?? ""} today={today} calendars={calendars} />)}
           {tab === "exceptions" && <ExceptionsSection config={config} setConfig={setConfig} def={def} today={today} isMoon={isMoon} />}
-          {tab === "articles" && <ArticleLinksSection links={links} onChange={setLinks} hint="Articles about this object: its myths, the gods tied to it, the cult that watches it…" />}
+          {tab === "articles" && <ArticleLinksSection links={links} onChange={setLinks} hint={t("cel.articlesHint")} />}
         </div>
 
         {issues.length > 0 && (
           <ul className="cal-issues" role="alert">
             {issues.map((i, n) => (
-              <li key={n}>{i}</li>
+              <li key={n}>{problemText(i)}</li>
             ))}
           </ul>
         )}
@@ -329,23 +336,23 @@ export default function CelestialEditor({
         <div className="cel-footer">
           {object && (
             <button type="button" className="btn btn-sm btn-danger cel-footer-delete" onClick={() => setConfirmDelete(true)} disabled={saving}>
-              <Trash2 size={14} /> Delete
+              <Trash2 size={14} /> {tc("delete")}
             </button>
           )}
           <button type="button" className="btn btn-sm" onClick={onClose} disabled={saving}>
-            Cancel
+            {tc("cancel")}
           </button>
           <button type="button" className="btn btn-sm btn-primary" disabled={saving || issues.length > 0} onClick={save}>
-            {saving ? "Saving…" : object ? "Save" : `Create ${info.label.toLowerCase()}`}
+            {saving ? tc("saving") : object ? tc("save") : t("cel.create", { type: info.label.toLowerCase() })}
           </button>
         </div>
       </div>
       {object && (
         <ConfirmDialog
           open={confirmDelete}
-          title={`Delete ${object.name}?`}
-          confirmLabel="Delete"
-          busyLabel="Deleting…"
+          title={t("cel.deleteTitle", { name: object.name })}
+          confirmLabel={tc("delete")}
+          busyLabel={tc("deleting")}
           busy={deleting}
           error={deleteError}
           onConfirm={remove}
@@ -354,11 +361,11 @@ export default function CelestialEditor({
             setDeleteError(null);
           }}
         >
-          <p>It disappears from every calendar of the world, with its phases, special dates and linked articles (the articles themselves stay).</p>
-          <p>If an event repeats on its phases it can&apos;t be deleted; archive it instead to hide it everywhere and keep its history.</p>
+          <p>{t("cel.deleteBody")}</p>
+          <p>{t("cel.deleteBlocked")}</p>
           {deleteError && (
             <button type="button" className="btn btn-sm" onClick={archive}>
-              <Archive size={14} /> Archive instead
+              <Archive size={14} /> {t("cel.archiveInstead")}
             </button>
           )}
         </ConfirmDialog>

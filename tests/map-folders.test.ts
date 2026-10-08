@@ -17,11 +17,11 @@ describe("folderSubtree / folderMoveError", () => {
   });
 
   it("refuses moving a folder into itself or its subfolders", () => {
-    expect(folderMoveError(folders, "f1", "f2")).toMatch(/inside itself/);
-    expect(folderMoveError(folders, "f1", "f1")).toMatch(/inside itself/);
+    expect(folderMoveError(folders, "f1", "f2")).toBe("folderIntoItself");
+    expect(folderMoveError(folders, "f1", "f1")).toBe("folderIntoItself");
     expect(folderMoveError(folders, "f2", "f3")).toBeNull();
     expect(folderMoveError(folders, "f2", null)).toBeNull();
-    expect(folderMoveError(folders, "f2", "nope")).toMatch(/Unknown/);
+    expect(folderMoveError(folders, "f2", "nope")).toBe("folderUnknownParent");
   });
 
   it("cleans colors", () => {

@@ -5,6 +5,7 @@ import Modal from "@/components/Modal";
 import { isRecordTemplate, type ArticleTemplateKey, type GenericTemplateKey } from "@/server/articles/templates";
 import { INFO_FIELD_SETS } from "@/server/articles/info-sets";
 import { ARTICLE_TEMPLATES, templateOf } from "./templates";
+import { useT } from "@/i18n/useT";
 
 /**
  * "Create new article": every template as a large button. A template with
@@ -29,6 +30,8 @@ export default function CreateArticleModal({
   /** The template's create form (see hasCreateForm), shown in place of the chooser; `onBack` returns to it. */
   renderForm: (template: ArticleTemplateKey, onBack: () => void) => React.ReactNode;
 }) {
+  const t = useT("articles");
+  const tc = useT("common");
   const [selected, setSelected] = useState<ArticleTemplateKey | null>(initialTemplate);
   const [title, setTitle] = useState("");
   const [busy, setBusy] = useState(false);
@@ -51,11 +54,11 @@ export default function CreateArticleModal({
 
   if (onForm && chosen) {
     return (
-      <Modal open onClose={onClose} title={`New ${chosen.label} Article`} size="wide">
+      <Modal open onClose={onClose} title={t("create.formTitle", { label: chosen.label })} size="wide">
         <div className="create-article-form">
           <p className="create-article-form-lead">
             <chosen.Icon size={18} strokeWidth={2} aria-hidden />
-            <span>Fill in the {chosen.label.toLowerCase()}&rsquo;s name and required information. Everything else can be added from its Informations card later.</span>
+            <span>{t("create.formLead", { kind: chosen.label.toLowerCase() })}</span>
           </p>
           {renderForm(chosen.key, () => setOnForm(false))}
         </div>
@@ -64,8 +67,8 @@ export default function CreateArticleModal({
   }
 
   return (
-    <Modal open onClose={onClose} title="Create new article" size="wide">
-      <div className="template-grid" role="radiogroup" aria-label="Article template">
+    <Modal open onClose={onClose} title={t("create.title")} size="wide">
+      <div className="template-grid" role="radiogroup" aria-label={t("create.templates")}>
         {ARTICLE_TEMPLATES.map(({ key, label, Icon, description }) => (
           <button
             key={key}
@@ -92,15 +95,15 @@ export default function CreateArticleModal({
           void submit();
         }}
       >
-        {!chosen && <p className="field-label">Pick a template to start from.</p>}
+        {!chosen && <p className="field-label">{t("create.pick")}</p>}
         {chosen && hasCreateForm(chosen.key) && (
-          <p className="field-label">You&rsquo;ll fill in the {chosen.label.toLowerCase()}&rsquo;s details next.</p>
+          <p className="field-label">{t("create.next", { kind: chosen.label.toLowerCase() })}</p>
         )}
         {chosen && !hasCreateForm(chosen.key) && (
           <input
             type="text"
-            aria-label={`${chosen.label} title`}
-            placeholder={`${chosen.label} title`}
+            aria-label={t("create.titleField", { label: chosen.label })}
+            placeholder={t("create.titleField", { label: chosen.label })}
             value={title}
             maxLength={200}
             autoFocus
@@ -114,10 +117,10 @@ export default function CreateArticleModal({
             className="btn btn-sm btn-primary"
             disabled={!chosen || busy || (!hasCreateForm(chosen.key) && !title.trim())}
           >
-            {chosen && hasCreateForm(chosen.key) ? "Continue" : busy ? "Creating…" : "Create"}
+            {chosen && hasCreateForm(chosen.key) ? t("create.continue") : busy ? tc("creating") : tc("create")}
           </button>
           <button type="button" className="btn btn-sm" onClick={onClose}>
-            Cancel
+            {tc("cancel")}
           </button>
         </div>
       </form>

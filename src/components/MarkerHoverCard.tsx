@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { autoUpdate, computePosition, flip, offset, shift } from "@floating-ui/dom";
 import { templateOf } from "@/components/articles/templates";
 import type { ArticleTemplateKey } from "@/server/articles/templates";
+import { useT } from "@/i18n/useT";
 
 export interface MarkerPreview {
   article: {
@@ -53,6 +54,7 @@ export function loadPreview(markerId: string): Promise<MarkerPreview | null> {
  * the way of a click or drag on the marker.
  */
 export default function MarkerHoverCard({ markerId, anchor }: { markerId: string; anchor: HTMLElement }) {
+  const tm = useT("maps");
   const [preview, setPreview] = useState<{ id: string; data: MarkerPreview | null } | null>(null);
   const card = useRef<HTMLDivElement | null>(null);
 
@@ -121,7 +123,7 @@ export default function MarkerHoverCard({ markerId, anchor }: { markerId: string
           {article.excerpt && <p className="marker-hover-card-excerpt">{article.excerpt}</p>}
           {data.extraCount > 0 && (
             <span className="marker-hover-card-more">
-              +{data.extraCount} more linked {data.extraCount === 1 ? "article" : "articles"}
+              {tm("markerHover.more", { count: data.extraCount })}
             </span>
           )}
         </>

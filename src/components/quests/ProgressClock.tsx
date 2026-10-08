@@ -1,6 +1,7 @@
 "use client";
 
 import type { Clock } from "@/server/quests/types";
+import { useT } from "@/i18n/useT";
 
 /** One pie wedge of the ring, from segment `i` of `n` (starting at 12 o'clock, clockwise). */
 function wedge(i: number, n: number, r: number) {
@@ -16,8 +17,9 @@ function wedge(i: number, n: number, r: number) {
  * it (clicking the last filled one empties it back by one).
  */
 export default function ProgressClock({ clock, size = 64, onSet, disabled }: { clock: Clock; size?: number; onSet?: (filled: number) => void; disabled?: boolean }) {
+  const t = useT("campaign");
   const r = 46;
-  const label = `${clock.label || "Clock"}: ${clock.filled} of ${clock.segments}`;
+  const label = t("quest.clockLabel", { label: clock.label || t("quest.clock"), filled: clock.filled, segments: clock.segments });
   const full = clock.filled >= clock.segments;
   return (
     <svg className={full ? "qs-clock full" : "qs-clock"} width={size} height={size} viewBox="-50 -50 100 100" role={onSet ? "group" : "img"} aria-label={label}>
@@ -32,7 +34,7 @@ export default function ProgressClock({ clock, size = 64, onSet, disabled }: { c
             key={i}
             role="button"
             tabIndex={disabled ? -1 : 0}
-            aria-label={`Set to ${next} of ${clock.segments}`}
+            aria-label={t("quest.clockSetTo", { n: next, segments: clock.segments })}
             aria-disabled={disabled}
             className="qs-clock-hit"
             onClick={() => !disabled && onSet(next)}

@@ -41,6 +41,7 @@ import RelationsPage from "@/components/relations/RelationsPage";
 import FamilyTreePage from "@/components/relations/FamilyTreePage";
 import BoardsPage from "@/components/relations/BoardsPage";
 import type { GenericArticle as GenericArticleData, HierarchyProfile, Organization, Person, Territory } from "./types";
+import { useT } from "@/i18n/useT";
 
 /** What the middle pane shows. */
 type View =
@@ -106,6 +107,8 @@ const readStoredUserFolders = () => readStored(OPEN_USER_FOLDERS_KEY);
 const EMPTY_LISTS: ArticleLists = { territories: [], people: [], organizations: [], articles: [] };
 
 export default function ArticlesManager() {
+  const t = useT("articles");
+  const tc = useT("common");
   const router = useRouter();
   const searchParams = useSearchParams();
   const [requestedView, setView] = useState<View>(() => viewFromParams(searchParams));
@@ -250,7 +253,7 @@ export default function ArticlesManager() {
       body: JSON.stringify({ template, title }),
     });
     const data = await res.json();
-    if (!res.ok) return data.error ?? "Could not create the article.";
+    if (!res.ok) return data.error ?? t("manager.createFailed");
     await fileInCreatingFolder(data.article.id);
     await refreshLists();
     setCreating(null);
@@ -302,7 +305,7 @@ export default function ArticlesManager() {
 
   async function createUserFolder(name: string, parentId: string | null): Promise<string | null> {
     const { error, folder } = await folderStore.createFolder(name, parentId);
-    if (error || !folder) return error ?? "Could not create the folder.";
+    if (error || !folder) return error ?? t("folders.createFailed");
     setNamingFolder(null);
     changeTab("folders");
     if (parentId) setUserFolderOpen(parentId, true);
@@ -337,10 +340,10 @@ export default function ArticlesManager() {
 
   const activeTemplate = isToolView(view) ? null : view.template;
   const tools = [
-    { key: "relationships", label: "Relationships", Icon: Waypoints, active: view.kind === "relationships", onOpen: () => go({ kind: "relationships", focus: null }) },
-    { key: "family", label: "Family trees", Icon: GitFork, active: view.kind === "family", onOpen: () => go({ kind: "family", id: null, bloodline: false }) },
-    { key: "boards", label: "Boards", Icon: LayoutDashboard, active: view.kind === "boards", onOpen: () => go({ kind: "boards", id: null }) },
-    { key: "profiles", label: "Hierarchy profiles", Icon: Network, active: view.kind === "profiles", onOpen: () => go({ kind: "profiles", id: null }) },
+    { key: "relationships", label: t("tools.relationships"), Icon: Waypoints, active: view.kind === "relationships", onOpen: () => go({ kind: "relationships", focus: null }) },
+    { key: "family", label: t("tools.family"), Icon: GitFork, active: view.kind === "family", onOpen: () => go({ kind: "family", id: null, bloodline: false }) },
+    { key: "boards", label: t("tools.boards"), Icon: LayoutDashboard, active: view.kind === "boards", onOpen: () => go({ kind: "boards", id: null }) },
+    { key: "profiles", label: t("tools.profiles"), Icon: Network, active: view.kind === "profiles", onOpen: () => go({ kind: "profiles", id: null }) },
   ];
   const refresh = () => void refreshLists();
   const relationsState: RelationsState = {
@@ -415,8 +418,8 @@ export default function ArticlesManager() {
         initialValues={emptyRequiredInfo(set)}
         lookups={infoLookups}
         allowAdding={false}
-        saveLabel="Create"
-        savingLabel="Creating…"
+        saveLabel={tc("create")}
+        savingLabel={tc("creating")}
         onSave={(title, info) =>
           fetch("/api/articles", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ template, title, info }) })
         }
@@ -438,7 +441,7 @@ export default function ArticlesManager() {
     if (view.kind === "boards") return <BoardsPage boardId={view.id} onOpenBoard={(id) => go({ kind: "boards", id })} />;
     if (view.kind === "folder") {
       const node = findNode(fullFolderTree, view.id);
-      if (!node) return loaded ? <p className="field-label">This folder doesn&rsquo;t exist anymore.</p> : <ArticleSkeleton />;
+      if (!node) return loaded ? <p className="field-label">{t("manager.folderGone")}</p> : <ArticleSkeleton />;
       const path = folderPath(folderStore.folders, view.id);
       return (
         <ArticleFolderView
@@ -460,7 +463,7 @@ export default function ArticlesManager() {
       const content = renderArticle(view.template, view.id);
       if (content) return content;
       if (!loaded) return <ArticleSkeleton />;
-      return <p className="field-label">This article doesn&rsquo;t exist anymore.</p>;
+      return <p className="field-label">{t("manager.articleGone")}</p>;
     }
     const { Icon, label, plural, description } = templateOf(view.template);
     return (
@@ -470,7 +473,7 @@ export default function ArticlesManager() {
         <p>{description}</p>
         <button className="btn btn-primary" onClick={() => setCreating({ template: view.template })}>
           <CirclePlus size={16} strokeWidth={2.25} />
-          Create a new {label}
+          {t("manager.createNew", { label })}
         </button>
       </div>
     );
@@ -538,9 +541,9 @@ export default function ArticlesManager() {
       )}
       {namingFolder && (
         <NameDialog
-          title={namingFolder.parentId ? "New subfolder" : "New folder"}
-          label="Folder name"
-          saveLabel="Create folder"
+          title={namingFolder.parentId ? t("folders.newSub") : t("folders.new")}
+          label={t("folders.nameLabel")}
+          saveLabel={t("folders.create")}
           maxLength={MAX_FOLDER_NAME_LENGTH}
           onSave={(name) => createUserFolder(name, namingFolder.parentId)}
           onCancel={() => setNamingFolder(null)}

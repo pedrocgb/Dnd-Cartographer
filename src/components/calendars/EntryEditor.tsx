@@ -15,16 +15,32 @@ import RecurrenceBuilder from "./RecurrenceBuilder";
 import ArticleLinksSection from "./ArticleLinksSection";
 import { Section } from "./CelestialSections";
 import type { ArticleRef, ClientEntry, EntryKind, WorldCalendars } from "./types";
+import { useT } from "@/i18n/useT";
+import { activeT } from "@/i18n/active";
 
 export type EntryEditorMode =
   | { kind: "create"; entryKind: EntryKind; worldDay: number }
   | { kind: "edit"; entry: ClientEntry }
   | { kind: "occurrence"; entry: ClientEntry; key: number };
 
+/** `label` and `detail` are worded on read, in the active language. */
+function kindMeta(kind: EntryKind, Icon: LucideIcon, color: string) {
+  return {
+    Icon,
+    color,
+    get label() {
+      return activeT("calendars")(`entry.kind.${kind}`);
+    },
+    get detail() {
+      return activeT("calendars")(`entry.detail.${kind}`);
+    },
+  };
+}
+
 export const ENTRY_KINDS: Record<EntryKind, { label: string; Icon: LucideIcon; color: string; detail: string }> = {
-  note: { label: "Note", Icon: NotebookPen, color: "#D29C53", detail: "Free text about this day" },
-  event: { label: "Event", Icon: CalendarPlus, color: "#47BFAB", detail: "Something that happens — it can last days or repeat" },
-  link: { label: "Article link", Icon: Link2, color: "#9CC3F5", detail: "Tie an existing article to this day" },
+  note: kindMeta("note", NotebookPen, "#D29C53"),
+  event: kindMeta("event", CalendarPlus, "#47BFAB"),
+  link: kindMeta("link", Link2, "#9CC3F5"),
 };
 
 const SWATCHES = ["#47BFAB", "#9CC3F5", "#D29C53", "#E8735F", "#B48EE0", "#7AC77A", "#E8E3D5"];
@@ -55,6 +71,8 @@ export default function EntryEditor({
   onSaved: (entry: ClientEntry, articleNames: Record<string, string>) => void;
   onClose: () => void;
 }) {
+  const t = useT("calendars");
+  const tc = useT("common");
   const entry = mode.kind === "create" ? null : mode.entry;
   const kind = mode.kind === "create" ? mode.entryKind : mode.entry.kind;
   const meta = ENTRY_KINDS[kind];
@@ -87,7 +105,7 @@ export default function EntryEditor({
     let cancelled = false;
     loadCandidates()
       .then((c) => !cancelled && setCandidates(c))
-      .catch(() => !cancelled && setError("Could not load the articles."));
+      .catch(() => !cancelled && setError(activeT("calendars")("entry.loadFailed")));
     return () => {
       cancelled = true;
     };
@@ -96,7 +114,7 @@ export default function EntryEditor({
   async function save() {
     if (worldDay === null) {
       setTab("details");
-      setError("Pick a date that exists in this calendar.");
+      setError(t("entry.pickDate"));
       return;
     }
     setSaving(true);
@@ -116,26 +134,26 @@ export default function EntryEditor({
     }
     setSaving(false);
     if (res.ok) onSaved(res.data.entry, res.data.articleNames);
-    else setError(res.data.error ?? "Could not save.");
+    else setError(res.data.error ?? t("entry.saveFailed"));
   }
 
-  const heading = mode.kind === "create" ? `New ${meta.label}` : occurrence ? "Change This Occurrence" : `Edit ${meta.label}`;
+  const heading = mode.kind === "create" ? t(`entry.new.${kind}`) : occurrence ? t("entry.changeOccurrence") : t(`entry.edit.${kind}`);
   const tabs: { key: Tab; label: string; badge?: string }[] = [
-    { key: "details", label: "Details" },
-    { key: "repeats", label: "Repeats", badge: recurrence.kind === "none" ? undefined : "on" },
-    { key: "articles", label: "Articles", badge: links.length ? String(links.length) : undefined },
+    { key: "details", label: t("entry.tab.details") },
+    { key: "repeats", label: t("entry.tab.repeats"), badge: recurrence.kind === "none" ? undefined : t("entry.on") },
+    { key: "articles", label: t("entry.tab.articles"), badge: links.length ? String(links.length) : undefined },
   ];
   const canSave = !saving && !(kind === "link" && !article) && !(kind === "event" && !title.trim());
 
   const when = (
-    <Section title="When" hint={occurrence ? "Pick another day to move only this occurrence." : undefined}>
-      <DateInput def={def} label={isEvent ? "Starts on" : "Date"} value={date} onChange={setDate} />
+    <Section title={t("entry.when")} hint={occurrence ? t("entry.moveHint") : undefined}>
+      <DateInput def={def} label={isEvent ? t("entry.startsOn") : t("entry.date")} value={date} onChange={setDate} />
       {isEvent && (
         <label className="cel-cycle">
-          <span>Lasts</span>
-          <input type="number" min={1} max={1000} value={duration} aria-label="Duration in days" onChange={(e) => setDuration(Math.min(1000, Math.max(1, Math.floor(Number(e.target.value)) || 1)))} />
-          <span>day{duration === 1 ? "" : "s"}</span>
-          {worldDay !== null && duration > 1 && <span className="cal-help">· ends {dayLabel(def, worldDay + duration - 1)}</span>}
+          <span>{t("entry.lasts")}</span>
+          <input type="number" min={1} max={1000} value={duration} aria-label={t("entry.durationAria")} onChange={(e) => setDuration(Math.min(1000, Math.max(1, Math.floor(Number(e.target.value)) || 1)))} />
+          <span>{t("entry.daysUnit", { count: duration })}</span>
+          {worldDay !== null && duration > 1 && <span className="cal-help">{t("entry.ends", { date: dayLabel(def, worldDay + duration - 1) })}</span>}
         </label>
       )}
     </Section>
@@ -150,12 +168,12 @@ export default function EntryEditor({
           </span>
           <div className="cel-hero-text">
             {kind === "link" ? (
-              <InfoPicker options={candidateOptions(candidates ?? [])} value={article} placeholder={candidates ? "Pick the article to link…" : "Loading articles…"} ariaLabel="Article to link" collapsibleGroups disabled={!candidates} onChange={setArticle} />
+              <InfoPicker options={candidateOptions(candidates ?? [])} value={article} placeholder={candidates ? t("entry.pickArticle") : t("entry.loadingArticles")} ariaLabel={t("entry.articleAria")} collapsibleGroups disabled={!candidates} onChange={setArticle} />
             ) : (
-              <input type="text" className="cel-name-input" value={title} maxLength={200} autoFocus placeholder={kind === "note" ? "Title (optional)" : "What happens?"} aria-label="Title" onChange={(e) => setTitle(e.target.value)} />
+              <input type="text" className="cel-name-input" value={title} maxLength={200} autoFocus placeholder={kind === "note" ? t("entry.titleOptional") : t("entry.whatHappens")} aria-label={t("entry.title")} onChange={(e) => setTitle(e.target.value)} />
             )}
             <span className="cel-type-pill">
-              <meta.Icon size={12} aria-hidden /> {occurrence ? `One occurrence of a repeating ${meta.label.toLowerCase()}` : meta.label}
+              <meta.Icon size={12} aria-hidden /> {occurrence ? t(`entry.oneOf.${kind}`) : meta.label}
               {entry && !occurrence && entry.recurrence.kind !== "none" && (
                 <>
                   {" "}
@@ -168,10 +186,10 @@ export default function EntryEditor({
 
         {isEvent && (
           <nav className="cal-editor-tabs" role="tablist">
-            {tabs.map((t) => (
-              <button key={t.key} type="button" role="tab" aria-selected={tab === t.key} className={tab === t.key ? "cal-tab active" : "cal-tab"} onClick={() => setTab(t.key)}>
-                {t.label}
-                {t.badge && <span className="cel-tab-count">{t.badge}</span>}
+            {tabs.map((x) => (
+              <button key={x.key} type="button" role="tab" aria-selected={tab === x.key} className={tab === x.key ? "cal-tab active" : "cal-tab"} onClick={() => setTab(x.key)}>
+                {x.label}
+                {x.badge && <span className="cel-tab-count">{x.badge}</span>}
               </button>
             ))}
           </nav>
@@ -183,14 +201,14 @@ export default function EntryEditor({
               {when}
               {kind !== "link" && (
                 <label className="cel-section">
-                  <h3>{kind === "note" ? "Summary" : "Description"}</h3>
-                  {kind === "note" && <span className="cal-help">A short line. The note&apos;s full, formatted text is written on the day itself.</span>}
-                  <textarea rows={3} maxLength={4000} value={description} placeholder={kind === "note" ? "In a few words…" : "What happened, who was there…"} onChange={(e) => setDescription(e.target.value)} />
+                  <h3>{kind === "note" ? t("entry.summary") : t("editor.description")}</h3>
+                  {kind === "note" && <span className="cal-help">{t("entry.summaryHelp")}</span>}
+                  <textarea rows={3} maxLength={4000} value={description} placeholder={kind === "note" ? t("entry.summaryPlaceholder") : t("entry.descriptionPlaceholder")} onChange={(e) => setDescription(e.target.value)} />
                 </label>
               )}
               {!occurrence && (
-                <Section title="Category" hint="Group similar entries (Festival, War, Birthday…) and filter the calendar by them.">
-                  <input type="text" list="cal-categories" maxLength={60} value={category} placeholder="None" aria-label="Category" onChange={(e) => setCategory(e.target.value)} />
+                <Section title={t("entry.category")} hint={t("entry.categoryHint")}>
+                  <input type="text" list="cal-categories" maxLength={60} value={category} placeholder={t("entry.none")} aria-label={t("entry.category")} onChange={(e) => setCategory(e.target.value)} />
                   <datalist id="cal-categories">
                     {categories.map((c) => (
                       <option key={c} value={c} />
@@ -208,14 +226,14 @@ export default function EntryEditor({
                 </Section>
               )}
               {isEvent && (
-                <Section title="Color" hint="Marks the event on the calendar.">
+                <Section title={t("entry.color")} hint={t("entry.colorHint")}>
                   <div className="entry-swatches">
-                    <button type="button" className={!color ? "entry-swatch active" : "entry-swatch"} style={{ background: meta.color }} aria-label="Default color" aria-pressed={!color} onClick={() => setColor("")} />
+                    <button type="button" className={!color ? "entry-swatch active" : "entry-swatch"} style={{ background: meta.color }} aria-label={t("entry.defaultColor")} aria-pressed={!color} onClick={() => setColor("")} />
                     {SWATCHES.filter((s) => s !== meta.color).map((s) => (
-                      <button key={s} type="button" className={s === color.toUpperCase() ? "entry-swatch active" : "entry-swatch"} style={{ background: s }} aria-label={`Color ${s}`} aria-pressed={s === color.toUpperCase()} onClick={() => setColor(s)} />
+                      <button key={s} type="button" className={s === color.toUpperCase() ? "entry-swatch active" : "entry-swatch"} style={{ background: s }} aria-label={t("entry.colorSwatch", { color: s })} aria-pressed={s === color.toUpperCase()} onClick={() => setColor(s)} />
                     ))}
                     <button type="button" className="btn btn-ghost btn-sm" onClick={() => setWheelOpen(!wheelOpen)}>
-                      {wheelOpen ? "Close" : "Custom…"}
+                      {wheelOpen ? tc("close") : t("entry.custom")}
                     </button>
                   </div>
                   {wheelOpen && <ColorWheel value={color || meta.color} onChange={setColor} />}
@@ -224,11 +242,11 @@ export default function EntryEditor({
             </>
           )}
           {isEvent && tab === "repeats" && (
-            <Section title="Repeats" hint="Occurrences are worked out from the rule; nothing is copied, so editing the rule updates them all.">
+            <Section title={t("entry.tab.repeats")} hint={t("entry.repeatsHint")}>
               <RecurrenceBuilder value={recurrence} onChange={setRecurrence} def={def} calendarId={calendarId} start={worldDay ?? startDay} until={until} onUntil={setUntil} world={world} ctx={ctx} />
             </Section>
           )}
-          {isEvent && tab === "articles" && <ArticleLinksSection links={links} onChange={setLinks} hint="The people, places and organizations involved." />}
+          {isEvent && tab === "articles" && <ArticleLinksSection links={links} onChange={setLinks} hint={t("entry.articlesHint")} />}
         </div>
 
         {error && (
@@ -238,10 +256,10 @@ export default function EntryEditor({
         )}
         <div className="cel-footer">
           <button type="button" className="btn btn-sm" onClick={onClose} disabled={saving}>
-            Cancel
+            {tc("cancel")}
           </button>
           <button type="button" className="btn btn-sm btn-primary" disabled={!canSave} onClick={save}>
-            {saving ? "Saving…" : mode.kind === "create" ? `Add ${meta.label.toLowerCase()}` : "Save"}
+            {saving ? tc("saving") : mode.kind === "create" ? t(`entry.add.${kind}`) : tc("save")}
           </button>
         </div>
       </div>

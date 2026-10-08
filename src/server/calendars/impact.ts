@@ -12,7 +12,7 @@
  * removed months or weekdays are reported (they must be acknowledged; they
  * are kept, never deleted).
  */
-import { formatDate, fromWorldDay, toWorldDay, weekdayIndex, type CalendarDefinition, type LocalDate } from "./engine";
+import { formatDate, fromWorldDay, problemOf, toWorldDay, weekdayIndex, type CalendarDefinition, type LocalDate, type Problem } from "./engine";
 import type { CelestialConfig } from "./celestial";
 import { profileIssues, type SeasonProfileData } from "./seasons";
 import type { Condition, OccurrenceException, Recurrence } from "./recurrence";
@@ -32,7 +32,7 @@ export interface EntryImpact {
   /** Label after the change when the physical day is kept. */
   afterPhysical: string;
   /** Preserve Named Dates: the new worldDay, or why the date no longer exists. */
-  named: { worldDay: number; label: string } | { error: string };
+  named: { worldDay: number; label: string } | { error: Problem };
 }
 
 export interface Impact {
@@ -40,7 +40,7 @@ export interface Impact {
   entries: EntryImpact[];
   /** Entries whose label or named day changes, before capping `entries`. */
   entryCount: number;
-  references: string[];
+  references: Problem[];
   /** Nothing changes for any record, and no reference breaks. */
   harmless: boolean;
 }
@@ -58,29 +58,29 @@ export function safeLabel(def: CalendarDefinition, worldDay: number): string {
 }
 
 /** The worldDay the same named date has under `next`, or an error. */
-export function namedDay(prev: CalendarDefinition, next: CalendarDefinition, worldDay: number): { worldDay: number; date: LocalDate } | { error: string } {
+export function namedDay(prev: CalendarDefinition, next: CalendarDefinition, worldDay: number): { worldDay: number; date: LocalDate } | { error: Problem } {
   try {
     const date = fromWorldDay(prev, worldDay);
     return { worldDay: toWorldDay(next, date), date };
   } catch (e) {
-    return { error: (e as Error).message };
+    return { error: problemOf(e) };
   }
 }
 
-function conditionRefs(c: Condition, calendarId: string, next: CalendarDefinition): string | null {
-  if (c.type === "weekday" && c.calendarId === calendarId && !next.weekdays.some((w) => w.id === c.weekdayId)) return "a removed weekday";
-  if (c.type === "period" && c.calendarId === calendarId && !next.periods.some((p) => p.id === c.periodId)) return "a removed month";
+function conditionRefs(c: Condition, calendarId: string, next: CalendarDefinition): Problem | null {
+  if (c.type === "weekday" && c.calendarId === calendarId && !next.weekdays.some((w) => w.id === c.weekdayId)) return { key: "problem.conditionWeekday" };
+  if (c.type === "period" && c.calendarId === calendarId && !next.periods.some((p) => p.id === c.periodId)) return { key: "problem.conditionMonth" };
   return null;
 }
 
-/** Why a repeat rule stops working under `next`, or null. */
-export function recurrenceBreak(rule: Recurrence, calendarId: string, next: CalendarDefinition): string | null {
-  if (rule.kind === "weekday" && rule.calendarId === calendarId && !next.weekdays.some((w) => w.id === rule.weekdayId)) return "repeats on a removed weekday";
-  if (rule.kind === "annual" && rule.calendarId === calendarId && !next.periods.some((p) => p.id === rule.periodId)) return "repeats in a removed month";
+/** Why a repeat rule stops working under `next` (a verb phrase about the event), or null. */
+export function recurrenceBreak(rule: Recurrence, calendarId: string, next: CalendarDefinition): Problem | null {
+  if (rule.kind === "weekday" && rule.calendarId === calendarId && !next.weekdays.some((w) => w.id === rule.weekdayId)) return { key: "problem.removedWeekday" };
+  if (rule.kind === "annual" && rule.calendarId === calendarId && !next.periods.some((p) => p.id === rule.periodId)) return { key: "problem.removedMonth" };
   if (rule.kind === "condition") {
     for (const c of rule.group.conditions) {
       const problem = conditionRefs(c, calendarId, next);
-      if (problem) return `has a condition on ${problem}`;
+      if (problem) return problem;
     }
   }
   return null;
@@ -108,21 +108,21 @@ export function calendarImpact(input: ImpactInput): Impact {
     if (before !== afterPhysical || !("worldDay" in named) || named.worldDay !== e.worldDay) entries.push({ id: e.id, title: e.title, before, afterPhysical, named });
   }
 
-  const references: string[] = [];
+  const references: Problem[] = [];
   for (const e of input.entries) {
     const problem = recurrenceBreak(e.recurrence, calendarId, next);
-    if (problem) references.push(`Event "${e.title || "Untitled"}" ${problem}; it will show no occurrences until its rule is edited.`);
+    if (problem) references.push({ key: "problem.refEvent", params: { title: e.title || { key: "untitled" }, problem } });
   }
   for (const p of input.profiles.filter((p) => p.calendarId === calendarId)) {
     for (const issue of profileIssues(next, { ...p.data, calendarId }, input.seasonName)) {
-      if (issue.kind === "invalid") references.push(`Season profile "${p.name}": ${issue.message}`);
+      if (issue.kind === "invalid") references.push({ key: "problem.refProfile", params: { name: p.name, problem: issue.problem } });
     }
   }
   for (const o of input.celestial) {
     for (const s of o.config.schedules ?? []) {
       if (s.kind !== "annual" || s.calendarId !== calendarId) continue;
       const missing = [s.start, s.end].some((md) => !next.periods.some((p) => p.id === md.periodId && !p.condition && md.day <= p.days));
-      if (missing) references.push(`"${o.name}" has an annual appearance on a date that no longer exists every year.`);
+      if (missing) references.push({ key: "problem.refCelestial", params: { name: o.name } });
     }
   }
 

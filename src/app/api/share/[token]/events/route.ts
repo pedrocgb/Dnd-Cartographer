@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import { shareFingerprint } from "@/server/share/load";
+import { errorResponse } from "@/i18n/server";
 
 export const runtime = "nodejs";
 
@@ -16,7 +16,7 @@ const KEEPALIVE_MS = 15_000;
 export async function GET(request: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   let last = await shareFingerprint(token);
-  if (last === null) return NextResponse.json({ error: "This link is no longer available." }, { status: 404 });
+  if (last === null) return errorResponse("shareGone", 404);
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({

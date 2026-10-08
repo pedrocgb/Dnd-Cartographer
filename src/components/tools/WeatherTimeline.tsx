@@ -2,21 +2,11 @@
 
 import { useRef } from "react";
 import { hourLabel, type Condition, type WeatherDay } from "@/lib/weather/generate";
+import { weatherText } from "@/lib/weather/labels";
+import { useT } from "@/i18n/useT";
 
-/** Each condition's name in the legend; the colours live in globals.css (.wx-<condition>). */
-export const CONDITION_NAMES: Record<Condition, string> = {
-  clear: "Clear",
-  partly: "Partly cloudy",
-  cloudy: "Cloudy",
-  fog: "Fog or mist",
-  drizzle: "Drizzle",
-  rain: "Rain",
-  sleet: "Sleet",
-  storm: "Thunderstorm",
-  snow: "Snow",
-  dust: "Dust or sand",
-  underground: "Underground",
-};
+/** A condition's name in the legend (`condition.*`); the colours live in globals.css (.wx-<condition>). */
+const conditionKey = (c: Condition) => `condition.${c}` as const;
 
 const CHART_H = 76;
 const PAD_Y = 20;
@@ -39,6 +29,7 @@ export default function WeatherTimeline({
   onSelect: (hour: number) => void;
   formatTemp: (celsius: number) => string;
 }) {
+  const t = useT("weather");
   const buttonsRef = useRef<(HTMLButtonElement | null)[]>([]);
   const temps = day.hours.map((h) => h.temp);
   const min = Math.min(...temps);
@@ -68,7 +59,7 @@ export default function WeatherTimeline({
           <div className="wx-labels" aria-hidden>
             {day.segments.map((s) => (
               <span key={s.start} style={{ gridColumn: `${s.start + 1} / ${s.end + 1}` }}>
-                {s.end - s.start >= LABEL_MIN_HOURS ? s.label : ""}
+                {s.end - s.start >= LABEL_MIN_HOURS ? weatherText(s.label, t) : ""}
               </span>
             ))}
           </div>
@@ -92,7 +83,7 @@ export default function WeatherTimeline({
             ))}
           </div>
 
-          <div className="wx-hours" role="group" aria-label="Hours of the day" onKeyDown={onKeyDown}>
+          <div className="wx-hours" role="group" aria-label={t("timeline.hours")} onKeyDown={onKeyDown}>
             {day.hours.map((h) => (
               <button
                 key={h.hour}
@@ -102,8 +93,8 @@ export default function WeatherTimeline({
                 type="button"
                 className={h.hour === selected ? "wx-hour selected" : "wx-hour"}
                 aria-pressed={h.hour === selected}
-                aria-label={`${hourLabel(h.hour)}: ${formatTemp(h.temp)}, ${h.label}`}
-                data-tooltip={`${hourLabel(h.hour)} · ${formatTemp(h.temp)} · ${h.label}`}
+                aria-label={`${hourLabel(h.hour)}: ${formatTemp(h.temp)}, ${weatherText(h.label, t)}`}
+                data-tooltip={`${hourLabel(h.hour)} · ${formatTemp(h.temp)} · ${weatherText(h.label, t)}`}
                 tabIndex={h.hour === selected ? 0 : -1}
                 onClick={() => onSelect(h.hour)}
               />
@@ -120,11 +111,11 @@ export default function WeatherTimeline({
         </div>
       </div>
 
-      <ul className="wx-legend" aria-label="Legend">
+      <ul className="wx-legend" aria-label={t("timeline.legend")}>
         {conditions.map((c) => (
           <li key={c}>
             <span className={`wx-swatch wx-${c}`} aria-hidden />
-            {CONDITION_NAMES[c]}
+            {t(conditionKey(c))}
           </li>
         ))}
       </ul>

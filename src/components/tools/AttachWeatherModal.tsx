@@ -10,6 +10,7 @@ import { dayLabel } from "@/components/calendars/evaluate";
 import { useDefaultCalendarStatus } from "@/components/relations/use-default-calendar";
 import { SkeletonList } from "@/components/Skeleton";
 import type { WeatherDay } from "@/lib/weather/generate";
+import { useT } from "@/i18n/useT";
 
 const byName = (a: PickerOption, b: PickerOption) => a.label.localeCompare(b.label);
 
@@ -43,6 +44,7 @@ function usePlaces() {
  * naming the settlement and/or territory it describes.
  */
 export default function AttachWeatherModal({ day, onAttached, onClose }: { day: WeatherDay; onAttached: (attachmentId: string, label: string) => void; onClose: () => void }) {
+  const t = useT("weather");
   const { calendar, loading } = useDefaultCalendarStatus();
   const places = usePlaces();
   const [worldDay, setWorldDay] = useState<number | null>(null);
@@ -63,21 +65,21 @@ export default function AttachWeatherModal({ day, onAttached, onClose }: { day: 
         body: JSON.stringify({ worldDay: picked, day, settlementId, territoryId }),
       });
       const data = await res.json().catch(() => null);
-      if (!res.ok || typeof data?.id !== "string") throw new Error(data?.error ?? "Couldn't attach the weather.");
+      if (!res.ok || typeof data?.id !== "string") throw new Error(data?.error ?? t("attach.failed"));
       onAttached(data.id, dayLabel(calendar.def, picked, { weekday: false }));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't attach the weather.");
+      setError(e instanceof Error ? e.message : t("attach.failed"));
       setBusy(false);
     }
   }
 
   return (
-    <Modal open onClose={onClose} title="Attach to calendar">
+    <Modal open onClose={onClose} title={t("gen.attach")}>
       {loading ? (
-        <SkeletonList rows={3} label="Loading the calendar…" />
+        <SkeletonList rows={3} label={t("attach.loading")} />
       ) : !calendar ? (
         <p className="field-label">
-          There&rsquo;s no calendar yet. <Link href="/calendars">Create one in Calendars</Link> to attach weather to a day.
+          {t("attach.noCalendar")} <Link href="/calendars">{t("attach.noCalendarLink")}</Link> {t("attach.noCalendarAfter")}
         </p>
       ) : (
         <form
@@ -87,28 +89,28 @@ export default function AttachWeatherModal({ day, onAttached, onClose }: { day: 
             attach();
           }}
         >
-          <WorldDatePicker def={calendar.def} label="Day" value={picked} currentDay={calendar.currentDay} onChange={setWorldDay} />
-          <span className="field-label">Settlement (optional)</span>
+          <WorldDatePicker def={calendar.def} label={t("attach.day")} value={picked} currentDay={calendar.currentDay} onChange={setWorldDay} />
+          <span className="field-label">{t("attach.settlement")}</span>
           <InfoPicker
-            ariaLabel="Settlement"
-            placeholder={places ? (places.settlements.length ? "Where in particular?" : "No settlements yet") : "Loading…"}
-            clearLabel="None"
+            ariaLabel={t("attach.settlementAria")}
+            placeholder={places ? (places.settlements.length ? t("attach.settlementWhere") : t("attach.noSettlements")) : t("ui.loading")}
+            clearLabel={t("ui.none")}
             options={places?.settlements ?? []}
             value={settlementId}
             disabled={!places?.settlements.length}
             onChange={setSettlementId}
           />
-          <span className="field-label">Territory (optional)</span>
+          <span className="field-label">{t("attach.territory")}</span>
           <InfoPicker
-            ariaLabel="Territory"
-            placeholder={places ? (places.territories.length ? "Which region?" : "No territories yet") : "Loading…"}
-            clearLabel="None"
+            ariaLabel={t("attach.territoryAria")}
+            placeholder={places ? (places.territories.length ? t("attach.territoryWhere") : t("attach.noTerritories")) : t("ui.loading")}
+            clearLabel={t("ui.none")}
             options={places?.territories ?? []}
             value={territoryId}
             disabled={!places?.territories.length}
             onChange={setTerritoryId}
           />
-          <p className="field-label">The weather shows in Calendars under that day. Naming a place says where it applies.</p>
+          <p className="field-label">{t("attach.help")}</p>
           {error && (
             <p className="form-error" role="alert">
               {error}
@@ -116,11 +118,11 @@ export default function AttachWeatherModal({ day, onAttached, onClose }: { day: 
           )}
           <div className="confirm-dialog-actions">
             <button type="button" className="btn btn-sm" onClick={onClose}>
-              Cancel
+              {t("ui.cancel")}
             </button>
             <button type="submit" className="btn btn-sm btn-primary" disabled={picked === null || busy}>
               <CalendarPlus size={15} strokeWidth={2.25} aria-hidden />
-              {busy ? "Attaching…" : "Attach"}
+              {busy ? t("attach.attaching") : t("attach.submit")}
             </button>
           </div>
         </form>

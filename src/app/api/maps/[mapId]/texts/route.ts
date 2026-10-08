@@ -7,10 +7,11 @@ import { withLayerIds } from "@/server/layers/layer-ids";
 import { folderError, topSortOrder } from "@/server/maps/layer-folders";
 import { defaultTextStyle, sanitizeTextPatch } from "@/server/texts/text-config";
 import { notInWorld } from "@/server/world/guards";
+import { errorResponse } from "@/i18n/server";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ mapId: string }> }) {
   const { mapId } = await params;
-  const denied = await notInWorld("maps", mapId, "Map not found.");
+  const denied = await notInWorld("maps", mapId, "mapNotFound");
   if (denied) return denied;
   const texts = await db
     .select()
@@ -21,30 +22,30 @@ export async function GET(_request: Request, { params }: { params: Promise<{ map
 
 export async function POST(request: Request, { params }: { params: Promise<{ mapId: string }> }) {
   const { mapId } = await params;
-  const denied = await notInWorld("maps", mapId, "Map not found.");
+  const denied = await notInWorld("maps", mapId, "mapNotFound");
   if (denied) return denied;
   const map = await db.query.maps.findFirst({ where: eq(maps.id, mapId) });
-  if (!map) return NextResponse.json({ error: "Map not found." }, { status: 404 });
+  if (!map) return errorResponse("mapNotFound", 404);
   if (!map.frameWidth || !map.frameHeight) {
-    return NextResponse.json({ error: "Upload a map image first." }, { status: 409 });
+    return errorResponse("needMapImage", 409);
   }
 
   const body = await request.json().catch(() => null);
-  if (!body || typeof body !== "object") return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+  if (!body || typeof body !== "object") return errorResponse("invalidBody", 400);
   if (!(await isLayerOfMap(body.layerId, mapId))) {
-    return NextResponse.json({ error: "A layer of this map is required." }, { status: 400 });
+    return errorResponse("layerOfMapRequired", 400);
   }
 
   const frame = { width: map.frameWidth, height: map.frameHeight };
   const fields = { ...defaultTextStyle(frame.width, frame.height), ...sanitizeTextPatch(body, frame) };
-  if (!fields.text?.trim()) return NextResponse.json({ error: "Text can't be empty." }, { status: 400 });
+  if (!fields.text?.trim()) return errorResponse("textEmpty", 400);
   if (fields.x === undefined || fields.y === undefined) {
-    return NextResponse.json({ error: "A position (x, y) is required." }, { status: 400 });
+    return errorResponse("textPositionRequired", 400);
   }
 
   const groupId: string | null = typeof body.groupId === "string" ? body.groupId : null;
   const groupError = await folderError("text", groupId, mapId, body.layerId);
-  if (groupError) return NextResponse.json({ error: groupError }, { status: 409 });
+  if (groupError) return errorResponse(groupError, 409);
   const sortOrder = await topSortOrder("text", mapId, groupId);
 
   const [created] = await db

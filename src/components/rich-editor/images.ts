@@ -1,4 +1,5 @@
 import type { EditorView } from "@tiptap/pm/view";
+import { activeT } from "@/i18n/active";
 
 const ACCEPTED_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 
@@ -14,7 +15,7 @@ export async function uploadArticleImage(file: File): Promise<string> {
     body: file,
   });
   const data: { src?: string; error?: string } = await res.json().catch(() => ({}));
-  if (!res.ok || !data.src) throw new Error(data.error ?? `Upload failed (${res.status}).`);
+  if (!res.ok || !data.src) throw new Error(data.error ?? activeT("editor")("upload.failedStatus", { status: res.status }));
   return data.src;
 }
 
@@ -26,14 +27,14 @@ export async function uploadArticleImage(file: File): Promise<string> {
  */
 export async function insertImageFiles(view: EditorView, files: File[], pos: number): Promise<string | null> {
   const images = files.filter(isAcceptedImage);
-  if (images.length === 0) return files.length > 0 ? "Only PNG, JPEG and WebP images can be added." : null;
+  if (images.length === 0) return files.length > 0 ? activeT("editor")("upload.types") : null;
   let at = pos;
   for (const file of images) {
     let src: string;
     try {
       src = await uploadArticleImage(file);
     } catch (err) {
-      return err instanceof Error ? err.message : "Upload failed.";
+      return err instanceof Error ? err.message : activeT("common")("uploadFailed");
     }
     if (view.isDestroyed) return null;
     const { state } = view;

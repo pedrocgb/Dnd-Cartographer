@@ -76,7 +76,7 @@ describe("core chronology", () => {
 
   it("rejects nonexistent exact dates", () => {
     expect(dateError(A, date(1, "alder", 21))).toMatch(/20 days/);
-    expect(dateError(A, date(1, "nope", 1))).toMatch(/doesn't exist/);
+    expect(dateError(A, date(1, "nope", 1))).toMatch(/doesn.t exist/);
     expect(validateDefinition({ ...A, periods: [{ ...A.periods[0], days: 0 }] }).length).toBeGreaterThan(0);
     expect(validateDefinition({ ...A, periods: [] })[0].message).toMatch(/at least one month/);
   });

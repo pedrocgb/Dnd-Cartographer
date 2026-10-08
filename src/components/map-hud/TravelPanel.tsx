@@ -31,15 +31,16 @@ import { useListDrag } from "@/components/use-list-drag";
 import type { MapLayerData } from "@/components/layer-images";
 import { COLOR_PRESETS } from "@/server/markers/icon-registry";
 import { formatNumber, unitSuffix, type ScaleConfig } from "@/server/scale/scale-config";
-import { DEFAULT_ROUTE_STYLE, ROUTE_STYLES, ROUTE_WIDTH, type MapRouteData, type RouteStyle, type RouteStyleKind } from "@/server/travel/route-config";
-import { DEFAULT_TRAVEL, formatDuration, milesToUnit, modeOf, PACES, TRAVEL_MODES, type Pace, type TravelGroup, type TravelPlan, type TravelSettings } from "@/server/travel/travel";
+import { DEFAULT_ROUTE_STYLE, ROUTE_STYLES, ROUTE_WIDTH, type MapRouteData, type RouteStyle } from "@/server/travel/route-config";
+import { DEFAULT_TRAVEL, formatDuration, milesToUnit, modeOf, PACES, TRAVEL_MODES, type TravelGroup, type TravelPlan, type TravelSettings } from "@/server/travel/travel";
 import type { RouteControls, RoutePatch } from "./use-map-routes";
 import { useSettings } from "@/components/settings/SettingsProvider";
 import { distanceUnit, fromFeet, fromKg, fromLitres, fromMiles, roundForInput, shortLengthUnit, speedUnit, toFeet, toMiles, volumeUnit, weightUnit } from "@/server/settings/units";
 import { worldKey } from "@/components/world-key";
+import { useT } from "@/i18n/useT";
+import { activeT } from "@/i18n/active";
+import type { MessageKey } from "@/i18n/messages";
 
-const PACE_LABELS: Record<Pace, string> = { slow: "Slow", normal: "Normal", fast: "Fast" };
-const STYLE_LABELS: Record<RouteStyleKind, string> = { solid: "Solid", dashed: "Dashed", dotted: "Dotted" };
 const GROUPS: TravelGroup[] = ["Land", "Water", "Air"];
 const DRAFT_KEY = "travel-draft";
 
@@ -115,6 +116,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 /** How the route is travelled: way of travel, pace, speed, hours a day, terrain, travellers. */
 function TravelSettingsFields({ settings, config, idPrefix, onChange }: { settings: TravelSettings; config: ScaleConfig; idPrefix: string; onChange: (patch: Partial<TravelSettings>) => void }) {
+  const t = useT("maps");
   const mode = modeOf(settings.mode);
   const paced = mode.fixedMph === null && mode.key !== "custom";
   const canUseCreatureSpeed = paced && mode.key !== "flying-mount" && mode.speedFt !== null && mode.key !== "foot";
@@ -124,14 +126,13 @@ function TravelSettingsFields({ settings, config, idPrefix, onChange }: { settin
   const milesInput = (mph: number) => roundForInput(fromMiles(mph, length));
   return (
     <>
-      <ToolSection id="travel-by" title="Travelling by">
-        <select aria-label="Way of travel" value={settings.mode} onChange={(e) => onChange({ mode: e.target.value, hoursPerDay: modeOf(e.target.value).defaultHours, gallop: false })}>
+      <ToolSection id="travel-by" title={t("travel.by")}>
+        <select aria-label={t("travel.way")} value={settings.mode} onChange={(e) => onChange({ mode: e.target.value, hoursPerDay: modeOf(e.target.value).defaultHours, gallop: false })}>
           {GROUPS.map((group) => (
-            <optgroup key={group} label={group}>
+            <optgroup key={group} label={t(`travel.group.${group}`)}>
               {TRAVEL_MODES.filter((m) => m.group === group).map((m) => (
                 <option key={m.key} value={m.key}>
-                  {m.label}
-                  {m.fixedMph !== null ? ` (${speed(m.fixedMph)})` : ""}
+                  {m.fixedMph !== null ? t("travel.modeSpeed", { mode: modeLabel(m.key), speed: speed(m.fixedMph) }) : modeLabel(m.key)}
                 </option>
               ))}
             </optgroup>
@@ -139,20 +140,20 @@ function TravelSettingsFields({ settings, config, idPrefix, onChange }: { settin
         </select>
         {paced && (
           <div className="travel-field">
-            <span className="field-label">Pace</span>
-            <SegmentedControl ariaLabel="Pace" value={settings.pace} segments={PACES.map((key) => ({ key, label: PACE_LABELS[key] }))} onChange={(pace) => onChange({ pace })} />
+            <span className="field-label">{t("travel.pace")}</span>
+            <SegmentedControl ariaLabel={t("travel.pace")} value={settings.pace} segments={PACES.map((key) => ({ key, label: t(`travel.pace.${key}`) }))} onChange={(pace) => onChange({ pace })} />
           </div>
         )}
         {canUseCreatureSpeed && (
           <>
-            <Toggle checked={settings.useCreatureSpeed} onChange={(useCreatureSpeed) => onChange({ useCreatureSpeed })} label={`Faster with its own speed (${formatNumber(fromFeet(mode.speedFt ?? 0, length))} ${shortLengthUnit(length)})`} />
-            <p className="field-label">Off: animals and wagons keep the walkers&rsquo; pace. On: speed ÷ 10 = mph at a normal pace.</p>
+            <Toggle checked={settings.useCreatureSpeed} onChange={(useCreatureSpeed) => onChange({ useCreatureSpeed })} label={t("travel.creatureSpeed", { speed: `${formatNumber(fromFeet(mode.speedFt ?? 0, length))} ${shortLengthUnit(length)}` })} />
+            <p className="field-label">{t("travel.creatureSpeedHint")}</p>
           </>
         )}
         {mode.key === "flying-mount" && (
           <NumberField
             id={`${idPrefix}-fly`}
-            label="Fly speed"
+            label={t("travel.flySpeed")}
             value={roundForInput(fromFeet(settings.speedFt, length))}
             min={roundForInput(fromFeet(5, length))}
             max={roundForInput(fromFeet(300, length))}
@@ -163,7 +164,7 @@ function TravelSettingsFields({ settings, config, idPrefix, onChange }: { settin
         {mode.key === "custom" && (
           <NumberField
             id={`${idPrefix}-mph`}
-            label="Speed"
+            label={t("travel.speed")}
             value={milesInput(settings.customMph)}
             min={milesInput(0.1)}
             max={milesInput(500)}
@@ -174,7 +175,7 @@ function TravelSettingsFields({ settings, config, idPrefix, onChange }: { settin
         {mode.group === "Water" && (
           <NumberField
             id={`${idPrefix}-current`}
-            label="Current or wind (+ with, − against)"
+            label={t("travel.current")}
             value={milesInput(settings.currentMph)}
             min={milesInput(-20)}
             max={milesInput(20)}
@@ -183,25 +184,25 @@ function TravelSettingsFields({ settings, config, idPrefix, onChange }: { settin
           />
         )}
       </ToolSection>
-      <ToolSection id="travel-day" title="Each day">
-        <SliderField label="Hours of travel" value={settings.hoursPerDay} min={1} max={24} suffix="h" defaultValue={mode.defaultHours} onChange={(hoursPerDay) => onChange({ hoursPerDay })} />
+      <ToolSection id="travel-day" title={t("travel.eachDay")}>
+        <SliderField label={t("travel.hours")} value={settings.hoursPerDay} min={1} max={24} suffix="h" defaultValue={mode.defaultHours} onChange={(hoursPerDay) => onChange({ hoursPerDay })} />
         {mode.mount && mode.group !== "Air" && !settings.useCreatureSpeed && (
-          <Toggle checked={settings.gallop} onChange={(gallop) => onChange({ gallop })} label={`Gallop for an hour a day (${speed(8)})`} />
+          <Toggle checked={settings.gallop} onChange={(gallop) => onChange({ gallop })} label={t("travel.gallop", { speed: speed(8) })} />
         )}
         {!mode.ignoresTerrain && (
           <>
-            <SliderField label="Rough terrain" value={Math.round(settings.difficultShare * 100)} min={0} max={100} suffix="%" defaultValue={0} onChange={(v) => onChange({ difficultShare: v / 100 })} />
-            <p className="field-label">Share of the route through rough ground (forest, swamp, mountains): half speed there.</p>
+            <SliderField label={t("travel.rough")} value={Math.round(settings.difficultShare * 100)} min={0} max={100} suffix="%" defaultValue={0} onChange={(v) => onChange({ difficultShare: v / 100 })} />
+            <p className="field-label">{t("travel.roughHint")}</p>
           </>
         )}
       </ToolSection>
-      <ToolSection id="travel-supplies" title="Travellers">
-        <NumberField id={`${idPrefix}-party`} label="Travellers" value={settings.partySize} min={0} max={1000} onChange={(partySize) => onChange({ partySize: Math.round(partySize) })} />
-        <Toggle checked={settings.hotWeather} onChange={(hotWeather) => onChange({ hotWeather })} label="Hot weather (double water)" />
+      <ToolSection id="travel-supplies" title={t("travel.travellers")}>
+        <NumberField id={`${idPrefix}-party`} label={t("travel.travellers")} value={settings.partySize} min={0} max={1000} onChange={(partySize) => onChange({ partySize: Math.round(partySize) })} />
+        <Toggle checked={settings.hotWeather} onChange={(hotWeather) => onChange({ hotWeather })} label={t("travel.hotWeather")} />
         {config.unit === "custom" && (
           <NumberField
             id={`${idPrefix}-unit`}
-            label={`1 ${unitSuffix(config)} is`}
+            label={t("travel.customUnit", { unit: unitSuffix(config) })}
             value={roundForInput(fromMiles(settings.customUnitMiles, length))}
             min={0.01}
             max={roundForInput(fromMiles(100000, length))}
@@ -218,14 +219,15 @@ const NO_MIXED: ReadonlySet<string> = new Set();
 
 /** A route's line: color, width and dash style. `mixed`: fields that differ between several routes. */
 function RouteStyleFields({ v, mixed = NO_MIXED, onChange }: { v: RouteStyle; mixed?: ReadonlySet<string>; onChange: (patch: Partial<RouteStyle>) => void }) {
+  const t = useT("maps");
   const colorMixed = mixed.has("color");
   return (
     <>
       <div className="travel-field">
         <span className="field-label">
-          Color <MixedTag show={colorMixed} />
+          {t("travel.color")} <MixedTag show={colorMixed} />
         </span>
-        <div className="legend-colors-row" role="radiogroup" aria-label="Route color">
+        <div className="legend-colors-row" role="radiogroup" aria-label={t("travel.routeColor")}>
           {COLOR_PRESETS.map((hex) => (
             <button
               key={hex}
@@ -242,12 +244,12 @@ function RouteStyleFields({ v, mixed = NO_MIXED, onChange }: { v: RouteStyle; mi
         </div>
         <ColorWheel value={v.color} mixed={colorMixed} onChange={(color) => onChange({ color })} />
       </div>
-      <SliderField label="Width" value={v.width} mixed={mixed.has("width")} min={ROUTE_WIDTH[0]} max={ROUTE_WIDTH[1]} step={0.5} suffix="px" defaultValue={DEFAULT_ROUTE_STYLE.width} onChange={(width) => onChange({ width })} />
+      <SliderField label={t("travel.width")} value={v.width} mixed={mixed.has("width")} min={ROUTE_WIDTH[0]} max={ROUTE_WIDTH[1]} step={0.5} suffix="px" defaultValue={DEFAULT_ROUTE_STYLE.width} onChange={(width) => onChange({ width })} />
       <div className="travel-field">
         <span className="field-label">
-          Line <MixedTag show={mixed.has("style")} />
+          {t("travel.line")} <MixedTag show={mixed.has("style")} />
         </span>
-        <SegmentedControl ariaLabel="Line style" value={v.style} segments={ROUTE_STYLES.map((key) => ({ key, label: STYLE_LABELS[key] }))} onChange={(style) => onChange({ style })} />
+        <SegmentedControl ariaLabel={t("travel.lineStyle")} value={v.style} segments={ROUTE_STYLES.map((key) => ({ key, label: t(`travel.style.${key}`) }))} onChange={(style) => onChange({ style })} />
       </div>
     </>
   );
@@ -255,39 +257,43 @@ function RouteStyleFields({ v, mixed = NO_MIXED, onChange }: { v: RouteStyle; mi
 
 /** The trip: time, speed, distance per day and supplies. */
 export function Journey({ plan, settings, config }: { plan: TravelPlan | null; settings: TravelSettings; config: ScaleConfig }) {
+  const t = useT("maps");
   const { lengthSystem: length, weightSystem: weight } = useSettings().settings;
   const unit = unitSuffix(config);
   const distance = (miles: number) => `${formatNumber(fromMiles(miles, length))} ${distanceUnit(length)}`;
   // The map's own unit first, then the user's units when they differ.
   const inUnit = (miles: number) => (config.unit === distanceUnit(length) ? distance(miles) : `${formatNumber(milesToUnit(miles, config, settings))} ${unit} (${distance(miles)})`);
-  if (!plan) return <p className="field-label">This way of travel doesn&rsquo;t move (check its speed).</p>;
+  if (!plan) return <p className="field-label">{t("travel.noMove")}</p>;
   return (
     <div className="travel-journey">
       <div className="travel-hero">
-        <span className="field-label">Travel time</span>
+        <span className="field-label">{t("travel.time")}</span>
         <strong>{formatDuration(plan.fullDays, plan.extraHours)}</strong>
         <span className="field-label">
-          {modeOf(settings.mode).label} · {formatNumber(fromMiles(plan.mph, length))} {speedUnit(length)} · {settings.hoursPerDay} h a day
+          {t("travel.summary", { mode: modeLabel(settings.mode), speed: `${formatNumber(fromMiles(plan.mph, length))} ${speedUnit(length)}`, hours: formatNumber(settings.hoursPerDay) })}
         </span>
       </div>
       <div className="travel-stats">
-        <Stat label="Distance" value={inUnit(plan.miles)} />
-        <Stat label="Per day" value={inUnit(plan.milesPerDay)} />
-        <Stat label="Days on the road" value={String(plan.daysOnRoad)} />
-        <Stat label="Hours travelling" value={formatNumber(plan.totalHours)} />
+        <Stat label={t("travel.distance")} value={inUnit(plan.miles)} />
+        <Stat label={t("travel.perDay")} value={inUnit(plan.milesPerDay)} />
+        <Stat label={t("travel.daysOnRoad")} value={formatNumber(plan.daysOnRoad)} />
+        <Stat label={t("travel.hoursTravelling")} value={formatNumber(plan.totalHours)} />
       </div>
-      {plan.gallopMiles > 0 && <p className="travel-note">Includes a one-hour gallop each day ({distance(plan.gallopMiles)}).</p>}
+      {plan.gallopMiles > 0 && <p className="travel-note">{t("travel.gallopNote", { distance: distance(plan.gallopMiles) })}</p>}
       {settings.partySize > 0 && (
         <div className="travel-stats">
-          <Stat label="Food" value={`${formatNumber(fromKg(plan.foodKg, weight))} ${weightUnit(weight)}`} />
-          <Stat label={settings.hotWeather ? "Water (hot)" : "Water"} value={`${formatNumber(fromLitres(plan.waterL, weight))} ${volumeUnit(weight)}`} />
+          <Stat label={t("travel.food")} value={`${formatNumber(fromKg(plan.foodKg, weight))} ${weightUnit(weight)}`} />
+          <Stat label={settings.hotWeather ? t("travel.waterHot") : t("travel.water")} value={`${formatNumber(fromLitres(plan.waterL, weight))} ${volumeUnit(weight)}`} />
         </div>
       )}
     </div>
   );
 }
 
-export const routeLabel = (route: Pick<MapRouteData, "name">, index: number) => route.name || `Route ${index + 1}`;
+export const routeLabel = (route: Pick<MapRouteData, "name">, index: number) => route.name || activeT("maps")("routes.placeholderName", { n: index + 1 });
+
+/** A way of travel's name in the user's language. */
+const modeLabel = (key: string) => activeT("maps")(`travel.mode.${modeOf(key).key}` as MessageKey<"maps">);
 
 /**
  * The Travel tool. Left: "Start route", the active layer's route folders
@@ -330,6 +336,8 @@ export default function TravelPanel({
   onOpenScale: () => void;
   onClose: () => void;
 }) {
+  const t = useT("maps");
+  const tc = useT("common");
   const { routes, groups, sel, update, remove, updateMany, deleteMany, createGroup, updateGroup, deleteGroup, isLocked } = controls;
   const activeGroupId = controls.activeGroupId;
   const onSetActiveGroup = controls.setActiveGroupId;
@@ -351,7 +359,8 @@ export default function TravelPanel({
   const openFolder = ownGroups.find((g) => g.id === openFolderId) ?? null;
   const target = ownGroups.find((g) => g.id === activeGroupId) ?? null;
   const drawBlocked = Boolean(target && (target.locked || !target.visible));
-  const layerNameOf = (id: string | null) => layers.find((l) => l.id === id)?.name ?? "another layer";
+  const [targetBefore, targetAfter] = t("travel.target").split("{folder}");
+  const layerNameOf = (id: string | null) => layers.find((l) => l.id === id)?.name ?? t("panel.anotherLayer");
   const indexIn = (r: MapRouteData) => {
     const list = r.layerId !== activeLayerId ? shared : itemsOf(tree.folderOf(r));
     return Math.max(0, list.findIndex((x) => x.id === r.id));
@@ -421,9 +430,9 @@ export default function TravelPanel({
     <div className="marker-side-panel-header">
       <h2>
         <Route size={16} strokeWidth={2.25} style={{ verticalAlign: "-2px", marginRight: "6px" }} />
-        Travel
+        {t("panel.travel")}
       </h2>
-      <button className="btn btn-ghost btn-icon" onClick={onClose} aria-label="Close travel panel">
+      <button className="btn btn-ghost btn-icon" onClick={onClose} aria-label={tc("closePanel", { title: t("panel.travel") })}>
         <X size={16} strokeWidth={2.25} />
       </button>
     </div>
@@ -436,10 +445,10 @@ export default function TravelPanel({
           {header}
           <div className="legend-items-empty">
             <Route size={28} strokeWidth={1.5} aria-hidden />
-            <p>Calibrate the map first</p>
-            <p className="field-label">Travel times need real distances: set the map&rsquo;s scale by measuring two points a known distance apart.</p>
+            <p>{t("travel.calibrateTitle")}</p>
+            <p className="field-label">{t("travel.calibrateHint")}</p>
             <button type="button" className="btn btn-sm btn-primary" onClick={onOpenScale}>
-              Open Scale
+              {t("travel.openScale")}
             </button>
           </div>
         </div>
@@ -455,13 +464,13 @@ export default function TravelPanel({
     <div className="zones-panel zones-panel-editing travel-panel">
       <div className="zones-panel-main">
         {header}
-        <p className="panel-layer-label">Layer: {layerName}</p>
+        <p className="panel-layer-label">{t("panel.layer", { name: layerName })}</p>
 
         <button
           type="button"
           className={drawing ? "btn btn-primary" : "btn"}
           disabled={drawBlocked && !drawing}
-          data-tooltip={drawBlocked ? "The folder is hidden or locked" : undefined}
+          data-tooltip={drawBlocked ? t("panel.folderBlocked") : undefined}
           onClick={() => {
             if (!drawing) {
               setOpenFolderId(null);
@@ -471,18 +480,20 @@ export default function TravelPanel({
           }}
         >
           <Route size={15} strokeWidth={2.25} />
-          {drawing ? (redrawingId ? "Redrawing… (click to stop)" : "Drawing… (click to stop)") : "Start route"}
+          {drawing ? (redrawingId ? t("travel.redrawing") : t("travel.drawing")) : t("travel.start")}
         </button>
         <p className="field-label zone-tool-hint">
           {drawing
-            ? "Click point by point on the map. Right-click (or Enter) finishes and saves the route; Backspace removes the last point, Esc cancels."
-            : "Click a route on the map or in the list to see and edit it, a folder for its settings. Ctrl/Shift+click picks several, Ctrl+A a whole folder."}
+            ? t("travel.drawHint")
+            : t("travel.idleHint")}
         </p>
         <p className="field-label line-panel-target">
           <FolderOpen size={13} strokeWidth={2.25} aria-hidden />
-          New routes go into: <strong>{target ? target.name : "Ungrouped"}</strong>
-          {target?.locked && " (locked)"}
-          {target && !target.visible && " (hidden)"}
+          {targetBefore}
+          <strong>{target ? target.name : t("panel.ungrouped")}</strong>
+          {targetAfter}
+          {target?.locked && t("panel.targetLocked")}
+          {target && !target.visible && t("panel.targetHidden")}
         </p>
 
         <ul className="zone-region-list">
@@ -512,14 +523,14 @@ export default function TravelPanel({
                 dropProps={drag.folderProps(group.id, !group.locked)}
                 dropPlace={drag.placeOf(group.id)}
               >
-                {items.length === 0 && <li className="field-label zone-empty-hint">No routes yet.</li>}
+                {items.length === 0 && <li className="field-label zone-empty-hint">{t("travel.emptyFolder")}</li>}
                 {items.map((r, idx) => routeRow(r, routeLabel(r, idx), group.locked))}
               </FolderRow>
             );
           })}
           <li className="zone-region">
             <div className={["zone-region-row", activeGroupId === null && "active", drag.placeOf(UNGROUPED) && "drop-into"].filter(Boolean).join(" ")} {...drag.folderProps(UNGROUPED, true)}>
-              <button className="zone-tree-toggle" onClick={() => toggle(UNGROUPED)} aria-label={expanded.has(UNGROUPED) ? "Collapse" : "Expand"}>
+              <button className="zone-tree-toggle" onClick={() => toggle(UNGROUPED)} aria-label={expanded.has(UNGROUPED) ? t("layerFolders.collapse") : t("layerFolders.expand")}>
                 {expanded.has(UNGROUPED) ? <ChevronDown size={13} strokeWidth={2.25} /> : <ChevronRight size={13} strokeWidth={2.25} />}
               </button>
               <button
@@ -528,14 +539,14 @@ export default function TravelPanel({
                   onSetActiveGroup(null);
                   setOpenFolderId(null);
                 }}
-                data-tooltip="Routes outside any folder. Click: new routes go here."
+                data-tooltip={t("travel.ungroupedHint")}
               >
-                Ungrouped <span className="field-label">({ungrouped.length})</span>
+                {t("panel.ungrouped")} <span className="field-label">({ungrouped.length})</span>
               </button>
             </div>
             {expanded.has(UNGROUPED) && (
               <ul className="zone-list">
-                {ungrouped.length === 0 && <li className="field-label zone-empty-hint">No routes outside folders.</li>}
+                {ungrouped.length === 0 && <li className="field-label zone-empty-hint">{t("travel.ungroupedEmpty")}</li>}
                 {ungrouped.map((r, i) => routeRow(r, routeLabel(r, i), false))}
               </ul>
             )}
@@ -543,11 +554,11 @@ export default function TravelPanel({
           {shared.length > 0 && (
             <li className="zone-region">
               <div className="zone-region-row">
-                <button className="zone-tree-toggle" onClick={() => toggle(SHARED)} aria-label={expanded.has(SHARED) ? "Collapse" : "Expand"}>
+                <button className="zone-tree-toggle" onClick={() => toggle(SHARED)} aria-label={expanded.has(SHARED) ? t("layerFolders.collapse") : t("layerFolders.expand")}>
                   {expanded.has(SHARED) ? <ChevronDown size={13} strokeWidth={2.25} /> : <ChevronRight size={13} strokeWidth={2.25} />}
                 </button>
                 <button className="zone-region-name" onClick={() => toggle(SHARED)}>
-                  From other layers <span className="field-label">({shared.length})</span>
+                  {t("panel.fromOtherLayers")} <span className="field-label">({shared.length})</span>
                 </button>
               </div>
               {expanded.has(SHARED) && <ul className="zone-list">{shared.map((r, i) => routeRow(r, `${routeLabel(r, i)} · ${layerNameOf(r.layerId)}`, Boolean(groupOf(r)?.locked)))}</ul>}
@@ -559,8 +570,8 @@ export default function TravelPanel({
           <div className="zone-new-region">
             <NameInput
               value=""
-              placeholder="Folder name (e.g. Trade roads, Campaign trips)"
-              label="New folder name"
+              placeholder={t("travel.folderPlaceholder")}
+              label={t("panel.newFolderName")}
               onSave={(name) => {
                 setCreating(false);
                 if (name) void createGroup(name);
@@ -571,7 +582,7 @@ export default function TravelPanel({
         ) : (
           <button className="btn btn-sm" onClick={() => setCreating(true)}>
             <Plus size={14} strokeWidth={2.25} />
-            New folder
+            {t("panel.newFolder")}
           </button>
         )}
         {controls.error && <p className="form-error">{controls.error}</p>}
@@ -599,7 +610,7 @@ export default function TravelPanel({
                 <NameInput
                   value={selected.name}
                   placeholder={routeLabel({ name: "" }, indexIn(selected))}
-                  label="Route name"
+                  label={t("travel.name")}
                   onSave={(name) => {
                     setRenaming(false);
                     if (name !== selected.name) update(selected.id, { name });
@@ -607,36 +618,36 @@ export default function TravelPanel({
                   onCancel={() => setRenaming(false)}
                 />
               ) : (
-                <button type="button" className="zone-region-name line-panel-name" onClick={() => setRenaming(true)} data-tooltip="Rename">
+                <button type="button" className="zone-region-name line-panel-name" onClick={() => setRenaming(true)} data-tooltip={t("layerFolders.rename")}>
                   {routeLabel(selected, indexIn(selected))}
                 </button>
               )}
               <button type="button" className="btn btn-sm btn-primary zone-editor-done" onClick={() => onSelect(null)}>
                 <Check size={13} strokeWidth={2.25} />
-                Done
+                {tc("done")}
               </button>
             </div>
             {selectedLocked && (
               <p className="field-label line-panel-locked">
-                <Lock size={12} strokeWidth={2.25} aria-hidden /> Locked{selectedGroup?.locked ? " by its folder" : ""}. Unlock it to edit it.
+                <Lock size={12} strokeWidth={2.25} aria-hidden /> {selectedGroup?.locked ? t("travel.lockedByFolder") : t("travel.locked")}
               </p>
             )}
             <Journey plan={planOf(selected)} settings={selected.settings} config={config} />
             {!selectedLocked && redrawingId !== selected.id && (
-              <p className="field-label zone-tool-hint">On the map: drag a point to move it, drag a + to add one, right-click (or double-click) a point to remove it.</p>
+              <p className="field-label zone-tool-hint">{t("travel.editHint")}</p>
             )}
             <fieldset className="line-panel-fieldset" disabled={selectedLocked}>
-              <MarkerCard title="How it's travelled" defaultOpen>
+              <MarkerCard title={t("travel.howTravelled")} defaultOpen>
                 <TravelSettingsFields settings={selected.settings} config={config} idPrefix={`route-${selected.id}`} onChange={(settings) => update(selected.id, { settings })} />
               </MarkerCard>
-              <MarkerCard title="Look">
+              <MarkerCard title={t("travel.look")}>
                 <RouteStyleFields v={selected} onChange={(patch) => update(selected.id, patch)} />
               </MarkerCard>
-              <MarkerCard title="Folder and layers">
+              <MarkerCard title={t("panel.folderLayers")}>
                 <FolderSelect
                   value={selectedGroup && selectedFolderOptions.includes(selectedGroup) ? selectedGroup.id : null}
                   folders={selectedFolderOptions}
-                  noneLabel="Ungrouped"
+                  noneLabel={t("panel.ungrouped")}
                   onChange={(groupId) => update(selected.id, { groupId })}
                 />
                 <LayerSelect value={selected.layerId} layers={layers} onChange={(layerId) => update(selected.id, { layerId, extraLayerIds: selected.extraLayerIds.filter((id) => id !== layerId) })} />
@@ -652,7 +663,7 @@ export default function TravelPanel({
               <div className="travel-actions">
                 <button type="button" className={redrawingId === selected.id ? "btn btn-sm btn-primary" : "btn btn-sm"} onClick={() => onRedraw(redrawingId === selected.id ? null : selected.id)}>
                   <Route size={14} strokeWidth={2.25} />
-                  {redrawingId === selected.id ? "Cancel redraw" : "Redraw route"}
+                  {redrawingId === selected.id ? t("travel.cancelRedraw") : t("travel.redraw")}
                 </button>
                 <button
                   type="button"
@@ -660,7 +671,7 @@ export default function TravelPanel({
                   onClick={() => remove(selected.id)}
                 >
                   <Trash2 size={14} strokeWidth={2.25} />
-                  Delete route
+                  {t("travel.delete")}
                 </button>
               </div>
             </fieldset>
@@ -682,20 +693,20 @@ export default function TravelPanel({
           <>
             <div className="zone-editor-header">
               <Spline size={14} strokeWidth={2.25} style={{ color: draft.style.color }} />
-              <span className="line-panel-name">{drawing ? "Route being drawn" : "Next route"}</span>
+              <span className="line-panel-name">{drawing ? t("travel.beingDrawn") : t("travel.next")}</span>
             </div>
             {drawing && livePlan && <Journey plan={livePlan} settings={draft.settings} config={config} />}
-            {!drawing && <p className="field-label zone-tool-hint">How the next route is travelled and how it looks. Press &ldquo;Start route&rdquo; to draw it.</p>}
-            <MarkerCard title="How it's travelled" defaultOpen>
+            {!drawing && <p className="field-label zone-tool-hint">{t("travel.nextHint")}</p>}
+            <MarkerCard title={t("travel.howTravelled")} defaultOpen>
               <TravelSettingsFields settings={draft.settings} config={config} idPrefix="draft" onChange={(settings) => onDraftChange({ settings })} />
             </MarkerCard>
-            <MarkerCard title="Look">
+            <MarkerCard title={t("travel.look")}>
               {target?.defaultStyle ? (
                 <>
-                  <p className="field-label zone-tool-hint">New routes in &ldquo;{target.name}&rdquo; use the folder&rsquo;s default look.</p>
+                  <p className="field-label zone-tool-hint">{t("travel.folderLook", { name: target.name })}</p>
                   <button type="button" className="btn btn-sm" onClick={() => setOpenFolderId(target.id)}>
                     <FolderOpen size={13} strokeWidth={2.25} />
-                    Edit the folder&rsquo;s look
+                    {t("travel.editFolderLook")}
                   </button>
                 </>
               ) : (
@@ -747,6 +758,7 @@ function MultiRouteEditor({
   onDelete: () => void;
   onDone: () => void;
 }) {
+  const t = useT("maps");
   const [first] = routes;
   const mixed = mixedKeys(routes);
   const layersOf = sharedLayers(routes.map((r) => r.extraLayerIds));
@@ -777,28 +789,26 @@ function MultiRouteEditor({
       />
       {totalHours !== null && (
         <div className="travel-hero">
-          <span className="field-label">One after another</span>
-          <strong>
-            {totalDays} {totalDays === 1 ? "day" : "days"} on the road
-          </strong>
-          <span className="field-label">{formatNumber(totalHours)} hours travelling in all</span>
+          <span className="field-label">{t("travel.backToBack")}</span>
+          <strong>{t("travel.daysOnRoadTotal", { count: totalDays, n: formatNumber(totalDays) })}</strong>
+          <span className="field-label">{t("travel.hoursTotal", { n: formatNumber(totalHours) })}</span>
         </div>
       )}
-      <MarkerCard title="How they're travelled" defaultOpen>
-        {mixed.has("settings") && <p className="field-label zone-tool-hint">They&rsquo;re travelled differently: shown is the first one&rsquo;s. A change applies to all.</p>}
+      <MarkerCard title={t("travel.howTravelledMany")} defaultOpen>
+        {mixed.has("settings") && <p className="field-label zone-tool-hint">{t("travel.mixedSettings")}</p>}
         <TravelSettingsFields settings={first.settings} config={config} idPrefix="routes" onChange={(settings) => onUpdateMany((r) => ({ settings: { ...r.settings, ...settings } }))} />
       </MarkerCard>
-      <MarkerCard title="Look">
+      <MarkerCard title={t("travel.look")}>
         <RouteStyleFields v={first} mixed={mixed} onChange={setAll} />
       </MarkerCard>
-      <MarkerCard title="Folder and layers">
+      <MarkerCard title={t("panel.folderLayers")}>
         <FolderSelect
           value={folderOf(first)}
           mixed={folders.size > 1}
           folders={folderOptions}
-          noneLabel="Ungrouped"
+          noneLabel={t("panel.ungrouped")}
           disabled={!oneLayer}
-          hint={oneLayer ? undefined : "They're on different layers: move them to one layer first."}
+          hint={oneLayer ? undefined : t("panel.differentLayers")}
           onChange={(groupId) => setAll({ groupId })}
         />
         <LayerSelect value={first.layerId} mixed={!oneLayer} layers={layers} onChange={(layerId) => setAll({ layerId })} />

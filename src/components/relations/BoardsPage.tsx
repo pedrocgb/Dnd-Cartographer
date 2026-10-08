@@ -6,7 +6,9 @@ import { Check, ExternalLink, LayoutDashboard, Loader2, Pencil, Plus, StickyNote
 import ConfirmDialog from "@/components/ConfirmDialog";
 import InfoPicker, { type PickerOption } from "@/components/articles/InfoPicker";
 import { Skeleton } from "@/components/Skeleton";
-import { TEMPLATE_LABELS } from "@/server/articles/templates";
+import { templateLabel } from "@/server/articles/templates";
+import { useT } from "@/i18n/useT";
+import { activeT } from "@/i18n/active";
 import { isNoteId, MAX_BOARD_NAME, NOTE_PREFIX, type BoardCard, type BoardFilters } from "@/server/relations/boards";
 import type { ClientBoard } from "@/server/relations/board-store";
 import { webEdges } from "@/server/relations/graph";
@@ -20,14 +22,14 @@ import { GROUP_COLORS, HideSecretsSwitch, RailHeader, RailSection, RailSwitch, R
 const RelationsCanvas = dynamic(() => import("./RelationsCanvas"), { ssr: false, loading: () => <Skeleton height="100%" radius="0" /> });
 
 const NOTE_COLORS = [
-  { color: "#facc15", name: "Yellow" },
-  { color: "#fb923c", name: "Orange" },
-  { color: "#f87171", name: "Red" },
-  { color: "#f472b6", name: "Pink" },
-  { color: "#c084fc", name: "Purple" },
-  { color: "#60a5fa", name: "Blue" },
-  { color: "#4ade80", name: "Green" },
-];
+  { color: "#facc15", name: "yellow" },
+  { color: "#fb923c", name: "orange" },
+  { color: "#f87171", name: "red" },
+  { color: "#f472b6", name: "pink" },
+  { color: "#c084fc", name: "purple" },
+  { color: "#60a5fa", name: "blue" },
+  { color: "#4ade80", name: "green" },
+] as const;
 const SAVE_DELAY = 600;
 
 type SaveState = "idle" | "saving" | "saved" | "error";
@@ -35,7 +37,7 @@ type SaveState = "idle" | "saving" | "saved" | "error";
 async function send(url: string, method: string, body?: unknown): Promise<{ board?: ClientBoard; boards?: ClientBoard[] }> {
   const res = await fetch(url, { method, headers: body ? { "Content-Type": "application/json" } : undefined, body: body ? JSON.stringify(body) : undefined });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error ?? `The board couldn't be saved (server error ${res.status}). Try again in a moment.`);
+  if (!res.ok) throw new Error(data.error ?? activeT("relations")("boards.serverError", { status: res.status }));
   return data;
 }
 
@@ -52,6 +54,7 @@ function spotFor(cards: readonly BoardCard[], near?: Point, index = 0): Point {
 }
 
 function BoardRow({ board, active, onOpen, onRename, onDelete }: { board: ClientBoard; active: boolean; onOpen: () => void; onRename: (name: string) => void; onDelete: () => void }) {
+  const t = useT("relations");
   const [name, setName] = useState<string | null>(null);
   const save = () => {
     const next = name?.trim();
@@ -65,7 +68,7 @@ function BoardRow({ board, active, onOpen, onRename, onDelete }: { board: Client
           autoFocus
           maxLength={MAX_BOARD_NAME}
           value={name}
-          aria-label="Board name"
+          aria-label={t("boards.name")}
           onChange={(e) => setName(e.target.value)}
           onBlur={save}
           onKeyDown={(e) => {
@@ -87,15 +90,15 @@ function BoardRow({ board, active, onOpen, onRename, onDelete }: { board: Client
         <LayoutDashboard size={14} aria-hidden />
         <span className="rel-board-name">{board.name}</span>
         <span className="rel-board-meta">
-          {articles} {articles === 1 ? "article" : "articles"}
-          {notes > 0 && ` · ${notes} ${notes === 1 ? "note" : "notes"}`}
+          {t("boards.articles", { count: articles })}
+          {notes > 0 && ` · ${t("boards.notes", { count: notes })}`}
         </span>
       </button>
       <span className="rel-board-actions">
-        <button type="button" className="rel-icon-btn" onClick={() => setName(board.name)} aria-label={`Rename ${board.name}`} data-tooltip="Rename">
+        <button type="button" className="rel-icon-btn" onClick={() => setName(board.name)} aria-label={t("boards.renameNamed", { name: board.name })} data-tooltip={t("boards.rename")}>
           <Pencil size={13} />
         </button>
-        <button type="button" className="rel-icon-btn danger" onClick={onDelete} aria-label={`Delete ${board.name}`} data-tooltip="Delete">
+        <button type="button" className="rel-icon-btn danger" onClick={onDelete} aria-label={t("boards.deleteNamed", { name: board.name })} data-tooltip={t("ui.delete")}>
           <Trash2 size={13} />
         </button>
       </span>
@@ -109,6 +112,8 @@ function BoardRow({ board, active, onOpen, onRename, onDelete }: { board: Client
  * as they move; the board's filters save with it.
  */
 export default function BoardsPage({ boardId, onOpenBoard }: { boardId: string | null; onOpenBoard: (id: string | null) => void }) {
+  const t = useT("relations");
+  const ta = useT("articles");
   const { relations, derived, catalog, openArticle } = useRelations();
   const [hideSecrets] = useHideSecrets();
   const [boards, setBoards] = useState<ClientBoard[] | null>(null);
@@ -167,7 +172,7 @@ export default function BoardsPage({ boardId, onOpenBoard }: { boardId: string |
   const create = async () => {
     setError(null);
     try {
-      const { board: created } = await send("/api/relation-boards", "POST", { name: `Board ${(boards?.length ?? 0) + 1}` });
+      const { board: created } = await send("/api/relation-boards", "POST", { name: t("boards.newName", { n: (boards?.length ?? 0) + 1 }) });
       if (!created) return;
       setBoards((prev) => [...(prev ?? []), created]);
       onOpenBoard(created.id);
@@ -217,8 +222,8 @@ export default function BoardsPage({ boardId, onOpenBoard }: { boardId: string |
       [...catalog.values()]
         .filter((e) => !present.has(e.id))
         .sort((a, b) => a.template.localeCompare(b.template) || a.name.localeCompare(b.name))
-        .map((e) => ({ value: e.id, label: e.name, group: TEMPLATE_LABELS[e.template] })),
-    [catalog, present]
+        .map((e) => ({ value: e.id, label: e.name, group: templateLabel(e.template, ta) })),
+    [catalog, present, ta]
   );
 
   const selectedCard = cards.find((c) => c.id === selected);
@@ -248,15 +253,15 @@ export default function BoardsPage({ boardId, onOpenBoard }: { boardId: string |
     if (card.kind === "note") {
       return (
         <>
-          <span className="rel-swatches" role="radiogroup" aria-label="Note color">
+          <span className="rel-swatches" role="radiogroup" aria-label={t("boards.noteColor")}>
             {NOTE_COLORS.map((c) => (
               <button
                 key={c.color}
                 type="button"
                 role="radio"
                 aria-checked={card.color === c.color}
-                aria-label={c.name}
-                data-tooltip={c.name}
+                aria-label={t(`boards.color.${c.name}`)}
+                data-tooltip={t(`boards.color.${c.name}`)}
                 className={card.color === c.color ? "rel-swatch active" : "rel-swatch"}
                 style={{ background: c.color }}
                 onClick={() => editCard(card.id, { color: c.color })}
@@ -264,7 +269,7 @@ export default function BoardsPage({ boardId, onOpenBoard }: { boardId: string |
             ))}
           </span>
           <span className="rel-float-sep" aria-hidden />
-          <button type="button" className="rel-float-btn danger" onClick={() => removeCards([card.id])} aria-label="Delete note" data-tooltip="Delete note">
+          <button type="button" className="rel-float-btn danger" onClick={() => removeCards([card.id])} aria-label={t("boards.deleteNote")} data-tooltip={t("boards.deleteNote")}>
             <Trash2 size={14} />
           </button>
         </>
@@ -274,15 +279,15 @@ export default function BoardsPage({ boardId, onOpenBoard }: { boardId: string |
     const ties = tiesOf(card.id).length;
     return (
       <>
-        <button type="button" className="rel-float-btn" onClick={() => openArticle(card.entry.template, card.entry.id)} data-tooltip="Open article">
-          <ExternalLink size={14} /> Open
+        <button type="button" className="rel-float-btn" onClick={() => openArticle(card.entry.template, card.entry.id)} data-tooltip={t("boards.openArticle")}>
+          <ExternalLink size={14} /> {t("ui.open")}
         </button>
-        <button type="button" className="rel-float-btn" disabled={!ties} onClick={() => addTies(card.id)} data-tooltip={ties ? "Add everything tied to it that isn't on the board" : "All its ties are on the board"}>
-          <Users size={14} /> Add ties
+        <button type="button" className="rel-float-btn" disabled={!ties} onClick={() => addTies(card.id)} data-tooltip={ties ? t("boards.addTiesHint") : t("boards.allTiesOn")}>
+          <Users size={14} /> {t("boards.addTies")}
           {ties > 0 && <span className="rel-chip-count">{ties}</span>}
         </button>
         <span className="rel-float-sep" aria-hidden />
-        <button type="button" className="rel-float-btn danger" onClick={() => removeCards([card.id])} aria-label="Remove from board" data-tooltip="Remove from board (the article stays)">
+        <button type="button" className="rel-float-btn danger" onClick={() => removeCards([card.id])} aria-label={t("boards.removeFromBoard")} data-tooltip={t("boards.removeFromBoardHint")}>
           <X size={14} />
         </button>
       </>
@@ -291,19 +296,19 @@ export default function BoardsPage({ boardId, onOpenBoard }: { boardId: string |
 
   const rail = (
     <>
-      <RailHeader Icon={LayoutDashboard} title="Boards" subtitle="Arrange articles and notes; their ties draw themselves" />
+      <RailHeader Icon={LayoutDashboard} title={t("boards.title")} subtitle={t("boards.subtitle")} />
       <RailSection
-        title="Your boards"
+        title={t("boards.yours")}
         action={
           <button type="button" className="btn-link" onClick={create}>
-            <Plus size={13} /> New
+            <Plus size={13} /> {t("boards.new")}
           </button>
         }
       >
         {boards === null ? (
           <Skeleton height={36} />
         ) : boards.length === 0 ? (
-          <p className="rel-muted">No boards yet.</p>
+          <p className="rel-muted">{t("boards.none")}</p>
         ) : (
           <ul className="rel-board-list">
             {boards.map((b) => (
@@ -314,13 +319,13 @@ export default function BoardsPage({ boardId, onOpenBoard }: { boardId: string |
       </RailSection>
       {board && (
         <>
-          <RailSection title="Add to board">
-            <InfoPicker options={recordOptions} value={null} placeholder="Add an article…" ariaLabel="Add an article" collapsibleGroups onChange={addRecord} />
+          <RailSection title={t("boards.addTo")}>
+            <InfoPicker options={recordOptions} value={null} placeholder={t("boards.addArticlePick")} ariaLabel={t("boards.addArticle")} collapsibleGroups onChange={addRecord} />
             <button type="button" className="btn btn-sm rel-rail-btn" onClick={addNote}>
-              <StickyNote size={14} /> Add a note
+              <StickyNote size={14} /> {t("boards.addNote")}
             </button>
           </RailSection>
-          <RailSection title="Ties drawn" action={groups.length > 0 && <button type="button" className="btn-link" onClick={() => setFilters({ ...filters, groups: [] })}>All</button>}>
+          <RailSection title={t("boards.tiesDrawn")} action={groups.length > 0 && <button type="button" className="btn-link" onClick={() => setFilters({ ...filters, groups: [] })}>{t("ui.all")}</button>}>
             <div className="rel-chip-grid">
               {RELATION_GROUPS.map((g) => {
                 const on = groups.includes(g.key);
@@ -332,8 +337,8 @@ export default function BoardsPage({ boardId, onOpenBoard }: { boardId: string |
                 );
               })}
             </div>
-            <RailSwitch label="From other information" hint="Houses, rulers, seats and territory parents" checked={filters.showDerived ?? false} onChange={(on) => setFilters({ ...filters, showDerived: on })} />
-            <RailSwitch label="Color by attitude" hint="From hostile (red) to devoted (green)" checked={filters.attitudeMode ?? false} onChange={(on) => setFilters({ ...filters, attitudeMode: on })} />
+            <RailSwitch label={t("ui.fromOtherInfo")} hint={t("ui.fromOtherInfoHint")} checked={filters.showDerived ?? false} onChange={(on) => setFilters({ ...filters, showDerived: on })} />
+            <RailSwitch label={t("ui.colorByAttitude")} hint={t("ui.colorByAttitudeHint")} checked={filters.attitudeMode ?? false} onChange={(on) => setFilters({ ...filters, attitudeMode: on })} />
             <HideSecretsSwitch />
           </RailSection>
         </>
@@ -343,19 +348,19 @@ export default function BoardsPage({ boardId, onOpenBoard }: { boardId: string |
           {error}
         </p>
       )}
-      {board && <p className="rel-rail-tip">Drag to arrange. Click a card for its actions; double-click a note to write in it. Delete removes the selected card.</p>}
+      {board && <p className="rel-rail-tip">{t("boards.tip")}</p>}
     </>
   );
 
   return (
     <RelWorkspace rail={rail}>
       {!board ? (
-        <StageEmpty Icon={LayoutDashboard} title={boards?.length ? "Open a board" : "Start your first board"}>
-          {boards?.length ? "Pick one on the left, or start a new one." : "A board is a canvas you arrange yourself: a conspiracy, a royal court, the party's contacts."}
+        <StageEmpty Icon={LayoutDashboard} title={boards?.length ? t("boards.openTitle") : t("boards.firstTitle")}>
+          {boards?.length ? t("boards.openBody") : t("boards.firstBody")}
         </StageEmpty>
       ) : canvasCards.length === 0 ? (
-        <StageEmpty Icon={StickyNote} title="An empty board">
-          Add articles or notes from the left. Ties between the articles draw themselves.
+        <StageEmpty Icon={StickyNote} title={t("boards.emptyTitle")}>
+          {t("boards.emptyBody")}
         </StageEmpty>
       ) : (
         <>
@@ -373,7 +378,7 @@ export default function BoardsPage({ boardId, onOpenBoard }: { boardId: string |
           />
           {edges.length > 0 && (
             <details className="rel-legend-panel">
-              <summary>Legend</summary>
+              <summary>{t("ui.legend")}</summary>
               <RelationsLegend edges={edges} attitudeMode={filters.attitudeMode ?? false} />
             </details>
           )}
@@ -381,7 +386,7 @@ export default function BoardsPage({ boardId, onOpenBoard }: { boardId: string |
       )}
       {!board && (
         <button type="button" className="btn btn-create rel-stage-cta" onClick={create}>
-          <Plus size={14} /> New board
+          <Plus size={14} /> {t("boards.newBoard")}
         </button>
       )}
       {board && (
@@ -390,25 +395,25 @@ export default function BoardsPage({ boardId, onOpenBoard }: { boardId: string |
           <span className={`rel-save rel-save-${saveState}`} aria-live="polite">
             {saveState === "saving" && (
               <>
-                <Loader2 size={12} className="rel-spin" /> Saving
+                <Loader2 size={12} className="rel-spin" /> {t("boards.saving")}
               </>
             )}
             {saveState === "saved" && (
               <>
-                <Check size={12} /> Saved
+                <Check size={12} /> {t("boards.saved")}
               </>
             )}
-            {saveState === "error" && "Not saved"}
+            {saveState === "error" && t("boards.notSaved")}
           </span>
           {missing > 0 && (
-            <span className="rel-muted" data-tooltip="They come back if the articles are restored">
-              {missing} hidden
+            <span className="rel-muted" data-tooltip={t("boards.missingHint")}>
+              {t("boards.missing", { n: missing })}
             </span>
           )}
         </div>
       )}
-      <ConfirmDialog open={deleting !== null} title="Delete board?" confirmLabel="Delete board" onConfirm={remove} onCancel={() => setDeleting(null)}>
-        <p>“{deleting?.name}” and its notes will be deleted. The articles and their relationships stay.</p>
+      <ConfirmDialog open={deleting !== null} title={t("boards.deleteTitle")} confirmLabel={t("boards.deleteConfirm")} onConfirm={remove} onCancel={() => setDeleting(null)}>
+        <p>{t("boards.deleteBody", { name: deleting?.name ?? "" })}</p>
       </ConfirmDialog>
     </RelWorkspace>
   );

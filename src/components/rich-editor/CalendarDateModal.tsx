@@ -7,20 +7,26 @@ import WorldDatePicker from "@/components/calendars/WorldDatePicker";
 import { dayLabel } from "@/components/calendars/evaluate";
 import { useDefaultCalendarStatus } from "@/components/relations/use-default-calendar";
 import { SkeletonList } from "../Skeleton";
+import { useT } from "@/i18n/useT";
 
 /** "Link a calendar date": a date of the world's default calendar, starting at today's in-world date. */
 export default function CalendarDateModal({ onPick, onClose }: { onPick: (day: number, label: string) => void; onClose: () => void }) {
+  const t = useT("editor");
+  const tc = useT("common");
   const { calendar, loading } = useDefaultCalendarStatus();
+  const [beforeLink, afterLink] = t("calendarDate.none").split("{link}");
   const [day, setDay] = useState<number | null>(null);
   const picked = day ?? calendar?.currentDay ?? null;
 
   return (
-    <Modal open onClose={onClose} title="Link a calendar date" className="rich-floating">
+    <Modal open onClose={onClose} title={t("calendarDate.title")} className="rich-floating">
       {loading ? (
-        <SkeletonList rows={2} label="Loading the calendar…" />
+        <SkeletonList rows={2} label={t("calendarDate.loading")} />
       ) : !calendar ? (
         <p className="field-label">
-          There&rsquo;s no calendar yet. <Link href="/calendars">Create one in Calendars</Link> to link dates.
+          {beforeLink}
+          <Link href="/calendars">{t("calendarDate.createLink")}</Link>
+          {afterLink}
         </p>
       ) : (
         <form
@@ -30,14 +36,14 @@ export default function CalendarDateModal({ onPick, onClose }: { onPick: (day: n
             if (picked !== null) onPick(picked, dayLabel(calendar.def, picked, { weekday: false }));
           }}
         >
-          <WorldDatePicker def={calendar.def} label="Date" value={picked} currentDay={calendar.currentDay} onChange={setDay} />
-          <p className="field-label">Clicking the date in the text opens that day in Calendars.</p>
+          <WorldDatePicker def={calendar.def} label={t("calendarDate.date")} value={picked} currentDay={calendar.currentDay} onChange={setDay} />
+          <p className="field-label">{t("calendarDate.hint")}</p>
           <div className="confirm-dialog-actions">
             <button type="button" className="btn btn-sm" onClick={onClose}>
-              Cancel
+              {tc("cancel")}
             </button>
             <button type="submit" className="btn btn-sm btn-primary" disabled={picked === null}>
-              Insert date
+              {t("calendarDate.insert")}
             </button>
           </div>
         </form>

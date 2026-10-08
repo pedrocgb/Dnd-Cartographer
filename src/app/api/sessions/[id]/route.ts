@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { errorResponse } from "@/i18n/server";
 import { and, eq, isNull, ne } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { quests, sessions } from "@/server/db/schema";
@@ -6,7 +7,7 @@ import { requireWorldId } from "@/server/world/active-world";
 import { checkArticles } from "@/server/calendars/entries";
 import { cleanName, parseArticleLinks, safeJson } from "@/server/calendars/parse";
 import { InvalidError } from "@/server/calendars/mutations";
-import { badRequest, calendarErrorResponse, notFound, readBody } from "@/server/calendars/respond";
+import { calendarErrorResponse, readBody } from "@/server/calendars/respond";
 import { parseAttendance, parseCoins, parseDays, parseLoot, parseNotes, parsePlayedOn, parseSessionNumber, parseXpOverrides, parseXpTotal } from "@/server/sessions/parse";
 import { campaignOf, rosterOf, sessionOf, toClientSession } from "@/server/sessions/store";
 import type { Currency } from "@/server/sessions/types";
@@ -21,7 +22,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
   const { id } = await params;
   const worldId = await requireWorldId();
   const row = await sessionOf(worldId, id);
-  if (!row) return notFound("Session not found.");
+  if (!row) return errorResponse("sessionNotFound", 404);
   return NextResponse.json({ session: toClientSession(row) });
 }
 
@@ -37,12 +38,12 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   const { id } = await params;
   const worldId = await requireWorldId();
   const row = await sessionOf(worldId, id);
-  if (!row) return notFound("Session not found.");
+  if (!row) return errorResponse("sessionNotFound", 404);
   const body = await readBody(request);
-  if (!body) return badRequest("Invalid request body.");
-  if (body.expectedVersion !== row.version) return NextResponse.json({ error: "This session was changed elsewhere. Reload it and try again.", stale: true }, { status: 409 });
+  if (!body) return errorResponse("invalidBody", 400);
+  if (body.expectedVersion !== row.version) return errorResponse("sessionStale", 409, { stale: true });
   const campaign = await campaignOf(worldId, row.campaignId);
-  if (!campaign) return notFound("Campaign not found.");
+  if (!campaign) return errorResponse("campaignNotFound", 404);
 
   try {
     const roster = new Set((await rosterOf(campaign.id)).map((m) => m.personId));
@@ -54,7 +55,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
         .select({ id: sessions.id })
         .from(sessions)
         .where(and(eq(sessions.campaignId, campaign.id), eq(sessions.number, number), ne(sessions.id, id), isNull(sessions.deletedAt)));
-      if (clash) throw new InvalidError(`Session ${number} already exists in this campaign.`);
+      if (clash) throw new InvalidError({ ns: "campaign", key: "problem.sessionNumberTaken", params: { n: number } });
       patch.number = number;
     }
     if ("title" in body) patch.title = cleanName(body.title, 120);
@@ -108,10 +109,10 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       }
       return { session: toClientSession(updated), quests: touched };
     });
-    if (!result) return NextResponse.json({ error: "This session was changed elsewhere. Reload it and try again.", stale: true }, { status: 409 });
+    if (!result) return errorResponse("sessionStale", 409, { stale: true });
     return NextResponse.json(result);
   } catch (error) {
-    if (error instanceof StaleQuest) return NextResponse.json({ error: "A quest in this session's log was changed elsewhere. Reload and try again.", stale: true }, { status: 409 });
+    if (error instanceof StaleQuest) return errorResponse("sessionQuestStale", 409, { stale: true });
     return calendarErrorResponse(error);
   }
 }
@@ -123,7 +124,7 @@ class StaleQuest extends Error {}
 export async function DELETE(_request: Request, { params }: RouteContext) {
   const { id } = await params;
   const worldId = await requireWorldId();
-  if (!(await sessionOf(worldId, id))) return notFound("Session not found.");
+  if (!(await sessionOf(worldId, id))) return errorResponse("sessionNotFound", 404);
   await db.update(sessions).set({ deletedAt: new Date() }).where(eq(sessions.id, id));
   return NextResponse.json({ ok: true });
 }

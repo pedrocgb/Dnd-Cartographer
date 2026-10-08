@@ -6,6 +6,7 @@ import { NodeViewWrapper, ReactNodeViewRenderer, useEditorState, type NodeViewPr
 import { ChevronDown, ChevronRight, ListOrdered } from "lucide-react";
 import { HEADING_LEVELS } from "@/server/documents/rich-attrs";
 import { buildTocTree, collectHeadings, type TocEntry, type TocHeading } from "./toc";
+import { useT } from "@/i18n/useT";
 
 declare module "@tiptap/core" {
   interface Commands<ReturnType> {
@@ -30,13 +31,14 @@ function jumpTo(editor: NodeViewProps["editor"], pos: number) {
 }
 
 function Entries({ entries, numbered, onJump }: { entries: TocEntry[]; numbered: boolean; onJump: (pos: number) => void }) {
+  const t = useT("editor");
   return (
     <ol className="rich-toc-list">
       {entries.map((e) => (
         <li key={e.pos}>
           <button type="button" className={`rich-toc-link rich-toc-level-${e.level}`} onMouseDown={(ev) => ev.preventDefault()} onClick={() => onJump(e.pos)}>
             {numbered && <span className="rich-toc-number">{e.number}</span>}
-            <span className={e.text ? undefined : "rich-toc-untitled"}>{e.text || "Untitled heading"}</span>
+            <span className={e.text ? undefined : "rich-toc-untitled"}>{e.text || t("toc.untitled")}</span>
           </button>
           {e.children.length > 0 && <Entries entries={e.children} numbered={numbered} onJump={onJump} />}
         </li>
@@ -46,6 +48,7 @@ function Entries({ entries, numbered, onJump }: { entries: TocEntry[]; numbered:
 }
 
 function TableOfContentsView({ editor, node, updateAttributes, selected }: NodeViewProps) {
+  const t = useT("editor");
   const maxLevel = Number(node.attrs.maxLevel) || 3;
   const numbered = Boolean(node.attrs.numbered);
   // Readers hide/show it for themselves; while editing, the choice is saved as the default.
@@ -58,26 +61,26 @@ function TableOfContentsView({ editor, node, updateAttributes, selected }: NodeV
   const toggle = () => (editor.isEditable ? updateAttributes({ collapsed: !collapsed }) : setReaderCollapsed(!collapsed));
 
   return (
-    <NodeViewWrapper as="nav" className={selected ? "rich-toc selected" : "rich-toc"} aria-label="Table of contents">
+    <NodeViewWrapper as="nav" className={selected ? "rich-toc selected" : "rich-toc"} aria-label={t("toc.label")}>
       <div className="rich-toc-header" contentEditable={false}>
         <button
           type="button"
           className="rich-toc-toggle"
           aria-expanded={!collapsed}
-          data-tooltip={collapsed ? "Show the contents" : "Hide the contents"}
+          data-tooltip={collapsed ? t("toc.show") : t("toc.hide")}
           onMouseDown={(e) => e.preventDefault()}
           onClick={toggle}
         >
           {collapsed ? <ChevronRight size={14} strokeWidth={2.5} /> : <ChevronDown size={14} strokeWidth={2.5} />}
-          <span className="rich-toc-title">Contents</span>
+          <span className="rich-toc-title">{t("toc.title")}</span>
           {collapsed && tree.length > 0 && <span className="rich-toc-count">{headings.length}</span>}
         </button>
         {editor.isEditable && (
           <span className="rich-toc-options">
-            <select aria-label="Headings included" value={maxLevel} onChange={(e) => updateAttributes({ maxLevel: Number(e.target.value) })}>
+            <select aria-label={t("toc.levels")} value={maxLevel} onChange={(e) => updateAttributes({ maxLevel: Number(e.target.value) })}>
               {HEADING_LEVELS.map((l) => (
                 <option key={l} value={l}>
-                  {l === 1 ? "H1 only" : `H1 to H${l}`}
+                  {l === 1 ? t("toc.h1Only") : t("toc.upTo", { level: l })}
                 </option>
               ))}
             </select>
@@ -85,8 +88,8 @@ function TableOfContentsView({ editor, node, updateAttributes, selected }: NodeV
               type="button"
               className={numbered ? "rich-toc-option active" : "rich-toc-option"}
               aria-pressed={numbered}
-              aria-label="Number the entries"
-              data-tooltip="Number the entries (1, 1.1, …)"
+              aria-label={t("toc.number")}
+              data-tooltip={t("toc.numberHint")}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => updateAttributes({ numbered: !numbered })}
             >
@@ -100,7 +103,7 @@ function TableOfContentsView({ editor, node, updateAttributes, selected }: NodeV
           {tree.length ? (
             <Entries entries={tree} numbered={numbered} onJump={(pos) => jumpTo(editor, pos)} />
           ) : (
-            <p className="rich-toc-empty">{editor.isEditable ? "Add headings (Heading 1 to 5) and they will be listed here." : "No headings yet."}</p>
+            <p className="rich-toc-empty">{editor.isEditable ? t("toc.emptyEdit") : t("toc.empty")}</p>
           )}
         </div>
       )}

@@ -5,6 +5,8 @@ import { Trash2, Search } from "lucide-react";
 import { buildTerritoryTree, TerritoryTreeRow } from "@/components/TerritoryTree";
 import { articleHref } from "@/server/articles/templates";
 import { SkeletonList } from "@/components/Skeleton";
+import { useT } from "@/i18n/useT";
+import { authorityRoleLabel, territoryTypeLabel } from "@/server/politics/hierarchy-config";
 
 interface Territory {
   id: string;
@@ -39,22 +41,29 @@ async function json<T>(res: Response): Promise<T> {
 }
 
 function AuthorityRow({ authority, territoryName }: { authority: Authority; territoryName: string }) {
+  const t = useT("politics");
+  // The role is bold, so the sentence is split around it.
+  const [before, after] = t(authority.title ? "affiliation.authorityTitled" : "affiliation.authority", {
+    title: authority.title,
+    territory: territoryName,
+    holder: authority.holderName,
+  }).split("{role}");
   return (
     <li className="politics-list-row">
       <span>
-        <strong>{authority.role}</strong>
-        {authority.title ? ` (${authority.title})` : ""} of {territoryName}
-        {" — "}
-        {authority.holderName}
+        {before}
+        <strong>{authorityRoleLabel(authority.role, t)}</strong>
+        {after}
       </span>
       <a href={articleHref(authority.holderType, authority.holderId)} target="_blank" rel="noopener noreferrer" className="btn btn-sm">
-        View
+        {t("view")}
       </a>
     </li>
   );
 }
 
 function TerritoryPicker({ onPick }: { onPick: (territoryId: string) => void }) {
+  const tp = useT("politics");
   const [q, setQ] = useState("");
   const [territories, setTerritories] = useState<Territory[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -93,7 +102,7 @@ function TerritoryPicker({ onPick }: { onPick: (territoryId: string) => void }) 
         <Search size={14} strokeWidth={2.25} />
         <input
           type="text"
-          placeholder="Search territories, or browse the hierarchy below…"
+          placeholder={tp("picker.search")}
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
@@ -103,17 +112,17 @@ function TerritoryPicker({ onPick }: { onPick: (territoryId: string) => void }) 
           ? searchResults.map((t) => (
               <li key={t.id} className="politics-list-row">
                 <button type="button" className="politics-list-pick" onClick={() => onPick(t.id)}>
-                  {t.name} <span className="field-label">({t.type})</span>
+                  {t.name} <span className="field-label">({territoryTypeLabel(t.type, tp)})</span>
                 </button>
               </li>
             ))
           : tree.map((root) => (
               <TerritoryTreeRow key={root.id} node={root} depth={0} expanded={expanded} onToggleExpand={toggleExpand} onSelect={onPick} />
             ))}
-        {searching && searchResults.length === 0 && <li className="field-label">No matches.</li>}
+        {searching && searchResults.length === 0 && <li className="field-label">{tp("picker.noMatches")}</li>}
       </ul>
       <a href={articleHref("territory")} target="_blank" rel="noopener noreferrer" className="btn btn-sm">
-        Create a new territory
+        {tp("picker.create")}
       </a>
     </div>
   );
@@ -129,6 +138,8 @@ export default function PoliticalReferencesPanel({
    * /affiliation fetch of its own. */
   onAcceptedChainChange?: (chain: { id: string; name: string }[] | null) => void;
 }) {
+  const t = useT("politics");
+  const tc = useT("common");
   const [accepted, setAccepted] = useState<AffiliationDetail | null>(null);
   const [draft, setDraft] = useState<AffiliationDetail | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -178,7 +189,7 @@ export default function PoliticalReferencesPanel({
     const draftRes = await putAffiliation(territoryId, "draft");
     if (!draftRes.ok) {
       const data = await draftRes.json();
-      window.alert(data.error ?? "Could not set affiliation.");
+      window.alert(data.error ?? t("affiliation.setFailed"));
       return;
     }
     setPickerOpen(false);
@@ -190,35 +201,40 @@ export default function PoliticalReferencesPanel({
     refresh();
   }
 
-  if (!loaded) return <SkeletonList rows={3} label="Loading…" />;
+  if (!loaded) return <SkeletonList rows={3} label={tc("loading")} />;
 
   return (
     <div className="politics-panel">
-      <h3 className="marker-section-title">Affiliation</h3>
+      <h3 className="marker-section-title">{t("affiliation.title")}</h3>
       {accepted ? (
         <div className="politics-chain">
-          {accepted.chain.map((t, i) => (
-            <span key={t.id}>
+          {accepted.chain.map((c, i) => (
+            <span key={c.id}>
               {i > 0 && " › "}
-              <a href={articleHref("territory", t.id)} target="_blank" rel="noopener noreferrer">
-                {t.name} <span className="field-label">({t.type})</span>
+              <a href={articleHref("territory", c.id)} target="_blank" rel="noopener noreferrer">
+                {c.name} <span className="field-label">({territoryTypeLabel(c.type, t)})</span>
               </a>
             </span>
           ))}
           <button type="button" className="btn btn-sm btn-danger" onClick={() => removeAffiliation("accepted")}>
             <Trash2 size={13} strokeWidth={2.25} />
-            Remove affiliation
+            {t("affiliation.remove")}
           </button>
         </div>
       ) : (
-        <p className="field-label">No affiliation set — this marker is politically unassigned.</p>
+        <p className="field-label">{t("affiliation.none")}</p>
       )}
 
       {draft && (
         <div className="politics-draft-banner">
-          <strong>Incomplete affiliation draft:</strong>{" "}
-          {draft.chain.map((t) => `${t.name} (${t.type})`).join(" › ") || "(none)"}
-          {draft.missingRequiredTypes.length > 0 && <> — missing: {draft.missingRequiredTypes.join(", ")}</>}
+          <strong>{t("affiliation.draft")}</strong>{" "}
+          {draft.chain.map((c) => t("nameWithType", { name: c.name, type: territoryTypeLabel(c.type, t) })).join(" › ") || t("affiliation.draftEmpty")}
+          {draft.missingRequiredTypes.length > 0 && (
+            <>
+              {" "}
+              {t("affiliation.missing", { types: draft.missingRequiredTypes.map((type) => territoryTypeLabel(type, t)).join(", ") })}
+            </>
+          )}
           <div className="marker-panel-actions">
             <button
               type="button"
@@ -228,16 +244,16 @@ export default function PoliticalReferencesPanel({
                 const res = await putAffiliation(draft.chain[draft.chain.length - 1].id, "accepted");
                 if (!res.ok) {
                   const data = await res.json();
-                  window.alert(data.error ?? "Could not accept affiliation.");
+                  window.alert(data.error ?? t("affiliation.acceptFailed"));
                   return;
                 }
                 refresh();
               }}
             >
-              Accept as complete
+              {t("affiliation.accept")}
             </button>
             <button type="button" className="btn btn-sm" onClick={() => removeAffiliation("draft")}>
-              Discard draft
+              {t("affiliation.discard")}
             </button>
           </div>
         </div>
@@ -247,16 +263,16 @@ export default function PoliticalReferencesPanel({
         <TerritoryPicker onPick={pickTerritory} />
       ) : (
         <button type="button" className="btn btn-sm" onClick={() => setPickerOpen(true)}>
-          {accepted ? "Change affiliation" : "Set affiliation"}
+          {accepted ? t("affiliation.change") : t("affiliation.set")}
         </button>
       )}
 
       {accepted && accepted.authorities.length > 0 && (
         <>
-          <h3 className="marker-section-title">Authorities</h3>
+          <h3 className="marker-section-title">{t("affiliation.authorities")}</h3>
           <ul className="politics-list">
             {accepted.authorities.map((a) => (
-              <AuthorityRow key={a.id} authority={a} territoryName={accepted.chain.find((t) => t.id === a.territoryId)?.name ?? ""} />
+              <AuthorityRow key={a.id} authority={a} territoryName={accepted.chain.find((c) => c.id === a.territoryId)?.name ?? ""} />
             ))}
           </ul>
         </>

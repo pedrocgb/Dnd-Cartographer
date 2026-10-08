@@ -14,15 +14,20 @@ import { useArticleCandidates, type MarkerArticleLink, type MarkerArticleLinks }
 import type { Marker } from "../MarkerLayer";
 import type { MarkerUpdate } from "./types";
 import MarkerCard from "./MarkerCard";
+import { activeT } from "@/i18n/active";
+import { allTranslations } from "@/i18n/translate";
+import { useT } from "@/i18n/useT";
 
 /** The name a freshly placed marker gets (MapWorkspace.placeMarker); linking an article replaces it. */
-const PLACEHOLDER_NAME = "New marker";
+/** A new marker's default name, in any language (it was written in the language active at the time). */
+const PLACEHOLDER_NAMES = new Set(allTranslations("maps", "defaults.newMarker"));
 
 const CREATE_OPTIONS = QUICK_CREATE_TEMPLATES.map((t) => ({ value: t.key, label: t.label }));
 
 /** A linked article's name, opening the article in a new tab (the map stays as it was). */
 function ArticleName({ link }: { link: MarkerArticleLink }) {
-  if (!link.name) return <span className="marker-article-name removed">Deleted article</span>;
+  const t = useT("maps");
+  if (!link.name) return <span className="marker-article-name removed">{t("marker.deletedArticle")}</span>;
   return (
     <a href={articleHref(link.template, link.articleId)} target="_blank" rel="noopener noreferrer" className="marker-article-name">
       {link.name}
@@ -32,6 +37,7 @@ function ArticleName({ link }: { link: MarkerArticleLink }) {
 
 /** View mode: the primary article as a card (image, template, first lines), the other links as chips. */
 export function MarkerSubjectView({ markerId, links }: { markerId: string; links: MarkerArticleLinks }) {
+  const t = useT("maps");
   const primary = links.primary;
   const [preview, setPreview] = useState<{ linkId: string; data: MarkerPreview | null } | null>(null);
 
@@ -67,13 +73,13 @@ export function MarkerSubjectView({ markerId, links }: { markerId: string; links
           {primary.name && (
             <a className="btn btn-sm marker-subject-open" href={articleHref(primary.template, primary.articleId)} target="_blank" rel="noopener noreferrer">
               <ExternalLink size={14} strokeWidth={2.25} />
-              Open article
+              {t("marker.openArticle")}
             </a>
           )}
         </div>
       )}
       {others.length > 0 && (
-        <ul className="marker-link-chips" aria-label="Also linked">
+        <ul className="marker-link-chips" aria-label={t("marker.alsoLinked")}>
           {others.map((l) => {
             const { Icon, label } = templateOf(l.template);
             return (
@@ -111,12 +117,14 @@ function TemplateBadge({ template }: { template: ArticleTemplateKey }) {
 
 /** Offers the template's icon and category once a marker's main article is set, if it looks different. */
 function LookSuggestion({ template, marker, onUpdate, onDismiss }: { template: ArticleTemplateKey; marker: Marker; onUpdate: MarkerUpdate; onDismiss: () => void }) {
+  const t = useT("maps");
+  const tc = useT("common");
   const look = TEMPLATE_MARKER_DEFAULTS[template];
   if (!look || look.iconKey === marker.iconKey) return null;
   return (
     <div className="marker-suggestion">
       <RawIcon iconKey={look.iconKey} size={16} aria-hidden="true" />
-      <span>Use the {templateOf(template).label} icon?</span>
+      <span>{t("marker.useIcon", { template: templateOf(template).label })}</span>
       <button
         type="button"
         className="btn btn-sm"
@@ -125,9 +133,9 @@ function LookSuggestion({ template, marker, onUpdate, onDismiss }: { template: A
           onDismiss();
         }}
       >
-        Apply
+        {t("marker.apply")}
       </button>
-      <button type="button" className="btn btn-ghost btn-icon" aria-label="Dismiss" data-tooltip="Dismiss" onClick={onDismiss}>
+      <button type="button" className="btn btn-ghost btn-icon" aria-label={tc("dismiss")} data-tooltip={tc("dismiss")} onClick={onDismiss}>
         <X size={14} strokeWidth={2.25} />
       </button>
     </div>
@@ -151,6 +159,7 @@ export function MarkerSubjectEdit({
   onUpdate: MarkerUpdate;
   onRename: (name: string) => void;
 }) {
+  const t = useT("maps");
   const { candidates, error: loadError, refresh } = useArticleCandidates(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -160,7 +169,7 @@ export function MarkerSubjectEdit({
   const options = useMemo(() => candidateOptions(candidates ?? [], primary ? new Set([primary.articleId]) : undefined), [candidates, primary]);
 
   const trimmedName = marker.name.trim().toLowerCase();
-  const nameMatch = !primary && trimmedName !== PLACEHOLDER_NAME.toLowerCase() ? candidates?.find((c) => c.name.toLowerCase() === trimmedName && !linked.has(c.id)) : undefined;
+  const nameMatch = !primary && ![...PLACEHOLDER_NAMES].some((p) => p.toLowerCase() === trimmedName) ? candidates?.find((c) => c.name.toLowerCase() === trimmedName && !linked.has(c.id)) : undefined;
 
   async function makePrimary(article: Candidate) {
     setBusy(true);
@@ -169,12 +178,12 @@ export function MarkerSubjectEdit({
     const failure = existing ? (await links.update(existing.id, { primary: true }), null) : await links.add(article, { primary: true });
     setBusy(false);
     if (failure) return setError(failure);
-    if (marker.name.trim() === PLACEHOLDER_NAME) onRename(article.name);
+    if (PLACEHOLDER_NAMES.has(marker.name.trim())) onRename(article.name);
     setSuggestLook(article.template);
   }
 
   async function createAndLink(template: ArticleTemplateKey) {
-    const name = marker.name.trim() || PLACEHOLDER_NAME;
+    const name = marker.name.trim() || activeT("maps")("defaults.newMarker");
     setBusy(true);
     setError(null);
     try {
@@ -184,12 +193,12 @@ export function MarkerSubjectEdit({
       await makePrimary(created);
     } catch (e) {
       setBusy(false);
-      setError(e instanceof Error ? e.message : "Could not create the article.");
+      setError(e instanceof Error ? e.message : t("marker.createFailed"));
     }
   }
 
   return (
-    <MarkerCard title="Main article">
+    <MarkerCard title={t("marker.mainArticle")}>
       {primary && (
         <div className="marker-article-row marker-subject-row">
           <TemplateIcon template={primary.template} />
@@ -197,7 +206,7 @@ export function MarkerSubjectEdit({
             <ArticleName link={primary} />
             <span className="marker-article-label">{templateOf(primary.template).label}</span>
           </span>
-          <button type="button" className="btn btn-ghost btn-icon" aria-label={`Unlink ${primary.name ?? "article"}`} data-tooltip="Unlink" onClick={() => links.remove(primary.id)}>
+          <button type="button" className="btn btn-ghost btn-icon" aria-label={t("marker.unlinkNamed", { name: primary.name ?? t("marker.article") })} data-tooltip={t("marker.unlink")} onClick={() => links.remove(primary.id)}>
             <X size={14} strokeWidth={2.25} />
           </button>
         </div>
@@ -205,19 +214,17 @@ export function MarkerSubjectEdit({
       {nameMatch && (
         <div className="marker-suggestion">
           <Sparkles size={15} strokeWidth={2.25} aria-hidden="true" />
-          <span>
-            Link “{nameMatch.name}” ({templateOf(nameMatch.template).label})?
-          </span>
+          <span>{t("marker.linkSuggest", { name: nameMatch.name, template: templateOf(nameMatch.template).label })}</span>
           <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={() => makePrimary(nameMatch)}>
-            Link
+            {t("marker.link")}
           </button>
         </div>
       )}
       <InfoPicker
         options={options}
         value={null}
-        placeholder={candidates === null ? (loadError ? "Could not load the articles" : "Loading articles…") : primary ? "Replace with another article…" : "Link an existing article…"}
-        ariaLabel="Main article"
+        placeholder={candidates === null ? (loadError ? t("marker.loadFailed") : t("marker.loadingArticles")) : primary ? t("marker.replaceArticle") : t("marker.linkArticle")}
+        ariaLabel={t("marker.mainArticle")}
         collapsibleGroups
         disabled={candidates === null || busy}
         onChange={(id) => {
@@ -229,13 +236,13 @@ export function MarkerSubjectEdit({
         <InfoPicker
           options={CREATE_OPTIONS}
           value={null}
-          placeholder={`+ Create “${marker.name.trim() || PLACEHOLDER_NAME}” as a new…`}
-          ariaLabel="Create a new article for this marker"
+          placeholder={t("marker.createAs", { name: marker.name.trim() || t("defaults.newMarker") })}
+          ariaLabel={t("marker.createForMarker")}
           disabled={busy}
           onChange={(template) => template && void createAndLink(template as ArticleTemplateKey)}
         />
       )}
-      {primary && <p className="field-label marker-card-hint">A replaced article stays linked in the Articles tab.</p>}
+      {primary && <p className="field-label marker-card-hint">{t("marker.replacedHint")}</p>}
       {suggestLook && <LookSuggestion template={suggestLook} marker={marker} onUpdate={onUpdate} onDismiss={() => setSuggestLook(null)} />}
       {error && <p className="form-error">{error}</p>}
     </MarkerCard>

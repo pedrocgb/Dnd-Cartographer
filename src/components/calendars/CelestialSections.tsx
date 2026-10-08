@@ -8,6 +8,7 @@ import {
   EIGHT_PHASES,
   FOUR_PHASES,
   nextPhaseStart,
+  ONE_PHASE,
   normalizeSchedule,
   phaseSpans,
   splitCycle,
@@ -22,6 +23,8 @@ import { newId } from "./api";
 import { dayLabel, localOf, safe } from "./evaluate";
 import DateInput from "./DateInput";
 import type { ClientCalendar } from "./types";
+import { useT } from "@/i18n/useT";
+import { activeT } from "@/i18n/active";
 
 export type SetConfig = (c: CelestialConfig) => void;
 
@@ -60,9 +63,9 @@ export function Section({ title, hint, children, actions }: { title: string; hin
 }
 
 const PRESETS = [
-  { key: "eight", label: "8 phases", detail: "New, crescent, quarter, gibbous, full…", names: EIGHT_PHASES },
-  { key: "four", label: "4 phases", detail: "New, waxing, full, waning", names: FOUR_PHASES },
-  { key: "one", label: "Always the same", detail: "One permanent state", names: [{ name: "Moon", icon: "○" }] },
+  { key: "eight", names: EIGHT_PHASES },
+  { key: "four", names: FOUR_PHASES },
+  { key: "one", names: ONE_PHASE },
 ] as const;
 
 export function presetPhases(names: readonly { name: string; icon: string }[], cycle: number): MoonPhase[] | null {
@@ -72,6 +75,7 @@ export function presetPhases(names: readonly { name: string; icon: string }[], c
 
 /** Moons: a quick preset, the editable phase list, the reference date and a preview of upcoming phases. */
 export function PhasesSection({ config, setConfig, def, today }: { config: CelestialConfig; setConfig: SetConfig; def: CalendarDefinition; today: number }) {
+  const t = useT("calendars");
   const phases = config.phases ?? [];
   const [cycle, setCycle] = useState(cycleTotal(phases) || 28);
   const [presetError, setPresetError] = useState<string | null>(null);
@@ -81,13 +85,13 @@ export function PhasesSection({ config, setConfig, def, today }: { config: Celes
   };
   const total = cycleTotal(phases);
   const spans = phases.length && config.anchor ? safe(() => phaseSpans(config, today, today + Math.min(120, Math.max(30, total * 2))), []) : [];
-  const full = phases.find((p) => /full/i.test(p.name));
+  const full = phases.find((p) => /full|cheia/i.test(p.name));
   const nextFull = full && config.anchor ? safe(() => nextPhaseStart(config, full.id, today), null) : null;
 
   function applyPreset(names: readonly { name: string; icon: string }[]) {
     const next = presetPhases(names, cycle);
     if (!next) {
-      setPresetError(`A ${cycle}-day cycle is too short for ${names.length} phases of at least one day each.`);
+      setPresetError(t("phases.tooShort", { cycle, n: names.length }));
       return;
     }
     setPresetError(null);
@@ -96,11 +100,11 @@ export function PhasesSection({ config, setConfig, def, today }: { config: Celes
 
   return (
     <>
-      <Section title="Quick start" hint="Pick a cycle length and a set of phases; the days are split for you. You can fine-tune them below.">
+      <Section title={t("phases.quickStart")} hint={t("phases.quickStartHint")}>
         <label className="cel-cycle">
-          <span>One full cycle lasts</span>
-          <input type="number" min={1} aria-label="Cycle length in days" value={cycle} onChange={(e) => setCycle(int(e.target.value))} />
-          <span>days</span>
+          <span>{t("phases.cycleLasts")}</span>
+          <input type="number" min={1} aria-label={t("phases.cycleAria")} value={cycle} onChange={(e) => setCycle(int(e.target.value))} />
+          <span>{t("phases.days")}</span>
         </label>
         <div className="cel-presets">
           {PRESETS.map((p) => (
@@ -108,8 +112,8 @@ export function PhasesSection({ config, setConfig, def, today }: { config: Celes
               <span className="cel-preset-icons" aria-hidden>
                 {p.names.map((n) => n.icon).join("")}
               </span>
-              <strong>{p.label}</strong>
-              <span className="cal-help">{p.detail}</span>
+              <strong>{t(`preset.${p.key}`)}</strong>
+              <span className="cal-help">{t(`preset.${p.key}Detail`)}</span>
             </button>
           ))}
         </div>
@@ -117,28 +121,28 @@ export function PhasesSection({ config, setConfig, def, today }: { config: Celes
       </Section>
 
       <Section
-        title="Phases"
-        hint={phases.length ? `In order. The cycle is ${total} day${total === 1 ? "" : "s"} long.` : "No phases yet: use a quick start above, or add them one by one."}
+        title={t("phases.title")}
+        hint={phases.length ? t("phases.hint", { count: total, n: total }) : t("phases.none")}
         actions={
-          <button type="button" className="btn btn-sm" onClick={() => setPhases([...phases, { id: newId("ph"), name: `Phase ${phases.length + 1}`, icon: "◌", days: 1 }])}>
-            <Plus size={14} /> Add phase
+          <button type="button" className="btn btn-sm" onClick={() => setPhases([...phases, { id: newId("ph"), name: t("default.phase", { n: phases.length + 1 }), icon: "◌", days: 1 }])}>
+            <Plus size={14} /> {t("phases.add")}
           </button>
         }
       >
         {phases.length > 0 && (
-          <div className="cel-table" role="table" aria-label="Phases">
+          <div className="cel-table" role="table" aria-label={t("phases.title")}>
             <div className="cel-table-row cel-table-head cel-phase-row" role="row">
-              <span role="columnheader">Symbol</span>
-              <span role="columnheader">Name</span>
-              <span role="columnheader">Days</span>
+              <span role="columnheader">{t("phases.symbol")}</span>
+              <span role="columnheader">{t("phases.name")}</span>
+              <span role="columnheader">{t("phases.daysHead")}</span>
               <span />
             </div>
             {phases.map((p, i) => (
               <div key={p.id} className="cel-table-row cel-phase-row" role="row">
-                <input type="text" className="cel-symbol-input" aria-label={`Phase ${i + 1} symbol`} maxLength={4} value={p.icon} onChange={(e) => setPhases(phases.map((x) => (x.id === p.id ? { ...x, icon: e.target.value } : x)))} />
-                <input type="text" aria-label={`Phase ${i + 1} name`} maxLength={80} value={p.name} onChange={(e) => setPhases(phases.map((x) => (x.id === p.id ? { ...x, name: e.target.value } : x)))} />
-                <input type="number" min={1} aria-label={`${p.name} length in days`} value={p.days} onChange={(e) => setPhases(phases.map((x) => (x.id === p.id ? { ...x, days: int(e.target.value, 0) } : x)))} />
-                <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={`Remove ${p.name}`} onClick={() => setPhases(phases.filter((x) => x.id !== p.id))}>
+                <input type="text" className="cel-symbol-input" aria-label={t("phases.symbolAria", { n: i + 1 })} maxLength={4} value={p.icon} onChange={(e) => setPhases(phases.map((x) => (x.id === p.id ? { ...x, icon: e.target.value } : x)))} />
+                <input type="text" aria-label={t("phases.nameAria", { n: i + 1 })} maxLength={80} value={p.name} onChange={(e) => setPhases(phases.map((x) => (x.id === p.id ? { ...x, name: e.target.value } : x)))} />
+                <input type="number" min={1} aria-label={t("phases.lengthAria", { name: p.name })} value={p.days} onChange={(e) => setPhases(phases.map((x) => (x.id === p.id ? { ...x, days: int(e.target.value, 0) } : x)))} />
+                <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={t("phases.remove", { name: p.name })} onClick={() => setPhases(phases.filter((x) => x.id !== p.id))}>
                   <Trash2 size={14} />
                 </button>
               </div>
@@ -148,12 +152,12 @@ export function PhasesSection({ config, setConfig, def, today }: { config: Celes
       </Section>
 
       {phases.length > 0 && (
-        <Section title="Where the cycle stands" hint="Pick one day you know the moon's phase on. Every other day, past and future, follows from it.">
+        <Section title={t("phases.anchor")} hint={t("phases.anchorHint")}>
           <div className="cel-anchor">
-            <DayField def={def} label="On" value={config.anchor?.worldDay ?? today} onChange={(worldDay) => setConfig({ ...config, anchor: { phaseId: config.anchor?.phaseId ?? phases[0].id, worldDay } })} />
+            <DayField def={def} label={t("phases.on")} value={config.anchor?.worldDay ?? today} onChange={(worldDay) => setConfig({ ...config, anchor: { phaseId: config.anchor?.phaseId ?? phases[0].id, worldDay } })} />
             <label className="cal-field">
-              <span className="field-label">the moon begins</span>
-              <select aria-label="Phase beginning on that day" value={config.anchor?.phaseId ?? ""} onChange={(e) => setConfig({ ...config, anchor: { worldDay: config.anchor?.worldDay ?? today, phaseId: e.target.value } })}>
+              <span className="field-label">{t("phases.begins")}</span>
+              <select aria-label={t("phases.beginsAria")} value={config.anchor?.phaseId ?? ""} onChange={(e) => setConfig({ ...config, anchor: { worldDay: config.anchor?.worldDay ?? today, phaseId: e.target.value } })}>
                 {phases.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.icon} {p.name}
@@ -166,10 +170,10 @@ export function PhasesSection({ config, setConfig, def, today }: { config: Celes
       )}
 
       {spans.length > 0 && (
-        <Section title="Preview" hint={full ? `Next ${full.name}: ${nextFull !== null ? dayLabel(def, nextFull) : "not within 2000 days"}.` : undefined}>
-          <div className="cal-timeline" role="list" aria-label="Upcoming phases">
+        <Section title={t("preview.title")} hint={full ? t("phases.nextOf", { phase: full.name, date: nextFull !== null ? dayLabel(def, nextFull) : t("phases.notWithin") }) : undefined}>
+          <div className="cal-timeline" role="list" aria-label={t("phases.upcoming")}>
             {spans.map((s) => (
-              <span key={s.start} role="listitem" className="cal-timeline-span" style={{ flexGrow: s.end - s.start + 1 }} data-tooltip={`${s.name}: ${dayLabel(def, s.start, { weekday: false })} – ${dayLabel(def, s.end, { weekday: false })}`}>
+              <span key={s.start} role="listitem" className="cal-timeline-span" style={{ flexGrow: s.end - s.start + 1 }} data-tooltip={t("phases.span", { name: s.name, from: dayLabel(def, s.start, { weekday: false }), to: dayLabel(def, s.end, { weekday: false }) })}>
                 {s.icon || s.name.slice(0, 1)}
               </span>
             ))}
@@ -195,26 +199,27 @@ export function PhasesSection({ config, setConfig, def, today }: { config: Celes
 }
 
 const SCHEDULE_KINDS = [
-  { kind: "once", Icon: Repeat, label: "On a date", detail: "once, or coming back every few days, months or years" },
-  { kind: "annual", Icon: CalendarRange, label: "Every year", detail: "between two dates, like a winter constellation" },
+  { kind: "once", Icon: Repeat },
+  { kind: "annual", Icon: CalendarRange },
 ] as const;
 
-const UNIT_LABELS: Record<RepeatUnit, [string, string]> = { days: ["day", "days"], months: ["month", "months"], years: ["year", "years"] };
-const plural = (n: number, unit: RepeatUnit) => `${n} ${UNIT_LABELS[unit][n === 1 ? 0 : 1]}`;
+const UNITS: RepeatUnit[] = ["days", "months", "years"];
+const plural = (n: number, unit: RepeatUnit) => activeT("calendars")(`unit.${unit}`, { count: n, n });
 /** How far ahead "Next" looks (physical days). */
 const NEXT_HORIZON = 50_000;
 
 /** One sentence describing a rule, e.g. "Visible for 2 days, coming back every 3 years". */
 export function ruleSummary(s: AppearanceSchedule, stateName: string, calendars: ClientCalendar[]): string {
+  const t = activeT("calendars");
   if (s.kind === "cycle") return ruleSummary(normalizeSchedule(s), stateName, calendars);
   if (s.kind === "annual") {
     const def = calendars.find((c) => c.id === s.calendarId)?.definition;
     const md = (x: { periodId: string; day: number }) => `${def?.periods.find((p) => p.id === x.periodId)?.name ?? "?"} ${x.day}`;
-    return `${stateName} every year, ${md(s.start)} – ${md(s.end)}`;
+    return t("sched.annual", { state: stateName, from: md(s.start), to: md(s.end) });
   }
-  const lasts = `${stateName} for ${plural(s.duration, "days")}`;
-  if (s.repeatEvery === null) return `${lasts}, once`;
-  return `${lasts}, ${s.alsoBefore ? "every" : "coming back every"} ${plural(s.repeatEvery, s.repeatUnit ?? "days")}${s.alsoBefore ? ", since always" : ""}`;
+  const lasts = t("sched.lasts", { state: stateName, duration: plural(s.duration, "days") });
+  if (s.repeatEvery === null) return t("sched.once", { lasts });
+  return t(s.alsoBefore ? "sched.always" : "sched.comingBack", { lasts, interval: plural(s.repeatEvery, s.repeatUnit ?? "days") });
 }
 
 function RuleCard({
@@ -236,6 +241,7 @@ function RuleCard({
   onChange: (patch: Partial<AppearanceSchedule>) => void;
   onRemove: () => void;
 }) {
+  const t = useT("calendars");
   const meta = SCHEDULE_KINDS.find((k) => k.kind === s.kind) ?? SCHEDULE_KINDS[0];
   const state = states.find((x) => x.id === s.stateId);
   const resolve = (id: string) => calendars.find((c) => c.id === id)?.definition ?? null;
@@ -249,17 +255,17 @@ function RuleCard({
           <meta.Icon size={16} />
         </span>
         <div className="cel-rule-card-title">
-          <strong>{meta.label}</strong>
-          <span className="cal-help">{ruleSummary(s, state?.name ?? "A removed state", calendars)}</span>
+          <strong>{t(`schedule.${meta.kind}`)}</strong>
+          <span className="cal-help">{ruleSummary(s, state?.name ?? t("sched.removedState"), calendars)}</span>
         </div>
-        <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label="Remove this rule" onClick={onRemove}>
+        <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={t("sched.remove")} onClick={onRemove}>
           <Trash2 size={14} />
         </button>
       </header>
 
       <div className="cel-rule-grid">
-        <span className="cel-rule-label">Shows</span>
-        <select aria-label="State shown" value={s.stateId} onChange={(e) => set({ stateId: e.target.value })}>
+        <span className="cel-rule-label">{t("sched.shows")}</span>
+        <select aria-label={t("sched.stateAria")} value={s.stateId} onChange={(e) => set({ stateId: e.target.value })}>
           {states.map((x) => (
             <option key={x.id} value={x.id}>
               {x.icon} {x.name}
@@ -275,8 +281,8 @@ function RuleCard({
               <>
                 {calendars.length > 1 && (
                   <>
-                    <span className="cel-rule-label">Calendar</span>
-                    <select aria-label="Calendar the dates are read in" value={s.calendarId} onChange={(e) => set({ calendarId: e.target.value })}>
+                    <span className="cel-rule-label">{t("sched.calendar")}</span>
+                    <select aria-label={t("sched.calendarAria")} value={s.calendarId} onChange={(e) => set({ calendarId: e.target.value })}>
                       {calendars.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.name}
@@ -285,26 +291,26 @@ function RuleCard({
                     </select>
                   </>
                 )}
-                <span className="cel-rule-label">From</span>
-                <DateInput def={cal} label="From" compact hideYear value={{ year, ...s.start }} onChange={(d) => set({ start: { periodId: d.periodId, day: d.day } })} />
-                <span className="cel-rule-label">Through</span>
-                <DateInput def={cal} label="Through" compact hideYear value={{ year, ...s.end }} onChange={(d) => set({ end: { periodId: d.periodId, day: d.day } })} />
+                <span className="cel-rule-label">{t("sched.from")}</span>
+                <DateInput def={cal} label={t("sched.from")} compact hideYear value={{ year, ...s.start }} onChange={(d) => set({ start: { periodId: d.periodId, day: d.day } })} />
+                <span className="cel-rule-label">{t("sched.through")}</span>
+                <DateInput def={cal} label={t("sched.through")} compact hideYear value={{ year, ...s.end }} onChange={(d) => set({ end: { periodId: d.periodId, day: d.day } })} />
                 <span />
-                <span className="cal-help">Only the month and day count. An end before the start runs into the next year.</span>
+                <span className="cal-help">{t("sched.monthDayHelp")}</span>
               </>
             );
           })()}
 
         {s.kind === "once" && (
           <>
-            <span className="cel-rule-label">{s.alsoBefore ? "One time is" : "First time"}</span>
-            <DayField def={def} label={s.alsoBefore ? "One time is" : "First time"} value={s.startWorldDay} onChange={(startWorldDay) => set({ startWorldDay })} />
-            <span className="cel-rule-label">Lasts</span>
+            <span className="cel-rule-label">{s.alsoBefore ? t("sched.oneTime") : t("sched.firstTime")}</span>
+            <DayField def={def} label={s.alsoBefore ? t("sched.oneTime") : t("sched.firstTime")} value={s.startWorldDay} onChange={(startWorldDay) => set({ startWorldDay })} />
+            <span className="cel-rule-label">{t("sched.lastsLabel")}</span>
             <span className="cel-rule-inline">
-              <input type="number" min={1} aria-label="Days it lasts" value={s.duration} onChange={(e) => set({ duration: int(e.target.value) })} />
-              days
+              <input type="number" min={1} aria-label={t("sched.lastsAria")} value={s.duration} onChange={(e) => set({ duration: int(e.target.value) })} />
+              {t("phases.days")}
             </span>
-            <span className="cel-rule-label">Comes back</span>
+            <span className="cel-rule-label">{t("sched.comesBack")}</span>
             <label className="cel-toggle cel-toggle-inline">
               <input
                 type="checkbox"
@@ -315,29 +321,29 @@ function RuleCard({
               <span className="cel-toggle-track" aria-hidden>
                 <span className="cel-toggle-thumb" />
               </span>
-              <span>{s.repeatEvery === null ? "No, only once" : "Yes"}</span>
+              <span>{s.repeatEvery === null ? t("sched.onlyOnce") : t("sched.yes")}</span>
             </label>
             {s.repeatEvery !== null && (
               <>
-                <span className="cel-rule-label">Every</span>
+                <span className="cel-rule-label">{t("sched.every")}</span>
                 <span className="cel-rule-inline">
-                  <input type="number" min={1} aria-label="Comes back every" value={s.repeatEvery} onChange={(e) => set({ repeatEvery: int(e.target.value) })} />
+                  <input type="number" min={1} aria-label={t("sched.everyAria")} value={s.repeatEvery} onChange={(e) => set({ repeatEvery: int(e.target.value) })} />
                   <select
-                    aria-label="Unit"
+                    aria-label={t("sched.unit")}
                     value={s.repeatUnit ?? "days"}
                     onChange={(e) => set({ repeatUnit: e.target.value as RepeatUnit, repeatCalendarId: e.target.value === "days" ? null : (s.repeatCalendarId ?? calendarId), alsoBefore: e.target.value === "days" ? s.alsoBefore : false })}
                   >
-                    {(Object.keys(UNIT_LABELS) as RepeatUnit[]).map((u) => (
+                    {UNITS.map((u) => (
                       <option key={u} value={u}>
-                        {UNIT_LABELS[u][s.repeatEvery === 1 ? 0 : 1]}
+                        {t(`unitName.${u}`, { count: s.repeatEvery ?? 1 })}
                       </option>
                     ))}
                   </select>
                 </span>
                 {(s.repeatUnit ?? "days") !== "days" && calendars.length > 1 && (
                   <>
-                    <span className="cel-rule-label">Counted in</span>
-                    <select aria-label="Calendar the months or years are counted in" value={s.repeatCalendarId ?? calendarId} onChange={(e) => set({ repeatCalendarId: e.target.value })}>
+                    <span className="cel-rule-label">{t("sched.countedIn")}</span>
+                    <select aria-label={t("sched.countedInAria")} value={s.repeatCalendarId ?? calendarId} onChange={(e) => set({ repeatCalendarId: e.target.value })}>
                       {calendars.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.name}
@@ -349,18 +355,18 @@ function RuleCard({
                 {(s.repeatUnit ?? "days") !== "days" && (
                   <>
                     <span />
-                    <span className="cal-help">It comes back on the same day of the month; when a month is shorter, on its last day.</span>
+                    <span className="cal-help">{t("sched.sameDayHelp")}</span>
                   </>
                 )}
                 {(s.repeatUnit ?? "days") === "days" && (
                   <>
-                    <span className="cel-rule-label">Before it</span>
+                    <span className="cel-rule-label">{t("sched.before")}</span>
                     <label className="cel-toggle cel-toggle-inline">
                       <input type="checkbox" role="switch" checked={Boolean(s.alsoBefore)} onChange={(e) => set({ alsoBefore: e.target.checked })} />
                       <span className="cel-toggle-track" aria-hidden>
                         <span className="cel-toggle-thumb" />
                       </span>
-                      <span>{s.alsoBefore ? "It has always been repeating (the date is just one of its appearances)" : "Nothing before the first time"}</span>
+                      <span>{s.alsoBefore ? t("sched.alwaysRepeating") : t("sched.nothingBefore")}</span>
                     </label>
                   </>
                 )}
@@ -371,11 +377,11 @@ function RuleCard({
       </div>
 
       <footer className="cel-rule-card-next">
-        <span className="field-label">Next</span>
+        <span className="field-label">{t("sched.next")}</span>
         {next.length ? (
           <span>{next.map((d) => dayLabel(def, d, { weekday: false })).join(" · ")}</span>
         ) : (
-          <span className="cal-help">No upcoming appearance.</span>
+          <span className="cal-help">{t("sched.noUpcoming")}</span>
         )}
       </footer>
     </article>
@@ -399,6 +405,7 @@ export function AppearanceSection({
   today: number;
   calendars: ClientCalendar[];
 }) {
+  const t = useT("calendars");
   const states = config.states ?? [];
   const schedules = config.schedules ?? [];
   const setSchedule = (id: string, patch: Partial<AppearanceSchedule>) => setConfig({ ...config, schedules: schedules.map((s) => (s.id === id ? ({ ...s, ...patch } as AppearanceSchedule) : s)) });
@@ -417,26 +424,26 @@ export function AppearanceSection({
   return (
     <>
       <Section
-        title="States"
-        hint="What it can look like: Visible, Bright, Eclipsed… Leave this empty for an object that's only lore."
+        title={t("states.title")}
+        hint={t("states.hint")}
         actions={
-          <button type="button" className="btn btn-sm" onClick={() => setConfig({ ...config, states: [...states, { id: newId("st"), name: states.length ? `State ${states.length + 1}` : "Visible", icon: "✦" }] })}>
-            <Plus size={14} /> Add state
+          <button type="button" className="btn btn-sm" onClick={() => setConfig({ ...config, states: [...states, { id: newId("st"), name: states.length ? t("default.state", { n: states.length + 1 }) : t("default.visible"), icon: "✦" }] })}>
+            <Plus size={14} /> {t("states.add")}
           </button>
         }
       >
         {states.length > 0 && (
-          <div className="cel-table" role="table" aria-label="States">
+          <div className="cel-table" role="table" aria-label={t("states.title")}>
             <div className="cel-table-row cel-table-head cel-state-row" role="row">
-              <span role="columnheader">Symbol</span>
-              <span role="columnheader">Name</span>
+              <span role="columnheader">{t("phases.symbol")}</span>
+              <span role="columnheader">{t("phases.name")}</span>
               <span />
             </div>
             {states.map((s, i) => (
               <div key={s.id} className="cel-table-row cel-state-row" role="row">
-                <input type="text" className="cel-symbol-input" aria-label={`State ${i + 1} symbol`} maxLength={4} value={s.icon} onChange={(e) => setConfig({ ...config, states: states.map((x) => (x.id === s.id ? { ...x, icon: e.target.value } : x)) })} />
-                <input type="text" aria-label={`State ${i + 1} name`} maxLength={80} value={s.name} onChange={(e) => setConfig({ ...config, states: states.map((x) => (x.id === s.id ? { ...x, name: e.target.value } : x)) })} />
-                <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={`Remove ${s.name}`} onClick={() => setConfig({ ...config, states: states.filter((x) => x.id !== s.id), schedules: schedules.filter((x) => x.stateId !== s.id) })}>
+                <input type="text" className="cel-symbol-input" aria-label={t("states.symbolAria", { n: i + 1 })} maxLength={4} value={s.icon} onChange={(e) => setConfig({ ...config, states: states.map((x) => (x.id === s.id ? { ...x, icon: e.target.value } : x)) })} />
+                <input type="text" aria-label={t("states.nameAria", { n: i + 1 })} maxLength={80} value={s.name} onChange={(e) => setConfig({ ...config, states: states.map((x) => (x.id === s.id ? { ...x, name: e.target.value } : x)) })} />
+                <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={t("phases.remove", { name: s.name })} onClick={() => setConfig({ ...config, states: states.filter((x) => x.id !== s.id), schedules: schedules.filter((x) => x.stateId !== s.id) })}>
                   <Trash2 size={14} />
                 </button>
               </div>
@@ -446,7 +453,7 @@ export function AppearanceSection({
       </Section>
 
       {states.length > 0 && (
-        <Section title="When it happens" hint="Each rule turns one state on for some days. Without a rule, a state never shows by itself.">
+        <Section title={t("states.when")} hint={t("states.whenHint")}>
           {schedules.map((s) => (
             <RuleCard
               key={s.id}
@@ -460,13 +467,13 @@ export function AppearanceSection({
               onRemove={() => setConfig({ ...config, schedules: schedules.filter((x) => x.id !== s.id) })}
             />
           ))}
-          <span className="field-label cel-add-label">{schedules.length ? "Add another rule" : "Add a rule"}</span>
+          <span className="field-label cel-add-label">{schedules.length ? t("states.addAnother") : t("states.addRule")}</span>
           <div className="cel-add-rules">
             {SCHEDULE_KINDS.map((k) => (
               <button key={k.kind} type="button" className="cel-preset" disabled={k.kind === "annual" && calendars.length === 0} onClick={() => addSchedule(k.kind)}>
                 <k.Icon size={16} aria-hidden />
-                <strong>{k.label}</strong>
-                <span className="cal-help">{k.detail}</span>
+                <strong>{t(`schedule.${k.kind}`)}</strong>
+                <span className="cal-help">{t(`schedule.${k.kind}Detail`)}</span>
               </button>
             ))}
           </div>
@@ -478,33 +485,34 @@ export function AppearanceSection({
 
 /** Dated overrides (any type) and, for moons, cycle restarts. */
 export function ExceptionsSection({ config, setConfig, def, today, isMoon }: { config: CelestialConfig; setConfig: SetConfig; def: CalendarDefinition; today: number; isMoon: boolean }) {
+  const t = useT("calendars");
   const overrides = config.overrides ?? [];
   const stateOptions = isMoon ? (config.phases ?? []) : (config.states ?? []);
   const set = (id: string, patch: Partial<StateOverride>) => setConfig({ ...config, overrides: overrides.map((o) => (o.id === id ? { ...o, ...patch } : o)) });
   const phases = config.phases ?? [];
 
   if (stateOptions.length === 0) {
-    return <p className="cel-empty">{isMoon ? "Add phases first." : "Add a state first."} Exceptions change what&apos;s shown on chosen dates.</p>;
+    return <p className="cel-empty">{isMoon ? t("exceptions.addPhases") : t("exceptions.addState")} {t("exceptions.explain")}</p>;
   }
   return (
     <>
       <Section
-        title="Special dates"
-        hint="Force a state over a date range — a magical eclipse, a moon that stays full. Afterwards everything continues as if nothing happened."
+        title={t("exceptions.title")}
+        hint={t("exceptions.hint")}
         actions={
           <button type="button" className="btn btn-sm" onClick={() => setConfig({ ...config, overrides: [...overrides, { id: newId("ov"), start: today, end: today, stateId: stateOptions[0].id }] })}>
-            <Plus size={14} /> Add special date
+            <Plus size={14} /> {t("exceptions.add")}
           </button>
         }
       >
         {overrides.map((o) => (
           <div key={o.id} className="cel-rule">
             <div className="cel-rule-body">
-              <DayField def={def} label="From" value={o.start} onChange={(start) => set(o.id, { start })} />
-              <DayField def={def} label="Through" value={o.end} onChange={(end) => set(o.id, { end })} />
+              <DayField def={def} label={t("sched.from")} value={o.start} onChange={(start) => set(o.id, { start })} />
+              <DayField def={def} label={t("sched.through")} value={o.end} onChange={(end) => set(o.id, { end })} />
               <label className="cal-field">
-                <span className="field-label">Shows</span>
-                <select aria-label="State shown" value={o.stateId} onChange={(e) => set(o.id, { stateId: e.target.value })}>
+                <span className="field-label">{t("sched.shows")}</span>
+                <select aria-label={t("sched.stateAria")} value={o.stateId} onChange={(e) => set(o.id, { stateId: e.target.value })}>
                   {stateOptions.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.icon} {s.name}
@@ -512,7 +520,7 @@ export function ExceptionsSection({ config, setConfig, def, today, isMoon }: { c
                   ))}
                 </select>
               </label>
-              <button type="button" className="btn btn-ghost btn-icon btn-sm cel-rule-remove" aria-label="Remove special date" onClick={() => setConfig({ ...config, overrides: overrides.filter((x) => x.id !== o.id) })}>
+              <button type="button" className="btn btn-ghost btn-icon btn-sm cel-rule-remove" aria-label={t("exceptions.remove")} onClick={() => setConfig({ ...config, overrides: overrides.filter((x) => x.id !== o.id) })}>
                 <Trash2 size={14} />
               </button>
             </div>
@@ -522,21 +530,21 @@ export function ExceptionsSection({ config, setConfig, def, today, isMoon }: { c
 
       {isMoon && (
         <Section
-          title="Restart the cycle"
-          hint="From a chosen day on, the cycle starts over with a phase you pick (after a cataclysm, say). Days before it keep their phases."
+          title={t("restart.title")}
+          hint={t("restart.hint")}
           actions={
             <button type="button" className="btn btn-sm" onClick={() => setConfig({ ...config, segments: [...(config.segments ?? []), { id: newId("seg"), fromWorldDay: today, phaseId: phases[0].id }] })}>
-              <RefreshCcw size={14} /> Add restart
+              <RefreshCcw size={14} /> {t("restart.add")}
             </button>
           }
         >
           {(config.segments ?? []).map((s) => (
             <div key={s.id} className="cel-rule">
               <div className="cel-rule-body">
-                <DayField def={def} label="From" value={s.fromWorldDay} onChange={(fromWorldDay) => setConfig({ ...config, segments: config.segments!.map((x) => (x.id === s.id ? { ...x, fromWorldDay } : x)) })} />
+                <DayField def={def} label={t("sched.from")} value={s.fromWorldDay} onChange={(fromWorldDay) => setConfig({ ...config, segments: config.segments!.map((x) => (x.id === s.id ? { ...x, fromWorldDay } : x)) })} />
                 <label className="cal-field">
-                  <span className="field-label">starts again with</span>
-                  <select aria-label="Restart with phase" value={s.phaseId} onChange={(e) => setConfig({ ...config, segments: config.segments!.map((x) => (x.id === s.id ? { ...x, phaseId: e.target.value } : x)) })}>
+                  <span className="field-label">{t("restart.startsWith")}</span>
+                  <select aria-label={t("restart.phaseAria")} value={s.phaseId} onChange={(e) => setConfig({ ...config, segments: config.segments!.map((x) => (x.id === s.id ? { ...x, phaseId: e.target.value } : x)) })}>
                     {phases.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.icon} {p.name}
@@ -544,7 +552,7 @@ export function ExceptionsSection({ config, setConfig, def, today, isMoon }: { c
                     ))}
                   </select>
                 </label>
-                <button type="button" className="btn btn-ghost btn-icon btn-sm cel-rule-remove" aria-label="Remove restart" onClick={() => setConfig({ ...config, segments: config.segments!.filter((x) => x.id !== s.id) })}>
+                <button type="button" className="btn btn-ghost btn-icon btn-sm cel-rule-remove" aria-label={t("restart.remove")} onClick={() => setConfig({ ...config, segments: config.segments!.filter((x) => x.id !== s.id) })}>
                   <Trash2 size={14} />
                 </button>
               </div>

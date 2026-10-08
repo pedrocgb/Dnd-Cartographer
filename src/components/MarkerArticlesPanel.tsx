@@ -9,25 +9,33 @@ import { QUICK_CREATE_TEMPLATES, quickCreateArticle } from "@/components/article
 import { SkeletonList } from "@/components/Skeleton";
 import { useArticleCandidates, type MarkerArticleLink, type MarkerArticleLinks } from "./marker-panel/use-marker-article-links";
 import { TemplateIcon } from "./marker-panel/MarkerSubject";
+import { useT } from "@/i18n/useT";
 
 /** Common relationships of an article to a place, one click each; free text still works. */
-const ROLE_PRESETS = ["Located here", "Ruler", "Resident", "Owner", "Founded by", "Born here", "Related"];
+/** Keys of `markerArticles.role.*`; a chip writes its text in the active language (then it is user content). */
+const ROLE_PRESETS = ["locatedHere", "ruler", "resident", "owner", "foundedBy", "bornHere", "related"] as const;
 const MAX_LABEL_LENGTH = 80;
 const NEW_PREFIX = "new:";
 
 function RoleChips({ value, onPick }: { value: string; onPick: (role: string) => void }) {
+  const tm = useT("maps");
   return (
-    <div className="tag-toggle-grid" role="group" aria-label="Common relationships">
-      {ROLE_PRESETS.map((role) => (
-        <button key={role} type="button" className={value === role ? "tag-toggle active" : "tag-toggle"} aria-pressed={value === role} onClick={() => onPick(value === role ? "" : role)}>
-          {role}
-        </button>
-      ))}
+    <div className="tag-toggle-grid" role="group" aria-label={tm("markerArticles.roles")}>
+      {ROLE_PRESETS.map((key) => {
+        const role = tm(`markerArticles.role.${key}`);
+        return (
+          <button key={key} type="button" className={value === role ? "tag-toggle active" : "tag-toggle"} aria-pressed={value === role} onClick={() => onPick(value === role ? "" : role)}>
+            {role}
+          </button>
+        );
+      })}
     </div>
   );
 }
 
 function AddArticleLink({ links, markerName, onDone }: { links: MarkerArticleLinks; markerName: string; onDone: () => void }) {
+  const tm = useT("maps");
+  const tc = useT("common");
   const { candidates, error: loadError, refresh } = useArticleCandidates(true);
   const [picked, setPicked] = useState<string | null>(null);
   const [label, setLabel] = useState("");
@@ -38,9 +46,9 @@ function AddArticleLink({ links, markerName, onDone }: { links: MarkerArticleLin
   const options = useMemo(
     () => [
       ...candidateOptions(candidates ?? [], linkedIds),
-      ...QUICK_CREATE_TEMPLATES.map((t) => ({ value: `${NEW_PREFIX}${t.key}`, label: `New ${t.label} “${markerName}”`, group: "Create new" })),
+      ...QUICK_CREATE_TEMPLATES.map((t) => ({ value: `${NEW_PREFIX}${t.key}`, label: tm("markerArticles.newOf", { template: t.label, name: markerName }), group: tm("markerArticles.createGroup") })),
     ],
-    [candidates, linkedIds, markerName]
+    [candidates, linkedIds, markerName, tm]
   );
 
   async function submit() {
@@ -57,7 +65,7 @@ function AddArticleLink({ links, markerName, onDone }: { links: MarkerArticleLin
       if (failure) return setError(failure);
       onDone();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not create the article.");
+      setError(e instanceof Error ? e.message : tm("marker.createFailed"));
     } finally {
       setSaving(false);
     }
@@ -68,16 +76,16 @@ function AddArticleLink({ links, markerName, onDone }: { links: MarkerArticleLin
       <InfoPicker
         options={options}
         value={picked}
-        placeholder={candidates === null ? (loadError ? "Could not load the articles" : "Loading articles…") : "Choose or create an article…"}
-        ariaLabel="Article"
+        placeholder={candidates === null ? (loadError ? tm("marker.loadFailed") : tm("marker.loadingArticles")) : tm("markerArticles.choose")}
+        ariaLabel={tm("markerArticles.articleAria")}
         collapsibleGroups
         disabled={candidates === null}
         onChange={setPicked}
       />
       <input
         type="text"
-        placeholder="Relationship (optional), e.g. Lord of this keep"
-        aria-label="Relationship to this marker"
+        placeholder={tm("markerArticles.relPlaceholder")}
+        aria-label={tm("markerArticles.relAria")}
         maxLength={MAX_LABEL_LENGTH}
         value={label}
         onChange={(e) => setLabel(e.target.value)}
@@ -87,10 +95,10 @@ function AddArticleLink({ links, markerName, onDone }: { links: MarkerArticleLin
       {error && <p className="form-error">{error}</p>}
       <div className="marker-panel-actions">
         <button type="button" className="btn btn-sm btn-primary" disabled={!picked || saving} onClick={submit}>
-          {saving ? "Linking…" : "Link"}
+          {saving ? tm("markerArticles.linking") : tm("marker.link")}
         </button>
         <button type="button" className="btn btn-sm" onClick={onDone}>
-          Cancel
+          {tc("cancel")}
         </button>
       </div>
     </div>
@@ -99,6 +107,7 @@ function AddArticleLink({ links, markerName, onDone }: { links: MarkerArticleLin
 
 /** One linked article: star (make primary), name, editable relationship, unlink. */
 function LinkRow({ link, links }: { link: MarkerArticleLink; links: MarkerArticleLinks }) {
+  const tm = useT("maps");
   const [label, setLabel] = useState(link.label);
   const [editing, setEditing] = useState(false);
 
@@ -113,8 +122,8 @@ function LinkRow({ link, links }: { link: MarkerArticleLink; links: MarkerArticl
         type="button"
         className={link.isPrimary ? "btn btn-ghost btn-icon marker-primary-star active" : "btn btn-ghost btn-icon marker-primary-star"}
         aria-pressed={link.isPrimary}
-        aria-label={link.isPrimary ? "Main article" : "Make main article"}
-        data-tooltip={link.isPrimary ? "Main article (shown on hover)" : "Make main article"}
+        aria-label={link.isPrimary ? tm("marker.mainArticle") : tm("markerArticles.makeMain")}
+        data-tooltip={link.isPrimary ? tm("markerArticles.mainHint") : tm("markerArticles.makeMain")}
         onClick={() => !link.isPrimary && links.update(link.id, { primary: true })}
       >
         <Star size={14} strokeWidth={2.25} fill={link.isPrimary ? "currentColor" : "none"} />
@@ -126,14 +135,14 @@ function LinkRow({ link, links }: { link: MarkerArticleLink; links: MarkerArticl
             {link.name}
           </a>
         ) : (
-          <span className="marker-article-name removed">Deleted article</span>
+          <span className="marker-article-name removed">{tm("marker.deletedArticle")}</span>
         )}
         {editing ? (
           <>
             <input
               type="text"
               autoFocus
-              aria-label="Relationship to this marker"
+              aria-label={tm("markerArticles.relAria")}
               maxLength={MAX_LABEL_LENGTH}
               value={label}
               onChange={(e) => setLabel(e.target.value)}
@@ -153,11 +162,11 @@ function LinkRow({ link, links }: { link: MarkerArticleLink; links: MarkerArticl
           </>
         ) : (
           <button type="button" className="marker-article-label marker-article-label-btn" onClick={() => setEditing(true)}>
-            {link.label || "Add relationship…"}
+            {link.label || tm("markerArticles.addRel")}
           </button>
         )}
       </span>
-      <button type="button" className="btn btn-ghost btn-icon" onClick={() => links.remove(link.id)} aria-label={`Unlink ${link.name ?? "article"}`} data-tooltip="Unlink">
+      <button type="button" className="btn btn-ghost btn-icon" onClick={() => links.remove(link.id)} aria-label={tm("marker.unlinkNamed", { name: link.name ?? tm("marker.article") })} data-tooltip={tm("marker.unlink")}>
         <X size={14} strokeWidth={2.25} />
       </button>
     </li>
@@ -170,23 +179,24 @@ function LinkRow({ link, links }: { link: MarkerArticleLink; links: MarkerArticl
  * hover card and the panel's card show.
  */
 export default function MarkerArticlesPanel({ links, markerName }: { links: MarkerArticleLinks; markerName: string }) {
+  const tm = useT("maps");
   const [adding, setAdding] = useState(false);
 
-  if (links.links === null) return <SkeletonList rows={3} label="Loading linked articles…" />;
+  if (links.links === null) return <SkeletonList rows={3} label={tm("markerArticles.loading")} />;
 
   return (
     <div className="marker-articles-panel">
-      <h3 className="marker-section-title">Articles</h3>
+      <h3 className="marker-section-title">{tm("markerArticles.title")}</h3>
       {adding ? (
         <AddArticleLink links={links} markerName={markerName} onDone={() => setAdding(false)} />
       ) : (
         <button type="button" className="btn btn-sm marker-articles-add" onClick={() => setAdding(true)}>
           <Plus size={14} strokeWidth={2.25} />
-          Link an article
+          {tm("markerArticles.link")}
         </button>
       )}
       {links.links.length === 0 ? (
-        <p className="field-label">No articles linked yet. Link the characters, places, lore or anything else this marker is about.</p>
+        <p className="field-label">{tm("markerArticles.none")}</p>
       ) : (
         <ul className="marker-articles-list">
           {links.links.map((link) => (

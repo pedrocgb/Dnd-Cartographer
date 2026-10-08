@@ -7,7 +7,7 @@ import { notInWorld } from "@/server/world/guards";
 /** Every layer's grid on this map (at most one per layer). */
 export async function GET(_request: Request, { params }: { params: Promise<{ mapId: string }> }) {
   const { mapId } = await params;
-  const denied = await notInWorld("maps", mapId, "Map not found.");
+  const denied = await notInWorld("maps", mapId, "mapNotFound");
   if (denied) return denied;
   const grids = await db.select().from(mapGrids).where(eq(mapGrids.mapId, mapId));
   return NextResponse.json({ grids });

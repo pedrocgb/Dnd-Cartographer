@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { errorResponse } from "@/i18n/server";
 import { readFile } from "node:fs/promises";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
@@ -11,7 +12,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ass
   const { assetId } = await params;
   const asset = await db.query.mapAssets.findFirst({ where: eq(mapAssets.id, assetId) });
   if (!asset || !asset.thumbnailKey) {
-    return NextResponse.json({ error: "Thumbnail not found." }, { status: 404 });
+    return errorResponse("thumbnailNotFound", 404);
   }
 
   try {
@@ -23,6 +24,6 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ass
       },
     });
   } catch {
-    return NextResponse.json({ error: "Thumbnail not found." }, { status: 404 });
+    return errorResponse("thumbnailNotFound", 404);
   }
 }

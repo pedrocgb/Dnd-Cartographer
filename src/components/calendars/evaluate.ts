@@ -18,6 +18,7 @@ import { evaluateCelestial, nextYear, previousYear, type ActiveState } from "@/s
 import { activeSeasons } from "@/server/calendars/seasons";
 import { expandSeries, type EvalContext, type Occurrence } from "@/server/calendars/recurrence";
 import type { ClientCelestial, ClientEntry, ClientProfile, WorldCalendars } from "./types";
+import { activeT } from "@/i18n/active";
 
 export function evalContext(world: WorldCalendars): EvalContext {
   const defs = new Map(world.calendars.map((c) => [c.id, c.definition]));
@@ -52,7 +53,7 @@ export function dayLabel(def: CalendarDefinition, worldDay: number, { weekday = 
     const date = fromWorldDay(def, worldDay);
     const w = weekday ? weekdayIndex(def, date) : null;
     return `${w === null ? "" : `${def.weekdays[w].name}, `}${formatDate(def, date, { short, format: activeSettings().worldDateFormat })}`;
-  }, "Outside the supported range");
+  }, activeT("calendars")("date.outOfRange"));
 }
 
 export interface MonthCell {

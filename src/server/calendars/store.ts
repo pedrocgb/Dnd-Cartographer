@@ -16,7 +16,7 @@ import {
   seasons,
   worldChronology,
 } from "@/server/db/schema";
-import type { CalendarDefinition } from "./engine";
+import { CalendarError, type CalendarDefinition } from "./engine";
 import { ParseError } from "./parse";
 import type { CelestialConfig, CelestialType } from "./celestial";
 import type { SeasonProfileData } from "./seasons";
@@ -33,7 +33,7 @@ export async function chronologyOf(worldId: string) {
   return created ?? (await db.select().from(worldChronology).where(eq(worldChronology.worldId, worldId)))[0];
 }
 
-export class StaleError extends Error {}
+export class StaleError extends CalendarError {}
 
 /**
  * Compare-and-set on the chronology revision: the write only lands when
@@ -46,7 +46,7 @@ export async function updateChronology(worldId: string, expectedRevision: number
     .set({ ...patch, revision: sql`${worldChronology.revision} + 1`, updatedAt: new Date() })
     .where(and(eq(worldChronology.worldId, worldId), eq(worldChronology.revision, expectedRevision)))
     .returning();
-  if (rows.length === 0) throw new StaleError("Someone else changed the world date. The latest date has been loaded; try again.");
+  if (rows.length === 0) throw new StaleError({ key: "problem.worldDateStale" });
   return rows[0];
 }
 
@@ -65,7 +65,7 @@ export const toClientCalendar = (row: CalendarRow) => ({
 export async function checkCalendarIds(worldId: string, ids: string[] | null) {
   if (!ids) return;
   const known = new Set((await db.select({ id: calendars.id }).from(calendars).where(eq(calendars.worldId, worldId))).map((r) => r.id));
-  if (ids.some((id) => !known.has(id))) throw new ParseError("One of the chosen calendars doesn't exist.");
+  if (ids.some((id) => !known.has(id))) throw new ParseError({ key: "problem.calendarMissing" });
 }
 
 export const toClientCelestial = (row: typeof celestialObjects.$inferSelect) => ({

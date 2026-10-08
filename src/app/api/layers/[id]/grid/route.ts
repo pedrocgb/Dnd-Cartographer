@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { errorResponse } from "@/i18n/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { mapGrids } from "@/server/db/schema";
@@ -17,7 +18,7 @@ import { notInWorld } from "@/server/world/guards";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const denied = await notInWorld("map_layers", id, "Layer not found.");
+  const denied = await notInWorld("map_layers", id, "layerNotFound");
   if (denied) return denied;
   const grid = await db.query.mapGrids.findFirst({ where: eq(mapGrids.layerId, id) });
   return NextResponse.json({ grid: grid ?? null });
@@ -25,11 +26,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const denied = await notInWorld("map_layers", id, "Layer not found.");
+  const denied = await notInWorld("map_layers", id, "layerNotFound");
   if (denied) return denied;
   const layer = await findLayer(id);
   if (!layer) {
-    return NextResponse.json({ error: "Layer not found." }, { status: 404 });
+    return errorResponse("layerNotFound", 404);
   }
 
   const existing = await db.query.mapGrids.findFirst({ where: eq(mapGrids.layerId, id) });
@@ -47,16 +48,16 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const denied = await notInWorld("map_layers", id, "Layer not found.");
+  const denied = await notInWorld("map_layers", id, "layerNotFound");
   if (denied) return denied;
   const grid = await db.query.mapGrids.findFirst({ where: eq(mapGrids.layerId, id) });
   if (!grid) {
-    return NextResponse.json({ error: "Grid not found." }, { status: 404 });
+    return errorResponse("gridNotFound", 404);
   }
 
   const body = await request.json().catch(() => null);
   if (!body) {
-    return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+    return errorResponse("invalidBody", 400);
   }
 
   const patch: Partial<typeof mapGrids.$inferInsert> = { updatedAt: new Date() };
@@ -76,7 +77,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const denied = await notInWorld("map_layers", id, "Layer not found.");
+  const denied = await notInWorld("map_layers", id, "layerNotFound");
   if (denied) return denied;
   await db.delete(mapGrids).where(eq(mapGrids.layerId, id));
   return NextResponse.json({ ok: true });

@@ -1,3 +1,5 @@
+import type { Translator } from "@/i18n/translate";
+
 /** A map as `/api/maps` lists it. */
 export interface MapSummary {
   id: string;
@@ -21,4 +23,11 @@ export interface FolderSummary {
   parentId: string | null;
   /** Icon tint; null uses the default. */
   color: string | null;
+}
+
+const ASSET_STATES = ["uploading", "queued", "processing", "ready", "failed", "cancelled"] as const;
+
+/** A map image's processing state in the user's language (an unknown state shows as stored). */
+export function assetStateLabel(state: string, t: Translator<"maps">): string {
+  return (ASSET_STATES as readonly string[]).includes(state) ? t(`assetState.${state as (typeof ASSET_STATES)[number]}`) : state;
 }

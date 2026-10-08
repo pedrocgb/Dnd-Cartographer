@@ -8,6 +8,7 @@ import ColorWheel from "@/components/ColorWheel";
 import { api } from "./api";
 import { CalendarTabs, seasonsFor } from "./season-parts";
 import type { ClientCalendar, ClientSeason, WorldCalendars } from "./types";
+import { useT } from "@/i18n/useT";
 
 const QUICK_COLORS = ["#7BC67B", "#58BF65", "#E8C547", "#F0A830", "#D9803F", "#BF6C92", "#C9706F", "#8FB8DE", "#6A90BF", "#B9A2E0", "#A7ADB5", "#E4E8EE"];
 const QUICK_SYMBOLS = ["🌱", "🌸", "☀", "🌾", "🍂", "🍁", "❄", "☃", "🌧", "⛈", "🔥", "🌙", "✦", "◈"];
@@ -41,6 +42,8 @@ function SeasonForm({
   onDeleted: () => void;
   onOpenProfiles: () => void;
 }) {
+  const t = useT("calendars");
+  const tc = useT("common");
   const [draft, setDraft] = useState<Draft>(season ? draftOf(season) : { name: "", description: "", color: QUICK_COLORS[0], icon: "", calendarId: calendar.id });
   // Remounts the wheel when the color is set from outside it (a quick swatch): it keeps its own state otherwise.
   const [wheelKey, setWheelKey] = useState(0);
@@ -61,14 +64,14 @@ function SeasonForm({
     const res = season ? await api<{ season: ClientSeason }>("PATCH", `/api/seasons/${season.id}`, body) : await api<{ season: ClientSeason }>("POST", "/api/seasons", draft);
     setSaving(false);
     if (res.ok) onSaved(res.data.season);
-    else setError(res.data.error ?? "Could not save the season.");
+    else setError(res.data.error ?? t("se.saveFailed"));
   }
   async function archive() {
     if (!season) return;
     setError(null);
     const res = await api<{ season: ClientSeason }>("PATCH", `/api/seasons/${season.id}`, { archived: !season.archived });
     if (res.ok) onSaved(res.data.season);
-    else setError(res.data.error ?? "Could not save the season.");
+    else setError(res.data.error ?? t("se.saveFailed"));
   }
   async function remove() {
     if (!season) return;
@@ -76,7 +79,7 @@ function SeasonForm({
     if (res.ok) {
       setConfirmDelete(false);
       onDeleted();
-    } else setDeleteError(res.data.error ?? "Could not delete the season.");
+    } else setDeleteError(res.data.error ?? t("se.deleteFailed"));
   }
   function pickColor(hex: string) {
     set({ color: hex });
@@ -90,18 +93,18 @@ function SeasonForm({
           {draft.icon || <Leaf size={26} />}
         </span>
         <div className="sp-hero-text">
-          <input type="text" className="sp-hero-name" aria-label="Season name" value={draft.name} maxLength={80} placeholder="Season name, e.g. Thawing" autoFocus={!season} onChange={(e) => set({ name: e.target.value })} />
+          <input type="text" className="sp-hero-name" aria-label={t("se.nameAria")} value={draft.name} maxLength={80} placeholder={t("se.namePlaceholder")} autoFocus={!season} onChange={(e) => set({ name: e.target.value })} />
           <span className="sp-hero-meta">
-            {season?.archived && <span className="cal-default-badge">Archived</span>}
-            <span className="cal-help">{draft.calendarId ? `${calendar.name} only` : "Shared by all calendars"}</span>
+            {season?.archived && <span className="cal-default-badge">{t("se.archived")}</span>}
+            <span className="cal-help">{draft.calendarId ? t("se.only", { calendar: calendar.name }) : t("se.shared")}</span>
           </span>
         </div>
       </div>
 
       <section className="sp-block">
         <header className="sp-block-head">
-          <h3>Appearance</h3>
-          <p className="cal-help">How the season shows on the calendar and its year strips.</p>
+          <h3>{t("se.appearance")}</h3>
+          <p className="cal-help">{t("se.appearanceHelp")}</p>
         </header>
         <div className="sp-appearance">
           <div className="sp-picker-wheel">
@@ -109,23 +112,23 @@ function SeasonForm({
           </div>
           <div className="sp-picker-side">
             <div className="cal-fields">
-              <span className="field-label">Quick colors</span>
+              <span className="field-label">{t("se.quickColors")}</span>
               <div className="sp-swatches">
                 {QUICK_COLORS.map((c) => {
                   const active = c.toLowerCase() === draft.color.toLowerCase();
-                  return <button key={c} type="button" className={active ? "sp-swatch active" : "sp-swatch"} style={{ background: c }} aria-label={`Color ${c}`} aria-pressed={active} onClick={() => pickColor(c)} />;
+                  return <button key={c} type="button" className={active ? "sp-swatch active" : "sp-swatch"} style={{ background: c }} aria-label={t("se.color", { color: c })} aria-pressed={active} onClick={() => pickColor(c)} />;
                 })}
               </div>
             </div>
             <div className="cal-fields">
-              <span className="field-label">Symbol</span>
+              <span className="field-label">{t("se.symbol")}</span>
               <div className="sp-symbols">
                 {QUICK_SYMBOLS.map((x) => (
-                  <button key={x} type="button" className={x === draft.icon ? "cel-symbol active" : "cel-symbol"} aria-pressed={x === draft.icon} aria-label={`Symbol ${x}`} onClick={() => set({ icon: x === draft.icon ? "" : x })}>
+                  <button key={x} type="button" className={x === draft.icon ? "cel-symbol active" : "cel-symbol"} aria-pressed={x === draft.icon} aria-label={t("se.symbolAria", { symbol: x })} onClick={() => set({ icon: x === draft.icon ? "" : x })}>
                     {x}
                   </button>
                 ))}
-                <input type="text" className="cel-symbol-input" maxLength={4} value={draft.icon} aria-label="Custom symbol" placeholder="…" onChange={(e) => set({ icon: e.target.value })} />
+                <input type="text" className="cel-symbol-input" maxLength={4} value={draft.icon} aria-label={t("se.customSymbol")} placeholder="…" onChange={(e) => set({ icon: e.target.value })} />
               </div>
             </div>
           </div>
@@ -134,21 +137,21 @@ function SeasonForm({
 
       <section className="sp-block">
         <header className="sp-block-head">
-          <h3>About</h3>
+          <h3>{t("se.about")}</h3>
         </header>
         <label className="cal-field">
-          <span className="field-label">Description</span>
-          <textarea rows={4} value={draft.description} maxLength={4000} placeholder="What this season is like: weather, festivals, what people do…" onChange={(e) => set({ description: e.target.value })} />
+          <span className="field-label">{t("se.description")}</span>
+          <textarea rows={4} value={draft.description} maxLength={4000} placeholder={t("se.descriptionPlaceholder")} onChange={(e) => set({ description: e.target.value })} />
         </label>
         <label className="cal-field">
-          <span className="field-label">Available to</span>
+          <span className="field-label">{t("se.availableTo")}</span>
           <select value={draft.calendarId ?? ""} onChange={(e) => set({ calendarId: e.target.value || null })}>
             {calendars.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.name} only
+                {t("se.only", { calendar: c.name })}
               </option>
             ))}
-            <option value="">Shared by all calendars</option>
+            <option value="">{t("se.shared")}</option>
           </select>
         </label>
       </section>
@@ -157,11 +160,11 @@ function SeasonForm({
         <section className="sp-block">
           <header className="sp-block-head">
             <div>
-              <h3>Used in</h3>
-              <p className="cal-help">The dates it starts and ends are set in each season profile.</p>
+              <h3>{t("se.usedIn")}</h3>
+              <p className="cal-help">{t("se.usedInHelp")}</p>
             </div>
             <button type="button" className="btn btn-ghost btn-sm" onClick={onOpenProfiles}>
-              <Layers size={14} /> Season profiles
+              <Layers size={14} /> {t("se.profiles")}
             </button>
           </header>
           {users.length ? (
@@ -173,7 +176,7 @@ function SeasonForm({
               ))}
             </ul>
           ) : (
-            <p className="cel-empty">Not in a profile yet.</p>
+            <p className="cel-empty">{t("se.notInProfile")}</p>
           )}
         </section>
       )}
@@ -186,24 +189,24 @@ function SeasonForm({
       <div className="cel-footer">
         {season && (
           <button type="button" className="btn btn-sm btn-danger cel-footer-delete" onClick={() => setConfirmDelete(true)}>
-            <Trash2 size={14} /> Delete
+            <Trash2 size={14} /> {tc("delete")}
           </button>
         )}
         {season && (
           <button type="button" className="btn btn-sm" onClick={archive}>
-            {season.archived ? <ArchiveRestore size={14} /> : <Archive size={14} />} {season.archived ? "Unarchive" : "Archive"}
+            {season.archived ? <ArchiveRestore size={14} /> : <Archive size={14} />} {season.archived ? t("se.unarchive") : t("se.archive")}
           </button>
         )}
         <button type="button" className="btn btn-sm btn-primary" disabled={saving || !draft.name.trim() || changed.length === 0} onClick={save}>
-          {saving ? "Saving…" : season ? "Save season" : "Create season"}
+          {saving ? tc("saving") : season ? t("se.save") : t("se.create")}
         </button>
       </div>
       {season && (
         <ConfirmDialog
           open={confirmDelete}
           danger
-          title={`Delete ${season.name}?`}
-          confirmLabel="Delete"
+          title={t("se.deleteTitle", { name: season.name })}
+          confirmLabel={tc("delete")}
           error={deleteError}
           onConfirm={remove}
           onCancel={() => {
@@ -211,7 +214,7 @@ function SeasonForm({
             setDeleteError(null);
           }}
         >
-          It&apos;s removed for good. A season a profile still uses can&apos;t be deleted: archive it instead.
+          {t("se.deleteBody")}
         </ConfirmDialog>
       )}
     </div>
@@ -220,6 +223,7 @@ function SeasonForm({
 
 /** One calendar's seasons: the list at the left, the open season's form at the right. */
 function SeasonsPane({ world, calendar, initialId, onChanged, onOpenProfiles }: { world: WorldCalendars; calendar: ClientCalendar; initialId: string | null; onChanged: () => void; onOpenProfiles: () => void }) {
+  const t = useT("calendars");
   // The season just saved, until the reloaded world data has it.
   const [fresh, setFresh] = useState<ClientSeason | null>(null);
   const mine = seasonsFor(fresh && !world.seasons.some((s) => s.id === fresh.id) ? [...world.seasons, fresh] : world.seasons, calendar.id);
@@ -234,7 +238,7 @@ function SeasonsPane({ world, calendar, initialId, onChanged, onOpenProfiles }: 
 
   return (
     <div className="sp-split">
-      <aside className="sp-list" aria-label="Seasons">
+      <aside className="sp-list" aria-label={t("se.list")}>
         <div className="sp-list-items">
           {shown.map((s) => {
             const used = profilesUsing(world, s.id).length;
@@ -253,21 +257,21 @@ function SeasonsPane({ world, calendar, initialId, onChanged, onOpenProfiles }: 
                 <span className="sp-list-text">
                   <strong>{s.name}</strong>
                   <span className="cal-help">
-                    {s.calendarId ? "" : "Shared · "}
-                    {used ? `${used} profile${used === 1 ? "" : "s"}` : "Not in a profile"}
+                    {s.calendarId ? "" : t("se.sharedPrefix")}
+                    {used ? t("se.profileCount", { count: used, n: used }) : t("se.notInProfileShort")}
                   </span>
                 </span>
               </button>
             );
           })}
-          {mine.length === 0 && <p className="cel-empty">No seasons for {calendar.name} yet.</p>}
+          {mine.length === 0 && <p className="cel-empty">{t("se.none", { calendar: calendar.name })}</p>}
         </div>
         <button type="button" className={current === "new" ? "sp-list-new active" : "sp-list-new"} onClick={() => setSelected("new")}>
-          <Plus size={15} aria-hidden /> New season
+          <Plus size={15} aria-hidden /> {t("se.new")}
         </button>
         {archivedCount > 0 && (
           <label className="cal-check sp-list-archived">
-            <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} /> Show archived ({archivedCount})
+            <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} /> {t("se.showArchived", { n: archivedCount })}
           </label>
         )}
       </aside>
@@ -310,16 +314,17 @@ export default function SeasonsEditor({
   onClose: () => void;
   onOpenProfiles: (calendarId: string) => void;
 }) {
+  const t = useT("calendars");
   const calendars = world.calendars.filter((c) => !c.trashed);
   const [tab, setTab] = useState(calendars.find((c) => c.id === calendarId)?.id ?? calendars[0]?.id ?? null);
   const calendar = calendars.find((c) => c.id === tab) ?? null;
   return (
-    <Modal open onClose={onClose} title="Seasons" size="wide" className="sp-modal">
+    <Modal open onClose={onClose} title={t("se.title")} size="wide" className="sp-modal">
       {!calendar ? (
-        <p className="cal-help">Create a calendar first: seasons belong to one.</p>
+        <p className="cal-help">{t("se.needCalendar")}</p>
       ) : (
         <div className="cel-editor">
-          <p className="cal-help">Name each season and give it a color and symbol. When it starts and ends is set in a season profile.</p>
+          <p className="cal-help">{t("se.help")}</p>
           <CalendarTabs calendars={calendars} value={calendar.id} count={(c) => seasonsFor(world.seasons, c.id).filter((s) => !s.archived).length} onChange={setTab} />
           <SeasonsPane key={calendar.id} world={world} calendar={calendar} initialId={seasonId} onChanged={onChanged} onOpenProfiles={() => onOpenProfiles(calendar.id)} />
         </div>

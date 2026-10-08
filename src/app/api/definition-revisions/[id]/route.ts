@@ -5,11 +5,12 @@ import { celestialObjects, definitionRevisions, seasonProfiles } from "@/server/
 import { requireWorldId } from "@/server/world/active-world";
 import { safeJson } from "@/server/calendars/parse";
 import { recordRevision, toClientCelestial, toClientProfile } from "@/server/calendars/store";
-import { badRequest, notFound, readBody } from "@/server/calendars/respond";
+import { readBody } from "@/server/calendars/respond";
+import { errorResponse } from "@/i18n/server";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-const stale = () => NextResponse.json({ error: "This was changed elsewhere. Reload it and try again.", stale: true }, { status: 409 });
+const stale = () => errorResponse("revisionStale", 409, { stale: true });
 
 /**
  * Restores a celestial object's config or a season profile's schedule from
@@ -20,14 +21,14 @@ export async function POST(request: Request, { params }: RouteContext) {
   const { id } = await params;
   const worldId = await requireWorldId();
   const [revision] = await db.select().from(definitionRevisions).where(and(eq(definitionRevisions.id, id), eq(definitionRevisions.worldId, worldId)));
-  if (!revision || revision.subjectType === "calendar") return notFound("Revision not found.");
+  if (!revision || revision.subjectType === "calendar") return errorResponse("revisionNotFound", 404);
   const body = await readBody(request);
-  if (!body) return badRequest("Invalid request body.");
+  if (!body) return errorResponse("invalidBody", 400);
 
   if (revision.subjectType === "celestial") {
     const snapshot = safeJson<{ config?: unknown } | null>(revision.snapshot, null);
     const [row] = await db.select().from(celestialObjects).where(and(eq(celestialObjects.id, revision.subjectId), eq(celestialObjects.worldId, worldId)));
-    if (!row || !snapshot?.config) return notFound("That object no longer exists.");
+    if (!row || !snapshot?.config) return errorResponse("revisionObjectGone", 404);
     if (body.expectedVersion !== row.version) return stale();
     const updated = await db.transaction(async (tx) => {
       await recordRevision(tx, worldId, "celestial", row.id, row.version, { config: safeJson(row.config, {}) }, `Before restoring version ${revision.version}`);
@@ -43,7 +44,7 @@ export async function POST(request: Request, { params }: RouteContext) {
 
   const snapshot = safeJson<{ calendarId?: string; data?: unknown } | null>(revision.snapshot, null);
   const [row] = await db.select().from(seasonProfiles).where(and(eq(seasonProfiles.id, revision.subjectId), eq(seasonProfiles.worldId, worldId)));
-  if (!row || !snapshot?.data || !snapshot.calendarId) return notFound("That profile no longer exists.");
+  if (!row || !snapshot?.data || !snapshot.calendarId) return errorResponse("revisionProfileGone", 404);
   if (body.expectedVersion !== row.version) return stale();
   const updated = await db.transaction(async (tx) => {
     await recordRevision(tx, worldId, "profile", row.id, row.version, { calendarId: row.calendarId, data: safeJson(row.data, {}) }, `Before restoring version ${revision.version}`);

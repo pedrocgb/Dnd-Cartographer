@@ -1,6 +1,7 @@
 import type { ArticleTemplateKey } from "@/server/articles/templates";
 import { ARTICLE_TEMPLATES } from "./templates";
 import type { Candidate } from "./candidates";
+import { activeT } from "@/i18n/active";
 
 /**
  * Templates an article can be created for with just a name, straight from
@@ -19,6 +20,6 @@ export async function quickCreateArticle(template: ArticleTemplateKey, name: str
       : ["/api/articles", { template, title: name }, "article"];
   const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error ?? "Could not create the article.");
+  if (!res.ok) throw new Error(data.error ?? activeT("articles")("manager.createFailed"));
   return { template, id: data[key].id, name };
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { errorResponse } from "@/i18n/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { markers, maps } from "@/server/db/schema";
@@ -22,16 +23,16 @@ import { foreignIdResponse, idsInWorld } from "@/server/world/guards";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ markerId: string }> }) {
   const { markerId } = await params;
-  const denied = await notInWorld("markers", markerId, "Marker not found.");
+  const denied = await notInWorld("markers", markerId, "markerNotFound");
   if (denied) return denied;
   const marker = await db.query.markers.findFirst({ where: eq(markers.id, markerId) });
   if (!marker) {
-    return NextResponse.json({ error: "Marker not found." }, { status: 404 });
+    return errorResponse("markerNotFound", 404);
   }
 
   const body = await request.json().catch(() => null);
   if (!body) {
-    return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+    return errorResponse("invalidBody", 400);
   }
 
   const patch: Partial<typeof markers.$inferInsert> = { updatedAt: new Date(), revision: marker.revision + 1 };
@@ -65,12 +66,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ma
 
   if ("u" in body || "v" in body) {
     if (marker.locked && !("locked" in body)) {
-      return NextResponse.json({ error: "Marker is locked." }, { status: 409 });
+      return errorResponse("markerLocked", 409);
     }
     const u = Number(body.u);
     const v = Number(body.v);
     if (!Number.isFinite(u) || !Number.isFinite(v) || u < 0 || u > 1 || v < 0 || v > 1) {
-      return NextResponse.json({ error: "Marker position must be normalized u/v in [0, 1]." }, { status: 400 });
+      return errorResponse("markerPositionInvalid", 400);
     }
     patch.u = u;
     patch.v = v;
@@ -78,7 +79,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ma
 
   if ("layerId" in body) {
     if (!(await isLayerOfMap(body.layerId, marker.mapId))) {
-      return NextResponse.json({ error: "Layer must belong to the marker's map." }, { status: 400 });
+      return errorResponse("layerOfMarkerMap", 400);
     }
     patch.layerId = body.layerId;
   }
@@ -97,7 +98,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ma
       const linkedMap = await db.query.maps.findFirst({ where: eq(maps.id, String(body.linkedMapId)) });
       const ownerMap = await db.query.maps.findFirst({ where: eq(maps.id, marker.mapId) });
       if (!linkedMap || !ownerMap || linkedMap.worldId !== ownerMap.worldId) {
-        return NextResponse.json({ error: "Linked map must exist in the same world." }, { status: 400 });
+        return errorResponse("linkedMapSameWorld", 400);
       }
       patch.linkedMapId = linkedMap.id;
     }
@@ -110,11 +111,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ma
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ markerId: string }> }) {
   const { markerId } = await params;
-  const denied = await notInWorld("markers", markerId, "Marker not found.");
+  const denied = await notInWorld("markers", markerId, "markerNotFound");
   if (denied) return denied;
   const marker = await db.query.markers.findFirst({ where: eq(markers.id, markerId) });
   if (!marker) {
-    return NextResponse.json({ error: "Marker not found." }, { status: 404 });
+    return errorResponse("markerNotFound", 404);
   }
 
   await db.update(markers).set({ deletedAt: new Date(), updatedAt: new Date() }).where(eq(markers.id, markerId));

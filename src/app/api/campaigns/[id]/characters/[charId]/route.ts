@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
+import { errorResponse } from "@/i18n/server";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { campaignCharacters } from "@/server/db/schema";
 import { requireWorldId } from "@/server/world/active-world";
-import { badRequest, notFound, readBody } from "@/server/calendars/respond";
+import { readBody } from "@/server/calendars/respond";
 import { campaignOf, rosterOf, sessionsOf, sessionsUsingPerson } from "@/server/sessions/store";
 
 type RouteContext = { params: Promise<{ id: string; charId: string }> };
@@ -19,13 +20,13 @@ const STATUSES = ["active", "retired", "dead"] as const;
 export async function PATCH(request: Request, { params }: RouteContext) {
   const { id, charId } = await params;
   const worldId = await requireWorldId();
-  if (!(await campaignOf(worldId, id))) return notFound("Campaign not found.");
-  if (!(await memberOf(id, charId))) return notFound("Party member not found.");
+  if (!(await campaignOf(worldId, id))) return errorResponse("campaignNotFound", 404);
+  if (!(await memberOf(id, charId))) return errorResponse("partyMemberNotFound", 404);
   const body = await readBody(request);
-  if (!body) return badRequest("Invalid request body.");
+  if (!body) return errorResponse("invalidBody", 400);
   const patch: Partial<typeof campaignCharacters.$inferInsert> = { updatedAt: new Date() };
   if ("status" in body) {
-    if (!STATUSES.includes(body.status as (typeof STATUSES)[number])) return badRequest("Status must be active, retired or dead.");
+    if (!STATUSES.includes(body.status as (typeof STATUSES)[number])) return errorResponse("partyStatusInvalid", 400);
     patch.status = body.status as (typeof STATUSES)[number];
   }
   await db.update(campaignCharacters).set(patch).where(eq(campaignCharacters.id, charId));
@@ -36,11 +37,11 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 export async function DELETE(_request: Request, { params }: RouteContext) {
   const { id, charId } = await params;
   const worldId = await requireWorldId();
-  if (!(await campaignOf(worldId, id))) return notFound("Campaign not found.");
+  if (!(await campaignOf(worldId, id))) return errorResponse("campaignNotFound", 404);
   const member = await memberOf(id, charId);
-  if (!member) return notFound("Party member not found.");
+  if (!member) return errorResponse("partyMemberNotFound", 404);
   const used = sessionsUsingPerson(await sessionsOf(id), member.personId);
-  if (used.length) return NextResponse.json({ error: `They played or received something in session ${used.map((s) => s.number).join(", ")}. Mark them retired instead.` }, { status: 409 });
+  if (used.length) return errorResponse("partyMemberInUse", 409, undefined, { sessions: used.map((s) => s.number).join(", ") });
   await db.delete(campaignCharacters).where(eq(campaignCharacters.id, charId));
   return NextResponse.json({ roster: await rosterOf(id) });
 }

@@ -4,6 +4,7 @@ import { db } from "@/server/db/client";
 import { politicalLinks } from "@/server/db/schema";
 import { requireWorldId } from "@/server/world/active-world";
 import { rowInWorld, type WorldTable } from "@/server/world/guards";
+import { errorResponse } from "@/i18n/server";
 
 const OWNER_TYPES = ["marker", "territory", "person", "organization"] as const;
 const TARGET_TYPES = ["map", "marker", "territory", "person", "organization"] as const;
@@ -13,7 +14,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const ownerType = searchParams.get("ownerType");
   const ownerId = searchParams.get("ownerId");
-  if (!ownerType || !ownerId) return NextResponse.json({ error: "ownerType and ownerId are required." }, { status: 400 });
+  if (!ownerType || !ownerId) return errorResponse("linkOwnerRequired", 400);
 
   const rows = await db.query.politicalLinks.findMany({
     where: and(eq(politicalLinks.worldId, await requireWorldId()), eq(politicalLinks.ownerType, ownerType as (typeof OWNER_TYPES)[number]), eq(politicalLinks.ownerId, ownerId)),
@@ -26,9 +27,9 @@ export async function POST(request: Request) {
   const ownerType = body?.ownerType;
   const ownerId = typeof body?.ownerId === "string" ? body.ownerId : "";
   if (!(OWNER_TYPES as readonly string[]).includes(ownerType)) {
-    return NextResponse.json({ error: `ownerType must be one of: ${OWNER_TYPES.join(", ")}.` }, { status: 400 });
+    return errorResponse("linkOwnerTypeInvalid", 400, undefined, { types: OWNER_TYPES.join(", ") });
   }
-  if (!ownerId) return NextResponse.json({ error: "ownerId is required." }, { status: 400 });
+  if (!ownerId) return errorResponse("ownerIdRequired", 400);
 
   const externalUrl = typeof body?.externalUrl === "string" ? body.externalUrl.trim() : "";
   const targetType = body?.targetType;
@@ -39,15 +40,15 @@ export async function POST(request: Request) {
 
   if (isExternal) {
     if (!/^https?:\/\//i.test(externalUrl)) {
-      return NextResponse.json({ error: "External links must be http(s) URLs." }, { status: 400 });
+      return errorResponse("linkUrlInvalid", 400);
     }
   } else if (!isInternal) {
-    return NextResponse.json({ error: "Provide either an internal target (targetType + targetId) or an external http(s) URL." }, { status: 400 });
+    return errorResponse("linkTargetRequired", 400);
   }
 
   const worldId = await requireWorldId();
-  if (!(await rowInWorld(TABLE_OF[ownerType as (typeof OWNER_TYPES)[number]], ownerId, worldId))) return NextResponse.json({ error: "The link's owner isn't in this world." }, { status: 404 });
-  if (isInternal && !(await rowInWorld(TABLE_OF[targetType as (typeof TARGET_TYPES)[number]], targetId, worldId))) return NextResponse.json({ error: "The link's target isn't in this world." }, { status: 404 });
+  if (!(await rowInWorld(TABLE_OF[ownerType as (typeof OWNER_TYPES)[number]], ownerId, worldId))) return errorResponse("linkOwnerNotInWorld", 404);
+  if (isInternal && !(await rowInWorld(TABLE_OF[targetType as (typeof TARGET_TYPES)[number]], targetId, worldId))) return errorResponse("linkTargetNotInWorld", 404);
   const [created] = await db
     .insert(politicalLinks)
     .values({

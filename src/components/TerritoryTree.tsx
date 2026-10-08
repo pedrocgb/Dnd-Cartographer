@@ -1,6 +1,8 @@
 "use client";
 
 import { ChevronRight, ChevronDown } from "lucide-react";
+import { useT } from "@/i18n/useT";
+import { territoryTypeLabel } from "@/server/politics/hierarchy-config";
 
 export interface TerritoryTreeItem {
   id: string;
@@ -56,6 +58,7 @@ export function TerritoryTreeRow({
   /** Makes rows draggable (the Articles sidebar, onto a user folder). */
   onDragRow?: (e: React.DragEvent, id: string) => void;
 }) {
+  const tc = useT("common");
   const hasChildren = node.children.length > 0;
   const isExpanded = expanded.has(node.id);
   return (
@@ -66,7 +69,7 @@ export function TerritoryTreeRow({
             type="button"
             className="politics-tree-toggle"
             onClick={() => onToggleExpand(node.id)}
-            aria-label={isExpanded ? "Collapse" : "Expand"}
+            aria-label={isExpanded ? tc("collapse") : tc("expand")}
             aria-expanded={isExpanded}
           >
             {isExpanded ? <ChevronDown size={13} strokeWidth={2.25} /> : <ChevronRight size={13} strokeWidth={2.25} />}
@@ -79,7 +82,7 @@ export function TerritoryTreeRow({
           className={node.id === selectedId ? "politics-list-pick selected" : "politics-list-pick"}
           onClick={() => onSelect(node.id)}
         >
-          {node.name} <span className="field-label">({node.type})</span>
+          {node.name} <span className="field-label">({territoryTypeLabel(node.type)})</span>
         </button>
       </li>
       {hasChildren &&

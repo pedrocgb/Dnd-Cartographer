@@ -1,18 +1,25 @@
 import { NextResponse } from "next/server";
-import { ParseError } from "./parse";
-import { CalendarError } from "./engine";
-import { RecurrenceError } from "./recurrence";
+import { serverLocale } from "@/i18n/server";
+import { CalendarError, problemText, type Problem } from "./engine";
 import { StaleError } from "./store";
-import { InvalidError, ReviewError } from "./mutations";
+import { ReviewError } from "./mutations";
 
-/** Maps calendar domain errors to responses (400 invalid, 409 stale / needs review); anything else rethrows. */
-export function calendarErrorResponse(error: unknown) {
-  if (error instanceof ReviewError) return NextResponse.json({ error: error.message, impact: error.impact, needsReview: true }, { status: 409 });
-  if (error instanceof StaleError) return NextResponse.json({ error: error.message, stale: true }, { status: 409 });
-  if (error instanceof ParseError || error instanceof CalendarError || error instanceof RecurrenceError || error instanceof InvalidError) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
-  }
-  throw error;
+/** A calendar Problem in the user's language. */
+export async function problemWords(problem: Problem): Promise<string> {
+  return problemText(problem, await serverLocale());
+}
+
+/**
+ * Maps calendar domain errors (ParseError, RecurrenceError, InvalidError… all
+ * extend CalendarError) to responses in the user's language: 400 invalid,
+ * 409 stale / needs review. Anything else rethrows.
+ */
+export async function calendarErrorResponse(error: unknown) {
+  if (!(error instanceof CalendarError)) throw error;
+  const message = error.problem ? await problemWords(error.problem) : error.message;
+  if (error instanceof ReviewError) return NextResponse.json({ error: message, impact: error.impact, needsReview: true }, { status: 409 });
+  if (error instanceof StaleError) return NextResponse.json({ error: message, stale: true }, { status: 409 });
+  return NextResponse.json({ error: message }, { status: 400 });
 }
 
 export async function readBody(request: Request): Promise<Record<string, unknown> | null> {

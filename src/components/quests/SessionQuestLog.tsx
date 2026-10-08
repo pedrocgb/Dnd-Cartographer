@@ -7,6 +7,7 @@ import { api } from "@/components/calendars/api";
 import { hasRewards, isClosed, LOG_ACTION_LABELS, LOG_ACTIONS, QUEST_STATUS_LABELS, QUEST_STATUSES, type LogAction, type QuestData, type QuestLogLine, type Rewards } from "@/server/quests/types";
 import ProgressClock from "./ProgressClock";
 import { StatusChip } from "./parts";
+import { useT } from "@/i18n/useT";
 
 /**
  * A session's Quests tab: which quests were started, advanced, completed or
@@ -32,6 +33,8 @@ export default function SessionQuestLog({
   /** Adds a quest's rewards to the session's XP, coins and loot. */
   onAddRewards: (rewards: Rewards) => void;
 }) {
+  const t = useT("campaign");
+  const tc = useT("common");
   const [newTitle, setNewTitle] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,7 +59,7 @@ export default function SessionQuestLog({
     const res = await api<{ quest: QuestData }>("POST", `/api/campaigns/${campaignId}/quests`, { title: newTitle, status: "hook" });
     setCreating(false);
     if (!res.ok) {
-      setError(res.data.error ?? "Could not create the quest.");
+      setError(res.data.error ?? t("questLog.couldNotCreate"));
       return;
     }
     onQuestCreated(res.data.quest);
@@ -68,12 +71,12 @@ export default function SessionQuestLog({
     <div className="cel-section">
       <header className="cel-section-head">
         <div>
-          <h3>Quests this session</h3>
-          <p className="cal-help">What moved: hooks the party picked up, quests they advanced, finished or failed. Saving the session updates those quests and adds this to their history.</p>
+          <h3>{t("questLog.title")}</h3>
+          <p className="cal-help">{t("questLog.help")}</p>
         </div>
       </header>
       {log.length === 0 ? (
-        <p className="cel-empty">No quest logged yet.</p>
+        <p className="cel-empty">{t("questLog.empty")}</p>
       ) : (
         <ul className="qs-log">
           {log.map((line) => {
@@ -96,11 +99,11 @@ export default function SessionQuestLog({
         </ul>
       )}
       <div className="qs-log-add">
-        <InfoPicker options={options} value={null} placeholder={options.length ? "Log a quest…" : "Every quest is logged"} ariaLabel="Log a quest" disabled={options.length === 0} onChange={(id) => id && add(id, "advanced")} />
+        <InfoPicker options={options} value={null} placeholder={options.length ? t("questLog.pick") : t("questLog.allLogged")} ariaLabel={t("questLog.pickLabel")} disabled={options.length === 0} onChange={(id) => id && add(id, "advanced")} />
         <span className="qs-log-new">
-          <input type="text" aria-label="New quest title" placeholder="…or a new hook: who sent the letter?" maxLength={160} value={newTitle} onChange={(e) => setNewTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), void create())} />
+          <input type="text" aria-label={t("questLog.newTitle")} placeholder={t("questLog.newPlaceholder")} maxLength={160} value={newTitle} onChange={(e) => setNewTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), void create())} />
           <button type="button" className="btn btn-sm" disabled={!newTitle.trim() || creating} onClick={create}>
-            <Plus size={14} /> {creating ? "Creating…" : "New quest"}
+            <Plus size={14} /> {creating ? tc("creating") : t("questLog.newQuest")}
           </button>
         </span>
       </div>
@@ -110,6 +113,7 @@ export default function SessionQuestLog({
 }
 
 function LogRow({ line, quest, onChange, onRemove, onAddRewards }: { line: QuestLogLine; quest: QuestData | null; onChange: (patch: Partial<QuestLogLine>) => void; onRemove: () => void; onAddRewards: () => void }) {
+  const t = useT("campaign");
   const toggle = (id: string, on: boolean) => onChange({ objectiveIds: on ? [...line.objectiveIds, id] : line.objectiveIds.filter((x) => x !== id) });
   const toggleClue = (id: string, on: boolean) => onChange({ clueIds: on ? [...line.clueIds, id] : line.clueIds.filter((x) => x !== id) });
   // Objectives still open, plus the ones this session already ticked; same for clues.
@@ -121,22 +125,22 @@ function LogRow({ line, quest, onChange, onRemove, onAddRewards }: { line: Quest
     <li className="qs-log-row">
       <div className="qs-log-head">
         {quest ? <StatusChip status={quest.status} /> : null}
-        <strong className="qs-log-title">{quest?.title ?? "(deleted quest)"}</strong>
-        <select aria-label="What happened" value={line.action} onChange={(e) => onChange({ action: e.target.value as LogAction })}>
+        <strong className="qs-log-title">{quest?.title ?? t("questLog.deleted")}</strong>
+        <select aria-label={t("questLog.whatHappened")} value={line.action} onChange={(e) => onChange({ action: e.target.value as LogAction })}>
           {LOG_ACTIONS.map((a) => (
             <option key={a} value={a}>
               {LOG_ACTION_LABELS[a]}
             </option>
           ))}
         </select>
-        <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label="Remove from this session" data-tooltip="Remove from this session (the quest keeps its current state)" onClick={onRemove}>
+        <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={t("questLog.removeFromSession")} data-tooltip={t("questLog.removeHint")} onClick={onRemove}>
           <Trash2 size={14} />
         </button>
       </div>
-      <input type="text" aria-label="Note" placeholder="What happened with it…" maxLength={500} value={line.note} onChange={(e) => onChange({ note: e.target.value })} />
+      <input type="text" aria-label={t("questLog.note")} placeholder={t("questLog.notePlaceholder")} maxLength={500} value={line.note} onChange={(e) => onChange({ note: e.target.value })} />
       {objectives.length > 0 && (
         <div className="qs-log-objectives">
-          <span className="field-label">Objectives reached</span>
+          <span className="field-label">{t("questLog.objectivesReached")}</span>
           {objectives.map((o) => (
             <label key={o.id} className="cal-check">
               <input type="checkbox" checked={line.objectiveIds.includes(o.id)} onChange={(e) => toggle(o.id, e.target.checked)} /> {o.text}
@@ -146,7 +150,7 @@ function LogRow({ line, quest, onChange, onRemove, onAddRewards }: { line: Quest
       )}
       {clues.length > 0 && (
         <div className="qs-log-objectives">
-          <span className="field-label">Clues revealed</span>
+          <span className="field-label">{t("questLog.cluesRevealed")}</span>
           {clues.map((c) => (
             <label key={c.id} className="cal-check">
               <input type="checkbox" checked={line.clueIds.includes(c.id)} onChange={(e) => toggleClue(c.id, e.target.checked)} /> {c.text}
@@ -157,30 +161,30 @@ function LogRow({ line, quest, onChange, onRemove, onAddRewards }: { line: Quest
       {clock && (
         <div className="qs-log-clock">
           <ProgressClock clock={clock} size={32} />
-          <span className="field-label">{clock.label || "Clock"}</span>
+          <span className="field-label">{clock.label || t("quest.clock")}</span>
           <span className="qs-stepper">
-            <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label="One tick less" data-tooltip="One tick less" disabled={line.clockTicks <= -12} onClick={() => onChange({ clockTicks: line.clockTicks - 1 })}>
+            <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={t("questLog.tickLess")} data-tooltip={t("questLog.tickLess")} disabled={line.clockTicks <= -12} onClick={() => onChange({ clockTicks: line.clockTicks - 1 })}>
               <Minus size={14} />
             </button>
             <span aria-live="polite">{line.clockTicks > 0 ? `+${line.clockTicks}` : line.clockTicks}</span>
-            <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label="One tick more" data-tooltip="One tick more" disabled={line.clockTicks >= 12} onClick={() => onChange({ clockTicks: line.clockTicks + 1 })}>
+            <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={t("questLog.tickMore")} data-tooltip={t("questLog.tickMore")} disabled={line.clockTicks >= 12} onClick={() => onChange({ clockTicks: line.clockTicks + 1 })}>
               <Plus size={14} />
             </button>
           </span>
-          <span className="cal-help">ticks this session (now {clock.filled}/{clock.segments})</span>
+          <span className="cal-help">{t("questLog.ticksThisSession", { filled: clock.filled, segments: clock.segments })}</span>
         </div>
       )}
       {offerRewards &&
         (line.rewardsAdded ? (
           <p className="qs-log-rewards done">
-            <Check size={14} aria-hidden /> Its rewards were added to this session&apos;s XP and loot.
+            <Check size={14} aria-hidden /> {t("questLog.rewardsAdded")}
           </p>
         ) : (
           <div className="qs-log-rewards">
             <Gem size={14} aria-hidden />
-            <span>This quest has rewards.</span>
+            <span>{t("questLog.hasRewards")}</span>
             <button type="button" className="btn btn-sm btn-primary" onClick={onAddRewards}>
-              Add them to this session
+              {t("questLog.addRewards")}
             </button>
           </div>
         ))}

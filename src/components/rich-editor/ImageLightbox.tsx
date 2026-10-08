@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import { useModalKeyboard } from "@/components/Modal";
+import { useT } from "@/i18n/useT";
 
 export type ZoomedImage = { src: string; alt: string | null; caption: string | null };
 
@@ -20,12 +21,13 @@ export function openReaderImage(node: PMNode, zoom: (image: ZoomedImage) => void
 
 /** The whole image over a dimmed page, with its caption. Click anywhere or press Esc to close. */
 export default function ImageLightbox({ image, onClose }: { image: ZoomedImage | null; onClose: () => void }) {
+  const t = useT("editor");
   useModalKeyboard(image !== null, onClose);
   if (!image) return null;
 
   return createPortal(
-    <div className="image-lightbox" role="dialog" aria-modal="true" aria-label={image.caption ?? image.alt ?? "Image"} onClick={onClose}>
-      <button className="btn btn-ghost btn-icon image-lightbox-close" onClick={onClose} aria-label="Close image" autoFocus>
+    <div className="image-lightbox" role="dialog" aria-modal="true" aria-label={image.caption ?? image.alt ?? t("lightbox.image")} onClick={onClose}>
+      <button className="btn btn-ghost btn-icon image-lightbox-close" onClick={onClose} aria-label={t("lightbox.close")} autoFocus>
         <X size={18} strokeWidth={2.25} />
       </button>
       <figure className="image-lightbox-figure">

@@ -3,18 +3,14 @@
  * to a campaign; sub-quests point at a parent. Sessions log what happened to
  * quests (`QuestLogLine`), which is also each quest's history.
  */
+import { wordedLabels as worded } from "../../i18n/worded";
+
+const wordedLabels = <V extends string | number>(values: readonly V[], prefix: string) => worded("campaign", values, prefix);
 
 export const QUEST_STATUSES = ["hook", "active", "onHold", "completed", "failed", "abandoned"] as const;
 export type QuestStatus = (typeof QUEST_STATUSES)[number];
 
-export const QUEST_STATUS_LABELS: Record<QuestStatus, string> = {
-  hook: "Hook / Rumor",
-  active: "Active",
-  onHold: "On hold",
-  completed: "Completed",
-  failed: "Failed",
-  abandoned: "Abandoned",
-};
+export const QUEST_STATUS_LABELS = wordedLabels(QUEST_STATUSES, "questStatus");
 
 /** A quest that's over (no longer on the party's plate). */
 export const isClosed = (status: QuestStatus) => status === "completed" || status === "failed" || status === "abandoned";
@@ -22,30 +18,17 @@ export const isClosed = (status: QuestStatus) => status === "completed" || statu
 export const QUEST_KINDS = ["main", "side", "personal", "faction", "rumor"] as const;
 export type QuestKind = (typeof QUEST_KINDS)[number];
 
-export const QUEST_KIND_LABELS: Record<QuestKind, string> = {
-  main: "Main",
-  side: "Side",
-  personal: "Personal",
-  faction: "Faction",
-  rumor: "Rumor",
-};
+export const QUEST_KIND_LABELS = wordedLabels(QUEST_KINDS, "questKind");
 
 /** 0 low, 1 normal, 2 high. */
 export const QUEST_PRIORITIES = [0, 1, 2] as const;
 export type QuestPriority = (typeof QUEST_PRIORITIES)[number];
-export const PRIORITY_LABELS: Record<QuestPriority, string> = { 0: "Low", 1: "Normal", 2: "High" };
+export const PRIORITY_LABELS = wordedLabels(QUEST_PRIORITIES, "priority");
 
 /** What a linked article is to the quest (Kanka-style element roles). */
 export const LINK_ROLES = ["ally", "antagonist", "location", "item", "faction", "other"] as const;
 export type LinkRole = (typeof LINK_ROLES)[number];
-export const LINK_ROLE_LABELS: Record<LinkRole, string> = {
-  ally: "Allies",
-  antagonist: "Antagonists",
-  location: "Locations",
-  item: "Items",
-  faction: "Factions",
-  other: "Other",
-};
+export const LINK_ROLE_LABELS = wordedLabels(LINK_ROLES, "linkRole");
 
 export interface ArticleRef {
   template: string;
@@ -58,6 +41,7 @@ export interface QuestLink extends ArticleRef {
 
 export const OBJECTIVE_STATES = ["open", "done", "failed"] as const;
 export type ObjectiveState = (typeof OBJECTIVE_STATES)[number];
+export const OBJECTIVE_STATE_LABELS = wordedLabels(OBJECTIVE_STATES, "objectiveState");
 
 export interface Objective {
   id: string;
@@ -69,7 +53,7 @@ export interface Objective {
 
 export const LOG_ACTIONS = ["started", "advanced", "completed", "failed"] as const;
 export type LogAction = (typeof LOG_ACTIONS)[number];
-export const LOG_ACTION_LABELS: Record<LogAction, string> = { started: "Started", advanced: "Advanced", completed: "Completed", failed: "Failed" };
+export const LOG_ACTION_LABELS = wordedLabels(LOG_ACTIONS, "logAction");
 
 /** One quest's line in a session's quest log. */
 export interface QuestLogLine {
@@ -133,11 +117,11 @@ export const hasRewards = (r: Rewards | null) => !!r && (r.xp !== null || r.coin
 
 export const FRONT_KINDS = ["campaign", "adventure"] as const;
 export type FrontKind = (typeof FRONT_KINDS)[number];
-export const FRONT_KIND_LABELS: Record<FrontKind, string> = { campaign: "Campaign front", adventure: "Adventure front" };
+export const FRONT_KIND_LABELS = wordedLabels(FRONT_KINDS, "frontKind");
 
 export const FRONT_STATUSES = ["active", "averted", "doom"] as const;
 export type FrontStatus = (typeof FRONT_STATUSES)[number];
-export const FRONT_STATUS_LABELS: Record<FrontStatus, string> = { active: "Advancing", averted: "Averted", doom: "Doom came" };
+export const FRONT_STATUS_LABELS = wordedLabels(FRONT_STATUSES, "frontStatus");
 
 /** A grim portent: a step the threat takes when the party doesn't stop it. */
 export interface Portent {
@@ -197,7 +181,7 @@ export interface QuestData {
 /** What a quest's in-world date means on a given day. */
 export const QUEST_DAY_KINDS = ["start", "deadline", "end"] as const;
 export type QuestDayKind = (typeof QUEST_DAY_KINDS)[number];
-export const QUEST_DAY_LABELS: Record<QuestDayKind, string> = { start: "Starts", deadline: "Deadline", end: "Ended" };
+export const QUEST_DAY_LABELS = wordedLabels(QUEST_DAY_KINDS, "questDay");
 
 /** A quest as a calendar row: enough to label and link it. */
 export interface BriefQuest {

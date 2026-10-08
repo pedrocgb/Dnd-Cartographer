@@ -6,6 +6,7 @@ export type Conditions = Pick<WeatherHour, "temp" | "cover" | "fog" | "precipita
 
 /** A day-level effect and the stretches of hours [start, end) it holds for. */
 export interface DayEffect {
+  /** A `weather` message key (`effect.*`); days saved before codes hold the English text. */
   text: string;
   windows: [number, number][];
 }
@@ -24,44 +25,45 @@ const clearSky = (w: Conditions) => !w.precipitation && !w.fog && w.cover === "c
 /**
  * What the weather means at the table, most pressing first: danger, then
  * visibility and footing, then comfort and flavour. Underground places
- * only ever get the underground rules.
+ * only ever get the underground rules. Texts are `weather` message keys,
+ * worded on display (see `weatherText`).
  */
 const UNDERGROUND_RULES: Rule[] = [
-  { when: () => true, text: "Sheltered from the weather above; the air is still and the temperature barely changes" },
-  { when: (_, t) => t.volcanic, text: "A faint smell of sulfur drifts up from below" },
-  { when: (w) => w.temp <= 0, text: "Ice coats the cave walls and the floor is treacherous" },
+  { when: () => true, text: "effect.sheltered" },
+  { when: (_, t) => t.volcanic, text: "effect.sulfurBelow" },
+  { when: (w) => w.temp <= 0, text: "effect.caveIce" },
 ];
 
 const RULES: Rule[] = [
   // Danger
-  { when: (w) => w.precipitation?.type === "snow" && w.beaufort >= 7, text: "Visibility near zero; travelling without shelter is life-threatening" },
-  { when: (w) => !!w.precipitation?.thunder, text: "Lightning makes high ground, lone trees and metal armour dangerous" },
-  { when: (w) => w.precipitation?.type === "hail", text: "Hailstones can injure the unprotected, spook animals and ruin crops" },
-  { when: (w) => w.beaufort >= 8, text: "Gale-force winds knock riders off balance, ground flyers and make ranged attacks nearly useless" },
-  { when: (w, t) => t.dusty && !w.precipitation && w.beaufort >= 6, text: "Blowing sand and dust sting the eyes and swallow the horizon" },
-  { when: (w) => w.temp >= 35, text: "Heat exhaustion is a real risk; travellers need twice the water" },
-  { when: (w) => w.temp <= -20, text: "Frostbite threatens exposed skin within minutes; a fire at night is essential" },
+  { when: (w) => w.precipitation?.type === "snow" && w.beaufort >= 7, text: "effect.whiteout" },
+  { when: (w) => !!w.precipitation?.thunder, text: "effect.lightning" },
+  { when: (w) => w.precipitation?.type === "hail", text: "effect.hail" },
+  { when: (w) => w.beaufort >= 8, text: "effect.gale" },
+  { when: (w, t) => t.dusty && !w.precipitation && w.beaufort >= 6, text: "effect.sandstorm" },
+  { when: (w) => w.temp >= 35, text: "effect.heat" },
+  { when: (w) => w.temp <= -20, text: "effect.frostbite" },
   // Visibility and footing
-  { when: (w) => w.fog === "fog" || w.fog === "ice fog", text: "Visibility drops to a few dozen paces; easy to get lost or ambushed" },
-  { when: (w) => w.fog === "mist", text: "A soft mist blurs distant landmarks and muffles sound" },
-  { when: (w) => w.precipitation?.type === "rain" && w.precipitation.intensity === "heavy", text: "Roads turn to mud, streams rise and visibility drops to a few hundred paces" },
-  { when: (w) => w.precipitation?.type === "rain" && w.precipitation.intensity !== "heavy", text: "Exposed paths turn muddy and distant landmarks are obscured" },
-  { when: (w) => w.precipitation?.type === "drizzle", text: "Everything slowly gets damp; bowstrings and parchment need covering" },
-  { when: (w) => w.precipitation?.type === "sleet", text: "Ice glazes roads and rigging; footing is treacherous" },
-  { when: (w) => w.precipitation?.type === "snow" && w.precipitation.intensity === "heavy" && w.beaufort < 7, text: "Deep snow halves travel speed and buries tracks quickly" },
-  { when: (w) => w.precipitation?.type === "snow" && w.precipitation.intensity !== "heavy", text: "Fresh snow shows every track clearly" },
-  { when: (w) => !w.precipitation && w.low <= 0 && w.temp <= 2, text: "Puddles and ponds are frozen; frost makes stone slippery" },
-  { when: (w, t) => t.maritime >= 0.5 && w.beaufort >= 5, text: "Rough water: sailing is slow and small boats should stay ashore" },
-  { when: (w) => w.beaufort >= 6 && w.beaufort < 8, text: "Strong wind throws arrows off course and carries voices away" },
+  { when: (w) => w.fog === "fog" || w.fog === "ice fog", text: "effect.fog" },
+  { when: (w) => w.fog === "mist", text: "effect.mist" },
+  { when: (w) => w.precipitation?.type === "rain" && w.precipitation.intensity === "heavy", text: "effect.heavyRain" },
+  { when: (w) => w.precipitation?.type === "rain" && w.precipitation.intensity !== "heavy", text: "effect.rain" },
+  { when: (w) => w.precipitation?.type === "drizzle", text: "effect.drizzle" },
+  { when: (w) => w.precipitation?.type === "sleet", text: "effect.sleet" },
+  { when: (w) => w.precipitation?.type === "snow" && w.precipitation.intensity === "heavy" && w.beaufort < 7, text: "effect.deepSnow" },
+  { when: (w) => w.precipitation?.type === "snow" && w.precipitation.intensity !== "heavy", text: "effect.freshSnow" },
+  { when: (w) => !w.precipitation && w.low <= 0 && w.temp <= 2, text: "effect.frost" },
+  { when: (w, t) => t.maritime >= 0.5 && w.beaufort >= 5, text: "effect.roughWater" },
+  { when: (w) => w.beaufort >= 6 && w.beaufort < 8, text: "effect.strongWind" },
   // Comfort and flavour
-  { when: (_, t) => t.volcanic, text: "A faint smell of sulfur hangs in the air" },
-  { when: (w) => w.temp >= 28 && w.temp < 35, text: "Hot work: armour is stifling and rests in the shade are welcome" },
-  { when: (w) => w.temp <= -5 && w.temp > -20, text: "Bitter cold: breath steams and fingers numb without gloves" },
-  { when: (w) => clearSky(w) && NIGHT.has(w.timeOfDay) && w.low < 10, text: "Clear skies let the heat escape: a cold night, but good stargazing" },
-  { when: (w) => clearSky(w) && !NIGHT.has(w.timeOfDay) && w.timeOfDay !== "Dusk", text: "Clear skies and long sight lines; distant landmarks are easy to spot" },
+  { when: (_, t) => t.volcanic, text: "effect.sulfur" },
+  { when: (w) => w.temp >= 28 && w.temp < 35, text: "effect.hot" },
+  { when: (w) => w.temp <= -5 && w.temp > -20, text: "effect.bitterCold" },
+  { when: (w) => clearSky(w) && NIGHT.has(w.timeOfDay) && w.low < 10, text: "effect.clearNight" },
+  { when: (w) => clearSky(w) && !NIGHT.has(w.timeOfDay) && w.timeOfDay !== "Dusk", text: "effect.clearDay" },
 ];
 
-const PLEASANT = "Pleasant conditions for travel";
+const PLEASANT = "effect.pleasant";
 
 const rulesFor = (underground: boolean) => (underground ? UNDERGROUND_RULES : RULES);
 

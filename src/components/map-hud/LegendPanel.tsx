@@ -9,11 +9,11 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import Toggle from "@/components/Toggle";
 import { SliderField } from "@/components/GridPanel";
 import type { MapLayerData } from "@/components/layer-images";
-import { DEFAULT_LEGEND, LEGEND_ITEM_SIZES, LEGEND_LIMITS, type ClientLegend, type LegendConfig, type LegendItemSize } from "@/server/legends/legend-config";
+import { DEFAULT_LEGEND, LEGEND_ITEM_SIZES, LEGEND_LIMITS, type ClientLegend, type LegendConfig } from "@/server/legends/legend-config";
 import LegendItemsWindow from "./LegendItemsWindow";
 import type { LegendPatch } from "./use-map-legends";
+import { useT } from "@/i18n/useT";
 
-const SIZE_LABELS: Record<LegendItemSize, string> = { small: "Small", medium: "Medium", large: "Large" };
 
 /**
  * The Legend tool: the active layer's legend (one per layer). Left, its
@@ -46,6 +46,8 @@ export default function LegendPanel({
   onDelete: () => void;
   onClose: () => void;
 }) {
+  const t = useT("maps");
+  const tc = useT("common");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const config = legend?.config;
   const setConfig = (patch: Partial<LegendConfig>) => onUpdate({ config: patch });
@@ -56,53 +58,53 @@ export default function LegendPanel({
         <div className="marker-side-panel-header">
           <h2>
             <LayoutList size={16} strokeWidth={2.25} style={{ verticalAlign: "-2px", marginRight: "6px" }} />
-            Legend
+            {t("panel.legend")}
           </h2>
-          <button className="btn btn-ghost btn-icon" onClick={onClose} aria-label="Close legend panel">
+          <button className="btn btn-ghost btn-icon" onClick={onClose} aria-label={tc("closePanel", { title: t("panel.legend") })}>
             <X size={16} strokeWidth={2.25} />
           </button>
         </div>
-        <p className="panel-layer-label">Layer: {layerName}</p>
+        <p className="panel-layer-label">{t("panel.layer", { name: layerName })}</p>
 
         {!legend || !config ? (
           <div className="legend-items-empty">
             <LayoutList size={28} strokeWidth={1.5} aria-hidden />
-            <p>This layer has no legend yet</p>
-            <p className="field-label">Each layer can have one legend, and it can also show on other layers.</p>
+            <p>{t("legend.none")}</p>
+            <p className="field-label">{t("legend.noneHint")}</p>
             <button type="button" className="btn btn-sm btn-primary" onClick={onCreate}>
               <Plus size={14} strokeWidth={2.25} />
-              Create legend
+              {t("legend.create")}
             </button>
           </div>
         ) : (
           <>
-            <Toggle checked={legend.visible} onChange={(visible) => onUpdate({ visible })} label="Show the legend" />
+            <Toggle checked={legend.visible} onChange={(visible) => onUpdate({ visible })} label={t("legend.show")} />
             <LayerChecklist layers={layers} homeLayerId={layerId} value={legend.extraLayerIds} onChange={(extraLayerIds) => onUpdate({ extraLayerIds })} />
-            <p className="field-label zone-tool-hint">Drag the legend by its title bar to move it on the map.</p>
+            <p className="field-label zone-tool-hint">{t("legend.dragHint")}</p>
 
-            <MarkerCard title="Layout" defaultOpen>
+            <MarkerCard title={t("legend.layout")} defaultOpen>
               <div className="legend-field">
                 <label className="field-label" htmlFor="legend-title">
-                  Title
+                  {t("legend.title")}
                 </label>
-                <input id="legend-title" type="text" value={config.title ?? ""} placeholder="No title" maxLength={LEGEND_LIMITS.title} onChange={(e) => setConfig({ title: e.target.value || null })} />
+                <input id="legend-title" type="text" value={config.title ?? ""} placeholder={t("legend.noTitle")} maxLength={LEGEND_LIMITS.title} onChange={(e) => setConfig({ title: e.target.value || null })} />
               </div>
-              <SliderField label="Columns" value={config.columns} min={LEGEND_LIMITS.columns[0]} max={LEGEND_LIMITS.columns[1]} defaultValue={DEFAULT_LEGEND.columns} onChange={(columns) => setConfig({ columns })} />
-              <SliderField label="Rows" value={config.rows} min={LEGEND_LIMITS.rows[0]} max={LEGEND_LIMITS.rows[1]} defaultValue={DEFAULT_LEGEND.rows} onChange={(rows) => setConfig({ rows })} />
-              <p className="field-label">The legend only takes the room its items need; past the rows, it scrolls.</p>
+              <SliderField label={t("legend.columns")} value={config.columns} min={LEGEND_LIMITS.columns[0]} max={LEGEND_LIMITS.columns[1]} defaultValue={DEFAULT_LEGEND.columns} onChange={(columns) => setConfig({ columns })} />
+              <SliderField label={t("legend.rows")} value={config.rows} min={LEGEND_LIMITS.rows[0]} max={LEGEND_LIMITS.rows[1]} defaultValue={DEFAULT_LEGEND.rows} onChange={(rows) => setConfig({ rows })} />
+              <p className="field-label">{t("legend.rowsHint")}</p>
             </MarkerCard>
 
-            <MarkerCard title="Look" defaultOpen>
+            <MarkerCard title={t("legend.look")} defaultOpen>
               <div className="legend-field">
-                <span className="field-label">Item size</span>
-                <SegmentedControl ariaLabel="Item size" value={config.itemSize} segments={LEGEND_ITEM_SIZES.map((key) => ({ key, label: SIZE_LABELS[key] }))} onChange={(itemSize) => setConfig({ itemSize })} />
+                <span className="field-label">{t("legend.itemSize")}</span>
+                <SegmentedControl ariaLabel={t("legend.itemSize")} value={config.itemSize} segments={LEGEND_ITEM_SIZES.map((key) => ({ key, label: t(`legend.size.${key}`) }))} onChange={(itemSize) => setConfig({ itemSize })} />
               </div>
-              <SliderField label="Background" value={Math.round(config.background * 100)} min={0} max={100} suffix="%" defaultValue={DEFAULT_LEGEND.background * 100} onChange={(v) => setConfig({ background: v / 100 })} />
+              <SliderField label={t("legend.background")} value={Math.round(config.background * 100)} min={0} max={100} suffix="%" defaultValue={DEFAULT_LEGEND.background * 100} onChange={(v) => setConfig({ background: v / 100 })} />
             </MarkerCard>
 
             <button type="button" className="btn btn-sm btn-ghost legend-delete" onClick={() => setConfirmDelete(true)}>
               <Trash2 size={14} strokeWidth={2.25} />
-              Delete legend
+              {t("legend.delete")}
             </button>
           </>
         )}
@@ -117,8 +119,8 @@ export default function LegendPanel({
 
       <ConfirmDialog
         open={confirmDelete}
-        title="Delete legend"
-        confirmLabel="Delete"
+        title={t("legend.delete")}
+        confirmLabel={tc("delete")}
         danger
         onConfirm={() => {
           setConfirmDelete(false);
@@ -126,7 +128,7 @@ export default function LegendPanel({
         }}
         onCancel={() => setConfirmDelete(false)}
       >
-        <p>Delete this layer&rsquo;s legend and its {config?.items.length ?? 0} item(s)? This can&rsquo;t be undone.</p>
+        <p>{t("legend.deleteBody", { count: config?.items.length ?? 0, n: config?.items.length ?? 0 })}</p>
       </ConfirmDialog>
     </div>
   );

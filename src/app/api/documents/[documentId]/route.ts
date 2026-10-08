@@ -5,51 +5,49 @@ import { documentMentions, richDocuments } from "@/server/db/schema";
 import { extractMentions } from "@/server/mentions/kinds";
 import { validateDocument, deriveText, DocumentValidationError, SCHEMA_VERSION } from "@/server/documents/schema";
 import { notInWorld } from "@/server/world/guards";
+import { errorResponse } from "@/i18n/server";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ documentId: string }> }) {
   const { documentId } = await params;
-  const denied = await notInWorld("rich_documents", documentId, "Document not found.");
+  const denied = await notInWorld("rich_documents", documentId, "documentNotFound");
   if (denied) return denied;
   const doc = await db.query.richDocuments.findFirst({ where: eq(richDocuments.id, documentId) });
   if (!doc) {
-    return NextResponse.json({ error: "Document not found." }, { status: 404 });
+    return errorResponse("documentNotFound", 404);
   }
   return NextResponse.json({ document: doc });
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ documentId: string }> }) {
   const { documentId } = await params;
-  const denied = await notInWorld("rich_documents", documentId, "Document not found.");
+  const denied = await notInWorld("rich_documents", documentId, "documentNotFound");
   if (denied) return denied;
   const body = await request.json().catch(() => null);
   const revision = Number(body?.revision);
 
   if (!body?.json || !Number.isFinite(revision)) {
-    return NextResponse.json({ error: "Request must include json and revision." }, { status: 400 });
+    return errorResponse("documentSaveBody", 400);
   }
 
   try {
     validateDocument(body.json);
   } catch (err) {
     if (err instanceof DocumentValidationError) {
-      return NextResponse.json({ error: err.message }, { status: 400 });
+      return errorResponse(err.key, 400, undefined, err.params);
     }
     throw err;
   }
 
   const current = await db.query.richDocuments.findFirst({ where: eq(richDocuments.id, documentId) });
   if (!current) {
-    return NextResponse.json({ error: "Document not found." }, { status: 404 });
+    return errorResponse("documentNotFound", 404);
   }
 
   if (current.revision !== revision) {
     // The caller's edit was based on a now-superseded revision. Rather than
     // silently overwrite (or discard) anything, hand back the current
     // server state so the client can decide how to reconcile.
-    return NextResponse.json(
-      { error: "This document changed since you loaded it.", current },
-      { status: 409 }
-    );
+    return errorResponse("documentChanged", 409, { current });
   }
 
   const jsonText = JSON.stringify(body.json);
@@ -75,7 +73,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ do
   if (!updated) {
     // Another save won the race between our read and this write.
     const latest = await db.query.richDocuments.findFirst({ where: eq(richDocuments.id, documentId) });
-    return NextResponse.json({ error: "This document changed since you loaded it.", current: latest }, { status: 409 });
+    return errorResponse("documentChanged", 409, { current: latest });
   }
 
   return NextResponse.json({ document: updated });

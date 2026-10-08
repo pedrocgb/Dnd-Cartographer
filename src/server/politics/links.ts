@@ -4,6 +4,8 @@ import { markers, maps, richDocuments, territories, people, organizations, polit
 import { resolveChain, getAcceptedAffiliation, getAuthoritiesForChain } from "./queries";
 import { extractLinksFromJson, classifyHref } from "./rich-text-links";
 import { articleHref } from "../articles/templates";
+import { authorityRoleLabel, territoryTypeLabel } from "./hierarchy-config";
+import { serverT } from "@/i18n/server";
 
 export interface ConsolidatedLink {
   key: string;
@@ -63,6 +65,8 @@ async function resolveInternalName(targetType: string, targetId: string): Promis
 export async function buildMarkerLinks(worldId: string, markerId: string): Promise<ConsolidatedLink[]> {
   const marker = await db.query.markers.findFirst({ where: eq(markers.id, markerId) });
   if (!marker) return [];
+  const t = await serverT("politics");
+  const withType = (territory: { name: string; type: string }) => t("nameWithType", { name: territory.name, type: territoryTypeLabel(territory.type, t) });
 
   const out: ConsolidatedLink[] = [];
   const seenOutgoing = new Set<string>(); // `${targetType}:${targetId}` or `external:${url}`, direction-scoped
@@ -78,11 +82,11 @@ export async function buildMarkerLinks(worldId: string, markerId: string): Promi
   const direct = await db.query.politicalLinks.findMany({ where: and(eq(politicalLinks.worldId, worldId), eq(politicalLinks.ownerType, "marker"), eq(politicalLinks.ownerId, markerId)) });
   for (const link of direct) {
     if (link.externalUrl) {
-      addOutgoing({ source: "Direct", targetType: "external", targetId: null, targetName: link.label || link.externalUrl, href: link.externalUrl, removableLinkId: link.id });
+      addOutgoing({ source: t("links.direct"), targetType: "external", targetId: null, targetName: link.label || link.externalUrl, href: link.externalUrl, removableLinkId: link.id });
     } else if (link.targetType && link.targetId) {
       const resolved = await resolveInternalName(link.targetType, link.targetId);
       addOutgoing({
-        source: "Direct",
+        source: t("links.direct"),
         targetType: link.targetType as ConsolidatedLink["targetType"],
         targetId: link.targetId,
         targetName: link.label || resolved.name,
@@ -96,7 +100,7 @@ export async function buildMarkerLinks(worldId: string, markerId: string): Promi
   // 2. Existing linked map.
   if (marker.linkedMapId) {
     const resolved = await resolveInternalName("map", marker.linkedMapId);
-    addOutgoing({ source: "Linked map", targetType: "map", targetId: marker.linkedMapId, targetName: resolved.name, href: resolved.href, removableLinkId: null, unavailable: resolved.unavailable });
+    addOutgoing({ source: t("links.linkedMap"), targetType: "map", targetId: marker.linkedMapId, targetName: resolved.name, href: resolved.href, removableLinkId: null, unavailable: resolved.unavailable });
   }
 
   // 3. Rich-text links from this marker's own description.
@@ -107,12 +111,12 @@ export async function buildMarkerLinks(worldId: string, markerId: string): Promi
         const classified = classifyHref(link.href);
         if (classified.kind === "marker") {
           const resolved = await resolveInternalName("marker", classified.markerId);
-          addOutgoing({ source: "From description", targetType: "marker", targetId: classified.markerId, targetName: resolved.name, href: resolved.href, removableLinkId: null, unavailable: resolved.unavailable });
+          addOutgoing({ source: t("links.fromDescription"), targetType: "marker", targetId: classified.markerId, targetName: resolved.name, href: resolved.href, removableLinkId: null, unavailable: resolved.unavailable });
         } else if (classified.kind === "map") {
           const resolved = await resolveInternalName("map", classified.mapId);
-          addOutgoing({ source: "From description", targetType: "map", targetId: classified.mapId, targetName: resolved.name, href: resolved.href, removableLinkId: null, unavailable: resolved.unavailable });
+          addOutgoing({ source: t("links.fromDescription"), targetType: "map", targetId: classified.mapId, targetName: resolved.name, href: resolved.href, removableLinkId: null, unavailable: resolved.unavailable });
         } else {
-          addOutgoing({ source: "From description", targetType: "external", targetId: null, targetName: link.text || link.href, href: link.href, removableLinkId: null });
+          addOutgoing({ source: t("links.fromDescription"), targetType: "external", targetId: null, targetName: link.text || link.href, href: link.href, removableLinkId: null });
         }
       }
     }
@@ -125,16 +129,16 @@ export async function buildMarkerLinks(worldId: string, markerId: string): Promi
     const chain = await resolveChain(worldId, accepted.territoryId);
     chainIds = chain.map((t) => t.id);
     for (let i = 0; i < chain.length; i++) {
-      const t = chain[i];
-      const isLeaf = t.id === accepted.territoryId;
+      const link = chain[i];
+      const isLeaf = link.id === accepted.territoryId;
       addOutgoing({
-        source: isLeaf ? "Political affiliation (direct)" : "Political affiliation (inherited)",
+        source: isLeaf ? t("links.affiliationDirect") : t("links.affiliationInherited"),
         targetType: "territory",
-        targetId: t.id,
-        targetName: `${t.name} (${t.type})`,
-        href: articleHref("territory", t.id),
+        targetId: link.id,
+        targetName: withType(link),
+        href: articleHref("territory", link.id),
         removableLinkId: null,
-        unavailable: Boolean(t.deletedAt),
+        unavailable: Boolean(link.deletedAt),
       });
     }
 
@@ -145,7 +149,7 @@ export async function buildMarkerLinks(worldId: string, markerId: string): Promi
       const resolved = await resolveInternalName(a.holderType, a.holderId);
       const territoryName = territoryNameById.get(a.territoryId) ?? "";
       addOutgoing({
-        source: `${a.role}${a.title ? ` (${a.title})` : ""} of ${territoryName}`,
+        source: t(a.title ? "links.authorityTitled" : "links.authority", { role: authorityRoleLabel(a.role, t), title: a.title, territory: territoryName }),
         targetType: a.holderType as ConsolidatedLink["targetType"],
         targetId: a.holderId,
         targetName: resolved.name,
@@ -162,10 +166,10 @@ export async function buildMarkerLinks(worldId: string, markerId: string): Promi
     const territory = await db.query.territories.findFirst({ where: eq(territories.id, seat.territoryId) });
     if (!territory) continue;
     addOutgoing({
-      source: seat.role === "capital" ? "Capital of" : "Administrative seat of",
+      source: seat.role === "capital" ? t("links.capitalOf") : t("links.seatOf"),
       targetType: "territory",
       targetId: territory.id,
-      targetName: `${territory.name} (${territory.type})`,
+      targetName: withType(territory),
       href: articleHref("territory", territory.id),
       removableLinkId: null,
       unavailable: Boolean(territory.deletedAt),
@@ -188,7 +192,7 @@ export async function buildMarkerLinks(worldId: string, markerId: string): Promi
   for (const link of incomingLinks) {
     const resolved = await resolveInternalName(link.ownerType, link.ownerId);
     addIncoming({
-      source: "Referenced by",
+      source: t("links.referencedBy"),
       targetType: link.ownerType as ConsolidatedLink["targetType"],
       targetId: link.ownerId,
       targetName: resolved.name,
@@ -211,7 +215,7 @@ export async function buildMarkerLinks(worldId: string, markerId: string): Promi
     });
     if (hasLinkToThis) {
       addIncoming({
-        source: "Referenced by (description)",
+        source: t("links.referencedByDescription"),
         targetType: "marker",
         targetId: other.id,
         targetName: other.name,

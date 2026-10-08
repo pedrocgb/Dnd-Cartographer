@@ -2,12 +2,13 @@ import { randomBytes } from "node:crypto";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { articles, campaigns, organizations, outlineNodes, people, richDocuments, shareLinks, territories } from "@/server/db/schema";
-import { TEMPLATE_LABELS, isArticleTemplate, isGenericTemplate, type ArticleTemplateKey } from "@/server/articles/templates";
+import { templateLabel, isArticleTemplate, isGenericTemplate, type ArticleTemplateKey } from "@/server/articles/templates";
 import { extractMentions } from "@/server/mentions/kinds";
 import { outlineTree, type OutlineTreeNode } from "@/server/writer/logic";
 import { readSetup } from "@/server/writer/parse";
 import type { NodeKind } from "@/server/writer/types";
 import { imageKeysOf, isBlankDoc, sectionAnchor, rewriteForShare, stripSecrets, type JsonNode } from "./transform";
+import { serverT } from "@/i18n/server";
 
 export const SHARE_KINDS = ["article", "campaign", "outline"] as const;
 export type ShareKind = (typeof SHARE_KINDS)[number];
@@ -160,7 +161,7 @@ async function loadArticleView(worldId: string, token: string, template: Article
       kind: "article",
       title: record.title,
       template,
-      templateLabel: TEMPLATE_LABELS[template],
+      templateLabel: templateLabel(template, await serverT("articles")),
       portraitUrl: record.portraitKey ? `/api/share/${token}/portrait` : null,
       portraitFullUrl: record.portraitKey ? `/api/share/${token}/portrait/full` : null,
       body: shown(record.bodyId),

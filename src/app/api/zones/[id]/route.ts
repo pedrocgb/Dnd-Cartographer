@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { errorResponse } from "@/i18n/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { zones, zoneRegions } from "@/server/db/schema";
@@ -16,13 +17,13 @@ import { foreignIdResponse, idsInWorld } from "@/server/world/guards";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const denied = await notInWorld("zones", id, "Zone not found.");
+  const denied = await notInWorld("zones", id, "zoneNotFound");
   if (denied) return denied;
   const zone = await db.query.zones.findFirst({ where: eq(zones.id, id) });
-  if (!zone) return NextResponse.json({ error: "Zone not found." }, { status: 404 });
+  if (!zone) return errorResponse("zoneNotFound", 404);
 
   const body = await request.json().catch(() => null);
-  if (!body) return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+  if (!body) return errorResponse("invalidBody", 400);
 
   const region = await db.query.zoneRegions.findFirst({ where: eq(zoneRegions.id, zone.regionId) });
   const structuralKeys = ["name", "geometry", "shapeType", "fillColor", "fillOpacity", "strokeColor", "strokeOpacity", "strokeWidth", "sortOrder", "regionId", "territoryId"];
@@ -32,10 +33,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   // the lock flag itself always remain toggleable so a locked zone can still
   // be inspected, hidden, and unlocked.
   if (wantsStructuralChange && zone.locked) {
-    return NextResponse.json({ error: "Zone is locked." }, { status: 409 });
+    return errorResponse("zoneLocked", 409);
   }
   if (wantsStructuralChange && region?.locked) {
-    return NextResponse.json({ error: "This zone's Region is locked." }, { status: 409 });
+    return errorResponse("zoneRegionLocked", 409);
   }
 
   const patch: Partial<typeof zones.$inferInsert> = { updatedAt: new Date() };
@@ -54,7 +55,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const imageWidth = Number(body.imageWidth);
     const imageHeight = Number(body.imageHeight);
     if (!Number.isFinite(imageWidth) || !Number.isFinite(imageHeight) || imageWidth <= 0 || imageHeight <= 0) {
-      return NextResponse.json({ error: "Valid image dimensions are required to validate geometry." }, { status: 400 });
+      return errorResponse("imageDimensionsForGeometry", 400);
     }
     // Painting onto a rectangle/circle/polygon converts it to an area; no
     // other shape change is possible, since geometry is shape-specific.
@@ -70,7 +71,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       }
     }
     const geometry = validateZoneGeometry(shapeType, rawGeometry, imageWidth, imageHeight);
-    if (!geometry) return NextResponse.json({ error: "Invalid or out-of-bounds shape geometry." }, { status: 400 });
+    if (!geometry) return errorResponse("shapeGeometryInvalid", 400);
     patch.geometry = JSON.stringify(geometry);
     patch.shapeType = shapeType;
   }
@@ -78,9 +79,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (typeof body.regionId === "string" && body.regionId !== zone.regionId) {
     const target = await db.query.zoneRegions.findFirst({ where: eq(zoneRegions.id, body.regionId) });
     if (!target || target.mapId !== zone.mapId || target.deletedAt) {
-      return NextResponse.json({ error: "Target Region not found on this map." }, { status: 400 });
+      return errorResponse("targetRegionNotOnMap", 400);
     }
-    if (target.locked) return NextResponse.json({ error: "Target Region is locked." }, { status: 409 });
+    if (target.locked) return errorResponse("targetRegionLocked", 409);
     patch.regionId = body.regionId;
   }
 
@@ -102,14 +103,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const denied = await notInWorld("zones", id, "Zone not found.");
+  const denied = await notInWorld("zones", id, "zoneNotFound");
   if (denied) return denied;
   const zone = await db.query.zones.findFirst({ where: eq(zones.id, id) });
-  if (!zone) return NextResponse.json({ error: "Zone not found." }, { status: 404 });
-  if (zone.locked) return NextResponse.json({ error: "Zone is locked." }, { status: 409 });
+  if (!zone) return errorResponse("zoneNotFound", 404);
+  if (zone.locked) return errorResponse("zoneLocked", 409);
 
   const region = await db.query.zoneRegions.findFirst({ where: eq(zoneRegions.id, zone.regionId) });
-  if (region?.locked) return NextResponse.json({ error: "This zone's Region is locked." }, { status: 409 });
+  if (region?.locked) return errorResponse("zoneRegionLocked", 409);
 
   await db.update(zones).set({ deletedAt: new Date(), updatedAt: new Date() }).where(eq(zones.id, id));
   return NextResponse.json({ ok: true });

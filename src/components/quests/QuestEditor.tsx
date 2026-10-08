@@ -10,6 +10,7 @@ import { candidateOptions, type Candidate } from "@/components/articles/candidat
 import { api, newId } from "@/components/calendars/api";
 import { descendantsOf } from "@/server/quests/logic";
 import {
+  OBJECTIVE_STATE_LABELS,
   OBJECTIVE_STATES,
   PRIORITY_LABELS,
   QUEST_KIND_LABELS,
@@ -36,10 +37,9 @@ import type { Currency } from "@/server/sessions/types";
 import QuestLinksSection from "./QuestLinksSection";
 import { CluesTab, ClockTab, DatesTab, RewardsTab, type QuestDays } from "./QuestDepthTabs";
 import type { CalendarDefinition } from "@/server/calendars/engine";
+import { useT } from "@/i18n/useT";
 
 type Tab = "general" | "objectives" | "clues" | "clock" | "dates" | "rewards" | "involved" | "notes";
-
-const OBJECTIVE_STATE_LABELS: Record<ObjectiveState, string> = { open: "Open", done: "Done", failed: "Failed" };
 
 /** What a new quest starts as (from the board's "+" of a column, or a session). */
 export interface QuestDraft {
@@ -84,6 +84,9 @@ export default function QuestEditor({
   onDeleted: (id: string) => void;
   onClose: () => void;
 }) {
+  const te = useT("editor");
+  const t = useT("campaign");
+  const tc = useT("common");
   const [tab, setTab] = useState<Tab>("general");
   const [title, setTitle] = useState(quest?.title ?? "");
   const [kind, setKind] = useState<QuestKind>(quest?.kind ?? "side");
@@ -111,7 +114,7 @@ export default function QuestEditor({
   async function save() {
     if (!title.trim()) {
       setTab("general");
-      setError("A quest needs a title.");
+      setError(t("problem.questTitle"));
       return;
     }
     setSaving(true);
@@ -138,35 +141,35 @@ export default function QuestEditor({
       : await api<{ quest: QuestData }>("POST", `/api/campaigns/${campaignId}/quests`, body);
     setSaving(false);
     if (res.ok) onSaved(res.data.quest);
-    else setError(res.data.error ?? "Could not save the quest.");
+    else setError(res.data.error ?? t("editor.couldNotSave"));
   }
 
   async function remove() {
     if (!quest) return;
     const res = await api("DELETE", `/api/quests/${quest.id}`);
     if (res.ok) onDeleted(quest.id);
-    else setDeleteError(res.data.error ?? "Could not delete it.");
+    else setDeleteError(res.data.error ?? t("quest.couldNotDelete"));
   }
 
   const tabs: { key: Tab; label: string; Icon: typeof ScrollText; count?: number }[] = [
-    { key: "general", label: "General", Icon: ScrollText },
-    { key: "objectives", label: "Objectives", Icon: ListChecks, count: objectives.length },
-    { key: "clues", label: "Clues", Icon: KeyRound, count: clues.length },
-    { key: "clock", label: "Clock & front", Icon: Timer },
-    { key: "dates", label: "Dates", Icon: CalendarDays, count: [days.startDay, days.deadlineDay, days.endDay].filter((d) => d !== null).length },
-    { key: "rewards", label: "Rewards", Icon: Gem, count: rewards.coins.length + rewards.items.length + (rewards.xp !== null ? 1 : 0) },
-    { key: "involved", label: "Involved", Icon: Waypoints, count: links.length },
-    { key: "notes", label: "Notes", Icon: BookOpen },
+    { key: "general", label: t("editor.tab.general"), Icon: ScrollText },
+    { key: "objectives", label: t("editor.tab.objectives"), Icon: ListChecks, count: objectives.length },
+    { key: "clues", label: t("editor.tab.clues"), Icon: KeyRound, count: clues.length },
+    { key: "clock", label: t("editor.tab.clock"), Icon: Timer },
+    { key: "dates", label: t("editor.tab.dates"), Icon: CalendarDays, count: [days.startDay, days.deadlineDay, days.endDay].filter((d) => d !== null).length },
+    { key: "rewards", label: t("editor.tab.rewards"), Icon: Gem, count: rewards.coins.length + rewards.items.length + (rewards.xp !== null ? 1 : 0) },
+    { key: "involved", label: t("editor.tab.involved"), Icon: Waypoints, count: links.length },
+    { key: "notes", label: t("editor.tab.notes"), Icon: BookOpen },
   ];
 
   return (
-    <Modal open onClose={onClose} title={quest ? `Edit ${quest.title}` : "New quest"} size="wide">
+    <Modal open onClose={onClose} title={quest ? t("quest.editNamed", { name: quest.title }) : t("editor.new")} size="wide">
       <div className="cel-editor">
         <nav className="cal-editor-tabs" role="tablist">
-          {tabs.map((t) => (
-            <button key={t.key} type="button" role="tab" aria-selected={tab === t.key} className={tab === t.key ? "cal-tab active" : "cal-tab"} onClick={() => setTab(t.key)}>
-              <t.Icon size={14} aria-hidden /> {t.label}
-              {t.count ? <span className="cel-tab-count">{t.count}</span> : null}
+          {tabs.map((x) => (
+            <button key={x.key} type="button" role="tab" aria-selected={tab === x.key} className={tab === x.key ? "cal-tab active" : "cal-tab"} onClick={() => setTab(x.key)}>
+              <x.Icon size={14} aria-hidden /> {x.label}
+              {x.count ? <span className="cel-tab-count">{x.count}</span> : null}
             </button>
           ))}
         </nav>
@@ -192,11 +195,11 @@ export default function QuestEditor({
           {tab === "notes" &&
             (quest?.bodyDocumentId ? (
               <div className="cel-section ss-recap-edit">
-                <p className="cal-help">Your notes: the truth behind it, what the villain wants, how it could end. They save as you type.</p>
-                <RichEditor documentId={quest.bodyDocumentId} editable mentionCampaignId={campaignId} placeholder="What's really going on…" />
+                <p className="cal-help">{t("editor.notesHelp")}</p>
+                <RichEditor documentId={quest.bodyDocumentId} editable mentionCampaignId={campaignId} placeholder={te("placeholder.questBody")} />
               </div>
             ) : (
-              <p className="cal-help">Create the quest first; its notes open here right after.</p>
+              <p className="cal-help">{t("editor.notesAfterCreate")}</p>
             ))}
         </div>
         {error && (
@@ -207,22 +210,22 @@ export default function QuestEditor({
         <div className="cel-footer">
           {quest && (
             <button type="button" className="btn btn-sm btn-danger cel-footer-delete" onClick={() => setConfirmDelete(true)}>
-              <Trash2 size={14} /> Delete
+              <Trash2 size={14} /> {tc("delete")}
             </button>
           )}
           <button type="button" className="btn btn-sm" onClick={onClose} disabled={saving}>
-            Cancel
+            {tc("cancel")}
           </button>
           <button type="button" className="btn btn-sm btn-primary" disabled={saving} onClick={save}>
-            {saving ? "Saving…" : quest ? "Save quest" : "Create quest"}
+            {saving ? tc("saving") : quest ? t("editor.save") : t("editor.create")}
           </button>
         </div>
       </div>
       <ConfirmDialog
         open={confirmDelete}
         danger
-        title={`Delete ${quest?.title ?? "this quest"}?`}
-        confirmLabel="Delete"
+        title={t("quest.deleteNamed", { name: quest?.title ?? t("editor.thisQuest") })}
+        confirmLabel={tc("delete")}
         error={deleteError}
         onConfirm={remove}
         onCancel={() => {
@@ -230,7 +233,7 @@ export default function QuestEditor({
           setDeleteError(null);
         }}
       >
-        Its sub-quests move up to its parent. Sessions that logged it keep their notes.
+        {t("quest.subQuestsMoveUp")}
       </ConfirmDialog>
     </Modal>
   );
@@ -254,15 +257,16 @@ function GeneralTab(p: {
   onGiver: (v: ArticleRef | null) => void;
   onSummary: (v: string) => void;
 }) {
+  const t = useT("campaign");
   return (
     <div className="cel-section">
       <label className="cal-field">
-        <span className="field-label">Title</span>
-        <input type="text" value={p.title} maxLength={160} placeholder="e.g. The Missing Caravan" onChange={(e) => p.onTitle(e.target.value)} autoFocus />
+        <span className="field-label">{t("editor.title")}</span>
+        <input type="text" value={p.title} maxLength={160} placeholder={t("editor.titlePlaceholder")} onChange={(e) => p.onTitle(e.target.value)} autoFocus />
       </label>
       <div className="qs-general-grid">
         <label className="cal-field">
-          <span className="field-label">Type</span>
+          <span className="field-label">{t("editor.type")}</span>
           <select value={p.kind} onChange={(e) => p.onKind(e.target.value as QuestKind)}>
             {QUEST_KINDS.map((k) => (
               <option key={k} value={k}>
@@ -272,7 +276,7 @@ function GeneralTab(p: {
           </select>
         </label>
         <label className="cal-field">
-          <span className="field-label">Status</span>
+          <span className="field-label">{t("editor.status")}</span>
           <select value={p.status} onChange={(e) => p.onStatus(e.target.value as QuestStatus)}>
             {QUEST_STATUSES.map((s) => (
               <option key={s} value={s}>
@@ -282,7 +286,7 @@ function GeneralTab(p: {
           </select>
         </label>
         <label className="cal-field">
-          <span className="field-label">Priority</span>
+          <span className="field-label">{t("editor.priority")}</span>
           <select value={p.priority} onChange={(e) => p.onPriority(Number(e.target.value) as QuestPriority)}>
             {QUEST_PRIORITIES.map((n) => (
               <option key={n} value={n}>
@@ -294,17 +298,17 @@ function GeneralTab(p: {
       </div>
       <div className="qs-general-grid two">
         <div className="cal-field">
-          <span className="field-label">Part of (parent quest)</span>
-          <InfoPicker options={p.parentOptions} value={p.parentId} placeholder="None — a top-level quest" clearLabel="None" ariaLabel="Parent quest" onChange={p.onParent} />
+          <span className="field-label">{t("editor.parent")}</span>
+          <InfoPicker options={p.parentOptions} value={p.parentId} placeholder={t("editor.parentNone")} clearLabel={t("quest.none")} ariaLabel={t("editor.parentLabel")} onChange={p.onParent} />
         </div>
         <div className="cal-field">
-          <span className="field-label">Quest giver</span>
+          <span className="field-label">{t("quest.giver")}</span>
           <InfoPicker
             options={candidateOptions(p.candidates ?? [])}
             value={p.giver?.articleId ?? null}
-            placeholder={p.candidates ? "Nobody in particular" : "Loading articles…"}
-            clearLabel="Nobody"
-            ariaLabel="Quest giver"
+            placeholder={p.candidates ? t("editor.giverNone") : t("quest.loadingArticles")}
+            clearLabel={t("editor.nobody")}
+            ariaLabel={t("quest.giver")}
             collapsibleGroups
             disabled={!p.candidates}
             onChange={(id) => {
@@ -315,44 +319,45 @@ function GeneralTab(p: {
         </div>
       </div>
       <label className="cal-field">
-        <span className="field-label">Summary</span>
-        <textarea rows={4} maxLength={2000} value={p.summary} placeholder="The hook, in a line or two: who wants what, and why the party should care." onChange={(e) => p.onSummary(e.target.value)} />
+        <span className="field-label">{t("editor.summary")}</span>
+        <textarea rows={4} maxLength={2000} value={p.summary} placeholder={t("editor.summaryPlaceholder")} onChange={(e) => p.onSummary(e.target.value)} />
       </label>
     </div>
   );
 }
 
 function ObjectivesTab({ objectives, onChange }: { objectives: Objective[]; onChange: (o: Objective[]) => void }) {
+  const t = useT("campaign");
   const set = (id: string, patch: Partial<Objective>) => onChange(objectives.map((o) => (o.id === id ? { ...o, ...patch } : o)));
   return (
     <div className="cel-section">
       <header className="cel-section-head">
         <div>
-          <h3>Objectives</h3>
-          <p className="cal-help">The steps to see it through. Optional ones don&apos;t count towards its progress. Sessions can tick them off as the party gets there.</p>
+          <h3>{t("view.objectives")}</h3>
+          <p className="cal-help">{t("editor.objectivesHelp")}</p>
         </div>
       </header>
       {objectives.map((o, i) => (
         <div key={o.id} className="ss-line qs-objective-row">
-          <select aria-label={`Objective ${i + 1} state`} value={o.state} onChange={(e) => set(o.id, { state: e.target.value as ObjectiveState })}>
+          <select aria-label={t("editor.objectiveStateN", { n: i + 1 })} value={o.state} onChange={(e) => set(o.id, { state: e.target.value as ObjectiveState })}>
             {OBJECTIVE_STATES.map((s) => (
               <option key={s} value={s}>
                 {OBJECTIVE_STATE_LABELS[s]}
               </option>
             ))}
           </select>
-          <input type="text" aria-label={`Objective ${i + 1}`} value={o.text} maxLength={500} placeholder="Find who hired the bandits" className={o.state === "done" ? "ss-resolved" : undefined} onChange={(e) => set(o.id, { text: e.target.value })} />
+          <input type="text" aria-label={t("editor.objectiveN", { n: i + 1 })} value={o.text} maxLength={500} placeholder={t("editor.objectivePlaceholder")} className={o.state === "done" ? "ss-resolved" : undefined} onChange={(e) => set(o.id, { text: e.target.value })} />
           <label className="cal-check">
-            <input type="checkbox" checked={o.optional} onChange={(e) => set(o.id, { optional: e.target.checked })} /> Optional
+            <input type="checkbox" checked={o.optional} onChange={(e) => set(o.id, { optional: e.target.checked })} /> {t("editor.optional")}
           </label>
-          <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={`Remove objective ${i + 1}`} data-tooltip="Remove" onClick={() => onChange(objectives.filter((x) => x.id !== o.id))}>
+          <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={t("editor.removeObjectiveN", { n: i + 1 })} data-tooltip={t("quest.remove")} onClick={() => onChange(objectives.filter((x) => x.id !== o.id))}>
             <Trash2 size={14} />
           </button>
         </div>
       ))}
       <div>
         <button type="button" className="btn btn-sm" disabled={objectives.length >= 50} onClick={() => onChange([...objectives, { id: newId("ob"), text: "", state: "open", optional: false }])}>
-          <Plus size={14} /> Add objective
+          <Plus size={14} /> {t("editor.addObjective")}
         </button>
       </div>
     </div>

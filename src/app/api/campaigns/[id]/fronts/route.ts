@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
+import { errorResponse } from "@/i18n/server";
 import { db } from "@/server/db/client";
 import { fronts } from "@/server/db/schema";
 import { requireWorldId } from "@/server/world/active-world";
-import { badRequest, calendarErrorResponse, notFound, readBody } from "@/server/calendars/respond";
+import { calendarErrorResponse, readBody } from "@/server/calendars/respond";
 import { campaignOf } from "@/server/sessions/store";
 import { frontFields } from "@/server/quests/front-fields";
 import { frontsOf, toClientFront } from "@/server/quests/store";
@@ -12,7 +13,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 /** The campaign's live fronts, in order. */
 export async function GET(_request: Request, { params }: RouteContext) {
   const { id } = await params;
-  if (!(await campaignOf(await requireWorldId(), id))) return notFound("Campaign not found.");
+  if (!(await campaignOf(await requireWorldId(), id))) return errorResponse("campaignNotFound", 404);
   return NextResponse.json({ fronts: (await frontsOf(id)).map(toClientFront) });
 }
 
@@ -20,10 +21,10 @@ export async function GET(_request: Request, { params }: RouteContext) {
 export async function POST(request: Request, { params }: RouteContext) {
   const { id } = await params;
   const worldId = await requireWorldId();
-  if (!(await campaignOf(worldId, id))) return notFound("Campaign not found.");
+  if (!(await campaignOf(worldId, id))) return errorResponse("campaignNotFound", 404);
   const body = await readBody(request);
-  if (!body) return badRequest("Invalid request body.");
-  if (!("name" in body)) return badRequest("A front needs a name.");
+  if (!body) return errorResponse("invalidBody", 400);
+  if (!("name" in body)) return errorResponse("frontNameRequired", 400);
   try {
     const fields = frontFields(body);
     const existing = await frontsOf(id);

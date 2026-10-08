@@ -10,11 +10,14 @@ import { activeSeasons, effectiveMemberships } from "@/server/calendars/seasons"
 import { dayLabel, safe, yearRange } from "./evaluate";
 import { Block, LinkedArticles, relative } from "./view-parts";
 import type { ClientProfile, ClientSeason, WorldCalendars } from "./types";
+import { useT } from "@/i18n/useT";
+import { activeT } from "@/i18n/active";
 
-const plural = (n: number) => `${formatInteger(n)} day${n === 1 ? "" : "s"}`;
+const plural = (n: number) => activeT("calendars")("sv.days", { count: n, n: formatInteger(n) });
 
 /** This season's span in one profile: its dates, length, and the current/next occurrence around `day`. */
 function ProfileRow({ season, profile, world, def, day }: { season: ClientSeason; profile: ClientProfile; world: WorldCalendars; def: CalendarDefinition; day: number }) {
+  const t = useT("calendars");
   const pdef = world.calendars.find((c) => c.id === profile.data.calendarId)?.definition;
   if (!pdef) return null;
   const members = safe(() => effectiveMemberships(pdef, profile.data), []).filter((m) => m.seasonId === season.id);
@@ -28,13 +31,13 @@ function ProfileRow({ season, profile, world, def, day }: { season: ClientSeason
     <li className="sv-profile">
       <div className="sv-profile-head">
         <strong>{profile.name}</strong>
-        {profile.isDefault && <span className="cv-chip">Default</span>}
+        {profile.isDefault && <span className="cv-chip">{t("sv.default")}</span>}
       </div>
       {members.map((m) => {
         if (m.allYear || (profile.data.mode === "sequential" && profile.data.memberships.length === 1)) {
           return (
             <p key={m.id} className="cal-help">
-              The whole year.
+              {t("sv.wholeYear")}
             </p>
           );
         }
@@ -51,18 +54,18 @@ function ProfileRow({ season, profile, world, def, day }: { season: ClientSeason
             </span>
             {now ? (
               <span className="cal-help">
-                Now: began {dayLabel(def, now[0], { weekday: false })} ({relative(now[0], day)}), ends {dayLabel(def, now[1], { weekday: false })} ({relative(now[1], day)})
+                {t("sv.now", { start: dayLabel(def, now[0], { weekday: false }), startRel: relative(now[0], day), end: dayLabel(def, now[1], { weekday: false }), endRel: relative(now[1], day) })}
               </span>
             ) : next ? (
               <span className="cal-help">
-                Next begins {dayLabel(def, next[0], { weekday: false })} ({relative(next[0], day)})
+                {t("sv.next", { start: dayLabel(def, next[0], { weekday: false }), rel: relative(next[0], day) })}
               </span>
             ) : null}
           </div>
         );
       })}
       {strip.length > 0 && (
-        <div className="cal-season-strip compact" aria-hidden data-tooltip={`Year ${year} in ${profile.name}`}>
+        <div className="cal-season-strip compact" aria-hidden data-tooltip={t("sv.yearIn", { year: year ?? "", profile: profile.name })}>
           {strip.map((on, i) => (
             <span key={i} style={{ background: on ? season.color : "transparent" }} />
           ))}
@@ -78,11 +81,13 @@ function ProfileRow({ season, profile, world, def, day }: { season: ClientSeason
  * Dates are shown in `def` (the calendar being viewed). "Edit" opens it in Seasons.
  */
 export default function SeasonView({ season, world, def, day, previewProfile, onEdit, onClose }: { season: ClientSeason; world: WorldCalendars; def: CalendarDefinition; day: number; previewProfile: ClientProfile | null; onEdit: () => void; onClose: () => void }) {
-  const calendarName = season.calendarId === null ? "Every calendar" : (world.calendars.find((c) => c.id === season.calendarId)?.name ?? "A removed calendar");
+  const t = useT("calendars");
+  const tc = useT("common");
+  const calendarName = season.calendarId === null ? t("sv.everyCalendar") : (world.calendars.find((c) => c.id === season.calendarId)?.name ?? t("sv.removedCalendar"));
   const profiles = world.profiles.filter((p) => !p.archived && p.data.memberships.some((m) => m.seasonId === season.id));
   const inSeason = previewProfile ? safe(() => activeSeasons(world.calendars.find((c) => c.id === previewProfile.data.calendarId)?.definition ?? def, previewProfile.data, day).includes(season.id), false) : false;
   return (
-    <Modal open onClose={onClose} title="Season" size="wide">
+    <Modal open onClose={onClose} title={t("sv.title")} size="wide">
       <div className="cv" style={{ "--cv-color": season.color } as CSSProperties}>
         <header className="cv-hero">
           <span className="cv-badge" aria-hidden>
@@ -92,9 +97,9 @@ export default function SeasonView({ season, world, def, day, previewProfile, on
             <h2 className="cv-name">{season.name}</h2>
             <div className="cv-tags">
               <span className="cv-tag">
-                <Leaf size={13} aria-hidden /> Season
+                <Leaf size={13} aria-hidden /> {t("sv.title")}
               </span>
-              <span className="cv-tag" data-tooltip="Calendar whose profiles can use it">
+              <span className="cv-tag" data-tooltip={t("sv.calendarHint")}>
                 <CalendarDays size={13} aria-hidden /> {calendarName}
               </span>
             </div>
@@ -104,20 +109,20 @@ export default function SeasonView({ season, world, def, day, previewProfile, on
         <div className="cv-today">
           <span className="field-label">{dayLabel(def, day)}</span>
           {!previewProfile ? (
-            <span className="cal-help">No season profile is being previewed.</span>
+            <span className="cal-help">{t("sv.noPreview")}</span>
           ) : inSeason ? (
-            <span className="cv-state">In season · {previewProfile.name}</span>
+            <span className="cv-state">{t("sv.inSeason", { profile: previewProfile.name })}</span>
           ) : (
-            <span className="cal-help">Not in season on this day ({previewProfile.name}).</span>
+            <span className="cal-help">{t("sv.notInSeason", { profile: previewProfile.name })}</span>
           )}
         </div>
 
-        {season.description ? <p className="cv-description">{season.description}</p> : <p className="cal-help">No description yet.</p>}
+        {season.description ? <p className="cv-description">{season.description}</p> : <p className="cal-help">{t("cv.noDescription")}</p>}
 
         <div className="cv-grid">
-          <Block title="In profiles" Icon={CalendarRange}>
+          <Block title={t("sv.inProfiles")} Icon={CalendarRange}>
             {profiles.length === 0 ? (
-              <p className="cal-help">Not in any profile yet.</p>
+              <p className="cal-help">{t("sv.noProfiles")}</p>
             ) : (
               <ul className="sv-profiles">
                 {profiles.map((p) => (
@@ -131,10 +136,10 @@ export default function SeasonView({ season, world, def, day, previewProfile, on
 
         <div className="cel-footer">
           <button type="button" className="btn btn-sm" onClick={onClose}>
-            Close
+            {tc("close")}
           </button>
           <button type="button" className="btn btn-sm btn-primary" onClick={onEdit}>
-            <Pencil size={14} /> Edit season
+            <Pencil size={14} /> {t("sv.edit")}
           </button>
         </div>
       </div>

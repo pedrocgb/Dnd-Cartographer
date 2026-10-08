@@ -5,6 +5,7 @@ import { maps, mapScaleBars } from "@/server/db/schema";
 import { applyScalePatch, parseScaleConfig, type ScaleConfig } from "@/server/scale/scale-config";
 import { getSettings } from "@/server/settings/store";
 import { notInWorld } from "@/server/world/guards";
+import { errorResponse } from "@/i18n/server";
 
 type ScaleRow = typeof mapScaleBars.$inferSelect;
 
@@ -24,7 +25,7 @@ const findScale = (mapId: string) => db.query.mapScaleBars.findFirst({ where: eq
 /** The map's scale bar (defaults, hidden and uncalibrated, when it has none yet). */
 export async function GET(_request: Request, { params }: { params: Promise<{ mapId: string }> }) {
   const { mapId } = await params;
-  const denied = await notInWorld("maps", mapId, "Map not found.");
+  const denied = await notInWorld("maps", mapId, "mapNotFound");
   if (denied) return denied;
   return NextResponse.json({ scaleBar: await toClient(await findScale(mapId)) });
 }
@@ -32,12 +33,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ map
 /** Body: any of `visible`, `config` (partial, merged and validated). Creates the row on first use. */
 export async function PUT(request: Request, { params }: { params: Promise<{ mapId: string }> }) {
   const { mapId } = await params;
-  const denied = await notInWorld("maps", mapId, "Map not found.");
+  const denied = await notInWorld("maps", mapId, "mapNotFound");
   if (denied) return denied;
   const map = await db.query.maps.findFirst({ where: eq(maps.id, mapId) });
-  if (!map) return NextResponse.json({ error: "Map not found." }, { status: 404 });
+  if (!map) return errorResponse("mapNotFound", 404);
   const body = await request.json().catch(() => null);
-  if (!body || typeof body !== "object") return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+  if (!body || typeof body !== "object") return errorResponse("invalidBody", 400);
 
   const existing = await findScale(mapId);
   const current = await toClient(existing);

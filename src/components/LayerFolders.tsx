@@ -7,6 +7,8 @@ import ConfirmDialog from "./ConfirmDialog";
 import LayerChecklist from "./LayerChecklist";
 import type { AlwaysDrawFlag, MapLayerData } from "./layer-images";
 import ToolSection from "./ToolSection";
+import { useT } from "@/i18n/useT";
+import { formatInteger } from "@/server/settings/number-format";
 
 /**
  * Folders of map items (zone regions, line and text groups): the tree rows
@@ -26,6 +28,16 @@ export interface MapFolderData {
   extraLayerIds: string[];
   /** The style new items drawn into the folder start with, or null (the tool's own). */
   defaultStyle: Record<string, unknown> | null;
+}
+
+/** What a folder holds; picks the item words in the user's language. */
+export type FolderNoun = "zone" | "line" | "text" | "route";
+
+/** The item word for `noun`, singular and plural, plus "3 zones" for a count. */
+function useNoun(noun: FolderNoun) {
+  const t = useT("maps");
+  const word = (count: number) => t(`noun.${noun}`, { count });
+  return { t, one: word(1), many: word(2), items: (count: number) => t("countNoun", { n: formatInteger(count), noun: word(count) }) };
 }
 
 export type FolderPatch = Partial<Pick<MapFolderData, "name" | "visible" | "locked" | "sortOrder" | "extraLayerIds" | "defaultStyle">>;
@@ -99,7 +111,7 @@ export function FolderRow({
   isExpanded: boolean;
   /** Set when it lives on another layer and only some of its items show here (read-only row). */
   sharedFrom?: string;
-  noun: string;
+  noun: FolderNoun;
   canMoveUp: boolean;
   canMoveDown: boolean;
   onToggleExpand: () => void;
@@ -112,18 +124,19 @@ export function FolderRow({
   dropPlace?: DropPlace | null;
   children: React.ReactNode;
 }) {
+  const { t, many } = useNoun(noun);
   const [renaming, setRenaming] = useState(false);
   const rowClass = ["zone-region-row", isTarget && "active", isOpen && "folder-open", dropClass(dropPlace)].filter(Boolean).join(" ");
   return (
     <li className="zone-region">
       <div className={rowClass} {...dropProps}>
-        <button className="zone-tree-toggle" onClick={onToggleExpand} aria-label={isExpanded ? "Collapse" : "Expand"}>
+        <button className="zone-tree-toggle" onClick={onToggleExpand} aria-label={isExpanded ? t("layerFolders.collapse") : t("layerFolders.expand")}>
           {isExpanded ? <ChevronDown size={13} strokeWidth={2.25} /> : <ChevronRight size={13} strokeWidth={2.25} />}
         </button>
         {renaming ? (
           <NameInput
             value={folder.name}
-            label="Folder name"
+            label={t("folderName")}
             onSave={(name) => {
               setRenaming(false);
               if (name && name !== folder.name) onUpdate({ name });
@@ -135,28 +148,28 @@ export function FolderRow({
             className="zone-region-name"
             onClick={sharedFrom ? onToggleExpand : onOpen}
             onDoubleClick={sharedFrom ? undefined : () => setRenaming(true)}
-            data-tooltip={sharedFrom ? undefined : `Click: open its settings, new ${noun}s go here. Double-click to rename.`}
+            data-tooltip={sharedFrom ? undefined : t("layerFolders.openHint", { nouns: many })}
           >
             {folder.name} <span className="field-label">({count})</span>
-            {sharedFrom && <span className="field-label zone-region-shared"> · from {sharedFrom}</span>}
-            {!sharedFrom && folder.extraLayerIds.length > 0 && <span className="field-label zone-region-shared"> · +{folder.extraLayerIds.length} {folder.extraLayerIds.length === 1 ? "layer" : "layers"}</span>}
+            {sharedFrom && <span className="field-label zone-region-shared">{t("layerFolders.from", { layer: sharedFrom })}</span>}
+            {!sharedFrom && folder.extraLayerIds.length > 0 && <span className="field-label zone-region-shared">{t("layerFolders.extraLayers", { count: folder.extraLayerIds.length, n: formatInteger(folder.extraLayerIds.length) })}</span>}
           </button>
         )}
         {!sharedFrom && (
           <div className="zone-row-actions">
-            <button className="btn btn-ghost btn-icon-xs" onClick={() => onMove("up")} disabled={!canMoveUp} aria-label="Move folder up" data-tooltip="Move up">
+            <button className="btn btn-ghost btn-icon-xs" onClick={() => onMove("up")} disabled={!canMoveUp} aria-label={t("layerFolders.moveUp")} data-tooltip={t("layerFolders.moveUpHint")}>
               <ArrowUp size={12} strokeWidth={2.25} />
             </button>
-            <button className="btn btn-ghost btn-icon-xs" onClick={() => onMove("down")} disabled={!canMoveDown} aria-label="Move folder down" data-tooltip="Move down">
+            <button className="btn btn-ghost btn-icon-xs" onClick={() => onMove("down")} disabled={!canMoveDown} aria-label={t("layerFolders.moveDown")} data-tooltip={t("layerFolders.moveDownHint")}>
               <ArrowDown size={12} strokeWidth={2.25} />
             </button>
-            <button className="btn btn-ghost btn-icon-xs" onClick={() => onUpdate({ visible: !folder.visible })} aria-label={folder.visible ? "Hide folder" : "Show folder"} data-tooltip={folder.visible ? "Hide folder" : "Show folder"}>
+            <button className="btn btn-ghost btn-icon-xs" onClick={() => onUpdate({ visible: !folder.visible })} aria-label={folder.visible ? t("layerFolders.hideFolder") : t("layerFolders.showFolder")} data-tooltip={folder.visible ? t("layerFolders.hideFolder") : t("layerFolders.showFolder")}>
               {folder.visible ? <Eye size={12} strokeWidth={2.25} /> : <EyeOff size={12} strokeWidth={2.25} />}
             </button>
-            <button className="btn btn-ghost btn-icon-xs" onClick={() => onUpdate({ locked: !folder.locked })} aria-label={folder.locked ? "Unlock folder" : "Lock folder"} data-tooltip={folder.locked ? "Unlock folder" : "Lock folder"}>
+            <button className="btn btn-ghost btn-icon-xs" onClick={() => onUpdate({ locked: !folder.locked })} aria-label={folder.locked ? t("layerFolders.unlockFolder") : t("layerFolders.lockFolder")} data-tooltip={folder.locked ? t("layerFolders.unlockFolder") : t("layerFolders.lockFolder")}>
               {folder.locked ? <Lock size={12} strokeWidth={2.25} /> : <LockOpen size={12} strokeWidth={2.25} />}
             </button>
-            <button className="btn btn-ghost btn-icon-xs" onClick={onDelete} aria-label="Delete folder" data-tooltip="Delete folder">
+            <button className="btn btn-ghost btn-icon-xs" onClick={onDelete} aria-label={t("deleteFolder")} data-tooltip={t("deleteFolder")}>
               <Trash2 size={12} strokeWidth={2.25} />
             </button>
           </div>
@@ -198,7 +211,7 @@ export function ItemRow({
   visible: boolean;
   locked: boolean;
   lockedByFolder: boolean;
-  noun: string;
+  noun: FolderNoun;
   onSelect: (e: React.MouseEvent) => void;
   onToggleVisible: () => void;
   onToggleLocked: () => void;
@@ -209,6 +222,7 @@ export function ItemRow({
   /** Part of the drag in progress. */
   dragged?: boolean;
 }) {
+  const { t, one } = useNoun(noun);
   const isLocked = locked || lockedByFolder;
   const rowClass = ["zone-row", active && "active", dragged && "dragging", dropClass(dropPlace), dragProps?.draggable && "draggable"].filter(Boolean).join(" ");
   return (
@@ -216,26 +230,26 @@ export function ItemRow({
       <button
         className="zone-row-name"
         onClick={onSelect}
-        data-tooltip={isLocked ? "Locked: unlock to move or edit it" : "Ctrl+click: pick several. Shift+click: pick a range. Drag to move or reorder."}
+        data-tooltip={isLocked ? t("layerFolders.itemLockedHint") : t("layerFolders.itemHint")}
       >
         <Icon size={13} strokeWidth={2.25} />
         <span className="zone-color-dot" style={{ background: color }} />
         <span className={muted ? "field-label folder-item-label" : "folder-item-label"}>{label}</span>
       </button>
       <div className="zone-row-actions">
-        <button className="btn btn-ghost btn-icon-xs" onClick={onToggleVisible} aria-label={visible ? `Hide ${noun}` : `Show ${noun}`} data-tooltip={visible ? `Hide ${noun}` : `Show ${noun}`}>
+        <button className="btn btn-ghost btn-icon-xs" onClick={onToggleVisible} aria-label={visible ? t("layerFolders.hideItem", { noun: one }) : t("layerFolders.showItem", { noun: one })} data-tooltip={visible ? t("layerFolders.hideItem", { noun: one }) : t("layerFolders.showItem", { noun: one })}>
           {visible ? <Eye size={12} strokeWidth={2.25} /> : <EyeOff size={12} strokeWidth={2.25} />}
         </button>
         <button
           className="btn btn-ghost btn-icon-xs"
           onClick={onToggleLocked}
           disabled={lockedByFolder}
-          aria-label={locked ? `Unlock ${noun}` : `Lock ${noun}`}
-          data-tooltip={lockedByFolder ? "The folder is locked" : locked ? `Unlock ${noun}` : `Lock ${noun}`}
+          aria-label={locked ? t("layerFolders.unlockItem", { noun: one }) : t("layerFolders.lockItem", { noun: one })}
+          data-tooltip={lockedByFolder ? t("layerFolders.folderLocked") : locked ? t("layerFolders.unlockItem", { noun: one }) : t("layerFolders.lockItem", { noun: one })}
         >
           {isLocked ? <Lock size={12} strokeWidth={2.25} /> : <LockOpen size={12} strokeWidth={2.25} />}
         </button>
-        <button className="btn btn-ghost btn-icon-xs" onClick={onDelete} disabled={isLocked} aria-label={`Delete ${noun}`} data-tooltip={`Delete ${noun}`}>
+        <button className="btn btn-ghost btn-icon-xs" onClick={onDelete} disabled={isLocked} aria-label={t("layerFolders.deleteItem", { noun: one })} data-tooltip={t("layerFolders.deleteItem", { noun: one })}>
           <Trash2 size={12} strokeWidth={2.25} />
         </button>
       </div>
@@ -262,8 +276,7 @@ export function FolderSettings({
 }: {
   folder: MapFolderData;
   count: number;
-  /** "zone", "line", "text". */
-  noun: string;
+  noun: FolderNoun;
   layers: MapLayerData[];
   alwaysDrawFlag?: AlwaysDrawFlag;
   /** The style a newly turned-on default starts from (the tool's current one). */
@@ -273,8 +286,10 @@ export function FolderSettings({
   onDelete: () => void;
   onDone: () => void;
 }) {
+  const { t, one, many, items } = useNoun(noun);
+  const tc = useT("common");
   const [renaming, setRenaming] = useState(false);
-  const layerName = layers.find((l) => l.id === folder.layerId)?.name ?? "its layer";
+  const layerName = layers.find((l) => l.id === folder.layerId)?.name ?? t("layerFolders.itsLayer");
   const style = folder.defaultStyle;
   return (
     <div className="folder-settings">
@@ -283,7 +298,7 @@ export function FolderSettings({
         {renaming ? (
           <NameInput
             value={folder.name}
-            label="Folder name"
+            label={t("folderName")}
             onSave={(name) => {
               setRenaming(false);
               if (name && name !== folder.name) onUpdate({ name });
@@ -291,50 +306,48 @@ export function FolderSettings({
             onCancel={() => setRenaming(false)}
           />
         ) : (
-          <button type="button" className="zone-region-name folder-settings-name" onClick={() => setRenaming(true)} data-tooltip="Rename">
+          <button type="button" className="zone-region-name folder-settings-name" onClick={() => setRenaming(true)} data-tooltip={t("layerFolders.rename")}>
             {folder.name}
           </button>
         )}
         <button type="button" className="btn btn-sm btn-primary zone-editor-done" onClick={onDone}>
           <Check size={13} strokeWidth={2.25} />
-          Done
+          {tc("done")}
         </button>
       </div>
-      <p className="field-label">
-        Folder on {layerName} · {count} {count === 1 ? noun : `${noun}s`}. New {noun}s go here while it&apos;s selected.
-      </p>
+      <p className="field-label">{t("layerFolders.summary", { layer: layerName, items: items(count), nouns: many })}</p>
 
-      <ToolSection id="folder-visibility" title="Visibility">
+      <ToolSection id="folder-visibility" title={t("layerFolders.visibility")}>
         <label className="layer-checkbox">
           <input type="checkbox" checked={folder.visible} onChange={(e) => onUpdate({ visible: e.target.checked })} />
-          <span>Show its {noun}s</span>
+          <span>{t("layerFolders.showIts", { nouns: many })}</span>
         </label>
         <label className="layer-checkbox">
           <input type="checkbox" checked={folder.locked} onChange={(e) => onUpdate({ locked: e.target.checked })} />
-          <span>Lock its {noun}s (no moving or editing)</span>
+          <span>{t("layerFolders.lockIts", { nouns: many })}</span>
         </label>
       </ToolSection>
 
-      <ToolSection id="folder-layers" title="Layers">
+      <ToolSection id="folder-layers" title={t("layerFolders.layers")}>
         <LayerChecklist layers={layers} homeLayerId={folder.layerId} value={folder.extraLayerIds} alwaysDrawFlag={alwaysDrawFlag} onChange={(extraLayerIds) => onUpdate({ extraLayerIds })} />
-        <p className="field-label zone-tool-hint">Everything in the folder also shows (and can be edited) on these layers, on top of each {noun}&apos;s own choice.</p>
+        <p className="field-label zone-tool-hint">{t("layerFolders.layersHint", { noun: one })}</p>
       </ToolSection>
 
-      <ToolSection id="folder-style" title="Default style">
+      <ToolSection id="folder-style" title={t("layerFolders.defaultStyle")}>
         <label className="layer-checkbox">
           <input type="checkbox" checked={style !== null} onChange={(e) => onUpdate({ defaultStyle: e.target.checked ? captureStyle() : null })} />
-          <span>New {noun}s in this folder use this style</span>
+          <span>{t("layerFolders.useStyle", { nouns: many })}</span>
         </label>
         {style ? (
           <div className="folder-style-fields">{renderStyle(style, (patch) => onUpdate({ defaultStyle: { ...style, ...patch } }))}</div>
         ) : (
-          <p className="field-label zone-tool-hint">Off: new {noun}s get the tool&apos;s current style. Turning it on starts from that style.</p>
+          <p className="field-label zone-tool-hint">{t("layerFolders.styleOff", { nouns: many })}</p>
         )}
       </ToolSection>
 
       <button type="button" className="btn btn-danger" onClick={onDelete}>
         <Trash2 size={14} strokeWidth={2.25} />
-        Delete folder
+        {t("deleteFolder")}
       </button>
     </div>
   );
@@ -353,11 +366,12 @@ export function DeleteFolderDialog({
   onCancel,
 }: {
   target: { folder: MapFolderData; count: number } | null;
-  noun: string;
+  noun: FolderNoun;
   canKeep: boolean;
   onConfirm: (cascade: boolean) => void;
   onCancel: () => void;
 }) {
+  const { t, many, items: itemsOf } = useNoun(noun);
   const [alsoItems, setAlsoItems] = useState(!canKeep);
   const [lastTarget, setLastTarget] = useState(target);
   if (target !== lastTarget) {
@@ -365,22 +379,20 @@ export function DeleteFolderDialog({
     setAlsoItems(!canKeep);
   }
   const count = target?.count ?? 0;
-  const items = `${count} ${count === 1 ? noun : `${noun}s`}`;
+  const items = itemsOf(count);
   return (
     <ConfirmDialog
       open={target !== null}
-      title={`Delete the folder “${target?.folder.name}”?`}
-      confirmLabel={alsoItems ? `Delete folder and ${items}` : "Delete folder"}
+      title={t("deleteFolder.title", { name: target?.folder.name ?? "" })}
+      confirmLabel={alsoItems ? t("layerFolders.deleteWith", { items }) : t("deleteFolder")}
       onConfirm={() => onConfirm(alsoItems)}
       onCancel={onCancel}
     >
-      <p>
-        It holds {items}. {alsoItems ? "They will be deleted with it." : "They move to Ungrouped."}
-      </p>
+      <p>{t(alsoItems ? "layerFolders.holdsDelete" : "layerFolders.holdsMove", { items })}</p>
       {canKeep && (
         <label className="layer-checkbox">
           <input type="checkbox" checked={alsoItems} onChange={(e) => setAlsoItems(e.target.checked)} />
-          <span>Also delete its {noun}s</span>
+          <span>{t("layerFolders.alsoDelete", { nouns: many })}</span>
         </label>
       )}
     </ConfirmDialog>
@@ -405,7 +417,7 @@ export function MultiHeader({
 }: {
   Icon: LucideIcon;
   count: number;
-  noun: string;
+  noun: FolderNoun;
   /** Selected items that are locked (their own lock or their folder's): edits skip them. */
   lockedCount: number;
   allVisible: boolean;
@@ -415,19 +427,20 @@ export function MultiHeader({
   onDelete: () => void;
   onDone: () => void;
 }) {
+  const { t, one, many, items } = useNoun(noun);
+  const tc = useT("common");
   const editable = count - lockedCount;
+  const [hintBefore, hintAfter] = t("layerFolders.multiHint", { noun: one }).split("{mixed}");
   return (
     <>
       <div className="zone-editor-header">
         <Icon size={14} strokeWidth={2.25} />
-        <span className="line-panel-name">
-          {count} {noun}s selected
-        </span>
+        <span className="line-panel-name">{t("layerFolders.selected", { items: items(count) })}</span>
         <div className="zone-row-actions">
-          <button type="button" className="btn btn-ghost btn-icon-xs" onClick={onToggleVisible} aria-label={allVisible ? `Hide the ${noun}s` : `Show the ${noun}s`} data-tooltip={allVisible ? "Hide them all" : "Show them all"}>
+          <button type="button" className="btn btn-ghost btn-icon-xs" onClick={onToggleVisible} aria-label={allVisible ? t("layerFolders.hideSelected", { nouns: many }) : t("layerFolders.showSelected", { nouns: many })} data-tooltip={allVisible ? t("layerFolders.hideAll") : t("layerFolders.showAll")}>
             {allVisible ? <Eye size={12} strokeWidth={2.25} /> : <EyeOff size={12} strokeWidth={2.25} />}
           </button>
-          <button type="button" className="btn btn-ghost btn-icon-xs" onClick={onToggleLocked} aria-label={allLocked ? `Unlock the ${noun}s` : `Lock the ${noun}s`} data-tooltip={allLocked ? "Unlock them all" : "Lock them all"}>
+          <button type="button" className="btn btn-ghost btn-icon-xs" onClick={onToggleLocked} aria-label={allLocked ? t("layerFolders.unlockSelected", { nouns: many }) : t("layerFolders.lockSelected", { nouns: many })} data-tooltip={allLocked ? t("layerFolders.unlockAll") : t("layerFolders.lockAll")}>
             {allLocked ? <Lock size={12} strokeWidth={2.25} /> : <LockOpen size={12} strokeWidth={2.25} />}
           </button>
           <button
@@ -435,23 +448,25 @@ export function MultiHeader({
             className="btn btn-ghost btn-icon-xs"
             onClick={onDelete}
             disabled={editable === 0}
-            aria-label={`Delete the ${noun}s`}
-            data-tooltip={lockedCount ? `Delete the ${editable} unlocked ${noun}s (Delete)` : "Delete them all (Delete)"}
+            aria-label={t("layerFolders.deleteSelected", { nouns: many })}
+            data-tooltip={lockedCount ? t("layerFolders.deleteUnlocked", { n: formatInteger(editable), nouns: many }) : t("layerFolders.deleteAll")}
           >
             <Trash2 size={12} strokeWidth={2.25} />
           </button>
         </div>
         <button type="button" className="btn btn-sm btn-primary zone-editor-done" onClick={onDone}>
           <Check size={13} strokeWidth={2.25} />
-          Done
+          {tc("done")}
         </button>
       </div>
       <p className="field-label zone-tool-hint">
-        Changes apply to every selected {noun}. Settings marked <span className="mixed-tag">Mixed</span> differ between them.
+        {hintBefore}
+        <span className="mixed-tag">{t("layerFolders.mixed")}</span>
+        {hintAfter}
       </p>
       {lockedCount > 0 && (
         <p className="field-label line-panel-locked">
-          <Lock size={12} strokeWidth={2.25} aria-hidden /> {lockedCount} locked {lockedCount === 1 ? noun : `${noun}s`} won&apos;t change.
+          <Lock size={12} strokeWidth={2.25} aria-hidden /> {t("layerFolders.lockedWontChange", { count: lockedCount, n: formatInteger(lockedCount), noun: one, nouns: many })}
         </p>
       )}
     </>
@@ -460,6 +475,7 @@ export function MultiHeader({
 
 /** A checkbox that can show "some are on, some off" (the edited items differ). */
 export function MixedCheckbox({ checked, mixed = false, onChange, children }: { checked: boolean; mixed?: boolean; onChange: (checked: boolean) => void; children: React.ReactNode }) {
+  const t = useT("maps");
   return (
     <label className="layer-checkbox">
       <input
@@ -471,14 +487,15 @@ export function MixedCheckbox({ checked, mixed = false, onChange, children }: { 
         onChange={(e) => onChange(e.target.checked)}
       />
       {children}
-      {mixed && <span className="mixed-tag">Mixed</span>}
+      {mixed && <span className="mixed-tag">{t("layerFolders.mixed")}</span>}
     </label>
   );
 }
 
 /** Marks a field whose value differs between the edited items. */
 export function MixedTag({ show }: { show: boolean }) {
-  return show ? <span className="mixed-tag">Mixed</span> : null;
+  const t = useT("maps");
+  return show ? <span className="mixed-tag">{t("layerFolders.mixed")}</span> : null;
 }
 
 const MIXED_OPTION = "__mixed__";
@@ -505,22 +522,22 @@ export function FolderSelect({
   hint?: string;
   onChange: (folderId: string | null) => void;
 }) {
+  const t = useT("maps");
   const known = value !== null && folders.some((f) => f.id === value);
   return (
     <label className="grid-field">
-      <span className="field-label">Folder</span>
-      <select value={mixed ? MIXED_OPTION : known ? (value ?? "") : ""} disabled={disabled} onChange={(e) => e.target.value !== MIXED_OPTION && onChange(e.target.value || null)} aria-label="Folder">
+      <span className="field-label">{t("field.folder")}</span>
+      <select value={mixed ? MIXED_OPTION : known ? (value ?? "") : ""} disabled={disabled} onChange={(e) => e.target.value !== MIXED_OPTION && onChange(e.target.value || null)} aria-label={t("field.folder")}>
         {mixed && (
           <option value={MIXED_OPTION} disabled>
-            — Mixed —
+            {t("layerFolders.mixedOption")}
           </option>
         )}
         {noneLabel !== undefined && <option value="">{noneLabel}</option>}
         {noneLabel === undefined && !known && !mixed && <option value="">—</option>}
         {folders.map((f) => (
           <option key={f.id} value={f.id} disabled={f.locked}>
-            {f.name}
-            {f.locked ? " (locked)" : ""}
+            {f.locked ? t("layerFolders.lockedOption", { name: f.name }) : f.name}
           </option>
         ))}
       </select>
@@ -531,13 +548,14 @@ export function FolderSelect({
 
 /** Which layer items live on; `mixed`: different ones. */
 export function LayerSelect({ value, mixed = false, layers, onChange }: { value: string | null; mixed?: boolean; layers: readonly MapLayerData[]; onChange: (layerId: string) => void }) {
+  const t = useT("maps");
   return (
     <label className="grid-field">
-      <span className="field-label">Layer</span>
-      <select value={mixed ? MIXED_OPTION : (value ?? "")} onChange={(e) => e.target.value && e.target.value !== MIXED_OPTION && onChange(e.target.value)} aria-label="Layer">
+      <span className="field-label">{t("field.layer")}</span>
+      <select value={mixed ? MIXED_OPTION : (value ?? "")} onChange={(e) => e.target.value && e.target.value !== MIXED_OPTION && onChange(e.target.value)} aria-label={t("field.layer")}>
         {mixed && (
           <option value={MIXED_OPTION} disabled>
-            — Mixed —
+            {t("layerFolders.mixedOption")}
           </option>
         )}
         {layers.map((l) => (

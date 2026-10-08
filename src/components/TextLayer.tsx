@@ -9,6 +9,7 @@ import { clientToImagePoint, frameSize, type Pt } from "./osd-coords";
 import { arcPaths, isCurved, lineBaselines, rotationFromDrag, scaleFromDrag, shadowOffset } from "./text-geometry";
 import { mapFontFamily } from "@/server/texts/fonts";
 import type { TextFields } from "@/server/texts/text-config";
+import { useT } from "@/i18n/useT";
 
 export interface MapTextData extends TextFields {
   id: string;
@@ -552,6 +553,7 @@ function TextHandles({
   onScaleMouseDown: (e: React.MouseEvent) => void;
   onRotateMouseDown: (e: React.MouseEvent) => void;
 }) {
+  const tm = useT("maps");
   const hs = handleSize;
   const corners = [
     { x: frame.x, y: frame.y, cursor: "nwse-resize" },
@@ -577,7 +579,7 @@ function TextHandles({
         stroke="#0D0E10"
         style={{ strokeWidth: screenPx(1), pointerEvents: "all", cursor: "grab" }}
         onMouseDown={onRotateMouseDown}
-        data-tooltip="Drag to rotate (Shift snaps to 15°)"
+        data-tooltip={tm("text.rotateHint")}
       />
       {corners.map((c, i) => (
         <rect

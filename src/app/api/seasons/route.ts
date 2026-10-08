@@ -5,15 +5,16 @@ import { seasons } from "@/server/db/schema";
 import { requireWorldId } from "@/server/world/active-world";
 import { cleanColor, cleanName, parseArticleLinks, parseSeasonCalendar } from "@/server/calendars/parse";
 import { checkCalendarIds, toClientSeason } from "@/server/calendars/store";
-import { badRequest, calendarErrorResponse, readBody } from "@/server/calendars/respond";
+import { calendarErrorResponse, readBody } from "@/server/calendars/respond";
+import { errorResponse } from "@/i18n/server";
 
 /** Creates a named season for one calendar's profiles (`calendarId`), or shared by all (null). Its timing lives on each profile. */
 export async function POST(request: Request) {
   const body = await readBody(request);
-  if (!body) return badRequest("Invalid request body.");
+  if (!body) return errorResponse("invalidBody", 400);
   try {
     const name = cleanName(body.name);
-    if (!name) return badRequest("A season name is required.");
+    if (!name) return errorResponse("seasonNameRequired", 400);
     const worldId = await requireWorldId();
     const calendarId = parseSeasonCalendar(body.calendarId);
     await checkCalendarIds(worldId, calendarId ? [calendarId] : null);

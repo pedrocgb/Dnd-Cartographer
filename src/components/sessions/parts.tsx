@@ -4,6 +4,7 @@ import { formatDecimal } from "@/server/settings/number-format";
 import { inCoins } from "@/server/sessions/totals";
 import { PARTY, type Currency } from "@/server/sessions/types";
 import { portraitSrc, type RosterMember } from "./types";
+import { activeT } from "@/i18n/active";
 
 /** A PC's round avatar: portrait, else initials. Dimmed when not active. */
 export function Avatar({ member, size = 28 }: { member: RosterMember; size?: number }) {
@@ -43,8 +44,12 @@ export function formatBase(base: number, currencies: readonly Currency[]): strin
 
 /** Display name of a recipient (a PC or the party stash). */
 export function recipientName(id: string, roster: readonly RosterMember[]): string {
-  if (id === PARTY) return "Party stash";
-  return roster.find((m) => m.personId === id)?.name ?? "(removed character)";
+  const t = activeT("campaign");
+  if (id === PARTY) return t("parts.partyStash");
+  return roster.find((m) => m.personId === id)?.name ?? t("parts.removedCharacter");
 }
 
-export const STATUS_LABELS: Record<RosterMember["status"], string> = { active: "Active", retired: "Retired", dead: "Dead" };
+const ROSTER_STATUSES: RosterMember["status"][] = ["active", "retired", "dead"];
+
+/** Roster statuses, worded on read in the active language. */
+export const STATUS_LABELS = Object.defineProperties({} as Record<RosterMember["status"], string>, Object.fromEntries(ROSTER_STATUSES.map((s) => [s, { enumerable: true, get: () => activeT("campaign")(`rosterStatus.${s}`) }])));

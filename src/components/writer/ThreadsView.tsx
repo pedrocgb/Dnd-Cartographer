@@ -24,6 +24,7 @@ import {
 } from "@/server/writer/types";
 import PlotGrid from "./PlotGrid";
 import { upsert, type WriterData } from "./useWriterData";
+import { useT } from "@/i18n/useT";
 
 const SWATCHES = ["#47BFAB", "#9CC3F5", "#D29C53", "#E8735F", "#B48EE0", "#7AC77A", "#E8E3D5"];
 
@@ -46,6 +47,7 @@ export default function ThreadsView({
   guides: boolean;
   onOpenNode: (id: string) => void;
 }) {
+  const t = useT("writer");
   const [name, setName] = useState("");
   const [kind, setKind] = useState<ThreadKind>("promise");
   const [editing, setEditing] = useState<string | null>(null);
@@ -55,7 +57,7 @@ export default function ThreadsView({
   async function create() {
     if (!name.trim()) return;
     const res = await api<{ thread: PlotThread }>("POST", `/api/campaigns/${campaign.id}/threads`, { name, kind });
-    if (!res.ok) return setError(res.data.error ?? "Could not add the thread.");
+    if (!res.ok) return setError(res.data.error ?? t("threads.couldNotAdd"));
     replace(res.data.thread);
     setName("");
     setError(null);
@@ -67,7 +69,7 @@ export default function ThreadsView({
       <HealthPanel campaignId={campaign.id} data={data} onOpenNode={onOpenNode} onOpenThread={setEditing} />
 
       <section className="cv-block">
-        <h3 className="cv-block-title">Threads ({data.threads.length})</h3>
+        <h3 className="cv-block-title">{t("threads.title", { n: data.threads.length })}</h3>
         <form
           className="wr-thread-new"
           onSubmit={(e) => {
@@ -75,8 +77,8 @@ export default function ThreadsView({
             void create();
           }}
         >
-          <input type="text" aria-label="New thread's name" maxLength={160} value={name} placeholder="Who killed the old king?" onChange={(e) => setName(e.target.value)} />
-          <select aria-label="New thread's type" value={kind} onChange={(e) => setKind(e.target.value as ThreadKind)}>
+          <input type="text" aria-label={t("threads.newName")} maxLength={160} value={name} placeholder={t("threads.namePlaceholder")} onChange={(e) => setName(e.target.value)} />
+          <select aria-label={t("threads.newType")} value={kind} onChange={(e) => setKind(e.target.value as ThreadKind)}>
             {THREAD_KINDS.map((k) => (
               <option key={k} value={k}>
                 {THREAD_KIND_LABELS[k]}
@@ -84,7 +86,7 @@ export default function ThreadsView({
             ))}
           </select>
           <button type="submit" className="btn btn-sm btn-primary" disabled={!name.trim()}>
-            <Plus size={14} /> Add thread
+            <Plus size={14} /> {t("threads.add")}
           </button>
         </form>
         {guides && <p className="cal-help">{THREAD_KIND_HINTS[kind]}</p>}
@@ -94,8 +96,8 @@ export default function ThreadsView({
           </p>
         )}
         <ul className="wr-thread-list">
-          {data.threads.map((t) => (
-            <ThreadRow key={t.id} thread={t} data={data} campaignId={campaign.id} open={editing === t.id} onToggle={() => setEditing(editing === t.id ? null : t.id)} onChanged={replace} onDeleted={(id) => update((d) => ({ ...d, threads: d.threads.filter((x) => x.id !== id), beats: d.beats.filter((b) => b.threadId !== id) }))} />
+          {data.threads.map((th) => (
+            <ThreadRow key={th.id} thread={th} data={data} campaignId={campaign.id} open={editing === th.id} onToggle={() => setEditing(editing === th.id ? null : th.id)} onChanged={replace} onDeleted={(id) => update((d) => ({ ...d, threads: d.threads.filter((x) => x.id !== id), beats: d.beats.filter((b) => b.threadId !== id) }))} />
           ))}
         </ul>
       </section>
@@ -107,6 +109,8 @@ export default function ThreadsView({
 
 /** One thread: a summary line, and its fields when opened. */
 function ThreadRow({ thread, data, campaignId, open, onToggle, onChanged, onDeleted }: { thread: PlotThread; data: WriterData; campaignId: string; open: boolean; onToggle: () => void; onChanged: (t: PlotThread) => void; onDeleted: (id: string) => void }) {
+  const t = useT("writer");
+  const tc = useT("common");
   const [summary, setSummary] = useState(thread.summary);
   const [threadName, setThreadName] = useState(thread.name);
   const [error, setError] = useState<string | null>(null);
@@ -119,14 +123,14 @@ function ThreadRow({ thread, data, campaignId, open, onToggle, onChanged, onDele
     if (res.ok) {
       onChanged(res.data.thread);
       setError(null);
-    } else setError(res.data.error ?? "Could not save the thread.");
+    } else setError(res.data.error ?? t("threads.couldNotSave"));
   }
 
   async function remove() {
     const res = await api("DELETE", `/api/threads/${thread.id}`);
     setConfirm(false);
     if (res.ok) onDeleted(thread.id);
-    else setError(res.data.error ?? "Could not delete it.");
+    else setError(res.data.error ?? t("ui.couldNotDelete"));
   }
 
   return (
@@ -134,21 +138,21 @@ function ThreadRow({ thread, data, campaignId, open, onToggle, onChanged, onDele
       <button type="button" className="wr-thread-head" aria-expanded={open} onClick={onToggle}>
         <span className="wr-thread-swatch" style={thread.color ? { background: thread.color } : undefined} aria-hidden />
         <strong>{thread.name}</strong>
-        <span className="cv-chip">{thread.kind === "mice" && thread.miceType ? `${MICE_LABELS[thread.miceType]} (MICE)` : THREAD_KIND_LABELS[thread.kind]}</span>
+        <span className="cv-chip">{thread.kind === "mice" && thread.miceType ? t("threads.miceChip", { type: MICE_LABELS[thread.miceType] }) : THREAD_KIND_LABELS[thread.kind]}</span>
         <span className={`wr-thread-status wr-thread-status-${thread.status}`}>{THREAD_STATUS_LABELS[thread.status]}</span>
         <span className="cal-help">
-          {count} scene{count === 1 ? "" : "s"}
+          {t("threads.scenes", { count })}
         </span>
       </button>
       {open && (
         <div className="wr-thread-body">
           <div className="qs-general-grid">
             <label className="cal-field">
-              <span className="field-label">Name</span>
+              <span className="field-label">{t("threads.name")}</span>
               <input type="text" maxLength={160} value={threadName} onChange={(e) => setThreadName(e.target.value)} onBlur={() => threadName.trim() && threadName !== thread.name && void save({ name: threadName })} />
             </label>
             <label className="cal-field">
-              <span className="field-label">Type</span>
+              <span className="field-label">{t("threads.type")}</span>
               <select value={thread.kind} onChange={(e) => void save({ kind: e.target.value as ThreadKind })}>
                 {THREAD_KINDS.map((k) => (
                   <option key={k} value={k}>
@@ -159,7 +163,7 @@ function ThreadRow({ thread, data, campaignId, open, onToggle, onChanged, onDele
             </label>
             {thread.kind === "mice" && (
               <label className="cal-field">
-                <span className="field-label">MICE type</span>
+                <span className="field-label">{t("threads.miceType")}</span>
                 <select value={thread.miceType ?? "inquiry"} onChange={(e) => void save({ miceType: e.target.value as MiceType })}>
                   {MICE_TYPES.map((m) => (
                     <option key={m} value={m}>
@@ -171,7 +175,7 @@ function ThreadRow({ thread, data, campaignId, open, onToggle, onChanged, onDele
               </label>
             )}
             <label className="cal-field">
-              <span className="field-label">Status</span>
+              <span className="field-label">{t("threads.status")}</span>
               <select value={thread.status} onChange={(e) => void save({ status: e.target.value as ThreadStatus })}>
                 {THREAD_STATUSES.map((s) => (
                   <option key={s} value={s}>
@@ -181,9 +185,9 @@ function ThreadRow({ thread, data, campaignId, open, onToggle, onChanged, onDele
               </select>
             </label>
             <label className="cal-field">
-              <span className="field-label">Quest</span>
+              <span className="field-label">{t("threads.quest")}</span>
               <select value={thread.questId ?? ""} onChange={(e) => void save({ questId: e.target.value || null })}>
-                <option value="">None</option>
+                <option value="">{t("threads.none")}</option>
                 {data.quests.map((q) => (
                   <option key={q.id} value={q.id}>
                     {q.title}
@@ -192,23 +196,23 @@ function ThreadRow({ thread, data, campaignId, open, onToggle, onChanged, onDele
               </select>
               {quest && (
                 <a className="cal-help" href={questHref({ campaignId, id: quest.id })}>
-                  Open the quest
+                  {t("threads.openQuest")}
                 </a>
               )}
             </label>
           </div>
           <div className="cal-field">
-            <span className="field-label">Color</span>
+            <span className="field-label">{t("threads.color")}</span>
             <div className="entry-swatches">
-              <button type="button" className={!thread.color ? "entry-swatch active qs-swatch-none" : "entry-swatch qs-swatch-none"} aria-label="No color" aria-pressed={!thread.color} data-tooltip="No color" onClick={() => void save({ color: null })} />
+              <button type="button" className={!thread.color ? "entry-swatch active qs-swatch-none" : "entry-swatch qs-swatch-none"} aria-label={t("ui.noColor")} aria-pressed={!thread.color} data-tooltip={t("ui.noColor")} onClick={() => void save({ color: null })} />
               {SWATCHES.map((s) => (
-                <button key={s} type="button" className={s.toLowerCase() === thread.color ? "entry-swatch active" : "entry-swatch"} style={{ background: s }} aria-label={`Color ${s}`} aria-pressed={s.toLowerCase() === thread.color} onClick={() => void save({ color: s })} />
+                <button key={s} type="button" className={s.toLowerCase() === thread.color ? "entry-swatch active" : "entry-swatch"} style={{ background: s }} aria-label={t("ui.colorN", { color: s })} aria-pressed={s.toLowerCase() === thread.color} onClick={() => void save({ color: s })} />
               ))}
             </div>
           </div>
           <label className="cal-field">
-            <span className="field-label">What it&apos;s about</span>
-            <textarea rows={2} maxLength={4000} value={summary} placeholder="What the players are promised, and how it should pay off." onChange={(e) => setSummary(e.target.value)} onBlur={() => summary !== thread.summary && void save({ summary })} />
+            <span className="field-label">{t("threads.about")}</span>
+            <textarea rows={2} maxLength={4000} value={summary} placeholder={t("threads.aboutPlaceholder")} onChange={(e) => setSummary(e.target.value)} onBlur={() => summary !== thread.summary && void save({ summary })} />
           </label>
           {error && (
             <p className="form-error" role="alert">
@@ -217,11 +221,11 @@ function ThreadRow({ thread, data, campaignId, open, onToggle, onChanged, onDele
           )}
           <div>
             <button type="button" className="btn btn-sm btn-danger" onClick={() => setConfirm(true)}>
-              <Trash2 size={14} /> Delete thread
+              <Trash2 size={14} /> {t("threads.delete")}
             </button>
           </div>
-          <ConfirmDialog open={confirm} danger title={`Delete ${thread.name}?`} confirmLabel="Delete" onConfirm={remove} onCancel={() => setConfirm(false)}>
-            Scenes stay; only the thread and where it showed up are removed.
+          <ConfirmDialog open={confirm} danger title={t("threads.deleteTitle", { name: thread.name })} confirmLabel={tc("delete")} onConfirm={remove} onCancel={() => setConfirm(false)}>
+            {t("threads.deleteBody")}
           </ConfirmDialog>
         </div>
       )}
@@ -231,6 +235,7 @@ function ThreadRow({ thread, data, campaignId, open, onToggle, onChanged, onDele
 
 /** What may have been lost track of, refreshed whenever threads, beats, the outline or quests change. */
 function HealthPanel({ campaignId, data, onOpenNode, onOpenThread }: { campaignId: string; data: WriterData; onOpenNode: (id: string) => void; onOpenThread: (id: string) => void }) {
+  const t = useT("writer");
   const [warnings, setWarnings] = useState<HealthWarning[] | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -240,13 +245,13 @@ function HealthPanel({ campaignId, data, onOpenNode, onOpenThread }: { campaignI
     return () => {
       cancelled = true;
     };
-  }, [campaignId, data.threads, data.beats, data.nodes, data.quests]);
+  }, [campaignId, data.threads, data.beats, data.nodes, data.quests, t]);
 
   if (!warnings) return null;
-  if (warnings.length === 0) return <p className="wr-health-ok">Nothing seems forgotten: every thread is set up and paid off, and every open quest has three clues.</p>;
+  if (warnings.length === 0) return <p className="wr-health-ok">{t("health.ok")}</p>;
   return (
-    <section className="cv-block wr-health" aria-label="Things to check">
-      <h3 className="cv-block-title">Things to check ({warnings.length})</h3>
+    <section className="cv-block wr-health" aria-label={t("health.check")}>
+      <h3 className="cv-block-title">{t("health.checkN", { n: warnings.length })}</h3>
       <ul>
         {warnings.map((w) => (
           <li key={w.key} className={`wr-health-${w.level}`}>

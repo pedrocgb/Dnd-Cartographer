@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
+import { errorResponse } from "@/i18n/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { campaigns } from "@/server/db/schema";
 import { requireWorldId } from "@/server/world/active-world";
 import { safeJson } from "@/server/calendars/parse";
-import { badRequest, calendarErrorResponse, notFound, readBody } from "@/server/calendars/respond";
+import { calendarErrorResponse, readBody } from "@/server/calendars/respond";
 import { campaignOf } from "@/server/sessions/store";
 import { MAX_MAP_NODES, parseMapPositions } from "@/server/quests/parse";
 import type { MapPoint } from "@/server/quests/types";
@@ -15,7 +16,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 export async function GET(_request: Request, { params }: RouteContext) {
   const { id } = await params;
   const campaign = await campaignOf(await requireWorldId(), id);
-  if (!campaign) return notFound("Campaign not found.");
+  if (!campaign) return errorResponse("campaignNotFound", 404);
   return NextResponse.json({ positions: safeJson<Record<string, MapPoint>>(campaign.questMap, {}) });
 }
 
@@ -23,9 +24,9 @@ export async function GET(_request: Request, { params }: RouteContext) {
 export async function PATCH(request: Request, { params }: RouteContext) {
   const { id } = await params;
   const campaign = await campaignOf(await requireWorldId(), id);
-  if (!campaign) return notFound("Campaign not found.");
+  if (!campaign) return errorResponse("campaignNotFound", 404);
   const body = await readBody(request);
-  if (!body) return badRequest("Invalid request body.");
+  if (!body) return errorResponse("invalidBody", 400);
   try {
     const changes = body.reset === true ? null : parseMapPositions(body.positions);
     const merged: Record<string, MapPoint> = changes ? { ...safeJson<Record<string, MapPoint>>(campaign.questMap, {}) } : {};
@@ -33,7 +34,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       if (point) merged[key] = point;
       else delete merged[key];
     }
-    if (Object.keys(merged).length > MAX_MAP_NODES) return badRequest(`The map can hold at most ${MAX_MAP_NODES} placed nodes.`);
+    if (Object.keys(merged).length > MAX_MAP_NODES) return errorResponse("questMapTooMany", 400, undefined, { n: MAX_MAP_NODES });
     await db.update(campaigns).set({ questMap: JSON.stringify(merged), updatedAt: new Date() }).where(eq(campaigns.id, id));
     return NextResponse.json({ positions: merged });
   } catch (error) {

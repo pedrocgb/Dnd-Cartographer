@@ -7,7 +7,8 @@ import { celestialIssues, type CelestialType } from "@/server/calendars/celestia
 import { cleanColor, cleanName, parseArticleLinks, parseCalendarIds, parseCelestialConfig } from "@/server/calendars/parse";
 import { checkCalendarIds, recordRevision, toClientCelestial } from "@/server/calendars/store";
 import { checkArticles } from "@/server/calendars/entries";
-import { badRequest, calendarErrorResponse, notFound, readBody } from "@/server/calendars/respond";
+import { calendarErrorResponse, problemWords, readBody } from "@/server/calendars/respond";
+import { errorResponse } from "@/i18n/server";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -25,16 +26,16 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   const { id } = await params;
   const worldId = await requireWorldId();
   const row = await objectOf(worldId, id);
-  if (!row) return notFound("Celestial object not found.");
+  if (!row) return errorResponse("celestialNotFound", 404);
   const body = await readBody(request);
-  if (!body) return badRequest("Invalid request body.");
-  if (body.expectedVersion !== row.version) return NextResponse.json({ error: "This object was changed elsewhere. Reload it and try again.", stale: true }, { status: 409 });
+  if (!body) return errorResponse("invalidBody", 400);
+  if (body.expectedVersion !== row.version) return errorResponse("celestialStale", 409, { stale: true });
 
   try {
     const patch: Partial<typeof celestialObjects.$inferInsert> = { version: row.version + 1, updatedAt: new Date() };
     if ("name" in body) {
       const name = cleanName(body.name);
-      if (!name) return badRequest("A name is required.");
+      if (!name) return errorResponse("nameRequired", 400);
       patch.name = name;
     }
     if ("color" in body) patch.color = cleanColor(body.color) ?? row.color;
@@ -57,7 +58,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     if ("config" in body) {
       const config = parseCelestialConfig(body.config);
       const issues = celestialIssues(row.type as CelestialType, config);
-      if (issues.length) return NextResponse.json({ error: issues[0], issues }, { status: 400 });
+      if (issues.length) return NextResponse.json({ error: await problemWords(issues[0]), issues }, { status: 400 });
       patch.config = JSON.stringify(config);
       configChanged = patch.config !== row.config;
     }
@@ -71,7 +72,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
         .returning();
       return updated[0] ?? null;
     });
-    if (!object) return NextResponse.json({ error: "This object was changed elsewhere. Reload it and try again.", stale: true }, { status: 409 });
+    if (!object) return errorResponse("celestialStale", 409, { stale: true });
     return NextResponse.json({ object: toClientCelestial(object) });
   } catch (error) {
     return calendarErrorResponse(error);
@@ -82,13 +83,13 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 export async function DELETE(_request: Request, { params }: RouteContext) {
   const { id } = await params;
   const worldId = await requireWorldId();
-  if (!(await objectOf(worldId, id))) return notFound("Celestial object not found.");
+  if (!(await objectOf(worldId, id))) return errorResponse("celestialNotFound", 404);
   const [used] = await db
     .select({ id: calendarEntries.id })
     .from(calendarEntries)
     .where(and(eq(calendarEntries.worldId, worldId), isNull(calendarEntries.deletedAt), like(calendarEntries.recurrence, `%"objectId":"${id}"%`)))
     .limit(1);
-  if (used) return NextResponse.json({ error: "An event repeats on this object's phases. Archive it instead, or change that event first." }, { status: 409 });
+  if (used) return errorResponse("celestialInUse", 409);
   await db.delete(celestialObjects).where(eq(celestialObjects.id, id));
   return NextResponse.json({ ok: true });
 }

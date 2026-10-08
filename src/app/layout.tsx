@@ -20,7 +20,7 @@ const inter = Inter({
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await serverT("common");
-  return { title: "World Wiki — Maps", description: t("appDescription") };
+  return { title: t("appTitle"), description: t("appDescription") };
 }
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {

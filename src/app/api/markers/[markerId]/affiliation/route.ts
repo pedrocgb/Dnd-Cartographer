@@ -3,9 +3,11 @@ import { eq, and } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { markers, territories, markerAffiliations } from "@/server/db/schema";
 import { resolveChain, levelsByProfileId, toTerritoryLike, getAuthoritiesForChain, getAcceptedAffiliation, getDraftAffiliation } from "@/server/politics/queries";
-import { validateChain, computeMissingRequiredTypes, isAttachableType } from "@/server/politics/hierarchy-config";
+import { computeMissingRequiredTypes, isAttachableType, territoryTypeLabel, validateChain } from "@/server/politics/hierarchy-config";
 import { notInWorld } from "@/server/world/guards";
 import { requireWorldId } from "@/server/world/active-world";
+import { errorResponse, serverT } from "@/i18n/server";
+import { chainErrorResponse } from "@/server/politics/chain-errors";
 
 async function describeAffiliation(worldId: string, territoryId: string) {
   const chain = await resolveChain(worldId, territoryId);
@@ -17,7 +19,7 @@ async function describeAffiliation(worldId: string, territoryId: string) {
 
 export async function GET(_request: Request, { params }: { params: Promise<{ markerId: string }> }) {
   const { markerId } = await params;
-  const denied = await notInWorld("markers", markerId, "Marker not found.");
+  const denied = await notInWorld("markers", markerId, "markerNotFound");
   if (denied) return denied;
   const [accepted, draft] = await Promise.all([getAcceptedAffiliation(markerId), getDraftAffiliation(markerId)]);
 
@@ -33,37 +35,35 @@ export async function GET(_request: Request, { params }: { params: Promise<{ mar
 
 export async function PUT(request: Request, { params }: { params: Promise<{ markerId: string }> }) {
   const { markerId } = await params;
-  const denied = await notInWorld("markers", markerId, "Marker not found.");
+  const denied = await notInWorld("markers", markerId, "markerNotFound");
   if (denied) return denied;
   const marker = await db.query.markers.findFirst({ where: eq(markers.id, markerId) });
-  if (!marker) return NextResponse.json({ error: "Marker not found." }, { status: 404 });
+  if (!marker) return errorResponse("markerNotFound", 404);
 
   const body = await request.json().catch(() => null);
   const territoryId = typeof body?.territoryId === "string" ? body.territoryId : "";
   const status = body?.status === "accepted" || body?.status === "draft" ? body.status : null;
-  if (!territoryId) return NextResponse.json({ error: "territoryId is required." }, { status: 400 });
-  if (!status) return NextResponse.json({ error: "status must be 'accepted' or 'draft'." }, { status: 400 });
+  if (!territoryId) return errorResponse("territoryIdRequired", 400);
+  if (!status) return errorResponse("affiliationStatusInvalid", 400);
 
   const worldId = await requireWorldId();
   const territory = await db.query.territories.findFirst({ where: and(eq(territories.id, territoryId), eq(territories.worldId, worldId)) });
-  if (!territory) return NextResponse.json({ error: "Territory not found." }, { status: 404 });
+  if (!territory) return errorResponse("territoryNotFound", 404);
 
   const chain = await resolveChain(worldId, territoryId);
   const levelsMap = await levelsByProfileId(chain.map((t) => t.hierarchyProfileId));
   const chainResult = validateChain(toTerritoryLike(chain), levelsMap);
-  if (!chainResult.valid) return NextResponse.json({ error: chainResult.error }, { status: 400 });
+  if (!chainResult.valid) return chainErrorResponse(chainResult, 400);
 
   if (status === "accepted") {
     const leafLevels = levelsMap.get(territory.hierarchyProfileId) ?? [];
     if (!isAttachableType(territory.type, leafLevels)) {
-      return NextResponse.json({ error: `Markers cannot attach directly to a territory of type "${territory.type}".` }, { status: 400 });
+      return errorResponse("territoryNotAttachable", 400, undefined, { type: territoryTypeLabel(territory.type, await serverT("politics")) });
     }
     const missing = computeMissingRequiredTypes(toTerritoryLike(chain), levelsMap);
     if (missing.length > 0) {
-      return NextResponse.json(
-        { error: `Affiliation is incomplete — missing required level(s): ${missing.join(", ")}. Save it as a draft instead, or complete the chain.` },
-        { status: 400 }
-      );
+      const tp = await serverT("politics");
+      return errorResponse("affiliationIncomplete", 400, undefined, { types: missing.map((type) => territoryTypeLabel(type, tp)).join(", ") });
     }
   }
 
@@ -90,7 +90,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ mark
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ markerId: string }> }) {
   const { markerId } = await params;
-  const denied = await notInWorld("markers", markerId, "Marker not found.");
+  const denied = await notInWorld("markers", markerId, "markerNotFound");
   if (denied) return denied;
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status") === "draft" ? "draft" : "accepted";

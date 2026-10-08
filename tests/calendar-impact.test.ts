@@ -48,10 +48,10 @@ describe("structural change impact", () => {
 
   it("flags repeat rules that point at removed months or weekdays", () => {
     const noBirch = { ...A, periods: A.periods.filter((p) => p.id !== "birch") };
-    expect(recurrenceBreak({ kind: "annual", calendarId: "a", interval: 1, periodId: "birch", day: 1, missing: "skip" }, "a", noBirch)).toMatch(/removed month/);
+    expect(recurrenceBreak({ kind: "annual", calendarId: "a", interval: 1, periodId: "birch", day: 1, missing: "skip" }, "a", noBirch)?.key).toBe("problem.removedMonth");
     expect(recurrenceBreak({ kind: "annual", calendarId: "other", interval: 1, periodId: "birch", day: 1, missing: "skip" }, "a", noBirch)).toBeNull();
     const fourDays = { ...A, weekdays: A.weekdays.slice(0, 4) };
-    expect(recurrenceBreak({ kind: "weekday", calendarId: "a", weekdayId: "w5" }, "a", fourDays)).toMatch(/removed weekday/);
+    expect(recurrenceBreak({ kind: "weekday", calendarId: "a", weekdayId: "w5" }, "a", fourDays)?.key).toBe("problem.removedWeekday");
   });
 
   it("Preserve Named Dates re-keys a series and its exceptions consistently", () => {

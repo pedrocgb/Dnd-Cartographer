@@ -1,4 +1,6 @@
 /** Session log shapes shared by the server and the UI (pure; relative imports only). */
+import { activeT } from "../../i18n/active";
+import type { Translator } from "../../i18n/translate";
 
 /** Loot and coins given to the whole party rather than one PC. */
 export const PARTY = "party";
@@ -40,11 +42,13 @@ export interface CoinLine {
 
 export const EMPTY_NOTES: SessionNotes = { events: [], decisions: [], nextSession: "" };
 
-/** The standard D&D coins: copper, silver, electrum, gold, platinum. */
-export const D_AND_D_COINS: Currency[] = [
-  { id: "cp", name: "Copper piece", short: "cp", value: 1 },
-  { id: "sp", name: "Silver piece", short: "sp", value: 10 },
-  { id: "ep", name: "Electrum piece", short: "ep", value: 50 },
-  { id: "gp", name: "Gold piece", short: "gp", value: 100 },
-  { id: "pp", name: "Platinum piece", short: "pp", value: 1000 },
-];
+const D_AND_D_VALUES = { cp: 1, sp: 10, ep: 50, gp: 100, pp: 1000 } as const;
+
+/**
+ * The standard D&D coins (copper, silver, electrum, gold, platinum), named in
+ * `t`'s language (the active one by default). Once a campaign stores them
+ * they are user content.
+ */
+export function dndCoins(t: Translator<"campaign"> = activeT("campaign")): Currency[] {
+  return (Object.keys(D_AND_D_VALUES) as (keyof typeof D_AND_D_VALUES)[]).map((id) => ({ id, name: t(`coin.${id}.name`), short: t(`coin.${id}.short`), value: D_AND_D_VALUES[id] }));
+}

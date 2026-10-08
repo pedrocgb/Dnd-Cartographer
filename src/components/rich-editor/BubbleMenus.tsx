@@ -40,6 +40,8 @@ import FontPicker from "@/components/FontPicker";
 import { MAP_FONTS, mapFontFamily, type MapFontKey } from "@/server/texts/fonts";
 import type { ImageAlign } from "./extensions";
 import { DEFAULT_SWATCH, TEXT_COLORS, textColorOf } from "./colors";
+import { useT } from "@/i18n/useT";
+import type { Translator } from "@/i18n/translate";
 
 /** Marks editor UI rendered outside the card, so the card's "click outside" check ignores it. */
 const FLOATING_CLASS = "rich-floating";
@@ -130,6 +132,7 @@ function InlineField({
   onApply: (value: string) => string | null;
   onCancel: () => void;
 }) {
+  const t = useT("editor");
   const [value, setValue] = useState(initial);
   const [error, setError] = useState<string | null>(null);
   return (
@@ -156,28 +159,29 @@ function InlineField({
         }}
       />
       <button type="submit" className="btn btn-sm btn-primary">
-        Apply
+        {t("apply")}
       </button>
       {error && <span className="form-error">{error}</span>}
     </form>
   );
 }
 
-const BLOCK_STYLES: { key: string; label: string; Icon: LucideIcon; isActive: (e: Editor) => boolean; apply: (e: Editor) => void }[] = [
-  { key: "paragraph", label: "Paragraph", Icon: Pilcrow, isActive: (e) => e.isActive("paragraph") && !e.isActive("bulletList") && !e.isActive("orderedList"), apply: (e) => e.chain().focus().clearNodes().setParagraph().run() },
-  { key: "title", label: "Title", Icon: Type, isActive: (e) => e.isActive("title"), apply: (e) => e.chain().focus().clearNodes().setTitle().run() },
+const BLOCK_STYLES: { key: string; label: (t: Translator<"editor">) => string; Icon: LucideIcon; isActive: (e: Editor) => boolean; apply: (e: Editor) => void }[] = [
+  { key: "paragraph", label: (t) => t("style.paragraph"), Icon: Pilcrow, isActive: (e) => e.isActive("paragraph") && !e.isActive("bulletList") && !e.isActive("orderedList"), apply: (e) => e.chain().focus().clearNodes().setParagraph().run() },
+  { key: "title", label: (t) => t("style.title"), Icon: Type, isActive: (e) => e.isActive("title"), apply: (e) => e.chain().focus().clearNodes().setTitle().run() },
   ...([1, 2, 3, 4, 5] as const).map((level) => ({
     key: `h${level}`,
-    label: `Heading ${level}`,
+    label: (t: Translator<"editor">) => t("style.heading", { level }),
     Icon: [Heading1, Heading2, Heading3, Heading4, Heading5][level - 1],
     isActive: (e: Editor) => e.isActive("heading", { level }),
     apply: (e: Editor) => e.chain().focus().clearNodes().setHeading({ level }).run(),
   })),
-  { key: "bullet", label: "Bullet list", Icon: List, isActive: (e) => e.isActive("bulletList"), apply: (e) => e.chain().focus().toggleBulletList().run() },
-  { key: "ordered", label: "Numbered list", Icon: ListOrdered, isActive: (e) => e.isActive("orderedList"), apply: (e) => e.chain().focus().toggleOrderedList().run() },
+  { key: "bullet", label: (t) => t("style.bullet"), Icon: List, isActive: (e) => e.isActive("bulletList"), apply: (e) => e.chain().focus().toggleBulletList().run() },
+  { key: "ordered", label: (t) => t("style.ordered"), Icon: ListOrdered, isActive: (e) => e.isActive("orderedList"), apply: (e) => e.chain().focus().toggleOrderedList().run() },
 ];
 
 function BlockStyleMenu({ editor }: { editor: Editor }) {
+  const t = useT("editor");
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const current = BLOCK_STYLES.find((s) => s.isActive(editor)) ?? BLOCK_STYLES[0];
@@ -196,8 +200,8 @@ function BlockStyleMenu({ editor }: { editor: Editor }) {
       <button
         type="button"
         className="rich-dropdown-button"
-        aria-label={`Text style: ${current.label}`}
-        data-tooltip="Text style"
+        aria-label={t("textStyleCurrent", { style: current.label(t) })}
+        data-tooltip={t("textStyle")}
         aria-haspopup="menu"
         aria-expanded={open}
         onMouseDown={keepSelection}
@@ -207,7 +211,7 @@ function BlockStyleMenu({ editor }: { editor: Editor }) {
         <ChevronDown size={12} strokeWidth={2.25} aria-hidden />
       </button>
       {open && (
-        <ul className="rich-dropdown-list" role="menu" aria-label="Text style">
+        <ul className="rich-dropdown-list" role="menu" aria-label={t("textStyle")}>
           {BLOCK_STYLES.map((s) => (
             <li key={s.key} role="none">
               <button
@@ -222,7 +226,7 @@ function BlockStyleMenu({ editor }: { editor: Editor }) {
                 }}
               >
                 <s.Icon size={15} strokeWidth={2.25} aria-hidden />
-                {s.label}
+                {s.label(t)}
               </button>
             </li>
           ))}
@@ -234,6 +238,7 @@ function BlockStyleMenu({ editor }: { editor: Editor }) {
 
 /** Text color from the preset palette (no free color wheel); White, the default, clears the color. */
 function ColorButton({ editor }: { editor: Editor }) {
+  const t = useT("editor");
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const color: string | undefined = editor.getAttributes("textStyle").color;
@@ -253,8 +258,8 @@ function ColorButton({ editor }: { editor: Editor }) {
       <button
         type="button"
         className={color ? "active" : ""}
-        aria-label={`Text color: ${current?.label ?? "Custom"}`}
-        data-tooltip="Text color"
+        aria-label={t("textColorCurrent", { color: current ? t(`color.${current.label}`) : t("color.custom") })}
+        data-tooltip={t("textColor")}
         aria-haspopup="menu"
         aria-expanded={open}
         onMouseDown={keepSelection}
@@ -263,9 +268,10 @@ function ColorButton({ editor }: { editor: Editor }) {
         <Baseline size={15} strokeWidth={2.25} style={{ color: color ?? undefined }} />
       </button>
       {open && (
-        <div className="rich-dropdown-list rich-color-popover" role="menu" aria-label="Text color">
+        <div className="rich-dropdown-list rich-color-popover" role="menu" aria-label={t("textColor")}>
           {TEXT_COLORS.map((c) => {
             const selected = c === current;
+            const name = c.hex ? t(`color.${c.label}`) : t("color.default", { color: t(`color.${c.label}`) });
             return (
               <button
                 key={c.label}
@@ -273,8 +279,8 @@ function ColorButton({ editor }: { editor: Editor }) {
                 role="menuitemradio"
                 aria-checked={selected}
                 className={selected ? "rich-color-swatch active" : "rich-color-swatch"}
-                aria-label={c.hex ? c.label : `${c.label} (default)`}
-                data-tooltip={c.hex ? c.label : `${c.label} (default)`}
+                aria-label={name}
+                data-tooltip={name}
                 onMouseDown={keepSelection}
                 onClick={() => {
                   if (c.hex) editor.chain().focus().setColor(c.hex).run();
@@ -294,6 +300,7 @@ function ColorButton({ editor }: { editor: Editor }) {
 
 /** Formatting toolbar shown over a non-empty text selection. */
 export function TextBubbleMenu({ editor, onLinkArticle, onLinkDate }: { editor: Editor; onLinkArticle: () => void; onLinkDate: () => void }) {
+  const t = useT("editor");
   const [linking, setLinking] = useState(false);
   useResetOnSelectionChange(editor, () => setLinking(false));
   const fontFamily: string | undefined = editor.getAttributes("textStyle").fontFamily;
@@ -309,7 +316,7 @@ export function TextBubbleMenu({ editor, onLinkArticle, onLinkDate }: { editor: 
     >
       {linking ? (
         <InlineField
-          label="Link address"
+          label={t("link.address")}
           placeholder="https://…"
           initial={editor.getAttributes("link").href ?? ""}
           onCancel={() => setLinking(false)}
@@ -320,20 +327,20 @@ export function TextBubbleMenu({ editor, onLinkArticle, onLinkDate }: { editor: 
               return null;
             }
             const href = normalizeHref(raw);
-            if (!href) return "Use an http(s) or mailto address.";
+            if (!href) return t("link.invalid");
             editor.chain().focus().extendMarkRange("link").setLink({ href }).run();
             setLinking(false);
             return null;
           }}
         />
       ) : (
-        <div className="rich-bubble-row" role="toolbar" aria-label="Formatting">
+        <div className="rich-bubble-row" role="toolbar" aria-label={t("toolbar.formatting")}>
           <BlockStyleMenu editor={editor} />
           <span className="rich-toolbar-divider" aria-hidden />
-          <ToolButton label="Bold" Icon={Bold} active={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()} />
-          <ToolButton label="Italic" Icon={Italic} active={editor.isActive("italic")} onClick={() => editor.chain().focus().toggleItalic().run()} />
-          <ToolButton label="Underline" Icon={Underline} active={editor.isActive("underline")} onClick={() => editor.chain().focus().toggleUnderline().run()} />
-          <ToolButton label="Strikethrough" Icon={Strikethrough} active={editor.isActive("strike")} onClick={() => editor.chain().focus().toggleStrike().run()} />
+          <ToolButton label={t("toolbar.bold")} Icon={Bold} active={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()} />
+          <ToolButton label={t("toolbar.italic")} Icon={Italic} active={editor.isActive("italic")} onClick={() => editor.chain().focus().toggleItalic().run()} />
+          <ToolButton label={t("toolbar.underline")} Icon={Underline} active={editor.isActive("underline")} onClick={() => editor.chain().focus().toggleUnderline().run()} />
+          <ToolButton label={t("toolbar.strike")} Icon={Strikethrough} active={editor.isActive("strike")} onClick={() => editor.chain().focus().toggleStrike().run()} />
           <span className="rich-toolbar-divider" aria-hidden />
           <FontPicker
             value={fontKey}
@@ -343,32 +350,33 @@ export function TextBubbleMenu({ editor, onLinkArticle, onLinkDate }: { editor: 
             }
           />
           <span className="rich-toolbar-divider" aria-hidden />
-          <ToolButton label="Align left" Icon={TextAlignStart} active={editor.isActive({ textAlign: "left" })} onClick={() => editor.chain().focus().setTextAlign("left").run()} />
-          <ToolButton label="Align center" Icon={TextAlignCenter} active={editor.isActive({ textAlign: "center" })} onClick={() => editor.chain().focus().setTextAlign("center").run()} />
-          <ToolButton label="Align right" Icon={TextAlignEnd} active={editor.isActive({ textAlign: "right" })} onClick={() => editor.chain().focus().setTextAlign("right").run()} />
-          <ToolButton label="Justify" Icon={TextAlignJustify} active={editor.isActive({ textAlign: "justify" })} onClick={() => editor.chain().focus().setTextAlign("justify").run()} />
+          <ToolButton label={t("toolbar.alignLeft")} Icon={TextAlignStart} active={editor.isActive({ textAlign: "left" })} onClick={() => editor.chain().focus().setTextAlign("left").run()} />
+          <ToolButton label={t("toolbar.alignCenter")} Icon={TextAlignCenter} active={editor.isActive({ textAlign: "center" })} onClick={() => editor.chain().focus().setTextAlign("center").run()} />
+          <ToolButton label={t("toolbar.alignRight")} Icon={TextAlignEnd} active={editor.isActive({ textAlign: "right" })} onClick={() => editor.chain().focus().setTextAlign("right").run()} />
+          <ToolButton label={t("toolbar.justify")} Icon={TextAlignJustify} active={editor.isActive({ textAlign: "justify" })} onClick={() => editor.chain().focus().setTextAlign("justify").run()} />
           <span className="rich-toolbar-divider" aria-hidden />
           <ColorButton editor={editor} />
-          <ToolButton label="Link an article (Ctrl+K)" Icon={AtSign} onClick={onLinkArticle} />
-          <ToolButton label="Link a calendar date" Icon={CalendarDays} onClick={onLinkDate} />
-          <ToolButton label="Secret" Icon={Lock} active={editor.isActive("secret")} onClick={() => editor.chain().focus().toggleSecret().run()} />
-          <ToolButton label="Link" Icon={Link2} active={editor.isActive("link")} onClick={() => setLinking(true)} />
-          {editor.isActive("link") && <ToolButton label="Remove link" Icon={Unlink} onClick={() => editor.chain().focus().extendMarkRange("link").unsetLink().run()} />}
+          <ToolButton label={t("toolbar.linkArticle")} Icon={AtSign} onClick={onLinkArticle} />
+          <ToolButton label={t("toolbar.linkDate")} Icon={CalendarDays} onClick={onLinkDate} />
+          <ToolButton label={t("toolbar.secret")} Icon={Lock} active={editor.isActive("secret")} onClick={() => editor.chain().focus().toggleSecret().run()} />
+          <ToolButton label={t("toolbar.link")} Icon={Link2} active={editor.isActive("link")} onClick={() => setLinking(true)} />
+          {editor.isActive("link") && <ToolButton label={t("toolbar.removeLink")} Icon={Unlink} onClick={() => editor.chain().focus().extendMarkRange("link").unsetLink().run()} />}
         </div>
       )}
     </BubbleMenu>
   );
 }
 
-const IMAGE_ALIGN_OPTIONS: { align: ImageAlign; label: string; Icon: LucideIcon }[] = [
-  { align: "left", label: "Float left (text wraps)", Icon: TextAlignStart },
-  { align: "center", label: "Center", Icon: TextAlignCenter },
-  { align: "right", label: "Float right (text wraps)", Icon: TextAlignEnd },
-  { align: "full", label: "Full width", Icon: Maximize2 },
+const IMAGE_ALIGN_OPTIONS: { align: ImageAlign; label: "image.alignLeft" | "image.alignCenter" | "image.alignRight" | "image.alignFull"; Icon: LucideIcon }[] = [
+  { align: "left", label: "image.alignLeft", Icon: TextAlignStart },
+  { align: "center", label: "image.alignCenter", Icon: TextAlignCenter },
+  { align: "right", label: "image.alignRight", Icon: TextAlignEnd },
+  { align: "full", label: "image.alignFull", Icon: Maximize2 },
 ];
 
 /** Image toolbar: alignment, link, caption, alt text, delete. Resize with the corner handles; drag to move. */
 export function ImageBubbleMenu({ editor }: { editor: Editor }) {
+  const t = useT("editor");
   const [field, setField] = useState<"link" | "caption" | "alt" | null>(null);
   useResetOnSelectionChange(editor, () => setField(null));
   const attrs = editor.getAttributes("image");
@@ -384,8 +392,8 @@ export function ImageBubbleMenu({ editor }: { editor: Editor }) {
     >
       {field === "link" && (
         <InlineField
-          label="Image link"
-          placeholder="https://… (opens on click)"
+          label={t("image.link")}
+          placeholder={t("image.linkPlaceholder")}
           initial={attrs.href ?? ""}
           onCancel={() => setField(null)}
           onApply={(raw) => {
@@ -395,7 +403,7 @@ export function ImageBubbleMenu({ editor }: { editor: Editor }) {
               return null;
             }
             const href = normalizeHref(raw);
-            if (!href) return "Use an http(s) or mailto address.";
+            if (!href) return t("link.invalid");
             update({ href });
             setField(null);
             return null;
@@ -404,8 +412,8 @@ export function ImageBubbleMenu({ editor }: { editor: Editor }) {
       )}
       {field === "caption" && (
         <InlineField
-          label="Caption"
-          placeholder="Shown under the image"
+          label={t("image.caption")}
+          placeholder={t("image.captionPlaceholder")}
           initial={attrs.caption ?? ""}
           onCancel={() => setField(null)}
           onApply={(raw) => {
@@ -417,8 +425,8 @@ export function ImageBubbleMenu({ editor }: { editor: Editor }) {
       )}
       {field === "alt" && (
         <InlineField
-          label="Alt text"
-          placeholder="Describe the image"
+          label={t("image.alt")}
+          placeholder={t("image.altPlaceholder")}
           initial={attrs.alt ?? ""}
           onCancel={() => setField(null)}
           onApply={(raw) => {
@@ -429,16 +437,16 @@ export function ImageBubbleMenu({ editor }: { editor: Editor }) {
         />
       )}
       {field === null && (
-        <div className="rich-bubble-row" role="toolbar" aria-label="Image">
+        <div className="rich-bubble-row" role="toolbar" aria-label={t("image.toolbar")}>
           {IMAGE_ALIGN_OPTIONS.map((o) => (
-            <ToolButton key={o.align} label={o.label} Icon={o.Icon} active={(attrs.align ?? "center") === o.align} onClick={() => update({ align: o.align })} />
+            <ToolButton key={o.align} label={t(o.label)} Icon={o.Icon} active={(attrs.align ?? "center") === o.align} onClick={() => update({ align: o.align })} />
           ))}
           <span className="rich-toolbar-divider" aria-hidden />
-          <ToolButton label={attrs.href ? "Edit image link" : "Link image"} Icon={Link2} active={Boolean(attrs.href)} onClick={() => setField("link")} />
-          <ToolButton label={attrs.caption ? "Edit caption" : "Add caption"} Icon={Captions} active={Boolean(attrs.caption)} onClick={() => setField("caption")} />
-          <ToolButton label="Alt text" Icon={ScanText} active={Boolean(attrs.alt)} onClick={() => setField("alt")} />
+          <ToolButton label={attrs.href ? t("image.editLink") : t("image.addLink")} Icon={Link2} active={Boolean(attrs.href)} onClick={() => setField("link")} />
+          <ToolButton label={attrs.caption ? t("image.editCaption") : t("image.addCaption")} Icon={Captions} active={Boolean(attrs.caption)} onClick={() => setField("caption")} />
+          <ToolButton label={t("image.alt")} Icon={ScanText} active={Boolean(attrs.alt)} onClick={() => setField("alt")} />
           <span className="rich-toolbar-divider" aria-hidden />
-          <ToolButton label="Delete image" Icon={Trash2} onClick={() => editor.chain().focus().deleteSelection().run()} />
+          <ToolButton label={t("image.delete")} Icon={Trash2} onClick={() => editor.chain().focus().deleteSelection().run()} />
         </div>
       )}
     </BubbleMenu>

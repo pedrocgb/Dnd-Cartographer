@@ -5,6 +5,8 @@
  * stored value (possibly from an older shape) into a complete one.
  */
 import { ParseError } from "../calendars/parse";
+import type { Problem } from "../calendars/engine";
+import type { MessageKey } from "../../i18n/messages";
 import type { ArticleRef } from "../quests/types";
 import {
   BEAT_ROLES,
@@ -46,9 +48,12 @@ export const MAX_NPCS = 30;
 export const MAX_REVIEW = 200;
 export const MAX_MOVES = 500;
 
-const fail = (message: string): never => {
+const fail = (message: string | Problem): never => {
   throw new ParseError(message);
 };
+
+/** What a user can run into carries a `campaign` Problem; shape errors stay English. */
+const problem = (key: MessageKey<"campaign">, params?: Problem["params"]): Problem => ({ ns: "campaign", key, params });
 
 const obj = (v: unknown, what: string): Record<string, unknown> =>
   v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : fail(`${what} is missing or malformed.`);
@@ -74,7 +79,7 @@ const lines = (v: unknown, what: string, max: number, maxLength = MAX_LINE): str
 
 export function parseNodeTitle(v: unknown): string {
   const title = text(v, "The title", MAX_TITLE);
-  return title || fail("Give it a title.");
+  return title || fail(problem("problem.nodeTitle"));
 }
 
 export const parseSynopsis = (v: unknown) => text(v, "The synopsis", MAX_SYNOPSIS);
@@ -120,7 +125,7 @@ export function parseMoves(v: unknown): OutlineMove[] {
 
 export function parseThreadName(v: unknown): string {
   const name = text(v, "The thread's name", MAX_TITLE);
-  return name || fail("Give the thread a name.");
+  return name || fail(problem("problem.threadName"));
 }
 
 export const parseThreadKind = (v: unknown): ThreadKind => oneOf(THREAD_KINDS, v, "The thread's type");
@@ -196,7 +201,7 @@ export const parseStatusKind = (v: unknown): StatusKind => (v === undefined ? "w
 
 export function parseStatusText(v: unknown): string {
   const t = text(v, "The change", MAX_LONG);
-  return t || fail("Describe what changed.");
+  return t || fail(problem("problem.statusText"));
 }
 
 export const parseSubject = (v: unknown): ArticleRef | null => (v === null || v === undefined ? null : ref(v, "Who or what changed"));
@@ -226,7 +231,7 @@ export function parseReview(v: unknown): ReviewInput {
     return { id, outcome: oneOf(REVIEW_OUTCOMES, y.outcome, `Scene ${i + 1}'s outcome`), changeNote: parseChangeNote(y.changeNote) };
   });
   const secretsIn = obj(x.secrets ?? {}, "The secrets");
-  if (Object.keys(secretsIn).length > MAX_SECRETS) fail(`A session has at most ${MAX_SECRETS} secrets.`);
+  if (Object.keys(secretsIn).length > MAX_SECRETS) fail(problem("problem.maxSecrets", { max: MAX_SECRETS }));
   const secrets = Object.fromEntries(Object.entries(secretsIn).map(([id, revealed]) => [ident(id, "A secret"), revealed === true]));
   const entries = list(x.entries ?? [], "World changes", 50)
     .map((e, i) => {

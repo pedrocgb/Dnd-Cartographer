@@ -6,6 +6,7 @@ import InfoPicker from "@/components/articles/InfoPicker";
 import { candidateOptions, type Candidate } from "@/components/articles/candidates";
 import { LINK_ROLE_LABELS, LINK_ROLES, type LinkRole, type QuestLink } from "@/server/quests/types";
 import { ArticleName } from "./parts";
+import { useT } from "@/i18n/useT";
 
 /** A sensible first role for an article of this template (changeable per row). */
 function defaultRole(template: string): LinkRole {
@@ -18,23 +19,24 @@ function defaultRole(template: string): LinkRole {
 
 /** Articles involved in a quest, each with its role (ally, antagonist, location…), plus a picker to add more. */
 export default function QuestLinksSection({ links, candidates, onChange }: { links: QuestLink[]; candidates: Candidate[] | null; onChange: (links: QuestLink[]) => void }) {
+  const t = useT("campaign");
   const linked = useMemo(() => new Set(links.map((l) => l.articleId)), [links]);
   const setRole = (id: string, role: LinkRole) => onChange(links.map((l) => (l.articleId === id ? { ...l, role } : l)));
   return (
     <div className="cel-section">
       <header className="cel-section-head">
         <div>
-          <h3>Who and where</h3>
-          <p className="cal-help">NPCs, places, factions and items that matter to this quest. Each one shows the quest on its article, under &ldquo;In quests&rdquo;.</p>
+          <h3>{t("links.title")}</h3>
+          <p className="cal-help">{t("links.help")}</p>
         </div>
       </header>
       {links.length === 0 ? (
-        <p className="cel-empty">Nothing linked yet.</p>
+        <p className="cel-empty">{t("links.empty")}</p>
       ) : (
         <ul className="cel-links qs-links-edit">
           {links.map((l) => (
             <li key={l.articleId} className="cel-link">
-              <select aria-label="Role" value={l.role} onChange={(e) => setRole(l.articleId, e.target.value as LinkRole)}>
+              <select aria-label={t("links.role")} value={l.role} onChange={(e) => setRole(l.articleId, e.target.value as LinkRole)}>
                 {LINK_ROLES.map((r) => (
                   <option key={r} value={r}>
                     {LINK_ROLE_LABELS[r]}
@@ -42,7 +44,7 @@ export default function QuestLinksSection({ links, candidates, onChange }: { lin
                 ))}
               </select>
               <ArticleName link={l} candidates={candidates} />
-              <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label="Unlink" data-tooltip="Unlink" onClick={() => onChange(links.filter((x) => x.articleId !== l.articleId))}>
+              <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={t("quest.unlink")} data-tooltip={t("quest.unlink")} onClick={() => onChange(links.filter((x) => x.articleId !== l.articleId))}>
                 <X size={14} />
               </button>
             </li>
@@ -53,8 +55,8 @@ export default function QuestLinksSection({ links, candidates, onChange }: { lin
         <InfoPicker
           options={candidateOptions(candidates ?? [], linked)}
           value={null}
-          placeholder={candidates ? "Link an article…" : "Loading articles…"}
-          ariaLabel="Link an article"
+          placeholder={candidates ? t("links.add") : t("quest.loadingArticles")}
+          ariaLabel={t("links.addLabel")}
           collapsibleGroups
           disabled={!candidates}
           onChange={(id) => {

@@ -24,7 +24,7 @@ export async function createMapAssetUpload(
 ): Promise<{ assetId: string; jobId: string }> {
   const map = await db.query.maps.findFirst({ where: eq(maps.id, mapId) });
   if (!map) {
-    throw new InvalidImageError(`Unknown map: ${mapId}`);
+    throw new InvalidImageError("mapNotFound");
   }
 
   const uploadId = crypto.randomUUID();

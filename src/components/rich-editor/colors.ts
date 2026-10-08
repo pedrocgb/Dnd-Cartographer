@@ -4,7 +4,8 @@
  * color. The hexes are tuned to read on the dark card background.
  */
 export interface TextColor {
-  label: string;
+  /** English name: the `editor` `color.*` key, and a search word in the / menu. */
+  label: "White" | "Gray" | "Brown" | "Red" | "Orange" | "Gold" | "Green" | "Teal" | "Blue" | "Purple" | "Pink";
   /** null for the default (no color mark). */
   hex: string | null;
 }

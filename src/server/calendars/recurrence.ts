@@ -16,6 +16,7 @@
  *   D-1 didn't, "every" on each matching day.
  */
 import {
+  CalendarError,
   fromWorldDay,
   monthOrdinal,
   nextYear,
@@ -26,6 +27,8 @@ import {
   yearPeriods,
   type CalendarDefinition,
 } from "./engine";
+import { activeT } from "../../i18n/active";
+import type { Translator } from "../../i18n/translate";
 
 export type MissingPolicy = "skip" | "last";
 
@@ -72,11 +75,11 @@ export const MAX_RANGE_DAYS = 5000;
 /** Conditions may look back this far for a duration's carry-in. */
 export const MAX_DURATION_DAYS = 1000;
 
-export class RecurrenceError extends Error {}
+export class RecurrenceError extends CalendarError {}
 
 function checkRange(from: number, to: number) {
-  if (!Number.isSafeInteger(from) || !Number.isSafeInteger(to) || to < from) throw new RecurrenceError("Pick a valid date range.");
-  if (to - from + 1 > MAX_RANGE_DAYS) throw new RecurrenceError(`Ranges are limited to ${MAX_RANGE_DAYS} days per query.`);
+  if (!Number.isSafeInteger(from) || !Number.isSafeInteger(to) || to < from) throw new RecurrenceError({ key: "problem.dateRangePick" });
+  if (to - from + 1 > MAX_RANGE_DAYS) throw new RecurrenceError({ key: "problem.rangeLimit", params: { n: MAX_RANGE_DAYS } });
 }
 
 export function conditionHolds(condition: Condition, worldDay: number, ctx: EvalContext): boolean {
@@ -221,29 +224,36 @@ export function expandSeries(series: SeriesInput, from: number, to: number, ctx:
   return occurrences.sort((a, b) => a.start - b.start);
 }
 
-/** Readable summary of a rule for lists ("Every 3 days", "Annually on 1 Alder"). */
-export function describeRecurrence(rule: Recurrence, ctx: Pick<EvalContext, "calendar">): string {
+/** Readable summary of a rule for lists ("Every 3 days", "Annually on 1 Alder"), in the active language by default. */
+export function describeRecurrence(rule: Recurrence, ctx: Pick<EvalContext, "calendar">, t: Translator<"calendars"> = activeT("calendars")): string {
   switch (rule.kind) {
     case "none":
-      return "Once";
+      return t("rec.once");
     case "everyDays":
-      return rule.interval === 1 ? "Every day" : `Every ${rule.interval} days`;
+      return rule.interval === 1 ? t("rec.everyDay") : t("rec.everyNDays", { n: rule.interval });
     case "weekly": {
       const def = ctx.calendar(rule.calendarId);
       const len = def ? weekLength(def) : 7;
-      return rule.interval === 1 ? `Every week (${len} days)` : `Every ${rule.interval} weeks (${rule.interval * len} days)`;
+      return rule.interval === 1 ? t("rec.everyWeek", { days: len }) : t("rec.everyNWeeks", { n: rule.interval, days: rule.interval * len });
     }
     case "weekday": {
-      const name = ctx.calendar(rule.calendarId)?.weekdays.find((w) => w.id === rule.weekdayId)?.name ?? "a removed weekday";
-      return `Every ${name}`;
+      const name = ctx.calendar(rule.calendarId)?.weekdays.find((w) => w.id === rule.weekdayId)?.name ?? t("rec.removedWeekday");
+      return t("rec.everyWeekday", { weekday: name });
     }
-    case "monthly":
-      return `${rule.interval === 1 ? "Monthly" : `Every ${rule.interval} months`} on day ${rule.day}${rule.missing === "last" ? " (or the last day)" : ""}`;
+    case "monthly": {
+      const last = rule.missing === "last" ? t("rec.lastDay") : "";
+      return rule.interval === 1 ? t("rec.monthly", { day: rule.day, last }) : t("rec.everyNMonths", { n: rule.interval, day: rule.day, last });
+    }
     case "annual": {
-      const period = ctx.calendar(rule.calendarId)?.periods.find((p) => p.id === rule.periodId)?.name ?? "a removed month";
-      return `${rule.interval === 1 ? "Annually" : `Every ${rule.interval} years`} on ${rule.day} ${period}${rule.missing === "last" ? " (or its last day)" : ""}`;
+      const month = ctx.calendar(rule.calendarId)?.periods.find((p) => p.id === rule.periodId)?.name ?? t("rec.removedMonth");
+      const last = rule.missing === "last" ? t("rec.lastDayOfMonth") : "";
+      return rule.interval === 1 ? t("rec.annual", { day: rule.day, month, last }) : t("rec.everyNYears", { n: rule.interval, day: rule.day, month, last });
     }
-    case "condition":
-      return `${rule.trigger === "enter" ? "When" : "Every day"} ${rule.group.match === "all" ? "all" : "any"} of ${rule.group.conditions.length} condition${rule.group.conditions.length === 1 ? "" : "s"} ${rule.trigger === "enter" ? "become true" : "hold"}`;
+    case "condition": {
+      const n = rule.group.conditions.length;
+      const all = rule.group.match === "all";
+      const key = rule.trigger === "enter" ? (all ? "rec.enterAll" : "rec.enterAny") : all ? "rec.everyAll" : "rec.everyAny";
+      return t(key, { count: n, n });
+    }
   }
 }

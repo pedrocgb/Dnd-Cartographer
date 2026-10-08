@@ -11,6 +11,8 @@ import { TerritoryFolder } from "./TerritoryArticle";
 import { CharacterFolder } from "./CharacterArticle";
 import { OrganizationFolder } from "./OrganizationArticle";
 import type { GenericArticle, Organization, OpenArticle, Person, Territory } from "./types";
+import { useT } from "@/i18n/useT";
+import { organizationKindLabel, territoryTypeLabel } from "@/server/politics/hierarchy-config";
 
 export interface ArticleLists {
   territories: Territory[];
@@ -21,9 +23,9 @@ export interface ArticleLists {
 
 /** Every article of one template as `{ id, name, detail? }`, for counts and search. */
 function itemsOf(key: ArticleTemplateKey, lists: ArticleLists): { id: string; name: string; detail?: string }[] {
-  if (key === "territory") return lists.territories.map((t) => ({ id: t.id, name: t.name, detail: t.type }));
+  if (key === "territory") return lists.territories.map((t) => ({ id: t.id, name: t.name, detail: territoryTypeLabel(t.type) }));
   if (key === "character" || key === "playerCharacter") return lists.people.filter((p) => personTemplate(p.kind) === key);
-  if (key === "organization") return lists.organizations.map((o) => ({ id: o.id, name: o.name, detail: o.kind }));
+  if (key === "organization") return lists.organizations.map((o) => ({ id: o.id, name: o.name, detail: organizationKindLabel(o.kind) }));
   return lists.articles.filter((a) => a.template === key).map((a) => ({ id: a.id, name: a.title }));
 }
 
@@ -85,10 +87,7 @@ function FolderHeader({ template, count, open, active, onToggle }: { template: A
 
 export type SidebarTab = "type" | "folders";
 
-const TAB_SEGMENTS = [
-  { key: "type", label: "By type" },
-  { key: "folders", label: "Folders" },
-] as const;
+const TAB_SEGMENTS = ["type", "folders"] as const;
 
 /**
  * The Articles left bar: "Create new article", the By type / Folders tabs,
@@ -138,6 +137,7 @@ export default function ArticlesSidebar({
   territoryExpanded: Set<string>;
   onToggleTerritory: (id: string) => void;
 }) {
+  const t = useT("articles");
   const needle = query.trim().toLowerCase();
 
   function renderFolder(template: ArticleTemplate) {
@@ -176,7 +176,7 @@ export default function ArticlesSidebar({
                     onToggleTerritory={onToggleTerritory}
                   />
                 )}
-            {!matches && items.length === 0 && <li className="field-label articles-folder-empty">No {template.plural.toLowerCase()} yet.</li>}
+            {!matches && items.length === 0 && <li className="field-label articles-folder-empty">{t("sidebar.empty", { plural: template.plural.toLowerCase() })}</li>}
           </ul>
         )}
       </section>
@@ -184,28 +184,28 @@ export default function ArticlesSidebar({
   }
 
   return (
-    <aside className="articles-sidebar" aria-label="Articles">
+    <aside className="articles-sidebar" aria-label={t("sidebar.label")}>
       <button type="button" className="articles-folder articles-create" onClick={onCreate}>
         <CirclePlus size={16} strokeWidth={2.25} aria-hidden />
-        <span className="articles-folder-name">Create new article</span>
+        <span className="articles-folder-name">{t("sidebar.create")}</span>
       </button>
       {/* Dragging an article over the tabs opens Folders, to drop it on one. */}
       <div className="articles-tabs" onDragEnter={(e) => tab === "type" && isArticleDrag(e) && onTabChange("folders")}>
-        <SegmentedControl<SidebarTab> ariaLabel="Show articles" value={tab} segments={TAB_SEGMENTS} onChange={onTabChange} />
+        <SegmentedControl<SidebarTab> ariaLabel={t("tab.label")} value={tab} segments={TAB_SEGMENTS.map((key) => ({ key, label: t(`tab.${key}`) }))} onChange={onTabChange} />
       </div>
       <input
         type="search"
-        placeholder={tab === "folders" ? "Search folders and articles…" : "Search articles…"}
-        aria-label={tab === "folders" ? "Search folders and articles" : "Search articles"}
+        placeholder={tab === "folders" ? t("sidebar.searchFolders") : t("sidebar.search")}
+        aria-label={tab === "folders" ? t("sidebar.searchFoldersLabel") : t("sidebar.searchLabel")}
         value={query}
         onChange={(e) => onQueryChange(e.target.value)}
       />
 
       {tab === "folders" ? (
-        <div className="articles-folders">{loading ? <SkeletonList rows={6} label="Loading folders…" /> : userFolders}</div>
+        <div className="articles-folders">{loading ? <SkeletonList rows={6} label={t("sidebar.loadingFolders")} /> : userFolders}</div>
       ) : (
       <nav className="articles-folders">
-        {loading && <SkeletonList rows={8} label="Loading articles…" />}
+        {loading && <SkeletonList rows={8} label={t("sidebar.loading")} />}
         {!loading && ARTICLE_TEMPLATE_GROUPS.map((group) => {
           // A group with no folder left to show (search) collapses away with its gap.
           const sections = group.map((key) => renderFolder(templateOf(key))).filter(Boolean);
@@ -218,7 +218,7 @@ export default function ArticlesSidebar({
           );
         })}
         {needle && ARTICLE_TEMPLATES.every((t) => !itemsOf(t.key, lists).some((i) => i.name.toLowerCase().includes(needle))) && (
-          <p className="field-label">No articles match &ldquo;{query.trim()}&rdquo;.</p>
+          <p className="field-label">{t("sidebar.noMatch", { query: query.trim() })}</p>
         )}
       </nav>
       )}

@@ -3,11 +3,12 @@
 import { useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, ArrowDownAZ, ArrowUpZA, Filter, MapPinned, Search, X } from "lucide-react";
 import { RawIcon } from "./MarkerIcon";
-import { ICONS, MARKER_CATEGORIES, DEFAULT_MARKER_CATEGORY, groupIcons, searchIcons } from "@/server/markers/icon-registry";
-import { STATUS_TAGS, ENVIRONMENT_TAGS, OWNERSHIP_TAGS } from "@/server/markers/tag-registry";
+import { ICONS, MARKER_CATEGORIES, DEFAULT_MARKER_CATEGORY, groupIcons, iconGroupLabel, iconLabel, markerCategoryLabel, searchIcons } from "@/server/markers/icon-registry";
+import { STATUS_TAGS, ENVIRONMENT_TAGS, OWNERSHIP_TAGS, markerTagLabel } from "@/server/markers/tag-registry";
 import { useToggleSet } from "./useToggleSet";
 import type { Marker } from "./MarkerLayer";
 import type { MapLayerData } from "./layer-images";
+import { useT } from "@/i18n/useT";
 
 const NONE_VALUE = "__none__";
 
@@ -16,10 +17,6 @@ const CATEGORY_UNIVERSE: string[] = [...MARKER_CATEGORIES];
 const STATUS_UNIVERSE = [...STATUS_TAGS, NONE_VALUE];
 const ENVIRONMENT_UNIVERSE = [...ENVIRONMENT_TAGS, NONE_VALUE];
 const OWNERSHIP_UNIVERSE = [...OWNERSHIP_TAGS, NONE_VALUE];
-
-function iconLabel(key: string) {
-  return ICONS.find((i) => i.key === key)?.label ?? key;
-}
 
 function markerCategory(m: Marker): string {
   return m.category ?? DEFAULT_MARKER_CATEGORY;
@@ -53,6 +50,7 @@ function FilterSection({
   labelFor?: (value: string) => string;
   titleFor?: (value: string) => string;
 }) {
+  const tm = useT("maps");
   return (
     <div className="marker-filter-section">
       <button
@@ -75,7 +73,7 @@ function FilterSection({
             aria-pressed={allOn}
             onClick={() => (allOn ? onClearAll() : onSelectAll())}
           >
-            All
+            {tm("markers.all")}
           </button>
           {universe.map((value) => (
             <button
@@ -93,7 +91,7 @@ function FilterSection({
               data-tooltip={titleFor ? titleFor(value) : undefined}
               onClick={() => onToggleValue(value)}
             >
-              {renderValue ? renderValue(value) : value === NONE_VALUE ? "None" : labelFor ? labelFor(value) : value}
+              {renderValue ? renderValue(value) : value === NONE_VALUE ? tm("markers.none") : labelFor ? labelFor(value) : value}
             </button>
           ))}
         </div>
@@ -106,6 +104,7 @@ type SortOrder = "default" | "az" | "za";
 
 /** Left column: every marker of the map, searchable and filterable; a row jumps to its marker. */
 function MarkersList({ markers, layers, onSelect }: { markers: Marker[]; layers: MapLayerData[]; onSelect: (markerId: string) => void }) {
+  const tm = useT("maps");
   const [search, setSearch] = useState("");
   const [sortOrder, setSortOrder] = useState<SortOrder>("default");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -183,16 +182,16 @@ function MarkersList({ markers, layers, onSelect }: { markers: Marker[]; layers:
       <div className="marker-search-row">
         <input
           type="text"
-          placeholder="Search markers…"
-          aria-label="Search markers"
+          placeholder={tm("markers.search")}
+          aria-label={tm("markers.searchAria")}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
         <button
           type="button"
           className="btn btn-icon"
-          data-tooltip={sortOrder === "az" ? "Sorted A–Z" : sortOrder === "za" ? "Sorted Z–A" : "Sort alphabetically"}
-          aria-label="Toggle alphabetical sort"
+          data-tooltip={sortOrder === "az" ? tm("markers.sortedAz") : sortOrder === "za" ? tm("markers.sortedZa") : tm("markers.sortAlpha")}
+          aria-label={tm("markers.sortToggle")}
           onClick={() => setSortOrder((prev) => (prev === "default" ? "az" : prev === "az" ? "za" : "default"))}
         >
           {sortOrder === "za" ? (
@@ -206,7 +205,7 @@ function MarkersList({ markers, layers, onSelect }: { markers: Marker[]; layers:
       <div className="marker-filter-list">
         {layers.length > 1 && (
           <FilterSection
-            label="Layer"
+            label={tm("markers.filter.layer")}
             expanded={Boolean(expanded.layer)}
             onToggleExpanded={() => toggleExpanded("layer")}
             universe={layerUniverse}
@@ -219,7 +218,7 @@ function MarkersList({ markers, layers, onSelect }: { markers: Marker[]; layers:
           />
         )}
         <FilterSection
-          label="Icon"
+          label={tm("markers.filter.icon")}
           expanded={Boolean(expanded.icon)}
           onToggleExpanded={() => toggleExpanded("icon")}
           universe={ICON_UNIVERSE}
@@ -232,7 +231,8 @@ function MarkersList({ markers, layers, onSelect }: { markers: Marker[]; layers:
           titleFor={iconLabel}
         />
         <FilterSection
-          label="Category"
+          label={tm("markers.filter.category")}
+          labelFor={markerCategoryLabel}
           expanded={Boolean(expanded.category)}
           onToggleExpanded={() => toggleExpanded("category")}
           universe={CATEGORY_UNIVERSE}
@@ -243,7 +243,8 @@ function MarkersList({ markers, layers, onSelect }: { markers: Marker[]; layers:
           onClearAll={categoryFilter.clearAll}
         />
         <FilterSection
-          label="Status"
+          label={tm("markers.filter.status")}
+          labelFor={(v) => markerTagLabel("status", v)}
           expanded={Boolean(expanded.status)}
           onToggleExpanded={() => toggleExpanded("status")}
           universe={STATUS_UNIVERSE}
@@ -254,7 +255,8 @@ function MarkersList({ markers, layers, onSelect }: { markers: Marker[]; layers:
           onClearAll={statusFilter.clearAll}
         />
         <FilterSection
-          label="Environment"
+          label={tm("markers.filter.environment")}
+          labelFor={(v) => markerTagLabel("environment", v)}
           expanded={Boolean(expanded.environment)}
           onToggleExpanded={() => toggleExpanded("environment")}
           universe={ENVIRONMENT_UNIVERSE}
@@ -265,7 +267,8 @@ function MarkersList({ markers, layers, onSelect }: { markers: Marker[]; layers:
           onClearAll={environmentFilter.clearAll}
         />
         <FilterSection
-          label="Ownership"
+          label={tm("markers.filter.ownership")}
+          labelFor={(v) => markerTagLabel("ownership", v)}
           expanded={Boolean(expanded.ownership)}
           onToggleExpanded={() => toggleExpanded("ownership")}
           universe={OWNERSHIP_UNIVERSE}
@@ -279,7 +282,7 @@ function MarkersList({ markers, layers, onSelect }: { markers: Marker[]; layers:
 
       {filtered.length === 0 ? (
         <p className="field-label">
-          {markers.length === 0 ? "No markers on this map yet." : "No markers match your search/filters."}
+          {markers.length === 0 ? tm("markers.noneYet") : tm("markers.noMatch")}
         </p>
       ) : (
         <ul className="marker-list">
@@ -317,11 +320,12 @@ function IconFilter({
   onSelectAll: () => void;
   onClearAll: () => void;
 }) {
+  const tm = useT("maps");
   const [query, setQuery] = useState("");
   const groups = groupIcons(searchIcons(query));
   return (
     <>
-      <p className="field-label">Toggle an icon off to hide every marker using it. This never changes marker data.</p>
+      <p className="field-label">{tm("markers.iconHint")}</p>
 
       <button
         type="button"
@@ -329,17 +333,17 @@ function IconFilter({
         aria-pressed={allOn}
         onClick={() => (allOn ? onClearAll() : onSelectAll())}
       >
-        <span className="icon-filter-row-label">All</span>
+        <span className="icon-filter-row-label">{tm("markers.all")}</span>
       </button>
 
       <label className="icon-picker-search">
         <Search size={14} strokeWidth={2.25} aria-hidden />
-        <input type="text" value={query} placeholder="Search icons" aria-label="Search icons" onChange={(e) => setQuery(e.target.value)} />
+        <input type="text" value={query} placeholder={tm("markers.searchIcons")} aria-label={tm("markers.searchIcons")} onChange={(e) => setQuery(e.target.value)} />
       </label>
 
       {groups.map(({ group, icons }) => (
-        <section key={group} className="icon-picker-group" aria-label={group}>
-          <h4>{group}</h4>
+        <section key={group} className="icon-picker-group" aria-label={iconGroupLabel(group)}>
+          <h4>{iconGroupLabel(group)}</h4>
           <ul className="icon-filter-list">
             {icons.map((icon) => {
               const active = selected.has(icon.key);
@@ -352,7 +356,7 @@ function IconFilter({
                     onClick={() => onToggle(icon.key)}
                   >
                     <RawIcon iconKey={icon.key} size={16} />
-                    <span className="icon-filter-row-label">{icon.label}</span>
+                    <span className="icon-filter-row-label">{iconLabel(icon.key)}</span>
                   </button>
                 </li>
               );
@@ -382,13 +386,15 @@ export default function MarkersPanel({
   iconFilter: { selected: Set<string>; allOn: boolean; toggle: (iconKey: string) => void; selectAll: () => void; clearAll: () => void };
   onClose: () => void;
 }) {
+  const tm = useT("maps");
+  const tc = useT("common");
   return (
-    <div className="markers-panel" aria-label="Markers">
+    <div className="markers-panel" aria-label={tm("rail.markers")}>
       <section className="markers-panel-col" aria-labelledby="markers-panel-list-title">
         <div className="marker-side-panel-header">
           <h2 id="markers-panel-list-title">
             <MapPinned size={16} strokeWidth={2.25} aria-hidden />
-            Markers on this map
+            {tm("panel.markers")}
           </h2>
         </div>
         <MarkersList markers={markers} layers={layers} onSelect={onSelectMarker} />
@@ -397,9 +403,9 @@ export default function MarkersPanel({
         <div className="marker-side-panel-header">
           <h2 id="markers-panel-filter-title">
             <Filter size={16} strokeWidth={2.25} aria-hidden />
-            Filter markers
+            {tm("markers.filterTitle")}
           </h2>
-          <button type="button" className="btn btn-ghost btn-icon" onClick={onClose} aria-label="Close the markers panel" data-tooltip="Close">
+          <button type="button" className="btn btn-ghost btn-icon" onClick={onClose} aria-label={tm("markers.close")} data-tooltip={tc("close")}>
             <X size={16} strokeWidth={2.25} />
           </button>
         </div>

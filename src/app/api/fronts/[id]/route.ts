@@ -1,23 +1,24 @@
 import { NextResponse } from "next/server";
+import { errorResponse } from "@/i18n/server";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { fronts, quests } from "@/server/db/schema";
 import { requireWorldId } from "@/server/world/active-world";
-import { badRequest, calendarErrorResponse, notFound, readBody } from "@/server/calendars/respond";
+import { calendarErrorResponse, readBody } from "@/server/calendars/respond";
 import { frontFields } from "@/server/quests/front-fields";
 import { frontOf, toClientFront } from "@/server/quests/store";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-const stale = () => NextResponse.json({ error: "This front was changed elsewhere. Reload it and try again.", stale: true }, { status: 409 });
+const stale = () => errorResponse("frontStale", 409, { stale: true });
 
 /** Edits a front (`expectedVersion` required); "Advance" is a portents + clock edit. */
 export async function PATCH(request: Request, { params }: RouteContext) {
   const { id } = await params;
   const row = await frontOf(await requireWorldId(), id);
-  if (!row) return notFound("Front not found.");
+  if (!row) return errorResponse("frontNotFound", 404);
   const body = await readBody(request);
-  if (!body) return badRequest("Invalid request body.");
+  if (!body) return errorResponse("invalidBody", 400);
   if (body.expectedVersion !== row.version) return stale();
   try {
     const [updated] = await db
@@ -35,7 +36,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 export async function DELETE(_request: Request, { params }: RouteContext) {
   const { id } = await params;
   const row = await frontOf(await requireWorldId(), id);
-  if (!row) return notFound("Front not found.");
+  if (!row) return errorResponse("frontNotFound", 404);
   await db.transaction(async (tx) => {
     await tx.update(quests).set({ frontId: null, updatedAt: new Date() }).where(eq(quests.frontId, id));
     await tx.update(fronts).set({ deletedAt: new Date(), updatedAt: new Date() }).where(eq(fronts.id, id));

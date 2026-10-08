@@ -7,16 +7,18 @@ import IconPicker from "../IconPicker";
 import ColorWheel from "../ColorWheel";
 import SegmentedControl from "./SegmentedControl";
 import MarkerCard from "./MarkerCard";
-import { BACKGROUND_SHAPES, COLOR_PRESETS, ICONS, IMPORTANCE_LEVELS, LABEL_MODES, importanceSize } from "@/server/markers/icon-registry";
+import { BACKGROUND_SHAPES, COLOR_PRESETS, IMPORTANCE_LEVELS, LABEL_MODES, iconLabel, importanceSize } from "@/server/markers/icon-registry";
+import { useT } from "@/i18n/useT";
+import type { MessageKey } from "@/i18n/messages";
 import type { Marker } from "../MarkerLayer";
 import type { MarkerPatch, MarkerUpdate } from "./types";
 
 type ColorTarget = "color" | "backgroundColor" | "outlineColor";
 
-const COLOR_ROWS: { key: ColorTarget; label: string }[] = [
-  { key: "color", label: "Icon" },
-  { key: "backgroundColor", label: "Fill" },
-  { key: "outlineColor", label: "Outline" },
+const COLOR_ROWS: { key: ColorTarget; label: MessageKey<"maps"> }[] = [
+  { key: "color", label: "legend.icon" },
+  { key: "backgroundColor", label: "zones.fill" },
+  { key: "outlineColor", label: "zones.outline" },
 ];
 
 function colorPatch(target: ColorTarget, hex: string): MarkerPatch {
@@ -24,8 +26,6 @@ function colorPatch(target: ColorTarget, hex: string): MarkerPatch {
   if (target === "outlineColor") return { outlineColor: hex };
   return { color: hex };
 }
-
-const iconLabel = (key: string) => ICONS.find((i) => i.key === key)?.label ?? "Icon";
 
 /** One inspector row: a fixed-width label, then its control. */
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
@@ -74,6 +74,7 @@ function ColorRow({
   onToggle: () => void;
   onUpdate: MarkerUpdate;
 }) {
+  const t = useT("maps");
   const current = marker[target];
   return (
     <>
@@ -94,7 +95,7 @@ function ColorRow({
                 className={color === current ? "color-swatch active" : "color-swatch"}
                 style={{ background: color }}
                 onClick={() => onUpdate(colorPatch(target, color))}
-                aria-label={`${label} color ${color}`}
+                aria-label={t("marker.colorValue", { label, color })}
                 aria-pressed={color === current}
               />
             ))}
@@ -113,24 +114,26 @@ function ColorRow({
  * demand, one at a time), size and label mode.
  */
 export default function MarkerAppearance({ marker, onUpdate }: { marker: Marker; onUpdate: MarkerUpdate }) {
+  const t = useT("maps");
+  const ti = useT("icons");
   const [iconsOpen, setIconsOpen] = useState(false);
   const [openColor, setOpenColor] = useState<ColorTarget | null>(null);
   const bare = marker.backgroundShape === "none";
 
   return (
-    <MarkerCard title="Appearance">
+    <MarkerCard title={t("marker.appearance")}>
       <Preview marker={marker} />
 
-      <Row label="Shape">
+      <Row label={t("area.shape")}>
         <SegmentedControl
-          ariaLabel="Shape"
+          ariaLabel={t("area.shape")}
           value={marker.backgroundShape}
           onChange={(backgroundShape) => onUpdate({ backgroundShape })}
-          segments={BACKGROUND_SHAPES.map((s) => ({ key: s.key, label: s.label, icon: <ShapeSilhouette shape={s.key} size={16} /> }))}
+          segments={BACKGROUND_SHAPES.map((s) => ({ key: s.key, label: ti(`shape.${s.key}`), icon: <ShapeSilhouette shape={s.key} size={16} /> }))}
         />
       </Row>
 
-      <Row label="Icon">
+      <Row label={ti("icon.fallback")}>
         <button type="button" className="marker-color-value" aria-expanded={iconsOpen} onClick={() => setIconsOpen((o) => !o)}>
           <RawIcon iconKey={marker.iconKey} size={15} aria-hidden="true" />
           <span className="marker-color-hex">{iconLabel(marker.iconKey)}</span>
@@ -147,7 +150,7 @@ export default function MarkerAppearance({ marker, onUpdate }: { marker: Marker;
         <ColorRow
           key={row.key}
           target={row.key}
-          label={row.label}
+          label={t(row.label)}
           marker={marker}
           open={openColor === row.key && !(bare && row.key !== "color")}
           disabled={bare && row.key !== "color"}
@@ -156,20 +159,20 @@ export default function MarkerAppearance({ marker, onUpdate }: { marker: Marker;
         />
       ))}
 
-      <Row label="Size">
+      <Row label={t("style.size")}>
         <SegmentedControl
-          ariaLabel="Size"
+          ariaLabel={t("style.size")}
           value={marker.importance}
           onChange={(importance) => onUpdate({ importance })}
-          segments={IMPORTANCE_LEVELS.map((l) => ({ key: l.key, label: l.label }))}
+          segments={IMPORTANCE_LEVELS.map((l) => ({ key: l.key, label: ti(`importance.${l.key}`) }))}
         />
       </Row>
-      <Row label="Label">
+      <Row label={t("marker.labelRow")}>
         <SegmentedControl
-          ariaLabel="Name on map"
+          ariaLabel={t("marker.nameOnMap")}
           value={marker.labelMode}
           onChange={(labelMode) => onUpdate({ labelMode })}
-          segments={LABEL_MODES.map((m) => ({ key: m.key, label: m.key === "hover" ? "Hover" : m.label }))}
+          segments={LABEL_MODES.map((m) => ({ key: m.key, label: m.key === "hover" ? t("marker.labelHover") : ti(`labelMode.${m.key}`) }))}
         />
       </Row>
     </MarkerCard>

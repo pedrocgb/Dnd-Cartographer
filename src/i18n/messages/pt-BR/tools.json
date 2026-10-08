@@ -2,5 +2,8 @@
   "characterOnDemand.label": "Personagem Sob Demanda",
   "characterOnDemand.description": "Personagens aleatórios com nome",
   "weather.label": "Gerador de Clima",
-  "weather.description": "Clima por região e lugar"
+  "weather.description": "Clima por região e lugar",
+  "recent.about": "Os últimos {max} {noun} que você gerou neste mundo, guardados neste navegador por {days} dias.",
+  "recent.empty": "Nada ainda. Os {noun} gerados aparecem aqui.",
+  "nav.title": "Ferramentas Avançadas"
 }

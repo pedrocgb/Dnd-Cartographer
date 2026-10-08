@@ -7,11 +7,12 @@ import { requireWorldId } from "@/server/world/active-world";
 import { cleanName, parseArticleLinks, parseDefinition } from "@/server/calendars/parse";
 import { applyDefinition, parseMigration } from "@/server/calendars/mutations";
 import { calendarOf, chronologyOf, StaleError, toClientCalendar } from "@/server/calendars/store";
-import { badRequest, calendarErrorResponse, notFound, readBody } from "@/server/calendars/respond";
+import { calendarErrorResponse, readBody } from "@/server/calendars/respond";
+import { errorResponse } from "@/i18n/server";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-const stale = () => NextResponse.json({ error: "This calendar was changed elsewhere. Reload it and try again.", stale: true }, { status: 409 });
+const stale = () => errorResponse("calendarStale", 409, { stale: true });
 
 /**
  * Edits a calendar: `expectedVersion` is required (stale edits get 409).
@@ -23,16 +24,16 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   const { id } = await params;
   const worldId = await requireWorldId();
   const row = await calendarOf(worldId, id);
-  if (!row) return notFound("Calendar not found.");
+  if (!row) return errorResponse("calendarNotFound", 404);
   const body = await readBody(request);
-  if (!body) return badRequest("Invalid request body.");
+  if (!body) return errorResponse("invalidBody", 400);
   if (body.expectedVersion !== row.version) return stale();
 
   try {
     const extra: Partial<typeof calendars.$inferInsert> = {};
     if ("name" in body) {
       const name = cleanName(body.name);
-      if (!name) return badRequest("A calendar name is required.");
+      if (!name) return errorResponse("calendarNameRequired", 400);
       extra.name = name;
     }
     if ("description" in body) extra.description = cleanName(body.description, 4000);
@@ -50,7 +51,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       .set({ ...extra, version: row.version + 1, updatedAt: new Date() })
       .where(and(eq(calendars.id, id), eq(calendars.version, row.version)))
       .returning();
-    if (updated.length === 0) throw new StaleError("This calendar was changed elsewhere. Reload it and try again.");
+    if (updated.length === 0) throw new StaleError({ key: "problem.calendarStale" });
     return NextResponse.json({ calendar: toClientCalendar(updated[0]) });
   } catch (error) {
     return calendarErrorResponse(error);
@@ -66,9 +67,9 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
   const { id } = await params;
   const worldId = await requireWorldId();
   const row = await calendarOf(worldId, id);
-  if (!row) return notFound("Calendar not found.");
+  if (!row) return errorResponse("calendarNotFound", 404);
   const chronology = await chronologyOf(worldId);
-  if (chronology.defaultCalendarId === id) return badRequest("This is the default calendar. Make another calendar the default before deleting it.");
+  if (chronology.defaultCalendarId === id) return errorResponse("calendarIsDefault", 400);
   const now = new Date();
   await db
     .update(calendars)

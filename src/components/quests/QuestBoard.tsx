@@ -7,14 +7,16 @@ import { boardColumns } from "@/server/quests/logic";
 import { PRIORITY_LABELS, QUEST_KIND_LABELS, QUEST_KINDS, QUEST_STATUS_LABELS, type FrontData, type QuestData, type QuestKind, type QuestStatus } from "@/server/quests/types";
 import { DeadlineChip, KindChip, nameOf, Progress } from "./parts";
 import type { CalendarDefinition } from "@/server/calendars/engine";
+import { useT } from "@/i18n/useT";
+import { activeT } from "@/i18n/active";
 
-/** The board's columns; failed and abandoned quests share the last one. */
-const COLUMNS: { key: string; label: string; statuses: QuestStatus[]; drop: QuestStatus; collapsible?: boolean }[] = [
-  { key: "hook", label: QUEST_STATUS_LABELS.hook, statuses: ["hook"], drop: "hook" },
-  { key: "active", label: QUEST_STATUS_LABELS.active, statuses: ["active"], drop: "active" },
-  { key: "onHold", label: QUEST_STATUS_LABELS.onHold, statuses: ["onHold"], drop: "onHold" },
-  { key: "completed", label: QUEST_STATUS_LABELS.completed, statuses: ["completed"], drop: "completed", collapsible: true },
-  { key: "failed", label: "Failed / Abandoned", statuses: ["failed", "abandoned"], drop: "failed", collapsible: true },
+/** The board's columns; failed and abandoned quests share the last one. `label` is worded on read. */
+const COLUMNS: { key: string; readonly label: string; statuses: QuestStatus[]; drop: QuestStatus; collapsible?: boolean }[] = [
+  { key: "hook", get label() { return QUEST_STATUS_LABELS.hook; }, statuses: ["hook"], drop: "hook" },
+  { key: "active", get label() { return QUEST_STATUS_LABELS.active; }, statuses: ["active"], drop: "active" },
+  { key: "onHold", get label() { return QUEST_STATUS_LABELS.onHold; }, statuses: ["onHold"], drop: "onHold" },
+  { key: "completed", get label() { return QUEST_STATUS_LABELS.completed; }, statuses: ["completed"], drop: "completed", collapsible: true },
+  { key: "failed", get label() { return activeT("campaign")("board.failedAbandoned"); }, statuses: ["failed", "abandoned"], drop: "failed", collapsible: true },
 ];
 
 /** A card moved: its (new) status, and the target column's quest ids in their new order. */
@@ -46,6 +48,7 @@ export default function QuestBoard({
   onMove: (move: BoardMove) => void;
   onNew: (status: QuestStatus) => void;
 }) {
+  const t = useT("campaign");
   const [kind, setKind] = useState<QuestKind | "">("");
   const [frontFilter, setFrontFilter] = useState("");
   const [query, setQuery] = useState("");
@@ -97,9 +100,9 @@ export default function QuestBoard({
   return (
     <div className="qs-board-wrap">
       <div className="qs-filters">
-        <input type="search" placeholder="Search quests…" aria-label="Search quests" value={query} onChange={(e) => setQuery(e.target.value)} />
-        <select aria-label="Quest type" value={kind} onChange={(e) => setKind(e.target.value as QuestKind | "")}>
-          <option value="">All types</option>
+        <input type="search" placeholder={t("board.search")} aria-label={t("board.searchLabel")} value={query} onChange={(e) => setQuery(e.target.value)} />
+        <select aria-label={t("board.typeLabel")} value={kind} onChange={(e) => setKind(e.target.value as QuestKind | "")}>
+          <option value="">{t("board.allTypes")}</option>
           {QUEST_KINDS.map((k) => (
             <option key={k} value={k}>
               {QUEST_KIND_LABELS[k]}
@@ -107,17 +110,17 @@ export default function QuestBoard({
           ))}
         </select>
         {fronts.length > 0 && (
-          <select aria-label="Front" value={frontFilter} onChange={(e) => setFrontFilter(e.target.value)}>
-            <option value="">All fronts</option>
+          <select aria-label={t("quest.front")} value={frontFilter} onChange={(e) => setFrontFilter(e.target.value)}>
+            <option value="">{t("quest.allFronts")}</option>
             {fronts.map((f) => (
               <option key={f.id} value={f.id}>
                 {f.name}
               </option>
             ))}
-            <option value="none">No front</option>
+            <option value="none">{t("board.noFront")}</option>
           </select>
         )}
-        <span className="cal-help qs-board-hint">Drag cards between columns, or focus one and use Alt + arrow keys.</span>
+        <span className="cal-help qs-board-hint">{t("board.hint")}</span>
       </div>
       <div className="qs-board">
         {COLUMNS.map((column, columnIndex) => {
@@ -152,7 +155,7 @@ export default function QuestBoard({
                 )}
                 <span className="cel-tab-count">{cards.length}</span>
                 {!column.collapsible && (
-                  <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={`New quest in ${column.label}`} data-tooltip={`New quest in ${column.label}`} onClick={() => onNew(column.drop)}>
+                  <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={t("board.newIn", { column: column.label })} data-tooltip={t("board.newIn", { column: column.label })} onClick={() => onNew(column.drop)}>
                     <Plus size={14} />
                   </button>
                 )}
@@ -187,7 +190,7 @@ export default function QuestBoard({
                       />
                     </li>
                   ))}
-                  {cards.length === 0 && <li className="qs-column-empty cal-help">{dragging ? "Drop here" : "Nothing here."}</li>}
+                  {cards.length === 0 && <li className="qs-column-empty cal-help">{dragging ? t("board.dropHere") : t("board.nothingHere")}</li>}
                 </ol>
               )}
             </section>
@@ -223,6 +226,7 @@ function QuestCard({
   onDragEnd: () => void;
   onKeyDown: (e: React.KeyboardEvent) => void;
 }) {
+  const t = useT("campaign");
   return (
     <button
       type="button"
@@ -251,7 +255,7 @@ function QuestCard({
       )}
       {quest.summary && <span className="qs-card-summary">{quest.summary}</span>}
       {front && (
-        <span className="qs-card-meta qs-card-front-name" data-tooltip="Front">
+        <span className="qs-card-meta qs-card-front-name" data-tooltip={t("quest.front")}>
           <Flame size={11} aria-hidden /> {front.name}
         </span>
       )}
@@ -259,17 +263,17 @@ function QuestCard({
         <Progress objectives={quest.objectives} />
         {deadline}
         {quest.clock && (
-          <span className="qs-card-meta" data-tooltip={quest.clock.label || "Clock"}>
+          <span className="qs-card-meta" data-tooltip={quest.clock.label || t("quest.clock")}>
             <Timer size={11} aria-hidden /> {quest.clock.filled}/{quest.clock.segments}
           </span>
         )}
         {giver && (
-          <span className="qs-card-meta" data-tooltip="Quest giver">
+          <span className="qs-card-meta" data-tooltip={t("quest.giver")}>
             <UserRound size={11} aria-hidden /> {giver}
           </span>
         )}
         {subCount > 0 && (
-          <span className="qs-card-meta" data-tooltip="Sub-quests">
+          <span className="qs-card-meta" data-tooltip={t("board.subQuests")}>
             <GitBranch size={11} aria-hidden /> {subCount}
           </span>
         )}

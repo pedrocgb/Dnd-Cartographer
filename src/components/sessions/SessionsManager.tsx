@@ -26,6 +26,7 @@ import SessionEditor from "./SessionEditor";
 import SessionView from "./SessionView";
 import { Avatar, formatBase, formatCoins, STATUS_LABELS } from "./parts";
 import type { ClientCampaign, ClientSession } from "./types";
+import { useT } from "@/i18n/useT";
 
 type MainView = "sessions" | "quests" | "fronts" | "map";
 
@@ -57,6 +58,7 @@ const activeQuests = (quests: QuestData[]) =>
  * editor.
  */
 export default function SessionsManager() {
+  const t = useT("campaign");
   const params = useSearchParams();
   const [calendars, setCalendars] = useState<ClientCalendar[] | null>(null);
   const [chronology, setChronology] = useState<Chronology | null>(null);
@@ -81,14 +83,14 @@ export default function SessionsManager() {
   const loadWorld = useCallback(async () => {
     const [cal, camp] = await Promise.all([api<{ calendars: ClientCalendar[]; chronology: Chronology }>("GET", "/api/calendars"), api<{ campaigns: ClientCampaign[] }>("GET", "/api/campaigns")]);
     if (!cal.ok || !camp.ok) {
-      setLoadError(cal.data.error ?? camp.data.error ?? "Could not load the campaigns.");
+      setLoadError(cal.data.error ?? camp.data.error ?? t("manager.couldNotLoad"));
       return;
     }
     setCalendars(cal.data.calendars);
     setChronology(cal.data.chronology);
     setCampaigns(camp.data.campaigns);
     announceCampaignsChanged();
-  }, []);
+  }, [t]);
 
   const loadSessions = useCallback(async (id: string) => {
     const res = await api<{ sessions: ClientSession[] }>("GET", `/api/sessions?campaignId=${encodeURIComponent(id)}`);
@@ -100,7 +102,7 @@ export default function SessionsManager() {
     Promise.all([api<{ calendars: ClientCalendar[]; chronology: Chronology }>("GET", "/api/calendars"), api<{ campaigns: ClientCampaign[] }>("GET", "/api/campaigns")]).then(([cal, camp]) => {
       if (cancelled) return;
       if (!cal.ok || !camp.ok) {
-        setLoadError(cal.data.error ?? camp.data.error ?? "Could not load the campaigns.");
+        setLoadError(cal.data.error ?? camp.data.error ?? t("manager.couldNotLoad"));
         return;
       }
       setCalendars(cal.data.calendars);
@@ -110,7 +112,7 @@ export default function SessionsManager() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [t]);
 
   // No (valid) campaign picked: the first live one.
   const campaign = campaigns?.find((c) => c.id === campaignId) ?? campaigns?.find((c) => !c.archived) ?? null;
@@ -190,7 +192,7 @@ export default function SessionsManager() {
       const res = await api<{ quest: QuestData }>("PATCH", `/api/quests/${q.id}`, { ...patch, expectedVersion: q.version });
       if (res.ok) replaceQuest(res.data.quest);
       else {
-        setNotice(res.data.error ?? "Could not move the quest.");
+        setNotice(res.data.error ?? t("manager.couldNotMove"));
         if (activeId) await loadQuests(activeId);
         return;
       }
@@ -201,7 +203,7 @@ export default function SessionsManager() {
     if (!campaign) return;
     const res = await api<{ session: ClientSession }>("POST", "/api/sessions", { campaignId: campaign.id });
     if (!res.ok) {
-      setNotice(res.data.error ?? "Could not create the session.");
+      setNotice(res.data.error ?? t("manager.couldNotCreateSession"));
       return;
     }
     setSessions((list) => [...list, res.data.session]);
@@ -211,7 +213,7 @@ export default function SessionsManager() {
   const replaceSession = (s: ClientSession) => setSessions((list) => list.map((x) => (x.id === s.id ? s : x)));
 
   if (loadError) return <p className="form-error ss-page-error">{loadError}</p>;
-  if (!calendars || !campaigns || !chronology) return <PageSkeleton label="Loading sessions…" main="cards" />;
+  if (!calendars || !campaigns || !chronology) return <PageSkeleton label={t("manager.loading")} main="cards" />;
 
   const liveCalendars = calendars.filter((c) => !c.trashed);
   const listed = campaigns.filter((c) => showArchived || !c.archived || c.id === activeId);
@@ -220,50 +222,50 @@ export default function SessionsManager() {
   const edited = visibleSessions.find((s) => s.id === editing) ?? null;
 
   const sidebar = (
-    <aside className="articles-sidebar ss-sidebar" aria-label="Campaigns">
+    <aside className="articles-sidebar ss-sidebar" aria-label={t("manager.campaigns")}>
       <section className="cal-side-section">
-        <h2 className="field-label">Campaigns</h2>
+        <h2 className="field-label">{t("manager.campaigns")}</h2>
         <ul className="cal-side-list">
           {listed.map((c) => (
             <li key={c.id} className="cal-side-item">
               <button type="button" className={c.id === activeId ? "articles-folder active" : "articles-folder"} aria-current={c.id === activeId} onClick={() => pick(c.id)}>
                 <ScrollText size={16} aria-hidden />
                 <span className="articles-folder-name">{c.name}</span>
-                {c.status === "finished" && <span className="cal-default-badge">Finished</span>}
-                {c.archived && <span className="cal-default-badge">Archived</span>}
+                {c.status === "finished" && <span className="cal-default-badge">{t("manager.finished")}</span>}
+                {c.archived && <span className="cal-default-badge">{t("manager.archived")}</span>}
               </button>
             </li>
           ))}
         </ul>
         {archivedCount > 0 && (
           <label className="cal-check">
-            <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} /> Show archived ({archivedCount})
+            <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} /> {t("manager.showArchived", { n: archivedCount })}
           </label>
         )}
         <button type="button" className="articles-folder articles-create" disabled={liveCalendars.length === 0} onClick={() => setCampaignEditor("new")}>
           <Plus size={16} />
-          <span className="articles-folder-name">New campaign</span>
+          <span className="articles-folder-name">{t("manager.newCampaign")}</span>
         </button>
       </section>
 
       {campaign && totals && (
         <>
           <section className="cal-side-section">
-            <h2 className="field-label">Party</h2>
+            <h2 className="field-label">{t("manager.party")}</h2>
             {campaign.roster.length === 0 ? (
-              <p className="cal-help">No characters yet. Add them in the campaign&apos;s settings.</p>
+              <p className="cal-help">{t("manager.noCharacters")}</p>
             ) : (
               <ul className="ss-party">
                 {campaign.roster.map((m) => (
                   <li key={m.id}>
                     <Avatar member={m} size={32} />
                     <span className="ss-party-main">
-                      <strong>{m.name ?? "(deleted character)"}</strong>
+                      <strong>{m.name ?? t("parts.deletedCharacter")}</strong>
                       <span className="cal-help">
                         {[m.playerName, m.status !== "active" && STATUS_LABELS[m.status]].filter(Boolean).join(" · ") || " "}
                       </span>
                       <span className="ss-party-stats">
-                        <span>{formatInteger(totals[m.personId]?.xp ?? 0)} XP</span>
+                        <span>{t("session.xp", { n: formatInteger(totals[m.personId]?.xp ?? 0) })}</span>
                         <span>{formatCoins(totals[m.personId]?.coins ?? {}, campaign.currencies)}</span>
                       </span>
                     </span>
@@ -274,19 +276,19 @@ export default function SessionsManager() {
             <div className="ss-stash">
               <Coins size={14} aria-hidden />
               <span>
-                <strong>Party stash</strong>
+                <strong>{t("parts.partyStash")}</strong>
                 <span className="cal-help">
                   {formatCoins(totals[PARTY].coins, campaign.currencies)}
-                  {totals[PARTY].loot.length ? ` · ${totals[PARTY].loot.length} item${totals[PARTY].loot.length === 1 ? "" : "s"}` : ""}
+                  {totals[PARTY].loot.length ? ` · ${t("manager.stashItems", { count: totals[PARTY].loot.length, n: formatInteger(totals[PARTY].loot.length) })}` : ""}
                 </span>
               </span>
             </div>
           </section>
 
           <section className="cal-side-section">
-            <h2 className="field-label">Active quests</h2>
+            <h2 className="field-label">{t("manager.activeQuests")}</h2>
             {activeQuests(visibleQuests).length === 0 ? (
-              <p className="cal-help">Nothing on the party&apos;s plate.</p>
+              <p className="cal-help">{t("manager.nothingOnPlate")}</p>
             ) : (
               <ul className="ss-open-threads">
                 {activeQuests(visibleQuests)
@@ -304,7 +306,7 @@ export default function SessionsManager() {
               </ul>
             )}
             <button type="button" className="btn btn-sm btn-ghost qs-side-all" onClick={() => setMainView("quests")}>
-              <Swords size={14} /> Quest board ({visibleQuests.filter((q) => !isClosed(q.status)).length} open)
+              <Swords size={14} /> {t("manager.questBoard", { n: visibleQuests.filter((q) => !isClosed(q.status)).length })}
             </button>
           </section>
         </>
@@ -319,19 +321,19 @@ export default function SessionsManager() {
         <main className="articles-main">
           <div className="articles-landing">
             <ScrollText size={40} strokeWidth={1.5} aria-hidden />
-            <h1>Sessions</h1>
+            <h1>{t("manager.sessions")}</h1>
             {liveCalendars.length === 0 ? (
               <>
-                <p className="cal-help">Sessions record in-world dates, so the world needs a calendar first.</p>
+                <p className="cal-help">{t("manager.needCalendar")}</p>
                 <Link className="btn btn-primary" href="/calendars">
-                  Go to Calendars
+                  {t("manager.goToCalendars")}
                 </Link>
               </>
             ) : (
               <>
-                <p className="cal-help">Start a campaign: its party, its coins and the calendar its dates are read in. Then log every session you play.</p>
+                <p className="cal-help">{t("manager.startCampaign")}</p>
                 <button type="button" className="btn btn-primary" onClick={() => setCampaignEditor("new")}>
-                  New campaign
+                  {t("manager.newCampaign")}
                 </button>
               </>
             )}
@@ -356,7 +358,8 @@ export default function SessionsManager() {
     );
   }
 
-  const calendarName = calendars.find((c) => c.id === campaign.calendarId)?.name ?? "a removed calendar";
+  const calendarName = calendars.find((c) => c.id === campaign.calendarId)?.name ?? t("manager.removedCalendar");
+  const activeCount = campaign.roster.filter((m) => m.status === "active").length;
   const ordered = [...visibleSessions].sort((a, b) => b.number - a.number);
   const shownQuest = visibleQuests.find((q) => q.id === viewingQuest) ?? null;
   const editedQuest = editingQuest?.id ? (visibleQuests.find((q) => q.id === editingQuest.id) ?? null) : null;
@@ -369,42 +372,48 @@ export default function SessionsManager() {
           <div className="ss-header-text">
             <h1>{campaign.name}</h1>
             <p className="cal-help">
-              {visibleSessions.length} session{visibleSessions.length === 1 ? "" : "s"} · {campaign.roster.filter((m) => m.status === "active").length} active character{campaign.roster.filter((m) => m.status === "active").length === 1 ? "" : "s"} · dates in {calendarName}
-              {totals ? ` · party wealth ≈ ${formatBase(Object.values(totals).reduce((n, h) => n + h.base, 0), campaign.currencies)}` : ""}
+              {[
+                t("manager.sessionCount", { count: visibleSessions.length, n: formatInteger(visibleSessions.length) }),
+                t("manager.activeCharacters", { count: activeCount, n: formatInteger(activeCount) }),
+                t("manager.datesIn", { calendar: calendarName }),
+                totals ? t("manager.partyWealth", { wealth: formatBase(Object.values(totals).reduce((n, h) => n + h.base, 0), campaign.currencies) }) : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
             </p>
             {campaign.description && <p className="ss-description">{campaign.description}</p>}
           </div>
           <div className="ss-header-actions">
             <button type="button" className="btn btn-sm" onClick={() => setCampaignEditor("edit")}>
-              <Pencil size={14} /> Campaign settings
+              <Pencil size={14} /> {t("manager.campaignSettings")}
             </button>
             {mainView === "sessions" ? (
               <button type="button" className="btn btn-sm btn-primary" onClick={newSession}>
-                <Plus size={14} /> New session
+                <Plus size={14} /> {t("manager.newSession")}
               </button>
             ) : mainView === "quests" || mainView === "map" ? (
               <button type="button" className="btn btn-sm btn-primary" onClick={() => setEditingQuest({ id: null })}>
-                <Plus size={14} /> New quest
+                <Plus size={14} /> {t("editor.new")}
               </button>
             ) : (
               <button type="button" className="btn btn-sm btn-primary" onClick={() => setEditingFront("new")}>
-                <Plus size={14} /> New front
+                <Plus size={14} /> {t("fronts.new")}
               </button>
             )}
           </div>
         </header>
-        <nav className="cal-editor-tabs ss-view-tabs" role="tablist" aria-label="Show">
+        <nav className="cal-editor-tabs ss-view-tabs" role="tablist" aria-label={t("manager.show")}>
           <button type="button" role="tab" aria-selected={mainView === "sessions"} className={mainView === "sessions" ? "cal-tab active" : "cal-tab"} onClick={() => setMainView("sessions")}>
-            <ScrollText size={14} aria-hidden /> Sessions <span className="cel-tab-count">{visibleSessions.length}</span>
+            <ScrollText size={14} aria-hidden /> {t("manager.sessions")} <span className="cel-tab-count">{visibleSessions.length}</span>
           </button>
           <button type="button" role="tab" aria-selected={mainView === "quests"} className={mainView === "quests" ? "cal-tab active" : "cal-tab"} onClick={() => setMainView("quests")}>
-            <Swords size={14} aria-hidden /> Quests <span className="cel-tab-count">{visibleQuests.filter((q) => !isClosed(q.status)).length}</span>
+            <Swords size={14} aria-hidden /> {t("manager.tab.quests")} <span className="cel-tab-count">{visibleQuests.filter((q) => !isClosed(q.status)).length}</span>
           </button>
           <button type="button" role="tab" aria-selected={mainView === "fronts"} className={mainView === "fronts" ? "cal-tab active" : "cal-tab"} onClick={() => setMainView("fronts")}>
-            <Flame size={14} aria-hidden /> Fronts <span className="cel-tab-count">{visibleFronts.filter((f) => f.status === "active").length}</span>
+            <Flame size={14} aria-hidden /> {t("manager.tab.fronts")} <span className="cel-tab-count">{visibleFronts.filter((f) => f.status === "active").length}</span>
           </button>
           <button type="button" role="tab" aria-selected={mainView === "map"} className={mainView === "map" ? "cal-tab active" : "cal-tab"} onClick={() => setMainView("map")}>
-            <Network size={14} aria-hidden /> Map
+            <Network size={14} aria-hidden /> {t("manager.tab.map")}
           </button>
         </nav>
         {notice && (
@@ -421,7 +430,7 @@ export default function SessionsManager() {
           <QuestBoard quests={visibleQuests} fronts={visibleFronts} candidates={candidates} def={def} today={chronology.currentDay} onOpen={setViewingQuest} onMove={(m) => void moveQuest(m)} onNew={(status) => setEditingQuest({ id: null, draft: { status } })} />
         ) : ordered.length === 0 ? (
           <div className="ss-empty">
-            <p className="cal-help">No sessions yet. After your next game, log it here: what happened, who they met, what they found.</p>
+            <p className="cal-help">{t("manager.noSessions")}</p>
           </div>
         ) : (
           <ul className="ss-cards">
@@ -434,7 +443,7 @@ export default function SessionsManager() {
                       {s.number}
                     </span>
                     <span className="ss-card-main">
-                      <strong className="ss-card-title">{s.title || `Session ${s.number}`}</strong>
+                      <strong className="ss-card-title">{s.title || t("session.label", { n: s.number })}</strong>
                       <span className="ss-card-meta">
                         {def && s.startDay !== null && (
                           <span>
@@ -442,7 +451,7 @@ export default function SessionsManager() {
                             {s.endDay !== null && s.endDay > s.startDay ? ` – ${dayLabel(def, s.endDay, { weekday: false })}` : ""}
                           </span>
                         )}
-                        {s.playedOn && <span>Played {formatIsoDate(s.playedOn)}</span>}
+                        {s.playedOn && <span>{t("manager.played", { date: formatIsoDate(s.playedOn) })}</span>}
                       </span>
                       <span className="ss-card-foot">
                         <span className="ss-present">
@@ -451,14 +460,14 @@ export default function SessionsManager() {
                           ))}
                         </span>
                         <span className="ss-card-stats">
-                        {s.xpTotal !== null && <span className="cv-chip">{formatInteger(s.xpTotal)} XP</span>}
+                        {s.xpTotal !== null && <span className="cv-chip">{t("session.xp", { n: formatInteger(s.xpTotal) })}</span>}
                         {s.loot.length > 0 && (
                           <span className="cv-chip">
                             <Gem size={11} aria-hidden /> {s.loot.length}
                           </span>
                         )}
                         {s.questLog.length > 0 && (
-                          <span className="cv-chip" data-tooltip="Quests logged this session">
+                          <span className="cv-chip" data-tooltip={t("manager.questsLogged")}>
                             <Swords size={11} aria-hidden /> {s.questLog.length}
                           </span>
                         )}

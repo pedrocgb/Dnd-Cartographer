@@ -11,8 +11,10 @@
  * appearance schedules (periodic, annual in a reference calendar, one-off
  * with optional repetition).
  */
-import { fromWorldDay, nextYear, previousYear, toWorldDay, type CalendarDefinition, type LocalDate } from "./engine";
+import { fromWorldDay, nextYear, previousYear, toWorldDay, type CalendarDefinition, type LocalDate, type Problem } from "./engine";
 import { MAX_RANGE_DAYS, occurrenceStarts, type Recurrence } from "./recurrence";
+import { activeT } from "../../i18n/active";
+import type { MessageKey } from "../../i18n/messages";
 
 export { nextYear, previousYear };
 
@@ -288,23 +290,28 @@ export function nextPhaseStart(config: CelestialConfig, phaseId: string, from: n
 }
 
 /** The common eight phases, as names and symbols (durations are generated from the cycle length). */
+/** A preset phase; its `name` is worded on read, in the active language (new moons are seeded with it). */
+const phase = (key: string, icon: string) => ({
+  icon,
+  get name() {
+    return activeT("calendars")(`phase.${key}` as MessageKey<"calendars">);
+  },
+});
+
 export const EIGHT_PHASES: readonly { name: string; icon: string }[] = [
-  { name: "New Moon", icon: "●" },
-  { name: "Waxing Crescent", icon: "◔" },
-  { name: "First Quarter", icon: "◑" },
-  { name: "Waxing Gibbous", icon: "◕" },
-  { name: "Full Moon", icon: "○" },
-  { name: "Waning Gibbous", icon: "◕" },
-  { name: "Last Quarter", icon: "◐" },
-  { name: "Waning Crescent", icon: "◔" },
+  phase("newMoon", "●"),
+  phase("waxingCrescent", "◔"),
+  phase("firstQuarter", "◑"),
+  phase("waxingGibbous", "◕"),
+  phase("fullMoon", "○"),
+  phase("waningGibbous", "◕"),
+  phase("lastQuarter", "◐"),
+  phase("waningCrescent", "◔"),
 ];
 
-export const FOUR_PHASES: readonly { name: string; icon: string }[] = [
-  { name: "New Moon", icon: "●" },
-  { name: "Waxing", icon: "◑" },
-  { name: "Full Moon", icon: "○" },
-  { name: "Waning", icon: "◐" },
-];
+export const FOUR_PHASES: readonly { name: string; icon: string }[] = [phase("newMoon", "●"), phase("waxing", "◑"), phase("fullMoon", "○"), phase("waning", "◐")];
+
+export const ONE_PHASE: readonly { name: string; icon: string }[] = [phase("moon", "○")];
 
 /**
  * Whole-day durations for `count` phases summing to `cycle` (the remainder
@@ -318,37 +325,37 @@ export function splitCycle(cycle: number, count: number): number[] | null {
   return Array.from({ length: count }, (_, i) => base + (i < extra ? 1 : 0));
 }
 
-/** Plain-language problems with a celestial config (empty when valid). */
-export function celestialIssues(type: CelestialType, config: CelestialConfig): string[] {
-  const issues: string[] = [];
+/** Problems with a celestial config (empty when valid); `problemText` words them. */
+export function celestialIssues(type: CelestialType, config: CelestialConfig): Problem[] {
+  const issues: Problem[] = [];
   if (type === "moon" && (config.phases?.length ?? 0) > 0) {
     const ids = new Set<string>();
     for (const p of config.phases!) {
-      if (!p.name.trim()) issues.push("Every phase needs a name.");
-      if (!Number.isInteger(p.days) || p.days < 1) issues.push(`${p.name || "A phase"} needs 1 or more days — phases can't last 0 days.`);
-      if (ids.has(p.id)) issues.push("Two phases share an id.");
+      if (!p.name.trim()) issues.push({ key: "celIssue.phaseName" });
+      if (!Number.isInteger(p.days) || p.days < 1) issues.push({ key: "celIssue.phaseDays", params: { phase: p.name || { key: "celIssue.aPhase" } } });
+      if (ids.has(p.id)) issues.push({ key: "celIssue.phaseIdTwice" });
       ids.add(p.id);
     }
-    if (!config.anchor) issues.push("Pick the day a phase begins (the cycle's reference date).");
-    else if (!ids.has(config.anchor.phaseId)) issues.push("The reference phase no longer exists.");
-    for (const s of config.segments ?? []) if (!ids.has(s.phaseId)) issues.push("A cycle restart points to a removed phase.");
+    if (!config.anchor) issues.push({ key: "celIssue.anchorPick" });
+    else if (!ids.has(config.anchor.phaseId)) issues.push({ key: "celIssue.anchorGone" });
+    for (const s of config.segments ?? []) if (!ids.has(s.phaseId)) issues.push({ key: "celIssue.restartGone" });
   }
   const stateIds = new Set(type === "moon" ? (config.phases ?? []).map((p) => p.id) : (config.states ?? []).map((s) => s.id));
   for (const o of config.overrides ?? []) {
-    if (o.end < o.start) issues.push("An override ends before it starts.");
-    if (!stateIds.has(o.stateId)) issues.push("An override points to a removed state.");
+    if (o.end < o.start) issues.push({ key: "celIssue.overrideOrder" });
+    if (!stateIds.has(o.stateId)) issues.push({ key: "celIssue.overrideGone" });
   }
   const overlap = overrideOverlap(config.overrides ?? []);
-  if (overlap) issues.push("Two overrides overlap; change or remove one — the newer one doesn't silently win.");
+  if (overlap) issues.push({ key: "celIssue.overlap" });
   for (const s of config.schedules ?? []) {
-    if (!stateIds.has(s.stateId)) issues.push("A schedule points to a removed state.");
+    if (!stateIds.has(s.stateId)) issues.push({ key: "celIssue.scheduleGone" });
     if (s.kind === "cycle" && (!Number.isInteger(s.every) || s.every < 1 || !Number.isInteger(s.duration) || s.duration < 1 || s.duration > s.every)) {
-      issues.push("A repeating appearance needs a whole-day period and a duration between 1 and that period.");
+      issues.push({ key: "celIssue.cycle" });
     }
     const unit = s.kind === "once" ? (s.repeatUnit ?? "days") : "days";
-    if (s.kind === "once" && s.repeatEvery !== null && unit !== "days" && !s.repeatCalendarId) issues.push("A return in months or years needs the calendar to count them in.");
+    if (s.kind === "once" && s.repeatEvery !== null && unit !== "days" && !s.repeatCalendarId) issues.push({ key: "celIssue.returnCalendar" });
     if (s.kind === "once" && (!Number.isInteger(s.duration) || s.duration < 1 || (s.repeatEvery !== null && (!Number.isInteger(s.repeatEvery) || s.repeatEvery < 1 || (unit === "days" && s.repeatEvery < s.duration))))) {
-      issues.push("An appearance needs 1 or more days, and a repeat interval at least that long.");
+      issues.push({ key: "celIssue.once" });
     }
   }
   return issues;

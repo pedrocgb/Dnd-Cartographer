@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Trash2 } from "lucide-react";
 import Modal from "./Modal";
 import DescriptionSection from "./DescriptionSection";
+import { useT } from "@/i18n/useT";
 
 interface Category {
   id: string;
@@ -36,6 +37,7 @@ export default function MapSettingsModal({
   /** Asks to delete the map (the confirm dialog takes it from there). */
   onDelete: () => void;
 }) {
+  const t = useT("maps");
   const [categories, setCategories] = useState<Category[]>([]);
   const [allMaps, setAllMaps] = useState<{ id: string; name: string }[]>([]);
   // Lazily seeded from the first load only — polling refreshes stop once the
@@ -63,9 +65,9 @@ export default function MapSettingsModal({
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Map settings">
+    <Modal open={open} onClose={onClose} title={t("mapSettings.title")}>
       <label className="field-label" htmlFor="settings-map-name">
-        Map name
+        {t("mapForm.name")}
       </label>
       <input
         id="settings-map-name"
@@ -76,14 +78,14 @@ export default function MapSettingsModal({
       />
 
       <label className="field-label" htmlFor="settings-map-category">
-        Category
+        {t("mapForm.category")}
       </label>
       <select
         id="settings-map-category"
         value={status.map.categoryId ?? ""}
         onChange={(e) => patch({ categoryId: e.target.value || null })}
       >
-        <option value="">No category</option>
+        <option value="">{t("mapForm.noCategory")}</option>
         {categories.map((c) => (
           <option key={c.id} value={c.id}>
             {c.label}
@@ -92,14 +94,14 @@ export default function MapSettingsModal({
       </select>
 
       <label className="field-label" htmlFor="settings-map-parent">
-        Parent map
+        {t("mapForm.parent")}
       </label>
       <select
         id="settings-map-parent"
         value={status.map.parentId ?? ""}
         onChange={(e) => patch({ parentId: e.target.value || null })}
       >
-        <option value="">No parent (root)</option>
+        <option value="">{t("mapForm.noParent")}</option>
         {allMaps.map((m) => (
           <option key={m.id} value={m.id}>
             {m.name}
@@ -107,7 +109,7 @@ export default function MapSettingsModal({
         ))}
       </select>
 
-      <label className="field-label">Description</label>
+      <label className="field-label">{t("mapForm.description")}</label>
       <DescriptionSection
         documentId={status.map.descriptionDocumentId}
         editable
@@ -117,7 +119,7 @@ export default function MapSettingsModal({
       <div className="map-settings-danger">
         <button type="button" className="btn btn-danger" onClick={onDelete}>
           <Trash2 size={15} strokeWidth={2.25} />
-          Delete map
+          {t("mapForm.delete")}
         </button>
       </div>
     </Modal>

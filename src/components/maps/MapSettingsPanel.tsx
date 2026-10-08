@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Compass, ExternalLink, ImageUp, Settings, Trash2, X } from "lucide-react";
 import InfoPicker, { type PickerOption } from "@/components/articles/InfoPicker";
-import type { MapSummary } from "./types";
+import { useT } from "@/i18n/useT";
+import { assetStateLabel, type MapSummary } from "./types";
 
 const ACCEPTED_IMAGES = "image/png,image/jpeg,image/webp";
 const MAX_MAP_NAME_LENGTH = 200;
@@ -33,6 +34,8 @@ export default function MapSettingsPanel({
   onDelete: () => void;
   onClose: () => void;
 }) {
+  const t = useT("maps");
+  const tc = useT("common");
   const [name, setName] = useState(map.name);
   const [categories, setCategories] = useState<PickerOption[] | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -68,10 +71,10 @@ export default function MapSettingsPanel({
     setError(null);
     try {
       const res = await fetch(`/api/maps/${map.id}/assets`, { method: "POST", headers: { "Content-Type": file.type }, body: file });
-      if (!res.ok) setError((await res.json().catch(() => ({}))).error ?? "The upload failed.");
+      if (!res.ok) setError((await res.json().catch(() => ({}))).error ?? t("art.uploadFailed"));
       else onUploaded();
     } catch {
-      setError("Could not reach the server. Try again.");
+      setError(tc("serverUnreachable"));
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = "";
@@ -79,27 +82,27 @@ export default function MapSettingsPanel({
   }
 
   return (
-    <aside className="marker-side-panel maps-settings-panel" aria-label="Map settings">
+    <aside className="marker-side-panel maps-settings-panel" aria-label={t("mapSettings.title")}>
       <div className="marker-side-panel-header">
         <h2>
           <Settings size={16} strokeWidth={2.25} aria-hidden />
-          Map settings
+          {t("mapSettings.title")}
         </h2>
-        <button className="btn btn-ghost btn-icon" onClick={onClose} aria-label="Close map settings">
+        <button className="btn btn-ghost btn-icon" onClick={onClose} aria-label={t("mapSettings.close")}>
           <X size={16} strokeWidth={2.25} />
         </button>
       </div>
       <p className="maps-settings-subject">
         <Compass size={15} strokeWidth={2.25} aria-hidden />
         <span>{map.name}</span>
-        <Link href={`/maps/${map.id}`} className="btn btn-sm btn-ghost" data-tooltip="Open this map">
+        <Link href={`/maps/${map.id}`} className="btn btn-sm btn-ghost" data-tooltip={t("mapSettings.openHint")}>
           <ExternalLink size={12} strokeWidth={2.25} />
-          Open
+          {t("mapSettings.open")}
         </Link>
       </p>
 
       <label className="field-label" htmlFor="map-settings-name">
-        Map name
+        {t("field.mapName")}
       </label>
       <input
         id="map-settings-name"
@@ -111,61 +114,61 @@ export default function MapSettingsPanel({
         onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
       />
 
-      <span className="field-label">Category</span>
+      <span className="field-label">{t("field.category")}</span>
       <InfoPicker
         options={categories ?? []}
         value={map.categoryId}
-        placeholder={categories === null ? "Loading…" : "No category"}
-        clearLabel="No category"
-        ariaLabel="Category"
+        placeholder={categories === null ? tc("loading") : t("picker.noCategory")}
+        clearLabel={t("picker.noCategory")}
+        ariaLabel={t("field.category")}
         searchable={(categories?.length ?? 0) >= 10}
         onChange={(categoryId) => void save({ categoryId })}
       />
 
-      <span className="field-label">Parent map</span>
+      <span className="field-label">{t("field.parent")}</span>
       <InfoPicker
         options={mapOptions}
         value={map.parentId}
-        placeholder="No parent (root map)"
-        clearLabel="No parent (root map)"
-        ariaLabel="Parent map"
+        placeholder={t("picker.noParent")}
+        clearLabel={t("picker.noParent")}
+        ariaLabel={t("field.parent")}
         onChange={(parentId) => void save({ parentId })}
       />
 
-      <span className="field-label">Folder</span>
+      <span className="field-label">{t("field.folder")}</span>
       <InfoPicker
         options={folderOptions}
         value={map.folderId}
-        placeholder={folderOptions.length ? "No folder" : "No folders yet"}
-        clearLabel="No folder"
-        ariaLabel="Folder"
+        placeholder={folderOptions.length ? t("picker.noFolder") : t("picker.noFolders")}
+        clearLabel={t("picker.noFolder")}
+        ariaLabel={t("field.folder")}
         disabled={folderOptions.length === 0}
         onChange={(folderId) => void save({ folderId })}
       />
 
-      <span className="field-label">Map artwork</span>
+      <span className="field-label">{t("field.artwork")}</span>
       <div className="maps-settings-art">
         {art ? (
           // eslint-disable-next-line @next/next/no-img-element -- local thumbnail, not worth next/image's remote-optimization machinery
           <img src={art} alt="" />
         ) : (
-          <div className="maps-settings-art-empty">No Image</div>
+          <div className="maps-settings-art-empty">{t("noImage")}</div>
         )}
       </div>
       <input ref={fileRef} type="file" accept={ACCEPTED_IMAGES} hidden onChange={(e) => e.target.files?.[0] && void upload(e.target.files[0])} />
       <button type="button" className="btn btn-sm" disabled={uploading} onClick={() => fileRef.current?.click()}>
         <ImageUp size={13} strokeWidth={2.25} />
-        {uploading ? "Uploading…" : art ? "Replace image" : "Upload image"}
+        {uploading ? t("art.uploading") : art ? t("art.replace") : t("art.upload")}
       </button>
-      {art && <p className="field-label">A new image replaces the top layer&rsquo;s and is stretched to the map&rsquo;s frame.</p>}
-      {map.assetState && map.assetState !== "ready" && <p className="field-label">Image: {map.assetState}…</p>}
+      {art && <p className="field-label">{t("art.replaceHint")}</p>}
+      {map.assetState && map.assetState !== "ready" && <p className="field-label">{t("assetState", { state: assetStateLabel(map.assetState, t) })}</p>}
 
       {error && <p className="form-error">{error}</p>}
 
       <div className="maps-settings-actions">
         <button type="button" className="btn btn-sm btn-danger" onClick={onDelete}>
           <Trash2 size={13} strokeWidth={2.25} />
-          Delete map
+          {t("deleteMap.confirm")}
         </button>
       </div>
     </aside>

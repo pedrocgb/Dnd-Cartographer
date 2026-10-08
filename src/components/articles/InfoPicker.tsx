@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { autoUpdate, computePosition, flip, offset, shift, size } from "@floating-ui/dom";
 import { ChevronDown, ChevronRight, Search } from "lucide-react";
+import { useT } from "@/i18n/useT";
 
 /** Gap kept between the menu and the window edges. */
 const VIEWPORT_PADDING = 8;
@@ -79,6 +80,7 @@ export default function InfoPicker({
   searchable?: boolean;
   onChange: (value: string | null) => void;
 }) {
+  const ta = useT("articles");
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
@@ -240,8 +242,8 @@ export default function InfoPicker({
             <Search size={14} strokeWidth={2.25} aria-hidden />
             <input
               type="text"
-              placeholder="Search…"
-              aria-label={`Search ${ariaLabel}`}
+              placeholder={ta("picker.search")}
+              aria-label={ta("picker.searchLabel", { name: ariaLabel })}
               aria-controls={listId}
               value={query}
               autoFocus
@@ -263,7 +265,7 @@ export default function InfoPicker({
             onKeyDown={searchable ? undefined : onKeyDown}
           >
             {matches.length === 0 && (
-              <p className="field-label info-menu-empty">{needle ? <>Nothing matches &ldquo;{query.trim()}&rdquo;.</> : "Nothing to pick yet."}</p>
+              <p className="field-label info-menu-empty">{needle ? ta("folders.nothingMatches", { query: query.trim() }) : ta("picker.empty")}</p>
             )}
             {folders ? (
               <>

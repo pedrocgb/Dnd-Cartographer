@@ -29,6 +29,7 @@ import {
   type ThreadBeat,
 } from "@/server/writer/types";
 import type { WriterData } from "./useWriterData";
+import { useT } from "@/i18n/useT";
 
 type Patch = Partial<Pick<OutlineNode, "title" | "synopsis" | "status" | "changeNote" | "plannedSessionId" | "links" | "beatTemplate" | "hidden">>;
 
@@ -63,6 +64,8 @@ export default function NodeEditor({
   onBeatsChanged: (beats: ThreadBeat[]) => void;
   onStale: () => Promise<void>;
 }) {
+  const t = useT("writer");
+  const tc = useT("common");
   const [title, setTitle] = useState(node.title);
   const [synopsis, setSynopsis] = useState(node.synopsis);
   const [changeNote, setChangeNote] = useState(node.changeNote);
@@ -74,15 +77,15 @@ export default function NodeEditor({
     const res = await api<{ node: OutlineNode }>("PATCH", `/api/outline/${node.id}`, { ...patch, expectedVersion: node.version });
     if (res.ok) onChanged(res.data.node);
     else if (res.status === 409) {
-      setError("This changed elsewhere; it was reloaded. Check it and try again.");
+      setError(t("node.staleReloaded"));
       await onStale();
-    } else setError(res.data.error ?? "Could not save.");
+    } else setError(res.data.error ?? t("ui.couldNotSave"));
   }
 
   async function remove() {
     const res = await api<{ removed: string[] }>("DELETE", `/api/outline/${node.id}`);
     if (res.ok) onRemoved(res.data.removed);
-    else setError(res.data.error ?? "Could not delete it.");
+    else setError(res.data.error ?? t("ui.couldNotDelete"));
     setConfirmDelete(false);
   }
 
@@ -96,8 +99,8 @@ export default function NodeEditor({
   const hiddenAbove = [parent, grandparent].find((p) => p?.hidden) ?? null;
 
   return (
-    <article className="wr-editor" aria-label={`${NODE_KIND_LABELS[node.kind]}: ${node.title}`}>
-      <nav className="wr-crumbs" aria-label="Where it sits">
+    <article className="wr-editor" aria-label={t("ui.kindTitleLabel", { kind: NODE_KIND_LABELS[node.kind], title: node.title })}>
+      <nav className="wr-crumbs" aria-label={t("node.whereItSits")}>
         {[grandparent, parent].filter(Boolean).map((p) => (
           <span key={p!.id}>
             <button type="button" className="btn-link" onClick={() => onSelect(p!.id)}>
@@ -113,34 +116,34 @@ export default function NodeEditor({
           aria-pressed={node.hidden}
           data-tooltip={
             node.hidden
-              ? "Left out of share links, with everything inside it. Click to show it again."
+              ? t("node.hiddenHint")
               : hiddenAbove
-                ? `Already left out of share links: its ${NODE_KIND_LABELS[hiddenAbove.kind].toLowerCase()} is hidden`
-                : "Leave it (and everything inside it) out of share links"
+                ? t(hiddenAbove.kind === "arc" ? "hiddenVia.arc" : "hiddenVia.chapter")
+                : t("node.hideHint")
           }
           onClick={() => void save({ hidden: !node.hidden })}
         >
           {node.hidden || hiddenAbove ? <EyeOff size={14} aria-hidden /> : <Eye size={14} aria-hidden />}
-          {node.hidden ? "Hidden from shares" : hiddenAbove ? "Hidden (via parent)" : "Shown in shares"}
+          {node.hidden ? t("node.hidden") : hiddenAbove ? t("node.hiddenViaParent") : t("node.shown")}
         </button>
       </nav>
 
-      <input className="wr-title-input" aria-label="Title" value={title} maxLength={160} onChange={(e) => setTitle(e.target.value)} onBlur={() => title.trim() && title !== node.title && void save({ title })} />
+      <input className="wr-title-input" aria-label={t("node.title")} value={title} maxLength={160} onChange={(e) => setTitle(e.target.value)} onBlur={() => title.trim() && title !== node.title && void save({ title })} />
 
       {beat && (
         <p className="wr-beat">
-          <Lightbulb size={14} aria-hidden /> <strong>{beat.name}</strong> ({templateByKey(parent?.beatTemplate)?.name}): {beat.hint}
+          <Lightbulb size={14} aria-hidden /> {t("node.beat", { beat: beat.name, structure: templateByKey(parent?.beatTemplate)?.name ?? "", hint: beat.hint })}
         </p>
       )}
       {guides && !beat && <p className="wr-tip">{TIPS[node.kind]}</p>}
 
       <label className="cal-field">
-        <span className="field-label">In a sentence</span>
+        <span className="field-label">{t("node.inASentence")}</span>
         <textarea
           rows={2}
           maxLength={4000}
           value={synopsis}
-          placeholder={node.kind === "scene" ? "Who is here, what do they want, what happens if the heroes do nothing?" : "The question this answers, or what happens in it."}
+          placeholder={node.kind === "scene" ? t("node.scenePlaceholder") : t("node.otherPlaceholder")}
           onChange={(e) => setSynopsis(e.target.value)}
           onBlur={() => synopsis !== node.synopsis && void save({ synopsis })}
         />
@@ -148,7 +151,7 @@ export default function NodeEditor({
 
       <div className="qs-general-grid">
         <label className="cal-field">
-          <span className="field-label">Status</span>
+          <span className="field-label">{t("node.status")}</span>
           <select value={node.status} onChange={(e) => void save({ status: e.target.value as NodeStatus })}>
             {NODE_STATUSES.map((s) => (
               <option key={s} value={s}>
@@ -160,9 +163,9 @@ export default function NodeEditor({
         </label>
         {node.kind === "scene" && (
           <label className="cal-field">
-            <span className="field-label">Planned for</span>
+            <span className="field-label">{t("node.plannedFor")}</span>
             <select value={node.plannedSessionId ?? ""} onChange={(e) => void save({ plannedSessionId: e.target.value || null })}>
-              <option value="">No session yet</option>
+              <option value="">{t("node.noSession")}</option>
               {[...data.sessions]
                 .sort((a, b) => b.number - a.number)
                 .map((s) => (
@@ -177,8 +180,8 @@ export default function NodeEditor({
 
       {node.status === "changed" && (
         <label className="cal-field">
-          <span className="field-label">What happened instead</span>
-          <textarea rows={2} maxLength={4000} value={changeNote} placeholder="The party sided with the smugglers, so…" onChange={(e) => setChangeNote(e.target.value)} onBlur={() => changeNote !== node.changeNote && void save({ changeNote })} />
+          <span className="field-label">{t("node.whatInstead")}</span>
+          <textarea rows={2} maxLength={4000} value={changeNote} placeholder={t("node.changePlaceholder")} onChange={(e) => setChangeNote(e.target.value)} onBlur={() => changeNote !== node.changeNote && void save({ changeNote })} />
         </label>
       )}
 
@@ -188,7 +191,7 @@ export default function NodeEditor({
       {childKind && (
         <section className="cv-block">
           <h3 className="cv-block-title">
-            {NODE_KIND_LABELS[childKind]}s ({children.length})
+            {t(childKind === "chapter" ? "childrenOf.chapter" : "childrenOf.scene", { n: children.length })}
           </h3>
           {children.length > 0 && (
             <ol className="wr-children">
@@ -205,17 +208,17 @@ export default function NodeEditor({
           )}
           <div className="wr-inline-actions">
             <button type="button" className="btn btn-sm" onClick={() => onAdd(childKind, node.id)}>
-              <Plus size={14} /> Add {NODE_KIND_LABELS[childKind].toLowerCase()}
+              <Plus size={14} /> {t(`addKind.${childKind}`)}
             </button>
-            <button type="button" className="btn btn-sm btn-ghost" data-tooltip="Lay out one item per beat of a story structure" onClick={() => onApplyTemplate(node.id)}>
-              <Spline size={14} /> Use a story structure
+            <button type="button" className="btn btn-sm btn-ghost" data-tooltip={t("node.structureHint")} onClick={() => onApplyTemplate(node.id)}>
+              <Spline size={14} /> {t("node.useStructure")}
             </button>
           </div>
         </section>
       )}
 
       <section className="cv-block wr-text">
-        <h3 className="cv-block-title">Text</h3>
+        <h3 className="cv-block-title">{t("node.text")}</h3>
         <NodeText node={node} campaignId={campaign.id} onChanged={onChanged} />
       </section>
 
@@ -228,11 +231,11 @@ export default function NodeEditor({
       )}
       <div className="wr-editor-footer">
         <button type="button" className="btn btn-sm btn-danger" onClick={() => setConfirmDelete(true)}>
-          <Trash2 size={14} /> Delete {NODE_KIND_LABELS[node.kind].toLowerCase()}
+          <Trash2 size={14} /> {t(`deleteKind.${node.kind}`)}
         </button>
       </div>
-      <ConfirmDialog open={confirmDelete} danger title={`Delete ${node.title}?`} confirmLabel="Delete" onConfirm={remove} onCancel={() => setConfirmDelete(false)}>
-        {descendants > 0 ? `Everything inside it goes too (${descendants} item${descendants === 1 ? "" : "s"}).` : "Its text goes with it."}
+      <ConfirmDialog open={confirmDelete} danger title={t("node.deleteTitle", { title: node.title })} confirmLabel={tc("delete")} onConfirm={remove} onCancel={() => setConfirmDelete(false)}>
+        {descendants > 0 ? t("node.deleteInside", { count: descendants }) : t("node.deleteText")}
       </ConfirmDialog>
     </article>
   );
@@ -242,6 +245,7 @@ const countDescendants = (nodes: OutlineNode[], id: string): number => nodes.fil
 
 /** The item's rich text, created on first open. */
 function NodeText({ node, campaignId, onChanged }: { node: OutlineNode; campaignId: string; onChanged: (n: OutlineNode) => void }) {
+  const t = useT("writer");
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     if (node.documentId) return;
@@ -257,25 +261,26 @@ function NodeText({ node, campaignId, onChanged }: { node: OutlineNode; campaign
     // Only when the item has no document yet; onChanged is a fresh closure each render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node.id, node.documentId]);
-  if (failed) return <p className="form-error">Could not open the text.</p>;
+  if (failed) return <p className="form-error">{t("node.couldNotOpenText")}</p>;
   if (!node.documentId) return <Skeleton height={120} radius="var(--radius-md)" />;
   return <RichEditor documentId={node.documentId} editable mentionCampaignId={campaignId} />;
 }
 
 /** Linked quests and fronts. */
 function LinksSection({ node, data, campaignId, onChange }: { node: OutlineNode; data: WriterData; campaignId: string; onChange: (links: OutlineLink[]) => void }) {
+  const t = useT("writer");
   const linked = new Set(node.links.map((l) => `${l.kind}:${l.id}`));
-  const nameOf = (l: OutlineLink) => (l.kind === "quest" ? data.quests.find((q) => q.id === l.id)?.title : data.fronts.find((f) => f.id === l.id)?.name) ?? "(removed)";
-  const choices = [...data.quests.map((q) => ({ key: `quest:${q.id}`, label: `Quest: ${q.title}` })), ...data.fronts.map((f) => ({ key: `front:${f.id}`, label: `Front: ${f.name}` }))].filter((c) => !linked.has(c.key));
+  const nameOf = (l: OutlineLink) => (l.kind === "quest" ? data.quests.find((q) => q.id === l.id)?.title : data.fronts.find((f) => f.id === l.id)?.name) ?? t("ui.removed");
+  const choices = [...data.quests.map((q) => ({ key: `quest:${q.id}`, label: t("node.questLabel", { title: q.title }) })), ...data.fronts.map((f) => ({ key: `front:${f.id}`, label: t("node.frontLabel", { title: f.name }) }))].filter((c) => !linked.has(c.key));
   return (
     <section className="cv-block">
-      <h3 className="cv-block-title">Quests and fronts</h3>
+      <h3 className="cv-block-title">{t("node.questsAndFronts")}</h3>
       <ul className="wr-chips">
         {node.links.map((l) => (
           <li key={`${l.kind}:${l.id}`} className="wr-chip">
             {l.kind === "quest" ? <Swords size={12} aria-hidden /> : <Flame size={12} aria-hidden />}
             {l.kind === "quest" ? <Link href={questHref({ campaignId, id: l.id })}>{nameOf(l)}</Link> : <span>{nameOf(l)}</span>}
-            <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={`Unlink ${nameOf(l)}`} data-tooltip="Unlink" onClick={() => onChange(node.links.filter((x) => !(x.kind === l.kind && x.id === l.id)))}>
+            <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={t("node.unlinkNamed", { name: nameOf(l) })} data-tooltip={t("node.unlink")} onClick={() => onChange(node.links.filter((x) => !(x.kind === l.kind && x.id === l.id)))}>
               <X size={12} />
             </button>
           </li>
@@ -283,14 +288,14 @@ function LinksSection({ node, data, campaignId, onChange }: { node: OutlineNode;
       </ul>
       {choices.length > 0 ? (
         <select
-          aria-label="Link a quest or front"
+          aria-label={t("node.linkQuestFront")}
           value=""
           onChange={(e) => {
             const [kind, id] = e.target.value.split(":");
             if (id) onChange([...node.links, { kind: kind as OutlineLink["kind"], id }]);
           }}
         >
-          <option value="">Link a quest or front…</option>
+          <option value="">{t("node.linkQuestFrontPick")}</option>
           {choices.map((c) => (
             <option key={c.key} value={c.key}>
               {c.label}
@@ -298,7 +303,7 @@ function LinksSection({ node, data, campaignId, onChange }: { node: OutlineNode;
           ))}
         </select>
       ) : (
-        node.links.length === 0 && <p className="cal-help">This campaign has no quests or fronts yet (add them on the Sessions page).</p>
+        node.links.length === 0 && <p className="cal-help">{t("node.noQuests")}</p>
       )}
     </section>
   );
@@ -306,13 +311,14 @@ function LinksSection({ node, data, campaignId, onChange }: { node: OutlineNode;
 
 /** The threads that show up here, and their role in this item (set up, move on, pay off). */
 function ThreadsSection({ node, data, onBeatsChanged, setError }: { node: OutlineNode; data: WriterData; onBeatsChanged: (beats: ThreadBeat[]) => void; setError: (e: string | null) => void }) {
+  const tw = useT("writer");
   const here = data.beats.filter((b) => b.nodeId === node.id);
   const others = data.threads.filter((t) => t.status === "open" && !here.some((b) => b.threadId === t.id));
 
   async function setRole(threadId: string, role: BeatRole | null) {
     const url = `/api/threads/${threadId}/beats/${node.id}`;
     const res = role ? await api<{ beat: ThreadBeat }>("PUT", url, { role }) : await api("DELETE", url);
-    if (!res.ok) return setError(res.data.error ?? "Could not save the thread.");
+    if (!res.ok) return setError(res.data.error ?? tw("node.couldNotSaveThread"));
     const rest = data.beats.filter((b) => !(b.threadId === threadId && b.nodeId === node.id));
     onBeatsChanged(role ? [...rest, (res.data as { beat: ThreadBeat }).beat] : rest);
   }
@@ -320,7 +326,7 @@ function ThreadsSection({ node, data, onBeatsChanged, setError }: { node: Outlin
   if (data.threads.length === 0) return null;
   return (
     <section className="cv-block">
-      <h3 className="cv-block-title">Threads here</h3>
+      <h3 className="cv-block-title">{tw("node.threadsHere")}</h3>
       {here.length > 0 && (
         <ul className="wr-thread-roles">
           {here.map((b) => {
@@ -330,14 +336,14 @@ function ThreadsSection({ node, data, onBeatsChanged, setError }: { node: Outlin
               <li key={b.id}>
                 <span className="wr-thread-swatch" style={t.color ? { background: t.color } : undefined} aria-hidden />
                 <span className="wr-thread-name">{t.name}</span>
-                <select aria-label={`${t.name}'s role here`} value={b.role} onChange={(e) => void setRole(t.id, e.target.value as BeatRole)}>
+                <select aria-label={tw("node.roleHere", { name: t.name })} value={b.role} onChange={(e) => void setRole(t.id, e.target.value as BeatRole)}>
                   {BEAT_ROLES.map((r) => (
                     <option key={r} value={r}>
                       {BEAT_ROLE_LABELS[t.kind][r]}
                     </option>
                   ))}
                 </select>
-                <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={`Remove ${t.name} from here`} data-tooltip="Remove from here" onClick={() => void setRole(t.id, null)}>
+                <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={tw("node.removeFromHere", { name: t.name })} data-tooltip={tw("node.removeFromHereHint")} onClick={() => void setRole(t.id, null)}>
                   <X size={12} />
                 </button>
               </li>
@@ -346,8 +352,8 @@ function ThreadsSection({ node, data, onBeatsChanged, setError }: { node: Outlin
         </ul>
       )}
       {others.length > 0 && (
-        <select aria-label="Add a thread here" value="" onChange={(e) => e.target.value && void setRole(e.target.value, data.beats.some((b) => b.threadId === e.target.value) ? "progress" : "setup")}>
-          <option value="">A thread shows up here…</option>
+        <select aria-label={tw("node.addThreadHere")} value="" onChange={(e) => e.target.value && void setRole(e.target.value, data.beats.some((b) => b.threadId === e.target.value) ? "progress" : "setup")}>
+          <option value="">{tw("node.threadShowsUp")}</option>
           {others.map((t) => (
             <option key={t.id} value={t.id}>
               {t.name}

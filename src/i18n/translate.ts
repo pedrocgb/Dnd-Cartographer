@@ -1,4 +1,4 @@
-import { DEFAULT_LOCALE, type Locale } from "./config";
+import { DEFAULT_LOCALE, LOCALES, type Locale } from "./config";
 import { MESSAGES, type MessageKey, type Namespace } from "./messages";
 
 export type TranslateParams = Record<string, string | number>;
@@ -32,6 +32,11 @@ export function translate<N extends Namespace>(locale: Locale, ns: N, key: Messa
 
   if (!params) return template;
   return template.replace(/\{(\w+)\}/g, (match, name: string) => (name in params ? String(params[name]) : match));
+}
+
+/** `key`'s text in every locale: recognizes a default name ("New marker") whichever language wrote it. */
+export function allTranslations<N extends Namespace>(ns: N, key: MessageKey<N>, params?: TranslateParams): string[] {
+  return LOCALES.map((locale) => translate(locale, ns, key, params));
 }
 
 export function createTranslator<N extends Namespace>(locale: Locale, ns: N): Translator<N> {

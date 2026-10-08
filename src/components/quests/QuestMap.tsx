@@ -11,6 +11,7 @@ import { api } from "@/components/calendars/api";
 import { articleHref, isArticleTemplate } from "@/server/articles/templates";
 import { layoutMap, questMapGraph, type MapEdge, type MapNode } from "@/server/quests/map";
 import { isClosed, QUEST_STATUS_LABELS, type FrontData, type MapPoint, type QuestData } from "@/server/quests/types";
+import { useT } from "@/i18n/useT";
 
 type FlowNode = Node<{ node: MapNode }, "entity">;
 
@@ -18,9 +19,10 @@ const ICONS = { front: Flame, quest: ScrollText, clue: KeyRound, article: Link2 
 
 /** One map node: an icon, its name, and a line on what it is. */
 function EntityNode({ data }: NodeProps<FlowNode>) {
+  const t = useT("campaign");
   const n = data.node;
   const Icon = ICONS[n.kind];
-  const sub = n.kind === "quest" && n.status ? QUEST_STATUS_LABELS[n.status] : n.kind === "clue" ? (n.revealed ? "Revealed clue" : "Hidden clue") : n.kind === "front" ? "Front" : null;
+  const sub = n.kind === "quest" && n.status ? QUEST_STATUS_LABELS[n.status] : n.kind === "clue" ? (n.revealed ? t("questMap.revealedClue") : t("questMap.hiddenClue")) : n.kind === "front" ? t("quest.front") : null;
   return (
     <div className={["qm-node", `qm-${n.kind}`, n.status && `qm-status-${n.status}`, n.revealed && "qm-revealed"].filter(Boolean).join(" ")} style={n.color ? { ["--qs-front" as string]: n.color } : undefined}>
       <Handle type="target" position={Position.Left} isConnectable={false} />
@@ -66,6 +68,7 @@ export default function QuestMap({
   onOpenQuest: (id: string) => void;
   onOpenFront: (id: string) => void;
 }) {
+  const t = useT("campaign");
   const [saved, setSaved] = useState<Record<string, MapPoint> | null>(null);
   const [layoutVersion, setLayoutVersion] = useState(0);
   const [hideClosed, setHideClosed] = useState(true);
@@ -78,12 +81,12 @@ export default function QuestMap({
     api<{ positions: Record<string, MapPoint> }>("GET", `/api/campaigns/${encodeURIComponent(campaignId)}/quest-map`).then((res) => {
       if (cancelled) return;
       setSaved(res.ok ? res.data.positions : {});
-      if (!res.ok) setError(res.data.error ?? "Could not load the saved layout.");
+      if (!res.ok) setError(res.data.error ?? t("questMap.couldNotLoad"));
     });
     return () => {
       cancelled = true;
     };
-  }, [campaignId]);
+  }, [campaignId, t]);
 
   const shown = useMemo(() => quests.filter((q) => (!hideClosed || !isClosed(q.status)) && (!frontFilter || q.frontId === frontFilter)), [quests, hideClosed, frontFilter]);
   const graph = useMemo(() => {
@@ -93,7 +96,7 @@ export default function QuestMap({
 
   if (!saved || !candidates) {
     return (
-      <SkeletonRegion label="Loading the quest map…" className="qm-wrap">
+      <SkeletonRegion label={t("questMap.loading")} className="qm-wrap">
         <Skeleton height="100%" radius="var(--radius-md)" />
       </SkeletonRegion>
     );
@@ -105,12 +108,12 @@ export default function QuestMap({
   async function savePositions(changes: Record<string, MapPoint | null>) {
     const res = await api<{ positions: Record<string, MapPoint> }>("PATCH", `/api/campaigns/${encodeURIComponent(campaignId)}/quest-map`, { positions: changes });
     if (res.ok) setSaved(res.data.positions);
-    else setError(res.data.error ?? "Could not save the layout.");
+    else setError(res.data.error ?? t("questMap.couldNotSave"));
   }
 
   async function resetLayout() {
     const res = await api<{ positions: Record<string, MapPoint> }>("PATCH", `/api/campaigns/${encodeURIComponent(campaignId)}/quest-map`, { reset: true });
-    if (!res.ok) return setError(res.data.error ?? "Could not reset the layout.");
+    if (!res.ok) return setError(res.data.error ?? t("questMap.couldNotReset"));
     setSaved(res.data.positions);
     setLayoutVersion((v) => v + 1);
   }
@@ -119,14 +122,14 @@ export default function QuestMap({
     <div className="qm-wrap">
       <div className="qs-filters">
         <label className="cal-check">
-          <input type="checkbox" checked={hideClosed} onChange={(e) => setHideClosed(e.target.checked)} /> Hide finished quests
+          <input type="checkbox" checked={hideClosed} onChange={(e) => setHideClosed(e.target.checked)} /> {t("questMap.hideFinished")}
         </label>
         <label className="cal-check">
-          <input type="checkbox" checked={showClues} onChange={(e) => setShowClues(e.target.checked)} /> Show clues
+          <input type="checkbox" checked={showClues} onChange={(e) => setShowClues(e.target.checked)} /> {t("questMap.showClues")}
         </label>
         {fronts.length > 0 && (
-          <select aria-label="Front" value={frontFilter} onChange={(e) => setFrontFilter(e.target.value)}>
-            <option value="">All fronts</option>
+          <select aria-label={t("quest.front")} value={frontFilter} onChange={(e) => setFrontFilter(e.target.value)}>
+            <option value="">{t("quest.allFronts")}</option>
             {fronts.map((f) => (
               <option key={f.id} value={f.id}>
                 {f.name}
@@ -134,10 +137,10 @@ export default function QuestMap({
             ))}
           </select>
         )}
-        <button type="button" className="btn btn-sm btn-ghost" onClick={() => void resetLayout()} data-tooltip="Forget where you dragged nodes: back to the automatic layout">
-          <RotateCcw size={14} /> Reset layout
+        <button type="button" className="btn btn-sm btn-ghost" onClick={() => void resetLayout()} data-tooltip={t("questMap.resetHint")}>
+          <RotateCcw size={14} /> {t("questMap.reset")}
         </button>
-        <span className="cal-help qs-board-hint">Drag nodes to arrange the map; click one to open it.</span>
+        <span className="cal-help qs-board-hint">{t("questMap.hint")}</span>
       </div>
       {error && (
         <p className="form-error" role="alert">
@@ -146,7 +149,7 @@ export default function QuestMap({
       )}
       {graph.nodes.length === 0 ? (
         <div className="ss-empty">
-          <p className="cal-help">{quests.length ? "No quest matches these filters." : "No quests yet. Create some on the Quests tab: they, their fronts, clues and the people and places involved show up here."}</p>
+          <p className="cal-help">{quests.length ? t("questMap.noMatch") : t("questMap.empty")}</p>
         </div>
       ) : (
         <MapCanvas

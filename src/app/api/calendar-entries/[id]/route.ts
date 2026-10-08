@@ -7,7 +7,8 @@ import { duplicateLink, linkedNames, parseEntryFields, type EntryKind } from "@/
 import { parseException, safeJson } from "@/server/calendars/parse";
 import { toClientEntry } from "@/server/calendars/store";
 import type { OccurrenceException } from "@/server/calendars/recurrence";
-import { badRequest, calendarErrorResponse, notFound, readBody } from "@/server/calendars/respond";
+import { calendarErrorResponse, readBody } from "@/server/calendars/respond";
+import { errorResponse } from "@/i18n/server";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -26,27 +27,27 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   const { id } = await params;
   const worldId = await requireWorldId();
   const row = await entryOf(worldId, id);
-  if (!row) return notFound("Entry not found.");
+  if (!row) return errorResponse("entryNotFound", 404);
   const body = await readBody(request);
-  if (!body) return badRequest("Invalid request body.");
+  if (!body) return errorResponse("invalidBody", 400);
 
   try {
     const patch: Partial<typeof calendarEntries.$inferInsert> = { updatedAt: new Date() };
     if ("occurrence" in body) {
-      if (!Number.isSafeInteger(body.occurrence)) return badRequest("Pick the occurrence to change.");
+      if (!Number.isSafeInteger(body.occurrence)) return errorResponse("occurrencePick", 400);
       const exceptions = safeJson<Record<string, OccurrenceException>>(row.exceptions, {});
       const key = String(body.occurrence);
       if (body.exception === null) delete exceptions[key];
       else exceptions[key] = parseException(body.exception);
-      if (Object.keys(exceptions).length > 2000) return badRequest("This series has too many changed occurrences; edit the series instead.");
+      if (Object.keys(exceptions).length > 2000) return errorResponse("tooManyExceptions", 400);
       patch.exceptions = JSON.stringify(exceptions);
     } else {
       Object.assign(patch, await parseEntryFields(worldId, row.kind as EntryKind, body));
-      if (row.kind === "event" && patch.title === "") return badRequest("An event needs a title.");
+      if (row.kind === "event" && patch.title === "") return errorResponse("eventTitleRequired", 400);
       const worldDay = patch.worldDay ?? row.worldDay;
       const articleId = patch.articleId ?? row.articleId;
       if (row.kind === "link" && articleId && (await duplicateLink(worldId, worldDay, articleId, id))) {
-        return NextResponse.json({ error: "That article is already linked to this day." }, { status: 409 });
+        return errorResponse("articleLinkedToDay", 409);
       }
     }
     const [updated] = await db.update(calendarEntries).set(patch).where(eq(calendarEntries.id, id)).returning();
@@ -61,7 +62,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 export async function DELETE(_request: Request, { params }: RouteContext) {
   const { id } = await params;
   const worldId = await requireWorldId();
-  if (!(await entryOf(worldId, id))) return notFound("Entry not found.");
+  if (!(await entryOf(worldId, id))) return errorResponse("entryNotFound", 404);
   await db.update(calendarEntries).set({ deletedAt: new Date(), updatedAt: new Date() }).where(eq(calendarEntries.id, id));
   return NextResponse.json({ ok: true });
 }

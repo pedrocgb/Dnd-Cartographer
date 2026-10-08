@@ -6,6 +6,7 @@ import { SkeletonList } from "@/components/Skeleton";
 import InfoPicker, { type PickerOption } from "@/components/articles/InfoPicker";
 import { loadCandidates, type Candidate } from "@/components/articles/candidates";
 import SegmentedControl from "./marker-panel/SegmentedControl";
+import { useT } from "@/i18n/useT";
 
 interface ConsolidatedLink {
   key: string;
@@ -25,13 +26,7 @@ async function json<T>(res: Response): Promise<T> {
 
 type TargetType = "map" | "marker" | "territory" | "person" | "organization";
 
-const TARGET_TYPES: { key: TargetType; label: string }[] = [
-  { key: "marker", label: "Marker" },
-  { key: "map", label: "Map" },
-  { key: "territory", label: "Territory" },
-  { key: "person", label: "Person" },
-  { key: "organization", label: "Organization" },
-];
+const TARGET_TYPES: TargetType[] = ["marker", "map", "territory", "person", "organization"];
 
 /** Picker rows for a link target of `type` (markers are searched instead: there can be thousands). */
 async function loadTargets(type: Exclude<TargetType, "marker">): Promise<PickerOption[]> {
@@ -49,6 +44,7 @@ async function loadTargets(type: Exclude<TargetType, "marker">): Promise<PickerO
 
 /** Search-as-you-type over every marker, by name (grouped by map). */
 function MarkerTargetSearch({ exclude, value, onChange }: { exclude: string; value: string | null; onChange: (id: string | null) => void }) {
+  const tm = useT("maps");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<{ q: string; options: PickerOption[] } | null>(null);
   const q = query.trim();
@@ -75,12 +71,12 @@ function MarkerTargetSearch({ exclude, value, onChange }: { exclude: string; val
   const options = results?.q === q ? results.options : [];
   return (
     <>
-      <input type="text" placeholder="Search markers by name…" aria-label="Search markers" value={query} onChange={(e) => setQuery(e.target.value)} />
+      <input type="text" placeholder={tm("markerLinks.searchMarkers")} aria-label={tm("markers.searchAria")} value={query} onChange={(e) => setQuery(e.target.value)} />
       <InfoPicker
         options={options}
         value={value}
-        placeholder={q.length < 2 ? "Type 2+ letters above" : options.length ? `${options.length} matching marker${options.length === 1 ? "" : "s"}…` : "No marker matches"}
-        ariaLabel="Target marker"
+        placeholder={q.length < 2 ? tm("markerLinks.typeMore") : options.length ? tm("markerLinks.matching", { count: options.length }) : tm("markerLinks.noMatch")}
+        ariaLabel={tm("markerLinks.targetMarker")}
         disabled={options.length === 0}
         onChange={onChange}
       />
@@ -89,6 +85,8 @@ function MarkerTargetSearch({ exclude, value, onChange }: { exclude: string; val
 }
 
 function AddLinkForm({ markerId, onAdded }: { markerId: string; onAdded: () => void }) {
+  const tm = useT("maps");
+  const tc = useT("common");
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"internal" | "external">("internal");
   const [targetType, setTargetType] = useState<TargetType>("marker");
@@ -111,7 +109,7 @@ function AddLinkForm({ markerId, onAdded }: { markerId: string; onAdded: () => v
 
   async function submit() {
     setError(null);
-    if (mode === "internal" && !targetId) return setError("Choose what to link to.");
+    if (mode === "internal" && !targetId) return setError(tm("markerLinks.chooseTarget"));
     const body =
       mode === "external"
         ? { ownerType: "marker", ownerId: markerId, externalUrl, label }
@@ -123,7 +121,7 @@ function AddLinkForm({ markerId, onAdded }: { markerId: string; onAdded: () => v
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      setError(data.error ?? "Could not add link.");
+      setError(data.error ?? tm("markerLinks.addFailed"));
       return;
     }
     setOpen(false);
@@ -137,7 +135,7 @@ function AddLinkForm({ markerId, onAdded }: { markerId: string; onAdded: () => v
     return (
       <button type="button" className="btn btn-sm" onClick={() => setOpen(true)}>
         <Plus size={14} strokeWidth={2.25} />
-        Add link
+        {tm("markerLinks.add")}
       </button>
     );
   }
@@ -146,23 +144,23 @@ function AddLinkForm({ markerId, onAdded }: { markerId: string; onAdded: () => v
   return (
     <div className="politics-picker">
       <SegmentedControl
-        ariaLabel="Link to"
+        ariaLabel={tm("markerLinks.linkTo")}
         value={mode}
         onChange={setMode}
         segments={[
-          { key: "internal", label: "In this world" },
-          { key: "external", label: "Web address" },
+          { key: "internal", label: tm("markerLinks.inWorld") },
+          { key: "external", label: tm("markerLinks.web") },
         ]}
       />
       {mode === "external" ? (
-        <input type="text" placeholder="https://…" aria-label="Web address" value={externalUrl} onChange={(e) => setExternalUrl(e.target.value)} />
+        <input type="text" placeholder="https://…" aria-label={tm("markerLinks.web")} value={externalUrl} onChange={(e) => setExternalUrl(e.target.value)} />
       ) : (
         <>
           <InfoPicker
-            options={TARGET_TYPES.map((t) => ({ value: t.key, label: t.label }))}
+            options={TARGET_TYPES.map((key) => ({ value: key, label: tm(`markerLinks.target.${key}`) }))}
             value={targetType}
-            placeholder="Kind"
-            ariaLabel="Kind of target"
+            placeholder={tm("markerLinks.kind")}
+            ariaLabel={tm("markerLinks.kindAria")}
             searchable={false}
             onChange={(v) => {
               if (!v) return;
@@ -176,22 +174,22 @@ function AddLinkForm({ markerId, onAdded }: { markerId: string; onAdded: () => v
             <InfoPicker
               options={options ?? []}
               value={targetId}
-              placeholder={options === null ? "Loading…" : options.length ? "Choose…" : "Nothing to link yet"}
-              ariaLabel="Target"
+              placeholder={options === null ? tc("loading") : options.length ? tm("markerLinks.choose") : tm("markerLinks.nothing")}
+              ariaLabel={tm("markerLinks.target")}
               disabled={!options?.length}
               onChange={setTargetId}
             />
           )}
         </>
       )}
-      <input type="text" placeholder="Label (optional)" aria-label="Label" value={label} onChange={(e) => setLabel(e.target.value)} />
+      <input type="text" placeholder={tm("markerLinks.labelOptional")} aria-label={tm("markerLinks.labelAria")} value={label} onChange={(e) => setLabel(e.target.value)} />
       {error && <p className="form-error">{error}</p>}
       <div className="marker-panel-actions">
         <button type="button" className="btn btn-sm btn-primary" onClick={submit}>
-          Save
+          {tc("save")}
         </button>
         <button type="button" className="btn btn-sm" onClick={() => setOpen(false)}>
-          Cancel
+          {tc("cancel")}
         </button>
       </div>
     </div>
@@ -199,6 +197,7 @@ function AddLinkForm({ markerId, onAdded }: { markerId: string; onAdded: () => v
 }
 
 export default function MarkerLinksPanel({ markerId }: { markerId: string }) {
+  const tm = useT("maps");
   const [links, setLinks] = useState<ConsolidatedLink[] | null>(null);
 
   function refresh() {
@@ -221,33 +220,33 @@ export default function MarkerLinksPanel({ markerId }: { markerId: string }) {
     refresh();
   }
 
-  if (!links) return <SkeletonList rows={3} label="Loading links…" />;
+  if (!links) return <SkeletonList rows={3} label={tm("markerLinks.loading")} />;
 
   const outgoing = links.filter((l) => l.direction === "outgoing");
   const incoming = links.filter((l) => l.direction === "incoming");
 
   return (
     <div className="politics-panel">
-      <h3 className="marker-section-title">Links</h3>
+      <h3 className="marker-section-title">{tm("markerLinks.title")}</h3>
       {outgoing.length === 0 ? (
-        <p className="field-label">No links yet.</p>
+        <p className="field-label">{tm("markerLinks.none")}</p>
       ) : (
         <ul className="politics-list">
           {outgoing.map((l) => (
             <li key={l.key} className="politics-list-row">
               <span>
                 <span className="field-label">{l.source}: </span>
-                {l.unavailable ? <em>{l.targetName} (unavailable)</em> : l.targetName}
+                {l.unavailable ? <em>{tm("markerLinks.unavailable", { name: l.targetName })}</em> : l.targetName}
               </span>
               <div style={{ display: "flex", gap: "4px" }}>
                 {l.href && l.href !== "#" && (
                   <a href={l.href} target="_blank" rel="noopener noreferrer" className="btn btn-sm">
                     <ExternalLink size={13} strokeWidth={2.25} />
-                    Open
+                    {tm("markerLinks.open")}
                   </a>
                 )}
                 {l.removableLinkId && (
-                  <button type="button" className="btn btn-ghost btn-icon" onClick={() => removeLink(l.removableLinkId!)} aria-label="Remove link">
+                  <button type="button" className="btn btn-ghost btn-icon" onClick={() => removeLink(l.removableLinkId!)} aria-label={tm("markerLinks.remove")}>
                     <X size={14} strokeWidth={2.25} />
                   </button>
                 )}
@@ -261,15 +260,15 @@ export default function MarkerLinksPanel({ markerId }: { markerId: string }) {
 
       {incoming.length > 0 && (
         <>
-          <h3 className="marker-section-title">Referenced by</h3>
+          <h3 className="marker-section-title">{tm("markerLinks.referencedBy")}</h3>
           <ul className="politics-list">
             {incoming.map((l) => (
               <li key={l.key} className="politics-list-row">
-                <span>{l.unavailable ? <em>{l.targetName} (unavailable)</em> : l.targetName}</span>
+                <span>{l.unavailable ? <em>{tm("markerLinks.unavailable", { name: l.targetName })}</em> : l.targetName}</span>
                 {l.href && l.href !== "#" && (
                   <a href={l.href} target="_blank" rel="noopener noreferrer" className="btn btn-sm">
                     <ExternalLink size={13} strokeWidth={2.25} />
-                    Open
+                    {tm("markerLinks.open")}
                   </a>
                 )}
               </li>

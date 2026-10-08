@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { errorResponse } from "@/i18n/server";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { maps } from "@/server/db/schema";
@@ -22,7 +23,7 @@ export function folderCollectionRoutes(kind: Kind) {
   return {
     async GET(_request: Request, { params }: MapContext) {
       const { mapId } = await params;
-      const denied = await notInWorld("maps", mapId, "Map not found.");
+      const denied = await notInWorld("maps", mapId, "mapNotFound");
       if (denied) return denied;
       const rows = await db
         .select()
@@ -34,14 +35,14 @@ export function folderCollectionRoutes(kind: Kind) {
 
     async POST(request: Request, { params }: MapContext) {
       const { mapId } = await params;
-      const denied = await notInWorld("maps", mapId, "Map not found.");
+      const denied = await notInWorld("maps", mapId, "mapNotFound");
       if (denied) return denied;
       const map = await db.query.maps.findFirst({ where: eq(maps.id, mapId) });
-      if (!map) return NextResponse.json({ error: "Map not found." }, { status: 404 });
+      if (!map) return errorResponse("mapNotFound", 404);
       const body = await request.json().catch(() => null);
       const name = sanitizeFolderName(body?.name);
-      if (!name) return NextResponse.json({ error: "A folder name is required." }, { status: 400 });
-      if (!(await isLayerOfMap(body?.layerId, mapId))) return NextResponse.json({ error: "A layer of this map is required." }, { status: 400 });
+      if (!name) return errorResponse("folderNameRequired", 400);
+      if (!(await isLayerOfMap(body?.layerId, mapId))) return errorResponse("layerOfMapRequired", 400);
       const layerId: string = body.layerId;
       const existing = await db
         .select({ sortOrder: table.sortOrder })
@@ -64,12 +65,12 @@ export function folderItemRoutes(kind: Kind) {
   return {
     async PATCH(request: Request, { params }: FolderContext) {
       const { id } = await params;
-      const denied = await notInWorld(FOLDER_TABLES[kind], id, "Folder not found.");
+      const denied = await notInWorld(FOLDER_TABLES[kind], id, "folderNotFound");
       if (denied) return denied;
       const folder = await live(id);
-      if (!folder) return NextResponse.json({ error: "Folder not found." }, { status: 404 });
+      if (!folder) return errorResponse("folderNotFound", 404);
       const body = await request.json().catch(() => null);
-      if (!body || typeof body !== "object") return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+      if (!body || typeof body !== "object") return errorResponse("invalidBody", 400);
       const result = await folderPatch(kind, body, folder);
       if ("error" in result) return NextResponse.json({ error: result.error }, { status: 400 });
       const [group] = await db.update(table).set(result.patch).where(eq(table.id, id)).returning();
@@ -79,9 +80,9 @@ export function folderItemRoutes(kind: Kind) {
     /** Its items move to Ungrouped, or with `?mode=cascade` are deleted with it (soft). */
     async DELETE(request: Request, { params }: FolderContext) {
       const { id } = await params;
-      const denied = await notInWorld(FOLDER_TABLES[kind], id, "Folder not found.");
+      const denied = await notInWorld(FOLDER_TABLES[kind], id, "folderNotFound");
       if (denied) return denied;
-      if (!(await live(id))) return NextResponse.json({ error: "Folder not found." }, { status: 404 });
+      if (!(await live(id))) return errorResponse("folderNotFound", 404);
       const cascade = new URL(request.url).searchParams.get("mode") === "cascade";
       const now = new Date();
       await db.transaction(async (tx) => {

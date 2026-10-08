@@ -6,7 +6,8 @@ import { requireWorldId } from "@/server/world/active-world";
 import { createEmptyDocument } from "@/server/documents/create";
 import { ENTRY_KINDS, duplicateLink, linkedNames, parseEntryFields, type EntryKind } from "@/server/calendars/entries";
 import { entriesForArticle, entriesInRange, toClientEntry } from "@/server/calendars/store";
-import { badRequest, calendarErrorResponse, readBody } from "@/server/calendars/respond";
+import { calendarErrorResponse, readBody } from "@/server/calendars/respond";
+import { errorResponse } from "@/i18n/server";
 
 /** Widest record window one request may ask for (occurrences are expanded client-side for the viewed range only). */
 const MAX_WINDOW = 50_000;
@@ -42,8 +43,8 @@ export async function GET(request: Request) {
   } else {
     const from = Number(url.searchParams.get("from"));
     const to = Number(url.searchParams.get("to"));
-    if (!Number.isSafeInteger(from) || !Number.isSafeInteger(to) || to < from) return badRequest("Pass a from/to day range.");
-    if (to - from > MAX_WINDOW) return badRequest(`Ask for at most ${MAX_WINDOW} days at once.`);
+    if (!Number.isSafeInteger(from) || !Number.isSafeInteger(to) || to < from) return errorResponse("entryRangeMissing", 400);
+    if (to - from > MAX_WINDOW) return errorResponse("entryRangeTooLong", 400, undefined, { n: MAX_WINDOW });
     entries = await entriesInRange(worldId, from, to);
   }
   return NextResponse.json({ entries, articleNames: await linkedNames(worldId, entries) });
@@ -56,17 +57,17 @@ export async function GET(request: Request) {
  */
 export async function POST(request: Request) {
   const body = await readBody(request);
-  if (!body) return badRequest("Invalid request body.");
+  if (!body) return errorResponse("invalidBody", 400);
   const kind = body.kind as EntryKind;
-  if (!ENTRY_KINDS.includes(kind)) return badRequest("Pick what to add: a note, an event or an article link.");
-  if (!("worldDay" in body)) return badRequest("Pick a date.");
+  if (!ENTRY_KINDS.includes(kind)) return errorResponse("entryKindPick", 400);
+  if (!("worldDay" in body)) return errorResponse("entryDatePick", 400);
   try {
     const worldId = await requireWorldId();
     const fields = await parseEntryFields(worldId, kind, body);
-    if (kind === "link" && !fields.articleId) return badRequest("Pick the article to link.");
-    if (kind === "event" && !fields.title) return badRequest("An event needs a title.");
+    if (kind === "link" && !fields.articleId) return errorResponse("entryArticlePick", 400);
+    if (kind === "event" && !fields.title) return errorResponse("eventTitleRequired", 400);
     if (kind === "link" && (await duplicateLink(worldId, fields.worldDay!, fields.articleId!))) {
-      return NextResponse.json({ error: "That article is already linked to this day." }, { status: 409 });
+      return errorResponse("articleLinkedToDay", 409);
     }
     const documentId = kind === "note" ? (await createEmptyDocument(worldId)).id : null;
     const [row] = await db

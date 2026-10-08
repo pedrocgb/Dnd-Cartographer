@@ -5,6 +5,7 @@ import { api } from "@/components/calendars/api";
 import { readingOrder } from "@/server/writer/logic";
 import { BEAT_ROLE_LABELS, BEAT_ROLES, type BeatRole, type PlotThread, type ThreadBeat } from "@/server/writer/types";
 import type { WriterData } from "./useWriterData";
+import { useT } from "@/i18n/useT";
 
 const ROLE_MARK: Record<BeatRole, string> = { setup: "●", progress: "◐", payoff: "★" };
 
@@ -17,6 +18,7 @@ const nextRole = (role: BeatRole | null): BeatRole | null => (role === null ? BE
  * the thread does there: set up, progress, pay off, nothing.
  */
 export default function PlotGrid({ data, onBeatsChanged, onOpenNode }: { data: WriterData; onBeatsChanged: (beats: ThreadBeat[]) => void; onOpenNode: (id: string) => void }) {
+  const t = useT("writer");
   const [error, setError] = useState<string | null>(null);
   const scenes = readingOrder(data.nodes).filter((n) => n.kind === "scene");
   const chapterOf = (parentId: string | null) => data.nodes.find((n) => n.id === parentId) ?? null;
@@ -26,13 +28,13 @@ export default function PlotGrid({ data, onBeatsChanged, onOpenNode }: { data: W
     const role = nextRole(current?.role ?? null);
     const url = `/api/threads/${thread.id}/beats/${nodeId}`;
     const res = role ? await api<{ beat: ThreadBeat }>("PUT", url, { role }) : await api("DELETE", url);
-    if (!res.ok) return setError(res.data.error ?? "Could not save.");
+    if (!res.ok) return setError(res.data.error ?? t("grid.couldNotSave"));
     setError(null);
     const rest = data.beats.filter((b) => b !== current);
     onBeatsChanged(role ? [...rest, (res.data as { beat: ThreadBeat }).beat] : rest);
   }
 
-  if (scenes.length === 0) return <p className="cal-help">The plot grid appears once the outline has scenes.</p>;
+  if (scenes.length === 0) return <p className="cal-help">{t("grid.empty")}</p>;
   // Chapter header cells: one per run of scenes in the same chapter.
   const groups: { chapterId: string | null; span: number }[] = [];
   for (const s of scenes) {
@@ -42,10 +44,10 @@ export default function PlotGrid({ data, onBeatsChanged, onOpenNode }: { data: W
   }
 
   return (
-    <section className="cv-block wr-grid-block" aria-label="Plot grid">
-      <h3 className="cv-block-title">Plot grid</h3>
+    <section className="cv-block wr-grid-block" aria-label={t("grid.title")}>
+      <h3 className="cv-block-title">{t("grid.title")}</h3>
       <p className="cal-help">
-        Click a cell to cycle: {BEAT_ROLES.map((r) => `${ROLE_MARK[r]} ${BEAT_ROLE_LABELS.promise[r].toLowerCase()}`).join(", ")}, empty.
+        {t("grid.help", { roles: BEAT_ROLES.map((r) => `${ROLE_MARK[r]} ${BEAT_ROLE_LABELS.promise[r].toLowerCase()}`).join(", ") })}
       </p>
       {error && (
         <p className="form-error" role="alert">
@@ -57,7 +59,7 @@ export default function PlotGrid({ data, onBeatsChanged, onOpenNode }: { data: W
           <thead>
             <tr>
               <th scope="col" className="wr-grid-corner" rowSpan={2}>
-                Thread
+                {t("grid.thread")}
               </th>
               {groups.map((g, i) => (
                 <th key={`${g.chapterId}-${i}`} scope="colgroup" colSpan={g.span} className="wr-grid-chapter">
@@ -76,17 +78,17 @@ export default function PlotGrid({ data, onBeatsChanged, onOpenNode }: { data: W
             </tr>
           </thead>
           <tbody>
-            {data.threads.map((t) => (
-              <tr key={t.id}>
+            {data.threads.map((th) => (
+              <tr key={th.id}>
                 <th scope="row" className="wr-grid-thread">
-                  <span className="wr-thread-swatch" style={t.color ? { background: t.color } : undefined} aria-hidden /> {t.name}
+                  <span className="wr-thread-swatch" style={th.color ? { background: th.color } : undefined} aria-hidden /> {th.name}
                 </th>
                 {scenes.map((s) => {
-                  const beat = data.beats.find((b) => b.threadId === t.id && b.nodeId === s.id);
-                  const label = beat ? BEAT_ROLE_LABELS[t.kind][beat.role] : "Not here";
+                  const beat = data.beats.find((b) => b.threadId === th.id && b.nodeId === s.id);
+                  const label = beat ? BEAT_ROLE_LABELS[th.kind][beat.role] : t("grid.notHere");
                   return (
                     <td key={s.id}>
-                      <button type="button" className={beat ? `wr-cell wr-cell-${beat.role}` : "wr-cell"} style={beat && t.color ? { color: t.color } : undefined} aria-label={`${t.name} in ${s.title}: ${label}`} data-tooltip={label} onClick={() => void cycle(t, s.id)}>
+                      <button type="button" className={beat ? `wr-cell wr-cell-${beat.role}` : "wr-cell"} style={beat && th.color ? { color: th.color } : undefined} aria-label={t("grid.cell", { thread: th.name, scene: s.title, role: label })} data-tooltip={label} onClick={() => void cycle(th, s.id)}>
                         {beat ? ROLE_MARK[beat.role] : ""}
                       </button>
                     </td>

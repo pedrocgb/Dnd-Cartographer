@@ -111,7 +111,7 @@ describe("validateChain", () => {
     ];
     const result = validateChain(chain, levelsMap());
     expect(result.valid).toBe(false);
-    expect(result.error).toMatch(/cycle/i);
+    expect(!result.valid && result.error.key).toBe("chainCycle");
   });
 
   it("accepts an empty chain (unassigned marker) as trivially valid", () => {

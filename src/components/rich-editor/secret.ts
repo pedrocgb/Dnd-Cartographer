@@ -1,4 +1,5 @@
 import { Node, mergeAttributes } from "@tiptap/core";
+import { activeT } from "@/i18n/active";
 
 declare module "@tiptap/core" {
   interface Commands<ReturnType> {
@@ -69,7 +70,7 @@ export const Secret = Node.create({
         const revealed = node.attrs.revealed === true;
         dom.setAttribute("data-revealed", revealed ? "true" : "false");
         lock.innerHTML = revealed ? UNLOCKED_ICON : LOCKED_ICON;
-        const label = revealed ? "Hide secret" : "Reveal secret";
+        const label = activeT("editor")(revealed ? "secret.hide" : "secret.reveal");
         lock.setAttribute("aria-label", label);
         lock.setAttribute("aria-pressed", String(revealed));
         lock.setAttribute("data-tooltip", label);

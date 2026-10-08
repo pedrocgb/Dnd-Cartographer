@@ -5,6 +5,7 @@ import { GripHorizontal } from "lucide-react";
 import { RawIcon } from "@/components/MarkerIcon";
 import type { ClientLegend, LegendConfig, LegendImage, LegendItem, LegendItemSize } from "@/server/legends/legend-config";
 import { useHudDrag } from "./use-hud-drag";
+import { useT } from "@/i18n/useT";
 
 /** Swatch (the item's small rectangle image) size per legend item size, px. */
 export const SWATCH_SIZES: Record<LegendItemSize, { w: number; h: number }> = {
@@ -67,6 +68,7 @@ export default function MapLegend({
   onSelectItem: (id: string) => void;
   onUpdateConfig: (patch: Partial<LegendConfig>) => void;
 }) {
+  const t = useT("maps");
   const { config } = legend;
   const [widget, setWidget] = useState<HTMLDivElement | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -99,16 +101,16 @@ export default function MapLegend({
       className={["map-legend", editable && "editing", dragging && "dragging"].filter(Boolean).join(" ")}
       style={{ ...style, background: `rgb(20 21 24 / ${config.background})`, borderColor: config.background < 0.2 ? "transparent" : undefined }}
       role="region"
-      aria-label={title ? `Legend: ${title}` : "Legend"}
+      aria-label={title ? t("legend.region", { title }) : t("panel.legend")}
     >
       {(title || editable) && (
-        <div className="map-legend-header" {...handleProps} aria-label={editable ? "Move the legend (drag, or arrow keys)" : undefined} data-tooltip={editable ? "Drag to move the legend" : undefined}>
-          {title ? <span className="map-legend-title">{title}</span> : <span className="map-legend-title field-label">Legend</span>}
+        <div className="map-legend-header" {...handleProps} aria-label={editable ? t("legend.moveLabel") : undefined} data-tooltip={editable ? t("legend.moveHint") : undefined}>
+          {title ? <span className="map-legend-title">{title}</span> : <span className="map-legend-title field-label">{t("panel.legend")}</span>}
           {editable && <GripHorizontal size={14} strokeWidth={2.25} aria-hidden className="map-legend-grip" />}
         </div>
       )}
       {config.items.length === 0 ? (
-        <p className="map-legend-empty field-label">Add items in the Legend panel.</p>
+        <p className="map-legend-empty field-label">{t("legend.emptyWidget")}</p>
       ) : (
         <div ref={bodyRef} className="map-legend-body" style={{ gridTemplateColumns: `repeat(${columns}, auto)`, maxHeight }}>
           {config.items.map((item) => {

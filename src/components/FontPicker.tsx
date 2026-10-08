@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { ChevronDown, Check } from "lucide-react";
 import { MAP_FONTS, mapFontFamily, type MapFontKey } from "@/server/texts/fonts";
+import { useT } from "@/i18n/useT";
 
 /**
  * Font dropdown where every option is drawn in its own font. A native
@@ -23,6 +24,7 @@ export default function FontPicker({
   mixed?: boolean;
   onChange: (key: MapFontKey) => void;
 }) {
+  const t = useT("common");
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(() => Math.max(0, MAP_FONTS.findIndex((f) => f.key === value)));
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -87,7 +89,7 @@ export default function FontPicker({
         type="button"
         className="font-picker-button"
         role="combobox"
-        aria-label="Font"
+        aria-label={t("font.label")}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={listId}
@@ -95,11 +97,11 @@ export default function FontPicker({
         onClick={() => (open ? setOpen(false) : openList())}
         onKeyDown={onKeyDown}
       >
-        {mixed ? <span className="field-label">Mixed</span> : <span style={{ fontFamily: mapFontFamily(current.key), fontWeight }}>{current.label}</span>}
+        {mixed ? <span className="field-label">{t("color.mixed")}</span> : <span style={{ fontFamily: mapFontFamily(current.key), fontWeight }}>{current.label}</span>}
         <ChevronDown size={14} strokeWidth={2.25} aria-hidden />
       </button>
       {open && (
-        <ul className="font-picker-list" role="listbox" id={listId} ref={listRef} aria-label="Font">
+        <ul className="font-picker-list" role="listbox" id={listId} ref={listRef} aria-label={t("font.label")}>
           {MAP_FONTS.map((f, i) => (
             <li
               key={f.key}

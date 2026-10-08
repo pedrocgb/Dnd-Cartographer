@@ -10,6 +10,7 @@ import WeatherModal, { daySummary, hourIcon } from "@/components/tools/WeatherMo
 import { articleHref } from "@/server/articles/templates";
 import { fromCelsius, temperatureSymbol } from "@/server/settings/units";
 import type { ClientWeather } from "@/server/calendars/weather";
+import { useT } from "@/i18n/useT";
 
 /** The hour a day's weather is summed up by. */
 const MIDDAY = 12;
@@ -40,6 +41,7 @@ function Places({ weather }: { weather: ClientWeather }) {
  * Generator. Each opens the full report; it can be removed from the day.
  */
 export default function DayWeather({ worldDay }: { worldDay: number }) {
+  const t = useT("weather");
   const { settings } = useSettings();
   const [loaded, setLoaded] = useState<{ day: number; list: ClientWeather[] } | null>(null);
   const [version, setVersion] = useState(0);
@@ -66,7 +68,7 @@ export default function DayWeather({ worldDay }: { worldDay: number }) {
     setError(null);
     const res = await fetch(`/api/calendar-weather/${open.id}`, { method: "DELETE" }).catch(() => null);
     if (!res?.ok) {
-      setError("Couldn't remove the weather. Try again.");
+      setError(t("day.removeFailed"));
       return;
     }
     setRemoving(false);
@@ -76,21 +78,21 @@ export default function DayWeather({ worldDay }: { worldDay: number }) {
 
   const body =
     list === null ? (
-      <p className="cal-help">Loading…</p>
+      <p className="cal-help">{t("ui.loading")}</p>
     ) : list.length === 0 ? (
       <p className="cal-help">
-        No weather for this day. Roll one in <Link href="/tools/weather">Advanced Tools › Weather Generator</Link> and attach it here.
+        {t("day.none")} <Link href="/tools/weather">{t("day.noneLink")}</Link> {t("day.noneAfter")}
       </p>
     ) : (
       <ul className="cal-sky">
         {list.map((w) => (
           <li key={w.id} className="cal-weather-row">
-            <button type="button" className="cal-sky-item" data-tooltip="Open the weather report" onClick={() => setOpen(w)}>
+            <button type="button" className="cal-sky-item" data-tooltip={t("day.open")} onClick={() => setOpen(w)}>
               <span aria-hidden>{createElement(hourIcon(w.day.hours[MIDDAY]), { size: 15, strokeWidth: 2.25 })}</span>
               <span>
                 {temp(w.day.low)} / {temp(w.day.high)}
               </span>
-              <span className="cal-help">{daySummary(w.day)}</span>
+              <span className="cal-help">{daySummary(w.day, t)}</span>
             </button>
             {(w.settlement || w.territory) && (
               <span className="cal-weather-place">
@@ -105,7 +107,7 @@ export default function DayWeather({ worldDay }: { worldDay: number }) {
 
   return (
     <>
-      <FoldSection title="Weather" count={list?.length}>
+      <FoldSection title={t("modal.title")} count={list?.length}>
         {body}
       </FoldSection>
       {open && (
@@ -117,7 +119,7 @@ export default function DayWeather({ worldDay }: { worldDay: number }) {
             (open.settlement || open.territory) && (
               <p className="weather-attached">
                 <MapPin size={15} strokeWidth={2.25} aria-hidden />
-                Weather for <Places weather={open} />
+                {t("day.for")} <Places weather={open} />
               </p>
             )
           }
@@ -125,11 +127,11 @@ export default function DayWeather({ worldDay }: { worldDay: number }) {
             <>
               <button type="button" className="btn btn-sm btn-danger" onClick={() => setRemoving(true)}>
                 <Trash2 size={15} strokeWidth={2.25} aria-hidden />
-                Remove from this day
+                {t("day.remove")}
               </button>
               <button type="button" className="btn btn-sm" onClick={() => setOpen(null)}>
                 <X size={15} strokeWidth={2.25} aria-hidden />
-                Close
+                {t("ui.close")}
               </button>
             </>
           }
@@ -137,8 +139,8 @@ export default function DayWeather({ worldDay }: { worldDay: number }) {
       )}
       <ConfirmDialog
         open={removing}
-        title="Remove this weather?"
-        confirmLabel="Remove"
+        title={t("day.confirmTitle")}
+        confirmLabel={t("day.confirmLabel")}
         error={error}
         onConfirm={remove}
         onCancel={() => {
@@ -146,7 +148,7 @@ export default function DayWeather({ worldDay }: { worldDay: number }) {
           setError(null);
         }}
       >
-        It leaves this day of the calendar for good. If it is still in the Weather Generator&rsquo;s recent list, you can attach it again from there.
+        {t("day.confirmBody")}
       </ConfirmDialog>
     </>
   );

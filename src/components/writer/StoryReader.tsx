@@ -3,6 +3,7 @@
 import RichEditor from "@/components/RichEditor";
 import { outlineTree, type OutlineTreeNode } from "@/server/writer/logic";
 import { NODE_KIND_LABELS, type OutlineNode } from "@/server/writer/types";
+import { useT } from "@/i18n/useT";
 
 type Tree = OutlineTreeNode<OutlineNode>;
 
@@ -23,11 +24,12 @@ function findSubtree(list: Tree[], id: string): Tree | null {
  * item's synopsis and text in reading order, with a table of contents.
  */
 export default function StoryReader({ nodes, rootId, title, pitch, onReadAll }: { nodes: OutlineNode[]; rootId: string | null; title: string; pitch: string; onReadAll: () => void }) {
+  const t = useT("writer");
   const tree = outlineTree(nodes);
   const root = rootId ? findSubtree(tree, rootId) : null;
   const sections = root ? root.children : tree;
 
-  if (!root && tree.length === 0) return <p className="cal-help wr-empty">Nothing to read yet. Write an arc in Edit mode first.</p>;
+  if (!root && tree.length === 0) return <p className="cal-help wr-empty">{t("reader.nothing")}</p>;
 
   return (
     <article className="wr-reader" aria-label={root ? root.node.title : title}>
@@ -37,21 +39,21 @@ export default function StoryReader({ nodes, rootId, title, pitch, onReadAll }: 
         {(root ? root.node.synopsis : pitch) && <p className="wr-reader-lead">{root ? root.node.synopsis : pitch}</p>}
         {root && (
           <button type="button" className="btn-link wr-reader-all" onClick={onReadAll}>
-            Read the whole story
+            {t("reader.readAll")}
           </button>
         )}
       </header>
 
       {sections.length > 0 && (
-        <nav className="wr-reader-toc" aria-label="Contents">
-          <h2 className="field-label">Contents</h2>
+        <nav className="wr-reader-toc" aria-label={t("reader.contents")}>
+          <h2 className="field-label">{t("reader.contents")}</h2>
           <TocList list={sections} />
         </nav>
       )}
 
       {root && <ReaderText key={root.node.id} node={root.node} />}
-      {sections.map((t) => (
-        <ReaderSection key={t.node.id} tree={t} depth={2} />
+      {sections.map((s) => (
+        <ReaderSection key={s.node.id} tree={s} depth={2} />
       ))}
     </article>
   );
@@ -60,12 +62,12 @@ export default function StoryReader({ nodes, rootId, title, pitch, onReadAll }: 
 function TocList({ list }: { list: Tree[] }) {
   return (
     <ol>
-      {list.map((t) => (
-        <li key={t.node.id}>
-          <button type="button" className="btn-link" onClick={() => document.getElementById(anchorId(t.node.id))?.scrollIntoView({ behavior: "smooth", block: "start" })}>
-            {t.node.title}
+      {list.map((item) => (
+        <li key={item.node.id}>
+          <button type="button" className="btn-link" onClick={() => document.getElementById(anchorId(item.node.id))?.scrollIntoView({ behavior: "smooth", block: "start" })}>
+            {item.node.title}
           </button>
-          {t.children.length > 0 && <TocList list={t.children} />}
+          {item.children.length > 0 && <TocList list={item.children} />}
         </li>
       ))}
     </ol>

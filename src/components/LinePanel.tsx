@@ -31,6 +31,8 @@ import ToolSection from "./ToolSection";
 import { useListDrag } from "./use-list-drag";
 import { LINE_LIMITS, type LineCap, type LineKind, type LineStyle, type LineStyleKind } from "@/server/lines/line-config";
 import { COLOR_PRESETS, normalizeColor } from "@/server/markers/icon-registry";
+import { useT } from "@/i18n/useT";
+import { activeT } from "@/i18n/active";
 
 export type LinePatch = Partial<LineStyle & { layerId: string; extraLayerIds: string[]; name: string; visible: boolean; locked: boolean; groupId: string | null; sortOrder: number }>;
 
@@ -68,18 +70,11 @@ function Segmented<T extends string>({
   );
 }
 
-const STYLE_OPTIONS: { key: LineStyleKind; label: string }[] = [
-  { key: "solid", label: "Solid" },
-  { key: "dot", label: "Dot" },
-  { key: "dashed", label: "Dashed" },
-];
-const CAP_OPTIONS: { key: LineCap; label: string }[] = [
-  { key: "round", label: "Circle" },
-  { key: "square", label: "Square" },
-];
+const STYLE_OPTIONS: LineStyleKind[] = ["solid", "dot", "dashed"];
+const CAP_OPTIONS: LineCap[] = ["round", "square"];
 
 /** A line's label in the list: its name, or its place in its folder. */
-export const lineLabel = (line: MapLineData, index: number) => line.name || `Line ${index + 1}`;
+export const lineLabel = (line: MapLineData, index: number) => line.name || activeT("maps")("lines.placeholderName", { n: index + 1 });
 
 /** Wraps a group of fields in a collapsible section, or not (inside a folder's default style). */
 function Group({ id, title, sectioned, children }: { id: string; title: string; sectioned: boolean; children: React.ReactNode }) {
@@ -109,24 +104,27 @@ export function LineStyleFields({
   mixed?: ReadonlySet<string>;
   onChange: (patch: LinePatch) => void;
 }) {
+  const t = useT("maps");
   const m = (key: keyof LineStyle) => mixed.has(key);
   const shadowOn = v.shadowEnabled || m("shadowEnabled");
+  const styleOptions = STYLE_OPTIONS.map((key) => ({ key, label: t(`lines.style.${key}`) }));
+  const capOptions = CAP_OPTIONS.map((key) => ({ key, label: t(`lines.cap.${key}`) }));
   return (
     <>
-      <Group id="line-color" title="Color and size" sectioned={sectioned}>
+      <Group id="line-color" title={t("lines.colorSize")} sectioned={sectioned}>
         <span className="field-label">
-          Color <MixedTag show={m("color")} />
+          {t("style.color")} <MixedTag show={m("color")} />
         </span>
         <ColorWheel value={v.color} mixed={m("color")} onChange={(color) => onChange({ color })} />
-        <SliderField label="Size" value={v.width} mixed={m("width")} min={0.5} max={maxWidth} step={0.5} defaultValue={Math.max(1, Math.round(maxWidth / 8))} suffix=" px" onChange={(width) => onChange({ width })} />
-        <SliderField label="Opacity" value={Math.round(v.opacity * 100)} mixed={m("opacity")} min={0} max={100} defaultValue={100} suffix="%" onChange={(o) => onChange({ opacity: o / 100 })} />
+        <SliderField label={t("style.size")} value={v.width} mixed={m("width")} min={0.5} max={maxWidth} step={0.5} defaultValue={Math.max(1, Math.round(maxWidth / 8))} suffix=" px" onChange={(width) => onChange({ width })} />
+        <SliderField label={t("style.opacity")} value={Math.round(v.opacity * 100)} mixed={m("opacity")} min={0} max={100} defaultValue={100} suffix="%" onChange={(o) => onChange({ opacity: o / 100 })} />
       </Group>
 
-      <Group id="line-stroke" title="Line style" sectioned={sectioned}>
-        <Segmented label="Line style" value={v.style} mixed={m("style")} options={STYLE_OPTIONS} onChange={(style) => onChange({ style })} />
+      <Group id="line-stroke" title={t("lines.style")} sectioned={sectioned}>
+        <Segmented label={t("lines.style")} value={v.style} mixed={m("style")} options={styleOptions} onChange={(style) => onChange({ style })} />
         {(v.style === "dashed" || m("style")) && (
           <SliderField
-            label="Dash length"
+            label={t("lines.dashLength")}
             value={v.dashLength}
             mixed={m("dashLength")}
             min={LINE_LIMITS.dashLength[0]}
@@ -139,7 +137,7 @@ export function LineStyleFields({
         )}
         {(v.style !== "solid" || m("style")) && (
           <SliderField
-            label="Gap length"
+            label={t("lines.gapLength")}
             value={v.gapLength}
             mixed={m("gapLength")}
             min={LINE_LIMITS.gapLength[0]}
@@ -150,17 +148,17 @@ export function LineStyleFields({
             onChange={(gapLength) => onChange({ gapLength })}
           />
         )}
-        <Segmented label="Line cap" value={v.cap} mixed={m("cap")} options={CAP_OPTIONS} onChange={(cap) => onChange({ cap })} />
+        <Segmented label={t("lines.cap")} value={v.cap} mixed={m("cap")} options={capOptions} onChange={(cap) => onChange({ cap })} />
       </Group>
 
-      <Group id="line-shadow" title="Shadow" sectioned={sectioned}>
+      <Group id="line-shadow" title={t("style.shadow")} sectioned={sectioned}>
         <MixedCheckbox checked={v.shadowEnabled} mixed={m("shadowEnabled")} onChange={(shadowEnabled) => onChange({ shadowEnabled })}>
-          <span className="field-label">Shadow</span>
+          <span className="field-label">{t("style.shadow")}</span>
         </MixedCheckbox>
         {shadowOn && (
           <>
             <span className="field-label">
-              Shadow color <MixedTag show={m("shadowColor")} />
+              {t("style.shadowColor")} <MixedTag show={m("shadowColor")} />
             </span>
             <div className="color-swatch-row">
               {COLOR_PRESETS.map((c) => (
@@ -170,13 +168,13 @@ export function LineStyleFields({
                   className={!m("shadowColor") && normalizeColor(c) === v.shadowColor ? "color-swatch active" : "color-swatch"}
                   style={{ background: c }}
                   onClick={() => onChange({ shadowColor: normalizeColor(c) })}
-                  aria-label={`Shadow color ${c}`}
+                  aria-label={t("style.shadowColorValue", { color: c })}
                 />
               ))}
             </div>
-            <SliderField label="Shadow opacity" value={Math.round(v.shadowOpacity * 100)} mixed={m("shadowOpacity")} min={0} max={100} defaultValue={50} suffix="%" onChange={(o) => onChange({ shadowOpacity: o / 100 })} />
+            <SliderField label={t("style.shadowOpacity")} value={Math.round(v.shadowOpacity * 100)} mixed={m("shadowOpacity")} min={0} max={100} defaultValue={50} suffix="%" onChange={(o) => onChange({ shadowOpacity: o / 100 })} />
             <SliderField
-              label="Shadow blur"
+              label={t("lines.shadowBlur")}
               value={v.shadowBlur}
               mixed={m("shadowBlur")}
               min={LINE_LIMITS.shadowBlur[0]}
@@ -187,7 +185,7 @@ export function LineStyleFields({
               onChange={(shadowBlur) => onChange({ shadowBlur })}
             />
             <SliderField
-              label="Shadow offset"
+              label={t("lines.shadowOffset")}
               value={v.shadowDistance}
               mixed={m("shadowDistance")}
               min={LINE_LIMITS.shadowDistance[0]}
@@ -197,7 +195,7 @@ export function LineStyleFields({
               suffix="×"
               onChange={(shadowDistance) => onChange({ shadowDistance })}
             />
-            <SliderField label="Shadow position" value={Math.round(v.shadowAngle)} mixed={m("shadowAngle")} min={-180} max={180} defaultValue={45} suffix="°" onChange={(shadowAngle) => onChange({ shadowAngle })} />
+            <SliderField label={t("lines.shadowPosition")} value={Math.round(v.shadowAngle)} mixed={m("shadowAngle")} min={-180} max={180} defaultValue={45} suffix="°" onChange={(shadowAngle) => onChange({ shadowAngle })} />
           </>
         )}
       </Group>
@@ -285,6 +283,8 @@ export default function LinePanel({
   onUpdateMany: (ids: string[], patchOf: (line: MapLineData) => LinePatch, opts?: { includeLocked?: boolean }) => void;
   onDeleteMany: (ids: string[]) => void;
 }) {
+  const t = useT("maps");
+  const tc = useT("common");
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set([UNGROUPED]));
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<{ folder: MapFolderData; count: number } | null>(null);
@@ -294,7 +294,7 @@ export default function LinePanel({
 
   const tree = folderTree(lines, groups, activeLayerId);
   const { ownGroups, itemsOf: linesOf, ungrouped, shared, order } = tree;
-  const layerNameOf = (id: string | null) => layers.find((l) => l.id === id)?.name ?? "another layer";
+  const layerNameOf = (id: string | null) => layers.find((l) => l.id === id)?.name ?? t("panel.anotherLayer");
   const groupOf = (l: MapLineData) => (l.groupId ? groups.find((g) => g.id === l.groupId) : undefined);
   const openFolder = ownGroups.find((g) => g.id === openFolderId) ?? null;
   const picked = new Set(selectedIds);
@@ -312,6 +312,7 @@ export default function LinePanel({
 
   const target = ownGroups.find((g) => g.id === activeGroupId) ?? null;
   const drawBlocked = Boolean(target && (target.locked || !target.visible));
+  const [targetBefore, targetAfter] = t("lines.target").split("{folder}");
   const toggle = (key: string) =>
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -382,22 +383,22 @@ export default function LinePanel({
         <div className="marker-side-panel-header">
           <h2>
             <PenTool size={16} strokeWidth={2.25} style={{ verticalAlign: "-2px", marginRight: "6px" }} />
-            Lines
+            {t("panel.lines")}
           </h2>
-          <button className="btn btn-ghost btn-icon" onClick={onClose} aria-label="Close lines panel">
+          <button className="btn btn-ghost btn-icon" onClick={onClose} aria-label={tc("closePanel", { title: t("panel.lines") })}>
             <X size={16} strokeWidth={2.25} />
           </button>
         </div>
-        <p className="panel-layer-label">Layer: {layerName}</p>
+        <p className="panel-layer-label">{t("panel.layer", { name: layerName })}</p>
 
-        <div className="line-panel-segmented" role="group" aria-label="Drawing mode" style={{ gridTemplateColumns: "1fr 1fr" }}>
+        <div className="line-panel-segmented" role="group" aria-label={t("lines.mode")} style={{ gridTemplateColumns: "1fr 1fr" }}>
           <button type="button" className={mode === "free" ? "btn btn-sm active" : "btn btn-sm"} aria-pressed={mode === "free"} onClick={() => onSetMode("free")}>
             <Pencil size={13} strokeWidth={2.25} />
-            Free draw
+            {t("lines.mode.free")}
           </button>
           <button type="button" className={mode === "pen" ? "btn btn-sm active" : "btn btn-sm"} aria-pressed={mode === "pen"} onClick={() => onSetMode("pen")}>
             <Spline size={13} strokeWidth={2.25} />
-            Pen
+            {t("lines.mode.pen")}
           </button>
         </div>
         <button
@@ -409,23 +410,25 @@ export default function LinePanel({
             onToggleDrawing();
           }}
           disabled={drawBlocked && !drawing}
-          data-tooltip={drawBlocked ? "The folder is hidden or locked" : undefined}
+          data-tooltip={drawBlocked ? t("panel.folderBlocked") : undefined}
         >
           <PenTool size={15} strokeWidth={2.25} />
-          {drawing ? "Drawing… (click to stop)" : "Draw line"}
+          {drawing ? t("lines.drawing") : t("lines.draw")}
         </button>
         <p className="field-label zone-tool-hint">
           {drawing
             ? mode === "pen"
-              ? "Click = corner, click-and-drag = curve, hold Shift for straight/45° segments. Right-click (or Enter) finishes, Backspace removes the last point, Esc cancels. Existing lines are ignored while drawing: stop drawing to edit one."
-              : "Hold the left button and drag to draw, over other lines too. Stop drawing to edit an existing line."
-            : "Click a line on the map or in the list to edit it, a folder for its settings. Ctrl/Shift+click picks several, Ctrl+A a whole folder."}
+              ? t("lines.penHint")
+              : t("lines.freeHint")
+            : t("lines.idleHint")}
         </p>
         <p className="field-label line-panel-target">
           <FolderOpen size={13} strokeWidth={2.25} aria-hidden />
-          New lines go into: <strong>{target ? target.name : "Ungrouped"}</strong>
-          {target?.locked && " (locked)"}
-          {target && !target.visible && " (hidden)"}
+          {targetBefore}
+          <strong>{target ? target.name : t("panel.ungrouped")}</strong>
+          {targetAfter}
+          {target?.locked && t("panel.targetLocked")}
+          {target && !target.visible && t("panel.targetHidden")}
         </p>
 
         <ul className="zone-region-list">
@@ -450,14 +453,14 @@ export default function LinePanel({
                 dropProps={drag.folderProps(group.id, !group.locked)}
                 dropPlace={drag.placeOf(group.id)}
               >
-                {items.length === 0 && <li className="field-label zone-empty-hint">No lines yet.</li>}
+                {items.length === 0 && <li className="field-label zone-empty-hint">{t("lines.emptyFolder")}</li>}
                 {items.map((line, idx) => lineRow(line, lineLabel(line, idx), group.locked))}
               </FolderRow>
             );
           })}
           <li className="zone-region">
             <div className={["zone-region-row", activeGroupId === null && "active", drag.placeOf(UNGROUPED) && "drop-into"].filter(Boolean).join(" ")} {...drag.folderProps(UNGROUPED, true)}>
-              <button className="zone-tree-toggle" onClick={() => toggle(UNGROUPED)} aria-label={expanded.has(UNGROUPED) ? "Collapse" : "Expand"}>
+              <button className="zone-tree-toggle" onClick={() => toggle(UNGROUPED)} aria-label={expanded.has(UNGROUPED) ? t("layerFolders.collapse") : t("layerFolders.expand")}>
                 {expanded.has(UNGROUPED) ? <ChevronDown size={13} strokeWidth={2.25} /> : <ChevronRight size={13} strokeWidth={2.25} />}
               </button>
               <button
@@ -466,14 +469,14 @@ export default function LinePanel({
                   onSetActiveGroup(null);
                   setOpenFolderId(null);
                 }}
-                data-tooltip="Lines outside any folder. Click: new lines go here."
+                data-tooltip={t("lines.ungroupedHint")}
               >
-                Ungrouped <span className="field-label">({ungrouped.length})</span>
+                {t("panel.ungrouped")} <span className="field-label">({ungrouped.length})</span>
               </button>
             </div>
             {expanded.has(UNGROUPED) && (
               <ul className="zone-list">
-                {ungrouped.length === 0 && <li className="field-label zone-empty-hint">No lines outside folders.</li>}
+                {ungrouped.length === 0 && <li className="field-label zone-empty-hint">{t("lines.ungroupedEmpty")}</li>}
                 {ungrouped.map((line, i) => lineRow(line, lineLabel(line, i), false))}
               </ul>
             )}
@@ -481,11 +484,11 @@ export default function LinePanel({
           {shared.length > 0 && (
             <li className="zone-region">
               <div className="zone-region-row">
-                <button className="zone-tree-toggle" onClick={() => toggle(SHARED)} aria-label={expanded.has(SHARED) ? "Collapse" : "Expand"}>
+                <button className="zone-tree-toggle" onClick={() => toggle(SHARED)} aria-label={expanded.has(SHARED) ? t("layerFolders.collapse") : t("layerFolders.expand")}>
                   {expanded.has(SHARED) ? <ChevronDown size={13} strokeWidth={2.25} /> : <ChevronRight size={13} strokeWidth={2.25} />}
                 </button>
                 <button className="zone-region-name" onClick={() => toggle(SHARED)}>
-                  From other layers <span className="field-label">({shared.length})</span>
+                  {t("panel.fromOtherLayers")} <span className="field-label">({shared.length})</span>
                 </button>
               </div>
               {expanded.has(SHARED) && (
@@ -499,8 +502,8 @@ export default function LinePanel({
           <div className="zone-new-region">
             <NameInput
               value=""
-              placeholder="Folder name (e.g. Roads, Rivers)"
-              label="New folder name"
+              placeholder={t("lines.folderPlaceholder")}
+              label={t("panel.newFolderName")}
               onSave={(name) => {
                 setCreating(false);
                 if (name) onCreateGroup(name);
@@ -511,7 +514,7 @@ export default function LinePanel({
         ) : (
           <button className="btn btn-sm" onClick={() => setCreating(true)}>
             <Plus size={14} strokeWidth={2.25} />
-            New folder
+            {t("panel.newFolder")}
           </button>
         )}
       </div>
@@ -537,7 +540,7 @@ export default function LinePanel({
                 <NameInput
                   value={selected.name}
                   placeholder={lineLabel({ ...selected, name: "" }, indexIn(selected))}
-                  label="Line name"
+                  label={t("lines.name")}
                   onSave={(name) => {
                     setRenamingLine(false);
                     if (name !== selected.name) onChange({ name });
@@ -545,27 +548,27 @@ export default function LinePanel({
                   onCancel={() => setRenamingLine(false)}
                 />
               ) : (
-                <button type="button" className="zone-region-name line-panel-name" onClick={() => setRenamingLine(true)} data-tooltip="Rename">
+                <button type="button" className="zone-region-name line-panel-name" onClick={() => setRenamingLine(true)} data-tooltip={t("layerFolders.rename")}>
                   {lineLabel(selected, indexIn(selected))}
                 </button>
               )}
               <button type="button" className="btn btn-sm btn-primary zone-editor-done" onClick={onDone}>
                 <Check size={13} strokeWidth={2.25} />
-                Done
+                {tc("done")}
               </button>
             </div>
             {selectedLocked && (
               <p className="field-label line-panel-locked">
-                <Lock size={12} strokeWidth={2.25} aria-hidden /> Locked{selectedGroup?.locked ? " by its folder" : ""}. Unlock it to move or edit it.
+                <Lock size={12} strokeWidth={2.25} aria-hidden /> {selectedGroup?.locked ? t("lines.lockedByFolder") : t("lines.locked")}
               </p>
             )}
             <fieldset className="line-panel-fieldset" disabled={selectedLocked}>
               <LineStyleFields v={selected} maxWidth={maxWidth} onChange={onChange} />
-              <ToolSection id="line-layers" title="Folder and layers">
+              <ToolSection id="line-layers" title={t("panel.folderLayers")}>
                 <FolderSelect
                   value={selectedGroup && selectedFolderOptions.includes(selectedGroup) ? selectedGroup.id : null}
                   folders={selectedFolderOptions}
-                  noneLabel="Ungrouped"
+                  noneLabel={t("panel.ungrouped")}
                   onChange={(groupId) => onChange({ groupId })}
                 />
                 <LayerSelect value={selected.layerId} layers={layers} onChange={(layerId) => onChange({ layerId })} />
@@ -581,7 +584,7 @@ export default function LinePanel({
             </fieldset>
             <button type="button" className="btn btn-danger" onClick={onDelete} disabled={selectedLocked}>
               <Trash2 size={14} strokeWidth={2.25} />
-              Delete line
+              {t("lines.delete")}
             </button>
           </>
         ) : openFolder ? (
@@ -601,25 +604,25 @@ export default function LinePanel({
           <>
             <div className="zone-editor-header">
               {mode === "pen" ? <Spline size={14} strokeWidth={2.25} /> : <Pencil size={14} strokeWidth={2.25} />}
-              <span className="line-panel-name">Next line</span>
+              <span className="line-panel-name">{t("lines.next")}</span>
             </div>
             {mode === "free" && (
-              <ToolSection id="line-drawing" title="Drawing">
-                <SliderField label="Smoothing" value={smoothing} min={0} max={100} defaultValue={50} onChange={onSmoothingChange} />
-                <p className="field-label zone-tool-hint">Steadies free-draw strokes: the pen trails the cursor a little, so hand shakes don&apos;t show. 0 = off.</p>
+              <ToolSection id="line-drawing" title={t("lines.drawingSection")}>
+                <SliderField label={t("lines.smoothing")} value={smoothing} min={0} max={100} defaultValue={50} onChange={onSmoothingChange} />
+                <p className="field-label zone-tool-hint">{t("lines.smoothingHint")}</p>
               </ToolSection>
             )}
             {target?.defaultStyle ? (
               <>
-                <p className="field-label zone-tool-hint">New lines in “{target.name}” use the folder&apos;s default style.</p>
+                <p className="field-label zone-tool-hint">{t("lines.folderStyle", { name: target.name })}</p>
                 <button type="button" className="btn btn-sm" onClick={() => setOpenFolderId(target.id)}>
                   <FolderOpen size={13} strokeWidth={2.25} />
-                  Edit the folder&apos;s style
+                  {t("panel.editFolderStyle")}
                 </button>
               </>
             ) : (
               <>
-                <p className="field-label zone-tool-hint">The style the next line you draw gets. Select a line to edit it instead.</p>
+                <p className="field-label zone-tool-hint">{t("lines.nextHint")}</p>
                 <LineStyleFields v={draft} maxWidth={maxWidth} onChange={onChange} />
               </>
             )}
@@ -666,6 +669,7 @@ function MultiLineEditor({
   onDelete: () => void;
   onDone: () => void;
 }) {
+  const t = useT("maps");
   const [first] = lines;
   const mixed = mixedKeys(lines);
   const layersOf = sharedLayers(lines.map((l) => l.extraLayerIds));
@@ -690,14 +694,14 @@ function MultiLineEditor({
         onDone={onDone}
       />
       <LineStyleFields v={first} maxWidth={maxWidth} mixed={mixed} onChange={setAll} />
-      <ToolSection id="line-layers" title="Folder and layers">
+      <ToolSection id="line-layers" title={t("panel.folderLayers")}>
         <FolderSelect
           value={folderOf(first)}
           mixed={folders.size > 1}
           folders={folderOptions}
-          noneLabel="Ungrouped"
+          noneLabel={t("panel.ungrouped")}
           disabled={!oneLayer}
-          hint={oneLayer ? undefined : "They're on different layers: move them to one layer first."}
+          hint={oneLayer ? undefined : t("panel.differentLayers")}
           onChange={(groupId) => setAll({ groupId })}
         />
         <LayerSelect value={first.layerId} mixed={!oneLayer} layers={layers} onChange={(layerId) => setAll({ layerId })} />

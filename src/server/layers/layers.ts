@@ -2,12 +2,14 @@ import { and, asc, eq, isNull } from "drizzle-orm";
 import { db } from "../db/client";
 import { mapAssets, mapLayers } from "../db/schema";
 import { encodeLayerIds, normalizeExtraLayerIds } from "./layer-ids";
+import { serverT } from "@/i18n/server";
 
 export type MapLayerRow = typeof mapLayers.$inferSelect;
 
-/** Every map starts with (and always keeps) at least one layer. */
+/** Every map starts with (and always keeps) at least one layer, named in the user's language. */
 export async function createDefaultLayer(mapId: string): Promise<MapLayerRow> {
-  const [layer] = await db.insert(mapLayers).values({ mapId, name: "Layer 1", sortOrder: 0 }).returning();
+  const t = await serverT("maps");
+  const [layer] = await db.insert(mapLayers).values({ mapId, name: t("defaults.layer", { n: 1 }), sortOrder: 0 }).returning();
   return layer;
 }
 

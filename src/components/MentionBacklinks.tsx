@@ -4,9 +4,11 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AtSign } from "lucide-react";
 import type { Backlink } from "@/server/mentions/store";
+import { useT } from "@/i18n/useT";
 
 /** "Mentioned in": pages whose text @mentions this. Hidden when there are none. */
 export default function MentionBacklinks({ targetId, variant = "card" }: { targetId: string; variant?: "card" | "plain" }) {
+  const t = useT("common");
   const [list, setList] = useState<Backlink[] | null>(null);
 
   useEffect(() => {
@@ -33,11 +35,11 @@ export default function MentionBacklinks({ targetId, variant = "card" }: { targe
   );
   if (variant === "plain") return <div className="mention-backlinks">{items}</div>;
   return (
-    <section className="article-card cal-backlinks" aria-label="Mentioned in">
+    <section className="article-card cal-backlinks" aria-label={t("mentionedIn")}>
       <header className="article-card-header">
         <span className="article-card-label">
           <AtSign size={15} strokeWidth={2.25} />
-          Mentioned in
+          {t("mentionedIn")}
         </span>
       </header>
       {items}

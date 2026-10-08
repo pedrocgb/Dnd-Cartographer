@@ -20,6 +20,7 @@ import type { ClientSession } from "@/components/sessions/types";
 import { ArticleName, DeadlineChip, KindChip, Progress, StatusChip } from "./parts";
 import ProgressClock from "./ProgressClock";
 import { CoverageHint } from "./QuestDepthTabs";
+import { useT } from "@/i18n/useT";
 
 /**
  * Read-only view of a quest: its hook, objectives (tickable here), sub-quests,
@@ -61,6 +62,9 @@ export default function QuestView({
   onDeleted: (id: string) => void;
   onClose: () => void;
 }) {
+  const te = useT("editor");
+  const t = useT("campaign");
+  const tc = useT("common");
   const [error, setError] = useState<string | null>(null);
   const parent = quests.find((q) => q.id === quest.parentId) ?? null;
   const subtree = questTree(quests).flatMap(function find(n): TreeNode<QuestData>[] {
@@ -75,7 +79,7 @@ export default function QuestView({
   async function remove() {
     const res = await api("DELETE", `/api/quests/${quest.id}`);
     if (res.ok) onDeleted(quest.id);
-    else setDeleteError(res.data.error ?? "Could not delete it.");
+    else setDeleteError(res.data.error ?? t("quest.couldNotDelete"));
   }
 
   /** Saves one small edit made in the view (objective, clue, clock). */
@@ -89,16 +93,16 @@ export default function QuestView({
   }
 
   const toggleObjective = (id: string, done: boolean) =>
-    patch({ objectives: quest.objectives.map((o) => (o.id === id ? { ...o, state: done ? ("done" as const) : ("open" as const) } : o)) }, "Could not update the objective.");
+    patch({ objectives: quest.objectives.map((o) => (o.id === id ? { ...o, state: done ? ("done" as const) : ("open" as const) } : o)) }, t("view.couldNotUpdateObjective"));
   const toggleClue = (id: string, revealed: boolean) =>
-    patch({ clues: quest.clues.map((c) => (c.id === id ? { ...c, revealed, revealedSessionId: revealed ? c.revealedSessionId : null } : c)) }, "Could not update the clue.");
+    patch({ clues: quest.clues.map((c) => (c.id === id ? { ...c, revealed, revealedSessionId: revealed ? c.revealedSessionId : null } : c)) }, t("view.couldNotUpdateClue"));
   const sessionName = (id: string | null) => {
     const s = id ? sessions.find((x) => x.id === id) : null;
-    return s ? `session ${s.number}` : null;
+    return s ? t("view.sessionN", { n: s.number }) : null;
   };
 
   return (
-    <Modal open onClose={onClose} title="Quest" size="wide">
+    <Modal open onClose={onClose} title={t("view.title")} size="wide">
       <div className="cv qs-view">
         <header className="cv-hero">
           <span className={`cv-badge qs-badge qs-badge-${quest.status}`} aria-hidden>
@@ -112,19 +116,19 @@ export default function QuestView({
             </div>
             {(quest.priority !== 1 || quest.giver || front || parent) && (
               <div className="cv-tags">
-                {quest.priority !== 1 && <span className="cv-tag">{PRIORITY_LABELS[quest.priority]} priority</span>}
+                {quest.priority !== 1 && <span className="cv-tag">{t("view.priority", { priority: PRIORITY_LABELS[quest.priority] })}</span>}
                 {quest.giver && (
-                  <span className="cv-tag" data-tooltip="Quest giver">
+                  <span className="cv-tag" data-tooltip={t("quest.giver")}>
                     <UserRound size={13} aria-hidden /> <ArticleName link={quest.giver} candidates={candidates} />
                   </span>
                 )}
                 {front && (
-                  <span className="cv-tag qs-front-tag" style={front.color ? { ["--qs-front" as string]: front.color } : undefined} data-tooltip="Front">
+                  <span className="cv-tag qs-front-tag" style={front.color ? { ["--qs-front" as string]: front.color } : undefined} data-tooltip={t("quest.front")}>
                     <Flame size={13} aria-hidden /> {front.name}
                   </span>
                 )}
                 {parent && (
-                  <button type="button" className="cv-tag qs-tag-button" data-tooltip="Part of" onClick={() => onOpenQuest(parent.id)}>
+                  <button type="button" className="cv-tag qs-tag-button" data-tooltip={t("view.partOf")} onClick={() => onOpenQuest(parent.id)}>
                     <GitBranch size={13} aria-hidden /> {parent.title}
                   </button>
                 )}
@@ -133,9 +137,9 @@ export default function QuestView({
             <Progress objectives={quest.objectives} />
             {(quest.startDay !== null || quest.deadlineDay !== null || quest.endDay !== null) && (
               <div className="qs-view-dates">
-                {quest.startDay !== null && <span className="cal-help">Started {def ? dayLabel(def, quest.startDay, { weekday: false }) : `day ${quest.startDay}`}</span>}
+                {quest.startDay !== null && <span className="cal-help">{t("view.startedOn", { date: def ? dayLabel(def, quest.startDay, { weekday: false }) : t("quest.dayN", { n: quest.startDay }) })}</span>}
                 <DeadlineChip quest={quest} def={def} today={today} />
-                {quest.endDay !== null && <span className="cal-help">Ended {def ? dayLabel(def, quest.endDay, { weekday: false }) : `day ${quest.endDay}`}</span>}
+                {quest.endDay !== null && <span className="cal-help">{t("view.endedOn", { date: def ? dayLabel(def, quest.endDay, { weekday: false }) : t("quest.dayN", { n: quest.endDay }) })}</span>}
               </div>
             )}
           </div>
@@ -144,17 +148,17 @@ export default function QuestView({
         {quest.summary && <p className="cv-description">{quest.summary}</p>}
 
         <div className="cv-grid">
-          <Block title="Objectives" Icon={ListChecks}>
+          <Block title={t("view.objectives")} Icon={ListChecks}>
             {quest.objectives.length === 0 ? (
-              <p className="cal-help">No objectives yet. Add them with Edit.</p>
+              <p className="cal-help">{t("view.noObjectives")}</p>
             ) : (
               <ul className="ss-threads">
                 {quest.objectives.map((o) => (
                   <li key={o.id}>
                     <label className={o.state === "open" ? "cal-check" : "cal-check ss-resolved"}>
                       <input type="checkbox" checked={o.state === "done"} disabled={busy || o.state === "failed"} onChange={(e) => toggleObjective(o.id, e.target.checked)} /> {o.text}
-                      {o.optional && <span className="cal-help"> (optional)</span>}
-                      {o.state === "failed" && <span className="qs-failed-mark"> failed</span>}
+                      {o.optional && <span className="cal-help"> {t("view.optional")}</span>}
+                      {o.state === "failed" && <span className="qs-failed-mark"> {t("view.failed")}</span>}
                     </label>
                   </li>
                 ))}
@@ -162,20 +166,20 @@ export default function QuestView({
             )}
           </Block>
           {quest.clock && (
-            <Block title="Clock" Icon={Timer}>
+            <Block title={t("quest.clock")} Icon={Timer}>
               <div className="qs-clock-view">
-                <ProgressClock clock={quest.clock} size={88} disabled={busy} onSet={(filled) => quest.clock && patch({ clock: { ...quest.clock, filled } }, "Could not tick the clock.")} />
+                <ProgressClock clock={quest.clock} size={88} disabled={busy} onSet={(filled) => quest.clock && patch({ clock: { ...quest.clock, filled } }, t("fronts.couldNotTick"))} />
                 <span>
-                  <strong>{quest.clock.label || "Progress"}</strong>
+                  <strong>{quest.clock.label || t("view.progress")}</strong>
                   <span className="cal-help">
-                    {quest.clock.filled} of {quest.clock.segments}
-                    {quest.clock.filled >= quest.clock.segments ? " · full" : ""}
+                    {t("view.clockCount", { filled: quest.clock.filled, segments: quest.clock.segments })}
+                    {quest.clock.filled >= quest.clock.segments ? ` ${t("view.full")}` : ""}
                   </span>
                 </span>
               </div>
             </Block>
           )}
-          <Block title="Secrets & clues" Icon={KeyRound}>
+          <Block title={t("clues.title")} Icon={KeyRound}>
             <CoverageHint clues={quest.clues} />
             {quest.clues.length > 0 && (
               <ul className="qs-clues">
@@ -198,9 +202,9 @@ export default function QuestView({
             )}
           </Block>
           {hasRewards(quest.rewards) && quest.rewards && (
-            <Block title="Rewards" Icon={Gem}>
+            <Block title={t("view.rewards")} Icon={Gem}>
               <ul className="cv-articles qs-rewards">
-                {quest.rewards.xp !== null && <li className="cv-chip">{formatInteger(quest.rewards.xp)} XP</li>}
+                {quest.rewards.xp !== null && <li className="cv-chip">{t("view.xp", { n: formatInteger(quest.rewards.xp) })}</li>}
                 {quest.rewards.coins.map((c, i) => (
                   <li key={i} className="cv-chip">
                     {formatDecimal(c.amount)} {currencies.find((x) => x.id === c.currencyId)?.short ?? "?"}
@@ -215,41 +219,40 @@ export default function QuestView({
               </ul>
             </Block>
           )}
-          <Block title="Sub-quests" Icon={GitBranch}>
-            {subtree.length === 0 ? <p className="cal-help">None.</p> : <SubTree nodes={subtree} onOpen={onOpenQuest} />}
+          <Block title={t("view.subQuests")} Icon={GitBranch}>
+            {subtree.length === 0 ? <p className="cal-help">{t("view.none")}</p> : <SubTree nodes={subtree} onOpen={onOpenQuest} />}
             <button type="button" className="btn btn-sm qs-add-sub" onClick={onAddSub}>
-              <Plus size={14} /> Add a sub-quest
+              <Plus size={14} /> {t("view.addSub")}
             </button>
           </Block>
-          <Block title="Who and where" Icon={Users}>
+          <Block title={t("links.title")} Icon={Users}>
             <Involved quest={quest} candidates={candidates} />
           </Block>
-          <Block title="History" Icon={History}>
+          <Block title={t("view.history")} Icon={History}>
             {history.length === 0 ? (
-              <p className="cal-help">No session has logged it yet. Log it from a session&apos;s Quests tab.</p>
+              <p className="cal-help">{t("view.noHistory")}</p>
             ) : (
               <ol className="qs-history">
                 {history.map((h) => (
                   <li key={h.sessionId} className={`qs-history-${h.action}`}>
                     <button type="button" className="qs-history-session" onClick={() => onOpenSession(h.sessionId)}>
-                      Session {h.sessionNumber}
-                      {h.sessionTitle ? ` · ${h.sessionTitle}` : ""}
+                      {h.sessionTitle ? t("view.sessionTitleNamed", { n: h.sessionNumber, title: h.sessionTitle }) : t("view.sessionTitle", { n: h.sessionNumber })}
                     </button>
                     <span className="qs-history-action">{LOG_ACTION_LABELS[h.action]}</span>
-                    <span className="cal-help">{[def && h.startDay !== null ? dayLabel(def, h.startDay, { weekday: false }) : null, h.playedOn ? `played ${formatIsoDate(h.playedOn)}` : null].filter(Boolean).join(" · ")}</span>
+                    <span className="cal-help">{[def && h.startDay !== null ? dayLabel(def, h.startDay, { weekday: false }) : null, h.playedOn ? t("view.played", { date: formatIsoDate(h.playedOn) }) : null].filter(Boolean).join(" · ")}</span>
                     {h.note && <p className="qs-history-note">{h.note}</p>}
                     {h.clueIds.length > 0 && (
                       <ul className="qs-history-objectives">
                         {h.clueIds.map((id) => (
-                          <li key={id}><KeyRound size={11} aria-hidden /> {quest.clues.find((c) => c.id === id)?.text ?? "(removed clue)"}</li>
+                          <li key={id}><KeyRound size={11} aria-hidden /> {quest.clues.find((c) => c.id === id)?.text ?? t("view.removedClue")}</li>
                         ))}
                       </ul>
                     )}
-                    {h.clockTicks !== 0 && <span className="cal-help">Clock {h.clockTicks > 0 ? `+${h.clockTicks}` : h.clockTicks}</span>}
+                    {h.clockTicks !== 0 && <span className="cal-help">{t("view.clockTicks", { ticks: h.clockTicks > 0 ? `+${h.clockTicks}` : h.clockTicks })}</span>}
                     {h.objectiveIds.length > 0 && (
                       <ul className="qs-history-objectives">
                         {h.objectiveIds.map((id) => (
-                          <li key={id}>✓ {quest.objectives.find((o) => o.id === id)?.text ?? "(removed objective)"}</li>
+                          <li key={id}>✓ {quest.objectives.find((o) => o.id === id)?.text ?? t("view.removedObjective")}</li>
                         ))}
                       </ul>
                     )}
@@ -263,9 +266,9 @@ export default function QuestView({
         {quest.bodyDocumentId && (
           <section className="cv-block">
             <h3 className="cv-block-title">
-              <BookOpen size={14} aria-hidden /> Notes
+              <BookOpen size={14} aria-hidden /> {t("view.notes")}
             </h3>
-            <RichEditor documentId={quest.bodyDocumentId} editable={false} placeholder="No notes yet. Use Edit to write the truth behind it." />
+            <RichEditor documentId={quest.bodyDocumentId} editable={false} placeholder={te("placeholder.questNotes")} />
           </section>
         )}
         <MentionBacklinks targetId={quest.id} variant="plain" />
@@ -277,21 +280,21 @@ export default function QuestView({
         )}
         <div className="cel-footer">
           <button type="button" className="btn btn-sm btn-danger cel-footer-delete" onClick={() => setConfirmDelete(true)}>
-            <Trash2 size={14} /> Delete
+            <Trash2 size={14} /> {tc("delete")}
           </button>
           <button type="button" className="btn btn-sm" onClick={onClose}>
-            Close
+            {tc("close")}
           </button>
           <button type="button" className="btn btn-sm btn-primary" onClick={onEdit}>
-            <Pencil size={14} /> Edit
+            <Pencil size={14} /> {t("view.edit")}
           </button>
         </div>
       </div>
       <ConfirmDialog
         open={confirmDelete}
         danger
-        title={`Delete ${quest.title}?`}
-        confirmLabel="Delete"
+        title={t("quest.deleteNamed", { name: quest.title })}
+        confirmLabel={tc("delete")}
         error={deleteError}
         onConfirm={remove}
         onCancel={() => {
@@ -299,7 +302,7 @@ export default function QuestView({
           setDeleteError(null);
         }}
       >
-        Its sub-quests move up to its parent. Sessions that logged it keep their notes.
+        {t("quest.subQuestsMoveUp")}
       </ConfirmDialog>
     </Modal>
   );
@@ -321,7 +324,8 @@ function SubTree({ nodes, onOpen }: { nodes: TreeNode<QuestData>[]; onOpen: (id:
 }
 
 function Involved({ quest, candidates }: { quest: QuestData; candidates: Candidate[] | null }) {
-  if (quest.articleLinks.length === 0) return <p className="cal-help">Nobody and nowhere linked yet.</p>;
+  const t = useT("campaign");
+  if (quest.articleLinks.length === 0) return <p className="cal-help">{t("view.noneLinked")}</p>;
   return (
     <div className="ss-groups">
       {LINK_ROLES.map((role) => {

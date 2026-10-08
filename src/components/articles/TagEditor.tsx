@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { X, Lock } from "lucide-react";
 import { MAX_TAGS, MAX_TAG_LENGTH } from "@/server/articles/tags";
+import { useT } from "@/i18n/useT";
 
 /**
  * The article's tag chips: the template tag first (fixed, no remove button),
@@ -20,6 +21,8 @@ export default function TagEditor({
   suggestions: string[];
   onChange: (tags: string[]) => void;
 }) {
+  // `t` is a tag in this file.
+  const tr = useT("articles");
   const [draft, setDraft] = useState("");
   const [focused, setFocused] = useState(false);
   const taken = new Set([templateTag, ...tags].map((t) => t.toLowerCase()));
@@ -35,14 +38,14 @@ export default function TagEditor({
 
   return (
     <div className="article-tags">
-      <span className="article-tag fixed" data-tooltip="Template tag — always present">
+      <span className="article-tag fixed" data-tooltip={tr("tags.fixed")}>
         <Lock size={10} strokeWidth={2.5} aria-hidden />
         {templateTag}
       </span>
       {tags.map((t) => (
         <span key={t} className="article-tag">
           {t}
-          <button type="button" onClick={() => onChange(tags.filter((x) => x !== t))} aria-label={`Remove tag ${t}`} data-tooltip="Remove tag">
+          <button type="button" onClick={() => onChange(tags.filter((x) => x !== t))} aria-label={tr("tags.remove", { tag: t })} data-tooltip={tr("tags.removeHint")}>
             <X size={11} strokeWidth={2.5} />
           </button>
         </span>
@@ -50,8 +53,8 @@ export default function TagEditor({
       <div className="article-tag-input">
         <input
           type="text"
-          placeholder={full ? `Max ${MAX_TAGS} tags` : "Add tag…"}
-          aria-label="Add tag"
+          placeholder={full ? tr("tags.max", { n: MAX_TAGS }) : tr("tags.add")}
+          aria-label={tr("tags.addLabel")}
           value={draft}
           maxLength={MAX_TAG_LENGTH}
           disabled={full}
@@ -70,7 +73,7 @@ export default function TagEditor({
           }}
         />
         {focused && matches.length > 0 && (
-          <ul className="article-tag-suggestions" role="listbox" aria-label="Tag suggestions">
+          <ul className="article-tag-suggestions" role="listbox" aria-label={tr("tags.suggestions")}>
             {matches.map((s) => (
               <li key={s}>
                 {/* mousedown, so the input keeps focus and the pick lands before blur hides the list */}

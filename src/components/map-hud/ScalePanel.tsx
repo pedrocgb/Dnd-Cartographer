@@ -10,7 +10,7 @@ import {
   DEFAULT_SCALE,
   formatNumber,
   SCALE_LIMITS,
-  SCALE_UNIT_LABELS,
+  scaleUnitLabel,
   SCALE_UNITS,
   SUBDIVISIONS,
   unitSuffix,
@@ -19,8 +19,9 @@ import {
 } from "@/server/scale/scale-config";
 import type { MeasureMode } from "./MeasureLayer";
 import type { ScaleBarPatch, ScaleBarState } from "./use-map-scale-bar";
+import { useT } from "@/i18n/useT";
 
-const STYLE_LABELS: Record<ScaleStyle, string> = { alternating: "Boxes", double: "Double", ticks: "Ticks", hollow: "Hollow" };
+const STYLE_KEYS: ScaleStyle[] = ["alternating", "double", "ticks", "hollow"];
 
 /** A positive number field that keeps what's typed (e.g. "0.") until it's a valid number. */
 function StepInput({ value, onChange }: { value: number; onChange: (v: number) => void }) {
@@ -66,6 +67,8 @@ export default function ScalePanel({
   onUpdate: (patch: ScaleBarPatch) => void;
   onClose: () => void;
 }) {
+  const t = useT("maps");
+  const tc = useT("common");
   const { config, visible } = scaleBar;
   const calibrated = config.framePxPerUnit !== null;
   const suffix = unitSuffix(config);
@@ -76,18 +79,18 @@ export default function ScalePanel({
       <div className="marker-side-panel-header">
         <h2>
           <Ruler size={16} strokeWidth={2.25} style={{ verticalAlign: "-2px", marginRight: "6px" }} />
-          Scale &amp; measure
+          {t("panel.scale")}
         </h2>
-        <button className="btn btn-ghost btn-icon" onClick={onClose} aria-label="Close scale panel">
+        <button className="btn btn-ghost btn-icon" onClick={onClose} aria-label={tc("closePanel", { title: t("panel.scale") })}>
           <X size={16} strokeWidth={2.25} />
         </button>
       </div>
 
-      <MarkerCard title="Calibration" defaultOpen>
+      <MarkerCard title={t("scale.calibration")} defaultOpen>
         <p className="field-label">
           {calibrated
-            ? `1 ${suffix} = ${formatNumber(config.framePxPerUnit!)} map pixels.`
-            : "Tell the map how big it is: click two points a known distance apart (two cities, the ends of a road) and type that distance."}
+            ? t("scale.calibrated", { unit: suffix, px: formatNumber(config.framePxPerUnit!) })
+            : t("scale.calibrateHint")}
         </p>
         <button
           type="button"
@@ -96,62 +99,62 @@ export default function ScalePanel({
           onClick={() => onSetMeasureMode(measureMode === "calibrate" ? null : "calibrate")}
         >
           <Crosshair size={14} strokeWidth={2.25} />
-          {measureMode === "calibrate" ? "Cancel calibration" : calibrated ? "Recalibrate" : "Calibrate on the map"}
+          {measureMode === "calibrate" ? t("scale.cancelCalibration") : calibrated ? t("scale.recalibrate") : t("scale.calibrate")}
         </button>
       </MarkerCard>
 
-      <MarkerCard title="Scale bar" defaultOpen>
-        <Toggle checked={visible} disabled={!calibrated} onChange={(v) => onUpdate({ visible: v })} label="Show the scale bar" />
-        {!calibrated && <p className="field-label">Calibrate first; the bar needs to know the distances.</p>}
+      <MarkerCard title={t("scale.bar")} defaultOpen>
+        <Toggle checked={visible} disabled={!calibrated} onChange={(v) => onUpdate({ visible: v })} label={t("scale.showBar")} />
+        {!calibrated && <p className="field-label">{t("scale.calibrateFirst")}</p>}
         <label className="field-label" htmlFor="scale-unit">
-          Unit
+          {t("scale.unit")}
         </label>
         <select id="scale-unit" value={config.unit} onChange={(e) => set({ unit: e.target.value as ScaleUnit })}>
           {SCALE_UNITS.map((u) => (
             <option key={u} value={u}>
-              {SCALE_UNIT_LABELS[u]}
+              {scaleUnitLabel(u)}
             </option>
           ))}
         </select>
         {config.unit === "custom" && (
-          <input type="text" aria-label="Custom unit name" placeholder="Unit name (e.g. days on foot)" maxLength={SCALE_LIMITS.customLabel} value={config.customLabel} onChange={(e) => set({ customLabel: e.target.value })} />
+          <input type="text" aria-label={t("scale.customName")} placeholder={t("scale.customPlaceholder")} maxLength={SCALE_LIMITS.customLabel} value={config.customLabel} onChange={(e) => set({ customLabel: e.target.value })} />
         )}
-        <p className="field-label">Changing the unit doesn&rsquo;t convert the calibration: recalibrate if the distances change meaning.</p>
+        <p className="field-label">{t("scale.unitHint")}</p>
         <label className="field-label" htmlFor="scale-step">
-          Each step ({suffix})
+          {t("scale.eachStep", { unit: suffix })}
         </label>
         <StepInput value={config.stepValue} onChange={(stepValue) => set({ stepValue })} />
-        <SliderField label="Steps" value={config.steps} min={SCALE_LIMITS.steps[0]} max={SCALE_LIMITS.steps[1]} defaultValue={DEFAULT_SCALE.steps} onChange={(steps) => set({ steps })} />
-        <span className="field-label">Split the first step</span>
+        <SliderField label={t("scale.steps")} value={config.steps} min={SCALE_LIMITS.steps[0]} max={SCALE_LIMITS.steps[1]} defaultValue={DEFAULT_SCALE.steps} onChange={(steps) => set({ steps })} />
+        <span className="field-label">{t("scale.split")}</span>
         <SegmentedControl
-          ariaLabel="Split the first step"
+          ariaLabel={t("scale.split")}
           value={String(config.subdivideFirst)}
-          segments={SUBDIVISIONS.map((n) => ({ key: String(n), label: n === 0 ? "No" : `${n}` }))}
+          segments={SUBDIVISIONS.map((n) => ({ key: String(n), label: n === 0 ? t("scale.splitNo") : `${n}` }))}
           onChange={(key) => set({ subdivideFirst: Number(key) as (typeof SUBDIVISIONS)[number] })}
         />
-        <Toggle checked={config.autoStep} onChange={(autoStep) => set({ autoStep })} label="Round the step when zooming" />
-        <p className="field-label">When on, zooming far in or out picks a rounder step so the bar stays a readable size.</p>
+        <Toggle checked={config.autoStep} onChange={(autoStep) => set({ autoStep })} label={t("scale.autoStep")} />
+        <p className="field-label">{t("scale.autoStepHint")}</p>
       </MarkerCard>
 
-      <MarkerCard title="Look">
-        <span className="field-label">Style</span>
-        <SegmentedControl ariaLabel="Bar style" value={config.style} segments={(Object.keys(STYLE_LABELS) as ScaleStyle[]).map((key) => ({ key, label: STYLE_LABELS[key] }))} onChange={(style) => set({ style })} />
-        <span className="field-label">Color</span>
+      <MarkerCard title={t("legend.look")}>
+        <span className="field-label">{t("scale.style")}</span>
+        <SegmentedControl ariaLabel={t("scale.barStyle")} value={config.style} segments={STYLE_KEYS.map((key) => ({ key, label: t(`scale.style.${key}`) }))} onChange={(style) => set({ style })} />
+        <span className="field-label">{t("style.color")}</span>
         <SegmentedControl
-          ariaLabel="Bar color"
+          ariaLabel={t("scale.barColor")}
           value={config.tone}
           segments={[
-            { key: "light", label: "Light" },
-            { key: "dark", label: "Dark" },
+            { key: "light", label: t("scale.tone.light") },
+            { key: "dark", label: t("scale.tone.dark") },
           ]}
           onChange={(tone) => set({ tone })}
         />
-        <SliderField label="Label size" value={config.labelSize} min={SCALE_LIMITS.labelSize[0]} max={SCALE_LIMITS.labelSize[1]} suffix="px" defaultValue={DEFAULT_SCALE.labelSize} onChange={(labelSize) => set({ labelSize })} />
-        <Toggle checked={config.plate} onChange={(plate) => set({ plate })} label="Background plate" />
+        <SliderField label={t("scale.labelSize")} value={config.labelSize} min={SCALE_LIMITS.labelSize[0]} max={SCALE_LIMITS.labelSize[1]} suffix="px" defaultValue={DEFAULT_SCALE.labelSize} onChange={(labelSize) => set({ labelSize })} />
+        <Toggle checked={config.plate} onChange={(plate) => set({ plate })} label={t("scale.plate")} />
       </MarkerCard>
 
-      <MarkerCard title="Measure" defaultOpen>
-        <p className="field-label">Click points on the map to measure a path{calibrated ? ` in ${suffix}` : " (in map pixels until calibrated)"}.</p>
+      <MarkerCard title={t("scale.measure")} defaultOpen>
+        <p className="field-label">{calibrated ? t("scale.measureHint", { unit: suffix }) : t("scale.measureHintPx")}</p>
         <button
           type="button"
           className={measureMode === "measure" ? "btn btn-sm btn-primary" : "btn btn-sm"}
@@ -159,7 +162,7 @@ export default function ScalePanel({
           onClick={() => onSetMeasureMode(measureMode === "measure" ? null : "measure")}
         >
           <Ruler size={14} strokeWidth={2.25} />
-          {measureMode === "measure" ? "Stop measuring" : "Measure distance"}
+          {measureMode === "measure" ? t("scale.stopMeasuring") : t("scale.measureDistance")}
         </button>
       </MarkerCard>
       {error && <p className="form-error">{error}</p>}

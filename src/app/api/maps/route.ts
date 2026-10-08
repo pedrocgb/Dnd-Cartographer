@@ -7,6 +7,7 @@ import { listMapSummaries } from "@/server/maps/tree";
 import { createDefaultLayer } from "@/server/layers/layers";
 import type { MapNode } from "@/server/maps/hierarchy";
 import { foreignIdResponse, idsInWorld } from "@/server/world/guards";
+import { errorResponse } from "@/i18n/server";
 
 export async function GET(request: Request) {
   const worldId = await requireWorldId();
@@ -22,7 +23,7 @@ export async function POST(request: Request) {
   const parentId = typeof body?.parentId === "string" ? body.parentId : null;
 
   if (!name) {
-    return NextResponse.json({ error: "A map name is required." }, { status: 400 });
+    return errorResponse("mapNameRequired", 400);
   }
 
   const worldId = await requireWorldId();
@@ -32,15 +33,15 @@ export async function POST(request: Request) {
     const nodes: MapNode[] = existing;
     const parent = nodes.find((n) => n.id === parentId);
     if (!parent) {
-      return NextResponse.json({ error: "Unknown parent map." }, { status: 400 });
+      return errorResponse("unknownParentMap", 400);
     }
     if (parent.worldId !== worldId) {
-      return NextResponse.json({ error: "Maps must share the same world to be linked." }, { status: 400 });
+      return errorResponse("mapsSameWorld", 400);
     }
   }
 
   const folderId = await validFolderId(worldId, body?.folderId);
-  if (folderId === undefined) return NextResponse.json({ error: "Unknown folder." }, { status: 400 });
+  if (folderId === undefined) return errorResponse("unknownFolder", 400);
 
   if (!(await idsInWorld(worldId, [["map_categories", categoryId]]))) return foreignIdResponse();
   const [map] = await db.insert(maps).values({ worldId, name, categoryId, parentId, folderId }).returning();

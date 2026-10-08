@@ -7,6 +7,8 @@ import { clueCoverage } from "../quests/logic";
 import { isClosed, type Clue, type QuestStatus } from "../quests/types";
 import type { OutlineMove } from "./parse";
 import { templateByKey } from "./templates";
+import { activeT } from "../../i18n/active";
+import type { Translator } from "../../i18n/translate";
 import { CHILD_KIND, type BeatRole, type HealthWarning, type NodeKind, type NodeStatus, type ReviewOutcome, type Secret, type ThreadKind, type ThreadStatus } from "./types";
 
 type Node = { id: string; parentId: string | null; kind: NodeKind; sortOrder: number; title: string };
@@ -65,20 +67,19 @@ export function descendantIds(nodes: readonly Pick<Node, "id" | "parentId">[], i
  * exists, its new parent exists and can hold it (arcs at the root, chapters
  * in arcs, scenes in chapters). Returns an error message, or null when fine.
  */
-export function checkMoves(nodes: readonly Pick<Node, "id" | "parentId" | "kind">[], moves: readonly OutlineMove[]): string | null {
+export function checkMoves(nodes: readonly Pick<Node, "id" | "parentId" | "kind">[], moves: readonly OutlineMove[], t: Translator<"writer"> = activeT("writer")): string | null {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   for (const m of moves) {
     const node = byId.get(m.id);
-    if (!node) return "Something you moved isn't in this campaign's outline.";
+    if (!node) return t("problem.movedMissing");
     const parent = m.parentId === null ? null : byId.get(m.parentId);
-    if (parent === undefined) return "That place isn't in this campaign's outline.";
-    if (!canNest(parent?.kind ?? null, node.kind)) return nestError(node.kind);
+    if (parent === undefined) return t("problem.placeMissing");
+    if (!canNest(parent?.kind ?? null, node.kind)) return nestError(node.kind, t);
   }
   return null;
 }
 
-export const nestError = (kind: NodeKind) =>
-  kind === "arc" ? "Arcs sit at the top of the outline." : kind === "chapter" ? "Chapters go inside an arc." : "Scenes go inside a chapter.";
+export const nestError = (kind: NodeKind, t: Translator<"writer"> = activeT("writer")) => t(`problem.nest.${kind}`);
 
 export interface ChildDraft {
   kind: NodeKind;
@@ -87,12 +88,13 @@ export interface ChildDraft {
   beatKey: string;
 }
 
-/** The children a story template creates under a parent (null = the campaign root: arcs). */
-export function templateChildren(templateKey: string, parent: NodeKind | null): ChildDraft[] | null {
+/** The children a story template creates under a parent (null = the campaign root: arcs), titled in `t`'s language. */
+export function templateChildren(templateKey: string, parent: NodeKind | null, t: Translator<"writer"> = activeT("writer")): ChildDraft[] | null {
   const template = templateByKey(templateKey);
   const kind = parent === null ? "arc" : CHILD_KIND[parent];
   if (!template || !kind) return null;
-  return template.beats.map((b) => ({ kind, title: b.name, synopsis: b.hint, beatKey: b.key }));
+  const words = (b: string, field: "name" | "hint") => t(`template.${template.key}.beat.${b}.${field}` as Parameters<typeof t>[0]);
+  return template.beats.map((b) => ({ kind, title: words(b.key, "name"), synopsis: words(b.key, "hint"), beatKey: b.key }));
 }
 
 type ThreadLike = { id: string; name: string; kind: ThreadKind; status: ThreadStatus };
@@ -105,30 +107,29 @@ type QuestLike = { id: string; title: string; status: QuestStatus; clues: readon
  * quests with fewer than three clues (the Three Clue Rule). `order` is the
  * outline in reading order (node ids).
  */
-export function healthWarnings(threads: readonly ThreadLike[], beats: readonly BeatLike[], order: readonly string[], quests: readonly QuestLike[]): HealthWarning[] {
+export function healthWarnings(threads: readonly ThreadLike[], beats: readonly BeatLike[], order: readonly string[], quests: readonly QuestLike[], t: Translator<"writer"> = activeT("writer")): HealthWarning[] {
   const position = new Map(order.map((id, i) => [id, i]));
   const out: HealthWarning[] = [];
   const spans = new Map<string, { open: number | null; close: number | null }>();
-  for (const t of threads) {
-    const mine = beats.filter((b) => b.threadId === t.id && position.has(b.nodeId));
+  for (const th of threads) {
+    const mine = beats.filter((b) => b.threadId === th.id && position.has(b.nodeId));
     const at = (role: BeatRole) => mine.filter((b) => b.role === role).map((b) => position.get(b.nodeId)!);
     const setups = at("setup");
     const payoffs = at("payoff");
     const firstSetup = setups.length ? Math.min(...setups) : null;
     const lastPayoff = payoffs.length ? Math.max(...payoffs) : null;
-    spans.set(t.id, { open: firstSetup, close: lastPayoff });
-    const target = { kind: "thread" as const, id: t.id };
-    if (t.status === "dropped") continue;
+    spans.set(th.id, { open: firstSetup, close: lastPayoff });
+    const target = { kind: "thread" as const, id: th.id };
+    if (th.status === "dropped") continue;
     if (mine.length === 0) {
-      out.push({ key: `${t.id}:unplaced`, level: "info", text: `"${t.name}" isn't in any scene yet.`, target });
+      out.push({ key: `${th.id}:unplaced`, level: "info", text: t("health.unplaced", { name: th.name }), target });
       continue;
     }
-    if (firstSetup === null) out.push({ key: `${t.id}:nosetup`, level: "info", text: `"${t.name}" is never set up: which scene introduces it?`, target });
-    if (lastPayoff === null && t.status !== "paid") {
-      const what = t.kind === "chekhov" ? "is planted but never used" : t.kind === "mice" ? "opens but never closes" : "is promised but never paid off";
-      out.push({ key: `${t.id}:nopayoff`, level: "warn", text: `"${t.name}" ${what}.`, target });
+    if (firstSetup === null) out.push({ key: `${th.id}:nosetup`, level: "info", text: t("health.noSetup", { name: th.name }), target });
+    if (lastPayoff === null && th.status !== "paid") {
+      out.push({ key: `${th.id}:nopayoff`, level: "warn", text: t(`health.noPayoff.${th.kind}`, { name: th.name }), target });
     }
-    if (firstSetup !== null && lastPayoff !== null && lastPayoff < firstSetup) out.push({ key: `${t.id}:order`, level: "warn", text: `"${t.name}" pays off before it's set up.`, target });
+    if (firstSetup !== null && lastPayoff !== null && lastPayoff < firstSetup) out.push({ key: `${th.id}:order`, level: "warn", text: t("health.order", { name: th.name }), target });
   }
   // MICE: first opened, last closed. A thread that opens inside another must close before it.
   const mice = threads.filter((t) => t.kind === "mice" && t.status !== "dropped");
@@ -139,7 +140,7 @@ export function healthWarnings(threads: readonly ThreadLike[], beats: readonly B
       const b = spans.get(inner.id)!;
       if (inner.id === outer.id || b.open === null || b.close === null) continue;
       if (a.open < b.open && b.open < a.close && a.close < b.close) {
-        out.push({ key: `${outer.id}:${inner.id}:nest`, level: "warn", text: `"${outer.name}" closes before "${inner.name}", which opened inside it. Close the inner thread first.`, target: { kind: "thread", id: outer.id } });
+        out.push({ key: `${outer.id}:${inner.id}:nest`, level: "warn", text: t("health.nest", { outer: outer.name, inner: inner.name }), target: { kind: "thread", id: outer.id } });
       }
     }
   }
@@ -147,8 +148,8 @@ export function healthWarnings(threads: readonly ThreadLike[], beats: readonly B
     if (isClosed(q.status)) continue;
     const c = clueCoverage(q.clues);
     const target = { kind: "quest" as const, id: q.id };
-    if (c.underThree) out.push({ key: `${q.id}:clues`, level: "warn", text: `"${q.title}" has ${c.total} clue${c.total === 1 ? "" : "s"}. Give it at least three: players miss clues.`, target });
-    else if (c.total - c.revealed > 0 && c.placed === 0) out.push({ key: `${q.id}:placed`, level: "info", text: `"${q.title}" has clues, but none is placed anywhere yet.`, target });
+    if (c.underThree) out.push({ key: `${q.id}:clues`, level: "warn", text: t("health.clues", { name: q.title, count: c.total }), target });
+    else if (c.total - c.revealed > 0 && c.placed === 0) out.push({ key: `${q.id}:placed`, level: "info", text: t("health.unplacedClues", { name: q.title }), target });
   }
   return out;
 }

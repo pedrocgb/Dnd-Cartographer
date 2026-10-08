@@ -7,6 +7,7 @@ import { advanceFront, frontAction, setFrontClock } from "@/server/quests/logic"
 import { FRONT_KIND_LABELS, FRONT_STATUS_LABELS, type FrontData, type QuestData } from "@/server/quests/types";
 import ProgressClock from "./ProgressClock";
 import { StatusChip } from "./parts";
+import { useT } from "@/i18n/useT";
 
 /**
  * The campaign's fronts: each threat with its clock, grim portents
@@ -28,12 +29,13 @@ export default function FrontsView({
   onNew: () => void;
   onOpenQuest: (id: string) => void;
 }) {
+  const t = useT("campaign");
   if (fronts.length === 0) {
     return (
       <div className="ss-empty">
-        <p className="cal-help">No fronts yet. A front is a threat moving behind the scenes: a villain, a cult, a war. Give it grim portents (what it does next if nobody stops it) and an impending doom, then group its quests under it.</p>
+        <p className="cal-help">{t("fronts.empty")}</p>
         <button type="button" className="btn btn-sm btn-primary" onClick={onNew}>
-          <Plus size={14} /> New front
+          <Plus size={14} /> {t("fronts.new")}
         </button>
       </div>
     );
@@ -48,12 +50,13 @@ export default function FrontsView({
           </li>
         ))}
       </ul>
-      {loose > 0 && <p className="cal-help qs-fronts-loose">{loose} quest{loose === 1 ? " isn't" : "s aren't"} under any front. Pick one in a quest&apos;s Clock &amp; front tab.</p>}
+      {loose > 0 && <p className="cal-help qs-fronts-loose">{t("fronts.loose", { count: loose, n: loose })}</p>}
     </>
   );
 }
 
 function FrontCard({ front, quests, onChanged, onEdit, onOpenQuest }: { front: FrontData; quests: QuestData[]; onChanged: (f: FrontData) => void; onEdit: () => void; onOpenQuest: (id: string) => void }) {
+  const t = useT("campaign");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -72,16 +75,17 @@ function FrontCard({ front, quests, onChanged, onEdit, onOpenQuest }: { front: F
   const action = front.status === "active" ? frontAction(front) : null;
   const advance = () => {
     const { clock, portents } = advanceFront(front);
-    void patch({ clock, portents }, "Could not advance the front.");
+    void patch({ clock, portents }, t("fronts.couldNotAdvance"));
   };
   const setClock = (filled: number) => {
     const { clock, portents } = setFrontClock(front, filled);
-    void patch({ clock, portents }, "Could not tick the clock.");
+    void patch({ clock, portents }, t("fronts.couldNotTick"));
   };
   // With a clock per portent a full clock is only a step; the doom comes once every portent has.
   const allHappened = front.portents.length > 0 && !next;
   const doomNear = front.status === "active" && (perPortent ? allHappened && clockFull : clockFull || allHappened);
-  const advanceHint = action === "nextPortent" ? `Start the clock over for: ${next?.text}` : perPortent ? `Tick the clock; when it fills: ${next?.text ?? "the doom"}` : next ? `Next: ${next.text}` : "Tick the clock";
+  const advanceHint =
+    action === "nextPortent" ? t("fronts.hintNextPortent", { portent: next?.text ?? "" }) : perPortent ? t("fronts.hintTick", { portent: next?.text ?? t("fronts.theDoom") }) : next ? t("fronts.hintNext", { portent: next.text }) : t("fronts.hintTickOnly");
 
   return (
     <article className={`qs-front qs-front-${front.status}`} style={front.color ? { ["--qs-front" as string]: front.color } : undefined}>
@@ -96,15 +100,15 @@ function FrontCard({ front, quests, onChanged, onEdit, onOpenQuest }: { front: F
         <button type="button" className={action === "nextPortent" ? "btn btn-sm btn-primary" : "btn btn-sm"} disabled={busy || !action} onClick={advance} data-tooltip={advanceHint}>
           {action === "nextPortent" ? (
             <>
-              <RotateCcw size={14} /> Next portent
+              <RotateCcw size={14} /> {t("fronts.nextPortent")}
             </>
           ) : (
             <>
-              <StepForward size={14} /> Advance
+              <StepForward size={14} /> {t("fronts.advance")}
             </>
           )}
         </button>
-        <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={`Edit ${front.name}`} data-tooltip="Edit" onClick={onEdit}>
+        <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={t("quest.editNamed", { name: front.name })} data-tooltip={t("fronts.edit")} onClick={onEdit}>
           <Pencil size={14} />
         </button>
       </header>
@@ -112,16 +116,16 @@ function FrontCard({ front, quests, onChanged, onEdit, onOpenQuest }: { front: F
       <div className="qs-front-body">
         {front.clock && <ProgressClock clock={front.clock} size={72} disabled={busy} onSet={setClock} />}
         <div className="qs-front-portents">
-          <span className="field-label">Grim portents</span>
-          {perPortent && front.clock && <span className="cal-help">The clock fills once per portent ({front.clock.segments} segments each).</span>}
+          <span className="field-label">{t("fronts.grimPortents")}</span>
+          {perPortent && front.clock && <span className="cal-help">{t("fronts.perPortentNote", { segments: front.clock.segments })}</span>}
           {front.portents.length === 0 ? (
-            <p className="cal-help">None yet. Add them with Edit.</p>
+            <p className="cal-help">{t("fronts.noPortents")}</p>
           ) : (
             <ol>
               {front.portents.map((p) => (
                 <li key={p.id} className={p === next ? "next" : undefined}>
                   <label className={p.happened ? "cal-check ss-resolved" : "cal-check"}>
-                    <input type="checkbox" checked={p.happened} disabled={busy} onChange={(e) => void patch({ portents: front.portents.map((x) => (x.id === p.id ? { ...x, happened: e.target.checked } : x)) }, "Could not update the portent.")} /> {p.text}
+                    <input type="checkbox" checked={p.happened} disabled={busy} onChange={(e) => void patch({ portents: front.portents.map((x) => (x.id === p.id ? { ...x, happened: e.target.checked } : x)) }, t("fronts.couldNotUpdatePortent"))} /> {p.text}
                   </label>
                 </li>
               ))}
@@ -131,14 +135,14 @@ function FrontCard({ front, quests, onChanged, onEdit, onOpenQuest }: { front: F
       </div>
       {front.doom && (
         <p className={doomNear ? "qs-front-doom near" : "qs-front-doom"}>
-          <Skull size={14} aria-hidden /> <strong>Impending doom:</strong> {front.doom}
+          <Skull size={14} aria-hidden /> <strong>{t("fronts.impendingDoom")}</strong> {front.doom}
         </p>
       )}
-      {doomNear && <p className="cal-help">Every portent has come to pass or the clock is full: the doom is at hand. Set the front to &quot;{FRONT_STATUS_LABELS.doom}&quot; or &quot;{FRONT_STATUS_LABELS.averted}&quot; in Edit.</p>}
+      {doomNear && <p className="cal-help">{t("fronts.doomNear", { doom: FRONT_STATUS_LABELS.doom, averted: FRONT_STATUS_LABELS.averted })}</p>}
       <div className="qs-front-quests">
-        <span className="field-label">Quests ({quests.length})</span>
+        <span className="field-label">{t("fronts.quests", { n: quests.length })}</span>
         {quests.length === 0 ? (
-          <p className="cal-help">No quest under this front yet.</p>
+          <p className="cal-help">{t("fronts.noQuests")}</p>
         ) : (
           <ul>
             {quests.map((q) => (

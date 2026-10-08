@@ -23,6 +23,8 @@ import EntryEditor, { type EntryEditorMode } from "./EntryEditor";
 import SeasonsEditor from "./SeasonsEditor";
 import ProfilesEditor from "./ProfilesEditor";
 import type { CalendarView, Chronology, ClientCalendar, ClientCelestial, ClientEntry, WorldCalendars } from "./types";
+import { useT } from "@/i18n/useT";
+import { activeT } from "@/i18n/active";
 
 const ACTIVE_KEY = "calendars:active";
 const VIEW_KEY = "calendars:view";
@@ -57,6 +59,8 @@ interface Undo {
  * current-date actions change world time.
  */
 export default function CalendarsManager() {
+  const t = useT("calendars");
+  const tc = useT("common");
   // Deep links: ?day=<worldDay> opens that day, ?profile=<id> previews that season profile (from article backlinks / Season Profile fields).
   const searchParams = useSearchParams();
   const linkedDay = Number.isSafeInteger(Number(searchParams.get("day"))) && searchParams.get("day") !== null ? Number(searchParams.get("day")) : null;
@@ -100,7 +104,7 @@ export default function CalendarsManager() {
     if (res.ok) {
       setWorld(res.data);
       notifyWorldDateChanged();
-    } else setLoadError(res.data.error ?? "Could not load the calendars.");
+    } else setLoadError(res.data.error ?? activeT("calendars")("manager.loadFailed"));
     return res.ok ? res.data : null;
   }, []);
 
@@ -109,7 +113,7 @@ export default function CalendarsManager() {
     api<WorldCalendars>("GET", "/api/calendars").then((res) => {
       if (cancelled) return;
       if (!res.ok) {
-        setLoadError(res.data.error ?? "Could not load the calendars.");
+        setLoadError(res.data.error ?? activeT("calendars")("manager.loadFailed"));
         return;
       }
       setWorld(res.data);
@@ -216,7 +220,7 @@ export default function CalendarsManager() {
   }, [selectedDay, ctx, range, perDay, visibleEntries]);
 
   if (loadError) return <div className="articles-main">{loadError}</div>;
-  if (!world || !ctx) return <PageSkeleton label="Loading calendars…" main="grid" />;
+  if (!world || !ctx) return <PageSkeleton label={t("manager.loading")} main="grid" />;
 
   function selectCalendar(id: string) {
     setActiveId(id);
@@ -255,7 +259,7 @@ export default function CalendarsManager() {
     }
     const data = res.data as { chronology?: Chronology; error?: string };
     if (data.chronology) applyChronology(data.chronology);
-    setNotice(data.error ?? "Could not change the date.");
+    setNotice(data.error ?? t("manager.dateFailed"));
   }
 
   async function undoLast() {
@@ -263,7 +267,7 @@ export default function CalendarsManager() {
     if (!last || !world) return;
     if (last.revision !== world.chronology.revision) {
       setUndo([]);
-      setNotice("The world date was changed since, so that step can't be undone.");
+      setNotice(t("manager.undoStale"));
       return;
     }
     setBusy(true);
@@ -279,7 +283,7 @@ export default function CalendarsManager() {
       const data = res.data as { chronology?: Chronology; error?: string };
       if (data.chronology) applyChronology(data.chronology);
       setUndo([]);
-      setNotice(data.error ?? "Could not undo.");
+      setNotice(data.error ?? t("manager.undoFailed"));
     }
   }
 
@@ -290,7 +294,7 @@ export default function CalendarsManager() {
     setDeleting({ ...deleting, busy: true, error: null });
     const res = await api<{ ok: true }>("DELETE", `/api/calendars/${target.id}`);
     if (!res.ok) {
-      setDeleting({ calendar: target, busy: false, error: res.data.error ?? "Could not delete the calendar." });
+      setDeleting({ calendar: target, busy: false, error: res.data.error ?? t("manager.deleteFailed") });
       return;
     }
     setDeleting(null);
@@ -307,7 +311,7 @@ export default function CalendarsManager() {
     if (!world) return;
     const res = await api<{ chronology: Chronology }>("PATCH", "/api/chronology", { defaultCalendarId: c.id, expectedRevision: world.chronology.revision });
     if (res.ok) applyChronology(res.data.chronology);
-    else setNotice(res.data.error ?? "Could not change the default calendar.");
+    else setNotice(res.data.error ?? t("manager.defaultFailed"));
   }
 
   async function duplicate(c: ClientCalendar) {
@@ -315,7 +319,7 @@ export default function CalendarsManager() {
     if (res.ok) {
       await reload();
       selectCalendar(res.data.calendar.id);
-    } else setNotice(res.data.error ?? "Could not duplicate the calendar.");
+    } else setNotice(res.data.error ?? t("manager.duplicateFailed"));
   }
 
   function toggleObject(id: string) {
@@ -357,20 +361,23 @@ export default function CalendarsManager() {
   const viewedObject = world?.celestial.find((o) => o.id === celestialView) ?? null;
   const viewedSeason = world?.seasons.find((x) => x.id === seasonView) ?? null;
 
+  const [deleteBefore, deleteAfter] = t("manager.deleteBody").split("{name}");
   const editors = (
     <>
       <ConfirmDialog
         open={deleting !== null}
-        title="Delete calendar?"
-        confirmLabel="Move to Trash"
-        busyLabel="Deleting…"
+        title={t("manager.deleteTitle")}
+        confirmLabel={t("manager.moveToTrash")}
+        busyLabel={tc("deleting")}
         busy={deleting?.busy}
         error={deleting?.error}
         onConfirm={deleteCalendar}
         onCancel={() => setDeleting(null)}
       >
         <p>
-          <strong>{deleting?.calendar.name}</strong> goes to the Trash (Settings → Trash), where you can restore it. Its entries stay on the world&apos;s timeline, and campaigns or season profiles that use it keep their dates.
+          {deleteBefore}
+          <strong>{deleting?.calendar.name}</strong>
+          {deleteAfter}
         </p>
       </ConfirmDialog>
       {calendarEditor && (
@@ -465,10 +472,10 @@ export default function CalendarsManager() {
         <main className="articles-main">
           <div className="articles-landing">
             <CalendarPlus size={40} strokeWidth={1.5} aria-hidden />
-            <h1>Calendars</h1>
-            <p className="cal-help">Create your world&apos;s first calendar: its weekdays, months and today&apos;s date. Seasons, moons and other calendars can come later.</p>
+            <h1>{t("manager.title")}</h1>
+            <p className="cal-help">{t("manager.empty")}</p>
             <button type="button" className="btn btn-primary" onClick={() => setCalendarEditor("new")}>
-              New calendar
+              {t("manager.new")}
             </button>
           </div>
         </main>
@@ -479,7 +486,8 @@ export default function CalendarsManager() {
 
   const periods = periodsOf(def, viewed.year);
   const period = periods.find((p) => p.period.id === viewed.periodId);
-  const title = view === "month" ? `${period?.period.name ?? ""} ${viewed.year}${def.year.suffix ? ` ${def.year.suffix}` : ""}` : `Year ${viewed.year}${def.year.suffix ? ` ${def.year.suffix}` : ""}`;
+  const yearText = `${viewed.year}${def.year.suffix ? ` ${def.year.suffix}` : ""}`;
+  const title = view === "month" ? `${period?.period.name ?? ""} ${viewed.year}${def.year.suffix ? ` ${def.year.suffix}` : ""}` : t("manager.yearTitle", { year: yearText });
   const step = (delta: 1 | -1) => setViewed(view === "month" ? stepPeriod(def, viewed.year, viewed.periodId, delta) : { year: stepYear(def, viewed.year, delta), periodId: viewed.periodId });
   const seasonOf = (d: number) => (previewProfile ? ctx.seasonsOn(previewProfile.id, d).flatMap((id) => world.seasons.find((s) => s.id === id) ?? []) : []);
   const week = weekLength(def);
@@ -490,35 +498,35 @@ export default function CalendarsManager() {
       {sidebar}
       <main className="articles-main cal-main">
         <header className="cal-header">
-          <section className="cal-now" aria-label="Current date">
-            <button type="button" className="cal-now-date" onClick={() => showDay(currentDay)} data-tooltip="Show this day">
+          <section className="cal-now" aria-label={t("manager.currentDate")}>
+            <button type="button" className="cal-now-date" onClick={() => showDay(currentDay)} data-tooltip={t("manager.showDay")}>
               <span className="cal-now-icon" aria-hidden>
                 <Sun size={20} strokeWidth={2} />
               </span>
               <span className="cal-now-text">
-                <span className="cal-now-label">Current date</span>
+                <span className="cal-now-label">{t("manager.currentDate")}</span>
                 <strong aria-live="polite">{dayLabel(def, currentDay)}</strong>
               </span>
             </button>
-            <div className="cal-now-advance" role="group" aria-label="Advance time">
-              <span className="cal-now-label">Advance</span>
+            <div className="cal-now-advance" role="group" aria-label={t("manager.advanceTime")}>
+              <span className="cal-now-label">{t("manager.advance")}</span>
               <div className="cal-now-steps">
-                <button type="button" disabled={busy} onClick={() => changeDay({ advanceDays: 1 }, "Advance 1 day")}>
-                  +1 day
+                <button type="button" disabled={busy} onClick={() => changeDay({ advanceDays: 1 }, t("manager.advancedDay"))}>
+                  {t("manager.plusDay")}
                 </button>
-                <button type="button" disabled={busy} onClick={() => changeDay({ advanceDays: week }, `Advance 1 week`)} data-tooltip={`One week of this calendar is ${week} days`}>
-                  +1 week
+                <button type="button" disabled={busy} onClick={() => changeDay({ advanceDays: week }, t("manager.advancedWeek"))} data-tooltip={t("manager.weekHint", { n: week })}>
+                  {t("manager.plusWeek")}
                 </button>
                 <span className="cal-now-custom">
-                  <input type="number" aria-label="Days to advance (negative goes back)" value={advanceBy} onChange={(e) => setAdvanceBy(Math.trunc(Number(e.target.value)) || 0)} />
-                  <button type="button" disabled={busy || advanceBy === 0} onClick={() => changeDay({ advanceDays: advanceBy }, `Advance ${advanceBy} days`)}>
-                    {advanceBy < 0 ? "days back" : "days"}
+                  <input type="number" aria-label={t("manager.advanceAria")} value={advanceBy} onChange={(e) => setAdvanceBy(Math.trunc(Number(e.target.value)) || 0)} />
+                  <button type="button" disabled={busy || advanceBy === 0} onClick={() => changeDay({ advanceDays: advanceBy }, t("manager.advancedDays", { count: advanceBy, n: advanceBy }))}>
+                    {advanceBy < 0 ? t("manager.daysBack") : t("manager.days")}
                   </button>
                 </span>
               </div>
               {undo.length > 0 && (
-                <button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={undoLast} data-tooltip={`Undo: ${undo.at(-1)!.label}`}>
-                  <Undo2 size={14} /> Undo
+                <button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={undoLast} data-tooltip={t("manager.undoHint", { label: undo.at(-1)!.label })}>
+                  <Undo2 size={14} /> {tc("undo")}
                 </button>
               )}
             </div>
@@ -529,15 +537,15 @@ export default function CalendarsManager() {
             </p>
           )}
           <div className="cal-nav">
-            <button type="button" className="btn btn-ghost btn-icon" aria-label={view === "month" ? "Previous month" : "Previous year"} onClick={() => step(-1)}>
+            <button type="button" className="btn btn-ghost btn-icon" aria-label={view === "month" ? tc("datePicker.previousMonth") : t("manager.prevYear")} onClick={() => step(-1)}>
               <ChevronLeft size={16} />
             </button>
             <h1 className="cal-title">{title}</h1>
-            <button type="button" className="btn btn-ghost btn-icon" aria-label={view === "month" ? "Next month" : "Next year"} onClick={() => step(1)}>
+            <button type="button" className="btn btn-ghost btn-icon" aria-label={view === "month" ? tc("datePicker.nextMonth") : t("manager.nextYear")} onClick={() => step(1)}>
               <ChevronRight size={16} />
             </button>
             {view === "month" && (
-              <select aria-label="Month" value={viewed.periodId} onChange={(e) => setViewed({ ...viewed, periodId: e.target.value })}>
+              <select aria-label={tc("datePicker.month")} value={viewed.periodId} onChange={(e) => setViewed({ ...viewed, periodId: e.target.value })}>
                 {periods.map((p) => (
                   <option key={p.period.id} value={p.period.id}>
                     {p.period.name}
@@ -548,7 +556,7 @@ export default function CalendarsManager() {
             <input
               type="number"
               className="cal-year-input"
-              aria-label="Year"
+              aria-label={tc("datePicker.year")}
               value={viewed.year}
               onChange={(e) => {
                 const year = Math.trunc(Number(e.target.value));
@@ -558,15 +566,15 @@ export default function CalendarsManager() {
               }}
             />
             <button type="button" className="btn btn-sm" onClick={() => showDay(currentDay)}>
-              <LocateFixed size={14} /> Today
+              <LocateFixed size={14} /> {tc("datePicker.today")}
             </button>
             <div className="cal-jump">
               <button type="button" className="btn btn-sm" aria-expanded={jumpOpen} onClick={() => { setJumpDate(localOf(def, selectedDay ?? currentDay)); setJumpOpen(!jumpOpen); }}>
-                Jump to date
+                {t("manager.jump")}
               </button>
               {jumpOpen && jumpDate && (
                 <div className="cal-jump-pop">
-                  <DateInput def={def} label="Go to" value={jumpDate} onChange={setJumpDate} />
+                  <DateInput def={def} label={t("manager.goTo")} value={jumpDate} onChange={setJumpDate} />
                   <button
                     type="button"
                     className="btn btn-sm btn-primary"
@@ -578,16 +586,16 @@ export default function CalendarsManager() {
                       }
                     }}
                   >
-                    Go
+                    {t("manager.go")}
                   </button>
                 </div>
               )}
             </div>
             <span className="cal-spacer" />
-            <div className="cal-view-switch" role="group" aria-label="View">
+            <div className="cal-view-switch" role="group" aria-label={t("manager.view")}>
               {(["month", "year", "agenda"] as const).map((v) => (
                 <button key={v} type="button" className={view === v ? "btn btn-sm active" : "btn btn-sm"} aria-pressed={view === v} onClick={() => changeView(v)}>
-                  {v === "month" ? "Month" : v === "year" ? "Year" : "Agenda"}
+                  {t(`manager.view.${v}`)}
                 </button>
               ))}
             </div>
@@ -604,7 +612,7 @@ export default function CalendarsManager() {
               }}
             />
           )}
-          {view === "agenda" && <AgendaView def={def} items={occurrences} selectedDay={selectedDay} onSelect={setSelectedDay} rangeLabel={`year ${viewed.year}`} />}
+          {view === "agenda" && <AgendaView def={def} items={occurrences} selectedDay={selectedDay} onSelect={setSelectedDay} emptyText={t("views.nothingInYear", { year: yearText })} />}
         </div>
       </main>
       {selectedDay !== null && (
@@ -621,7 +629,7 @@ export default function CalendarsManager() {
           articleNames={articleNames}
           ctx={ctx}
           busy={busy}
-          onSetCurrent={() => changeDay({ currentDay: selectedDay }, "Set current date")}
+          onSetCurrent={() => changeDay({ currentDay: selectedDay }, t("manager.setCurrent"))}
           onEdit={setEntryEditor}
           onViewObject={(o) => setCelestialView(o.id)}
           onViewSeason={(x) => setSeasonView(x.id)}

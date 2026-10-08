@@ -1,5 +1,6 @@
 import { sanitizePosition, type HudPosition } from "../legends/legend-config";
 import { formatDecimal } from "../settings/number-format";
+import { activeT } from "../../i18n/active";
 
 /**
  * A map's scale bar, stored as JSON in map_scale_bars.config: the
@@ -11,17 +12,10 @@ import { formatDecimal } from "../settings/number-format";
 export const SCALE_UNITS = ["km", "m", "mi", "ft", "yd", "leagues", "custom"] as const;
 export type ScaleUnit = (typeof SCALE_UNITS)[number];
 
-export const SCALE_UNIT_LABELS: Record<ScaleUnit, string> = {
-  km: "Kilometers (km)",
-  m: "Meters (m)",
-  mi: "Miles (mi)",
-  ft: "Feet (ft)",
-  yd: "Yards (yd)",
-  leagues: "Leagues",
-  custom: "Custom unit",
-};
+/** A scale unit's name for pickers ("Kilometers (km)"), in the user's language. */
+export const scaleUnitLabel = (unit: ScaleUnit) => activeT("maps")(`scale.unit.${unit}`);
 
-const UNIT_SUFFIX: Record<Exclude<ScaleUnit, "custom">, string> = { km: "km", m: "m", mi: "mi", ft: "ft", yd: "yd", leagues: "leagues" };
+const UNIT_SUFFIX: Record<Exclude<ScaleUnit, "custom" | "leagues">, string> = { km: "km", m: "m", mi: "mi", ft: "ft", yd: "yd" };
 
 export const SCALE_STYLES = ["alternating", "double", "ticks", "hollow"] as const;
 export type ScaleStyle = (typeof SCALE_STYLES)[number];
@@ -114,7 +108,9 @@ export function parseScaleConfig(json: string): ScaleConfig {
 
 /** The unit as shown after a number ("km", "leagues", or the custom label). */
 export function unitSuffix(config: Pick<ScaleConfig, "unit" | "customLabel">): string {
-  return config.unit === "custom" ? config.customLabel || "units" : UNIT_SUFFIX[config.unit];
+  const t = activeT("maps");
+  if (config.unit === "custom") return config.customLabel || t("scale.suffix.units");
+  return config.unit === "leagues" ? t("scale.suffix.leagues") : UNIT_SUFFIX[config.unit];
 }
 
 /** A distance with up to 3 significant digits (no trailing zeros). */

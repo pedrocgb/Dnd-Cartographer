@@ -6,10 +6,11 @@ import { isLayerOfMap } from "@/server/layers/layers";
 import { folderError, sanitizeFolderName, topSortOrder } from "@/server/maps/layer-folders";
 import { LINE_KINDS, defaultLineStyle, sanitizeLinePatch, sanitizePoints, toClientLine, type LineKind } from "@/server/lines/line-config";
 import { notInWorld } from "@/server/world/guards";
+import { errorResponse } from "@/i18n/server";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ mapId: string }> }) {
   const { mapId } = await params;
-  const denied = await notInWorld("maps", mapId, "Map not found.");
+  const denied = await notInWorld("maps", mapId, "mapNotFound");
   if (denied) return denied;
   const rows = await db
     .select()
@@ -20,28 +21,28 @@ export async function GET(_request: Request, { params }: { params: Promise<{ map
 
 export async function POST(request: Request, { params }: { params: Promise<{ mapId: string }> }) {
   const { mapId } = await params;
-  const denied = await notInWorld("maps", mapId, "Map not found.");
+  const denied = await notInWorld("maps", mapId, "mapNotFound");
   if (denied) return denied;
   const map = await db.query.maps.findFirst({ where: eq(maps.id, mapId) });
-  if (!map) return NextResponse.json({ error: "Map not found." }, { status: 404 });
-  if (!map.frameWidth || !map.frameHeight) return NextResponse.json({ error: "Upload a map image first." }, { status: 409 });
+  if (!map) return errorResponse("mapNotFound", 404);
+  if (!map.frameWidth || !map.frameHeight) return errorResponse("needMapImage", 409);
 
   const body = await request.json().catch(() => null);
-  if (!body || typeof body !== "object") return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+  if (!body || typeof body !== "object") return errorResponse("invalidBody", 400);
   if (!(await isLayerOfMap(body.layerId, mapId))) {
-    return NextResponse.json({ error: "A layer of this map is required." }, { status: 400 });
+    return errorResponse("layerOfMapRequired", 400);
   }
   if (!(LINE_KINDS as readonly string[]).includes(body.kind)) {
-    return NextResponse.json({ error: "kind must be 'free' or 'pen'." }, { status: 400 });
+    return errorResponse("lineKindInvalid", 400);
   }
   const kind = body.kind as LineKind;
   const frame = { width: map.frameWidth, height: map.frameHeight };
   const points = sanitizePoints(kind, body.points, frame);
-  if (!points) return NextResponse.json({ error: "A line needs 2 or more valid points." }, { status: 400 });
+  if (!points) return errorResponse("linePointsRequired", 400);
 
   const groupId: string | null = typeof body.groupId === "string" ? body.groupId : null;
   const groupError = await folderError("line", groupId, mapId, body.layerId);
-  if (groupError) return NextResponse.json({ error: groupError }, { status: 409 });
+  if (groupError) return errorResponse(groupError, 409);
 
   const style = { ...defaultLineStyle(frame.width, frame.height), ...sanitizeLinePatch(body, frame) };
   const sortOrder = await topSortOrder("line", mapId, groupId);

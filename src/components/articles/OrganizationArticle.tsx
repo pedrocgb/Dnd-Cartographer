@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { Pencil } from "lucide-react";
-import { ORGANIZATION_KINDS } from "@/server/politics/hierarchy-config";
+import { ORGANIZATION_KINDS, organizationKindLabel } from "@/server/politics/hierarchy-config";
 import { parseTags } from "@/server/articles/tags";
 import { addedInfo, columnPatch, emptyRequiredInfo } from "@/server/articles/info-fields";
 import { ORGANIZATION_INFO } from "@/server/articles/info-sets";
@@ -13,6 +13,7 @@ import { InfoForm, InfoView, type InfoLookups } from "./InfoBar";
 import { PickGroupRow, patchRecord, sortByName, useEditingResetOnSelect, useExpandedSet } from "./shared";
 import type { OpenArticle, Organization } from "./types";
 import { useRelationValues } from "@/components/relations/relations-context";
+import { useT } from "@/i18n/useT";
 
 const recordUrl = (id: string) => `/api/politics/organizations/${id}`;
 
@@ -29,6 +30,8 @@ export function OrganizationFolder({
   selectedId: string | null;
   onSelect: (id: string) => void;
 }) {
+  const ta = useT("articles");
+  const tp = useT("politics");
   const [expanded, toggleExpand] = useExpandedSet();
   const groups = useMemo(() => {
     const byKind = new Map<string, Organization[]>(KIND_GROUPS.map((k) => [k, []]));
@@ -43,7 +46,7 @@ export function OrganizationFolder({
         <PickGroupRow
           key={g.kind}
           groupId={`kind:${g.kind}`}
-          label={`${g.kind} (${g.members.length})`}
+          label={ta("character.groupCount", { name: organizationKindLabel(g.kind, tp), n: g.members.length })}
           members={g.members}
           expanded={expanded}
           onToggleExpand={toggleExpand}
@@ -70,6 +73,8 @@ export function OrganizationArticle({
   onDeleted: () => void;
   onOpenArticle: OpenArticle;
 }) {
+  const ta = useT("articles");
+  const tp = useT("politics");
   const [editing, setEditing] = useEditingResetOnSelect(organization.id);
   const relationValues = useRelationValues(ORGANIZATION_INFO, organization.id);
   const shownRelationValues = useRelationValues(ORGANIZATION_INFO, organization.id, { forView: true });
@@ -80,7 +85,7 @@ export function OrganizationArticle({
     <ArticleView
       template="organization"
       title={organization.name}
-      subtitle={organization.kind}
+      subtitle={organizationKindLabel(organization.kind, tp)}
       tags={parseTags(organization.tags)}
       tagSuggestions={tagSuggestions}
       onChangeTags={(tags) => void update({ tags })}
@@ -92,7 +97,7 @@ export function OrganizationArticle({
           endpoint={`${recordUrl(organization.id)}/portrait`}
           portraitKey={organization.portraitKey}
           updatedAt={organization.updatedAt}
-          label="Crest"
+          label={ta("portrait.crest")}
           onChanged={onChanged}
         />
       }
@@ -100,7 +105,7 @@ export function OrganizationArticle({
         !editing && (
           <button className="btn btn-sm btn-ghost" onClick={() => setEditing(true)}>
             <Pencil size={13} strokeWidth={2.25} />
-            Edit
+            {ta("view.edit")}
           </button>
         )
       }
@@ -137,6 +142,7 @@ export function OrganizationArticle({
 /** Creating an organization asks for its name and type; everything else is added from its Info Bar. */
 /** Creating an organization asks for its name and required fields (type preset to the first); everything else is added from its Info Bar. */
 export function OrganizationForm({ onSaved, onCancel, onBack }: { onSaved: (o: Organization) => void; onCancel: () => void; onBack?: () => void }) {
+  const tc = useT("common");
   return (
     <InfoForm
       set={ORGANIZATION_INFO}
@@ -144,8 +150,8 @@ export function OrganizationForm({ onSaved, onCancel, onBack }: { onSaved: (o: O
       initialValues={{ ...emptyRequiredInfo(ORGANIZATION_INFO), organizationType: ORGANIZATION_KINDS[0] }}
       lookups={{}}
       allowAdding={false}
-      saveLabel="Create"
-      savingLabel="Creating…"
+      saveLabel={tc("create")}
+      savingLabel={tc("creating")}
       onSave={(name, values) =>
         fetch("/api/politics/organizations", {
           method: "POST",

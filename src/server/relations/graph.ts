@@ -1,7 +1,7 @@
 import { parseInfo } from "../articles/info-fields";
 import { INFO_FIELD_SETS, personInfoSet } from "../articles/info-sets";
 import { isArticleTemplate, personTemplate, type ArticleTemplateKey } from "../articles/templates";
-import { labelFor, relationType, type DerivedKind, type RelationGroup } from "./types";
+import { derivedLabel, labelFor, relationType, type DerivedKind, type RelationGroup } from "./types";
 
 /**
  * Relationship graphs, built in the browser from the article lists the
@@ -89,8 +89,8 @@ export function derivedEdges(catalog: Catalog, server: readonly ServerDerivedInp
   const add = (kind: DerivedKind, fromId: string, toId: string, label: string) => {
     if (fromId !== toId && catalog.has(fromId) && catalog.has(toId)) out.push({ id: `${kind}:${fromId}:${toId}:${label}`, kind, fromId, toId, label });
   };
-  for (const p of input.people) if (p.houseId) add("house", p.id, p.houseId, "Member of house");
-  for (const t of input.territories) if (t.parentId) add("territoryParent", t.id, t.parentId, "Vassal of");
+  for (const p of input.people) if (p.houseId) add("house", p.id, p.houseId, derivedLabel("house"));
+  for (const t of input.territories) if (t.parentId) add("territoryParent", t.id, t.parentId, derivedLabel("territoryParent"));
   for (const e of server) add(e.kind, e.fromId, e.toId, e.label);
 
   for (const entry of catalog.values()) {

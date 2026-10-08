@@ -5,6 +5,7 @@ import { Crop, ImagePlus, Trash2 } from "lucide-react";
 import ImageCropDialog from "./ImageCropDialog";
 import Modal from "./Modal";
 import { PORTRAIT_TYPES, portraitFileError, type PortraitCrop } from "@/server/assets/portrait-crop";
+import { useT } from "@/i18n/useT";
 
 const portraitUrl = (key: string, version: string | number) => `/api/politics/portraits/${key}?v=${encodeURIComponent(version)}`;
 
@@ -36,6 +37,8 @@ export default function PortraitUploader({
   label: string;
   onChanged: () => void;
 }) {
+  const t = useT("politics");
+  const tc = useT("common");
   const inputRef = useRef<HTMLInputElement>(null);
   const [cropping, setCropping] = useState<Cropping | null>(null);
   const [saving, setSaving] = useState(false);
@@ -80,14 +83,14 @@ export default function PortraitUploader({
   }
 
   async function startAdjusting() {
-    const source = await loadSource("Could not load the image to adjust.");
+    const source = await loadSource(t("portrait.loadAdjustFailed"));
     if (!source) return;
     setDialogError(null);
     setCropping({ kind: "adjust", src: source.src, initial: source.crop });
   }
 
   async function startViewing() {
-    const source = await loadSource("Could not load the full image.");
+    const source = await loadSource(t("portrait.loadFullFailed"));
     if (source) setViewing(source.src);
   }
 
@@ -106,13 +109,13 @@ export default function PortraitUploader({
           : await fetch(endpoint, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ crop }) });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setDialogError(data.error ?? "Could not save the image.");
+        setDialogError(data.error ?? t("portrait.saveFailed"));
         return;
       }
       setCropping(null);
       onChanged();
     } catch {
-      setDialogError("Could not reach the server. Try again.");
+      setDialogError(tc("serverUnreachable"));
     } finally {
       setSaving(false);
     }
@@ -124,7 +127,7 @@ export default function PortraitUploader({
     try {
       const res = await fetch(endpoint, { method: "DELETE" });
       if (res.ok) onChanged();
-      else setError(`Could not remove the ${lower}.`);
+      else setError(t("portrait.removeFailed", { label: lower }));
     } finally {
       setBusy(false);
     }
@@ -155,8 +158,8 @@ export default function PortraitUploader({
         className={["politics-portrait-frame", src && "has-image", src && decodedSrc !== src && "loading", dragging && "dragging"].filter(Boolean).join(" ")}
         role="button"
         tabIndex={0}
-        aria-label={src ? `View the full ${lower}` : `Upload ${lower} (or drop / paste an image)`}
-        data-tooltip={src ? `View the full ${lower}` : `Upload ${lower} — click, drop or paste an image`}
+        aria-label={src ? t("portrait.view", { label: lower }) : t("portrait.uploadLabel", { label: lower })}
+        data-tooltip={src ? t("portrait.view", { label: lower }) : t("portrait.uploadHint", { label: lower })}
         onClick={activate}
         onKeyDown={(e) => {
           if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
@@ -192,10 +195,10 @@ export default function PortraitUploader({
           <div className="politics-portrait-placeholder">
             <ImagePlus size={28} strokeWidth={2} />
             <span>{label}</span>
-            <span className="politics-portrait-drop-hint">Click, drop or paste</span>
+            <span className="politics-portrait-drop-hint">{t("portrait.dropHint")}</span>
           </div>
         )}
-        {dragging && <div className="politics-portrait-drop">Drop to upload</div>}
+        {dragging && <div className="politics-portrait-drop">{t("portrait.dropToUpload")}</div>}
       </div>
       {src && (
         <div className="politics-portrait-actions">
@@ -204,14 +207,14 @@ export default function PortraitUploader({
             className="btn btn-sm btn-ghost"
             onClick={() => void startAdjusting()}
             disabled={busy}
-            data-tooltip={`Adjust ${lower} — reposition, zoom or rotate`}
+            data-tooltip={t("portrait.adjustHint", { label: lower })}
           >
             <Crop size={13} strokeWidth={2.25} />
-            Adjust
+            {t("portrait.adjust")}
           </button>
-          <button type="button" className="btn btn-sm btn-ghost politics-portrait-remove" onClick={remove} disabled={busy} data-tooltip={`Remove ${lower}`}>
+          <button type="button" className="btn btn-sm btn-ghost politics-portrait-remove" onClick={remove} disabled={busy} data-tooltip={t("portrait.removeHint", { label: lower })}>
             <Trash2 size={13} strokeWidth={2.25} />
-            Remove
+            {t("portrait.remove")}
           </button>
         </div>
       )}
@@ -226,9 +229,9 @@ export default function PortraitUploader({
         <ImageCropDialog
           key={cropping.src}
           src={cropping.src}
-          title={cropping.kind === "new" ? `Position the ${lower}` : `Adjust the ${lower}`}
+          title={cropping.kind === "new" ? t("portrait.positionTitle", { label: lower }) : t("portrait.adjustTitle", { label: lower })}
           initial={cropping.kind === "adjust" ? cropping.initial : null}
-          confirmLabel={cropping.kind === "new" ? `Upload ${lower}` : "Save"}
+          confirmLabel={cropping.kind === "new" ? t("portrait.upload", { label: lower }) : tc("save")}
           busy={saving}
           error={dialogError}
           onConfirm={save}

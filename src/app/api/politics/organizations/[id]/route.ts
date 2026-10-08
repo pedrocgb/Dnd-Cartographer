@@ -9,17 +9,19 @@ import { ORGANIZATION_KINDS } from "@/server/politics/hierarchy-config";
 import { sanitizeColor, sanitizeInfo } from "@/server/articles/info-fields";
 import { ORGANIZATION_INFO } from "@/server/articles/info-sets";
 import { RelationError } from "@/server/relations/store";
+import { relationErrorResponse } from "@/server/relations/respond";
 import { withRelationSync } from "@/server/relations/sync";
 import { foreignIdResponse, idsInWorld } from "@/server/world/guards";
+import { errorResponse } from "@/i18n/server";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const worldId = await requireWorldId();
   const org = await db.query.organizations.findFirst({ where: and(eq(organizations.id, id), eq(organizations.worldId, worldId)) });
-  if (!org) return NextResponse.json({ error: "Organization not found." }, { status: 404 });
+  if (!org) return errorResponse("organizationNotFound", 404);
 
   const body = await request.json().catch(() => null);
-  if (!body) return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+  if (!body) return errorResponse("invalidBody", 400);
 
   const patch: Partial<typeof organizations.$inferInsert> = { updatedAt: new Date() };
   if (typeof body.name === "string" && body.name.trim()) patch.name = body.name.trim();
@@ -47,7 +49,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return row;
     });
   } catch (err) {
-    if (err instanceof RelationError) return NextResponse.json({ error: err.message }, { status: 409 });
+    if (err instanceof RelationError) return relationErrorResponse(err);
     throw err;
   }
   return NextResponse.json({ organization: updated });
@@ -57,9 +59,9 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   const { id } = await params;
   const worldId = await requireWorldId();
   const member = await db.query.people.findFirst({ where: and(eq(people.houseId, id), isNull(people.deletedAt)) });
-  if (member) return NextResponse.json({ error: "Cannot delete: a person still lists this as their house." }, { status: 409 });
+  if (member) return errorResponse("organizationHasMembers", 409);
   const holding = await db.query.authorityAssignments.findFirst({ where: eq(authorityAssignments.holderId, id) });
-  if (holding) return NextResponse.json({ error: "Cannot delete: this organization still holds an authority assignment." }, { status: 409 });
+  if (holding) return errorResponse("organizationHoldsAuthority", 409);
 
   await db.update(organizations).set({ deletedAt: new Date(), updatedAt: new Date() }).where(and(eq(organizations.id, id), eq(organizations.worldId, worldId)));
   return NextResponse.json({ ok: true });

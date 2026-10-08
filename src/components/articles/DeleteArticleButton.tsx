@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { Trash2 } from "lucide-react";
 import ConfirmDialog from "@/components/ConfirmDialog";
-import { TEMPLATE_LABELS, type ArticleTemplateKey } from "@/server/articles/templates";
+import type { ArticleTemplateKey } from "@/server/articles/templates";
+import { templateOf } from "./templates";
+import { useT } from "@/i18n/useT";
 
 /**
  * An article's Delete button and its confirmation dialog. Server refusals
@@ -21,11 +23,14 @@ export default function DeleteArticleButton({
   template: ArticleTemplateKey;
   onDeleted: () => void;
 }) {
+  const t = useT("articles");
+  const tc = useT("common");
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // "Delete this character?" — but not "this generic?" / "this magic & spells?".
-  const kind = template === "generic" || template === "magic" ? "article" : TEMPLATE_LABELS[template].toLowerCase();
+  const kind = template === "generic" || template === "magic" ? t("delete.kindArticle") : templateOf(template).label.toLowerCase();
+  const [beforeName, afterName] = t("delete.body").split("{name}");
 
   function close() {
     setOpen(false);
@@ -41,10 +46,10 @@ export default function DeleteArticleButton({
         close();
         onDeleted();
       } else {
-        setError((await res.json().catch(() => ({}))).error ?? `Could not delete this ${kind}.`);
+        setError((await res.json().catch(() => ({}))).error ?? t("delete.failed", { kind }));
       }
     } catch {
-      setError(`Could not delete this ${kind}. Check your connection and try again.`);
+      setError(t("delete.offline", { kind }));
     } finally {
       setBusy(false);
     }
@@ -54,24 +59,26 @@ export default function DeleteArticleButton({
     <>
       <button className="btn btn-sm btn-danger" onClick={() => setOpen(true)}>
         <Trash2 size={13} strokeWidth={2.25} />
-        Delete
+        {t("delete.button")}
       </button>
       <ConfirmDialog
         open={open}
-        title={`Delete this ${kind}?`}
-        confirmLabel={`Delete ${kind}`}
-        busyLabel="Deleting…"
+        title={t("delete.title", { kind })}
+        confirmLabel={t("delete.confirm", { kind })}
+        busyLabel={tc("deleting")}
         busy={busy}
         error={error}
         onConfirm={confirm}
         onCancel={close}
       >
         <p>
-          <strong>&ldquo;{name}&rdquo;</strong> moves to the Trash, together with its body, sidebar, footer and informations.
+          {beforeName}
+          <strong>{name}</strong>
+          {afterName}
         </p>
         <ul>
-          <li>Links to it from other articles will show as &ldquo;(removed)&rdquo; while it&rsquo;s there.</li>
-          <li>You can restore it from Settings → Trash.</li>
+          <li>{t("delete.links")}</li>
+          <li>{t("delete.restore")}</li>
         </ul>
       </ConfirmDialog>
     </>

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { errorResponse } from "@/i18n/server";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { relationshipBoards } from "@/server/db/schema";
@@ -18,7 +19,7 @@ export async function GET() {
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const name = sanitizeBoardName(body?.name);
-  if (!name) return NextResponse.json({ error: "A board needs a name." }, { status: 400 });
+  if (!name) return errorResponse("boardNameRequired", 400);
   const worldId = await requireWorldId();
   const [row] = await db.insert(relationshipBoards).values({ worldId, name }).returning();
   return NextResponse.json({ board: toClientBoard(row) }, { status: 201 });

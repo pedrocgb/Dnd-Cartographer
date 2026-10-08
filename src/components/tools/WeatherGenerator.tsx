@@ -16,8 +16,9 @@ import RecentList from "./RecentList";
 import AttachWeatherModal from "./AttachWeatherModal";
 import { useWeatherHistory } from "./useWeatherHistory";
 import WeatherModal from "./WeatherModal";
+import { useT } from "@/i18n/useT";
+import { climateLabel, geographyLabel, seasonLabel, weatherText } from "@/lib/weather/labels";
 
-const GEOGRAPHY_OPTIONS = [{ value: "random", label: "Random" }, ...GEOGRAPHY_NAMES.map((g) => ({ value: g, label: g }))];
 /** Bounds for typed temperatures, in °C: colder than Antarctica's record or hotter than Death Valley's is a typo. */
 const TEMP_RANGE = { min: -90, max: 60 };
 
@@ -25,6 +26,7 @@ type Choice = Exclude<keyof WeatherOptions, "minTemp" | "maxTemp">;
 
 /** Advanced Tools › Weather Generator: a whole day of believable weather for a climate, place and season. */
 export default function WeatherGenerator({ worldId }: { worldId: string }) {
+  const t = useT("weather");
   const { settings } = useSettings();
   const unit = settings.temperatureUnit;
   const symbol = temperatureSymbol(unit);
@@ -36,10 +38,12 @@ export default function WeatherGenerator({ worldId }: { worldId: string }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [attaching, setAttaching] = useState(false);
   const [attachedTo, setAttachedTo] = useState<string | null>(null);
-  const dateOf = (worldDay: number) => (calendar ? dayLabel(calendar.def, worldDay, { weekday: false }) : `Day ${worldDay}`);
+  const dateOf = (worldDay: number) => (calendar ? dayLabel(calendar.def, worldDay, { weekday: false }) : t("gen.dayN", { n: worldDay }));
   const open = entries.find((e) => e.id === openId) ?? null;
   const temp = (c: number) => `${Math.round(fromCelsius(c, unit))}${symbol}`;
   const [error, setError] = useState<string | null>(null);
+
+  const geographyOptions = [{ value: "random", label: t("ui.random") }, ...GEOGRAPHY_NAMES.map((g) => ({ value: g, label: geographyLabel(g, t) }))];
 
   const set = (key: Choice, value: string) => setOpts((o) => ({ ...o, [key]: value }));
 
@@ -57,11 +61,11 @@ export default function WeatherGenerator({ worldId }: { worldId: string }) {
     const maxTemp = readTemp(maxText);
     if (minTemp === undefined || maxTemp === undefined) {
       const bound = (c: number) => `${Math.round(fromCelsius(c, unit))}${symbol}`;
-      setError(`Temperatures must be numbers between ${bound(TEMP_RANGE.min)} and ${bound(TEMP_RANGE.max)}.`);
+      setError(t("gen.tempRange", { min: bound(TEMP_RANGE.min), max: bound(TEMP_RANGE.max) }));
       return;
     }
     if (minTemp !== null && maxTemp !== null && minTemp > maxTemp) {
-      setError("The minimum temperature is higher than the maximum.");
+      setError(t("gen.minAboveMax"));
       return;
     }
     setError(null);
@@ -77,46 +81,46 @@ export default function WeatherGenerator({ worldId }: { worldId: string }) {
         <div>
           <h1 className="tool-title">
             <CloudSun size={22} strokeWidth={2.25} aria-hidden />
-            Weather Generator
+            {t("gen.title")}
           </h1>
-          <p>Roll a whole day of weather: pick a climate, a place and a season, and get the sky, rain, wind and temperatures hour by hour, following real-world rules, with what they mean for travellers.</p>
+          <p>{t("gen.intro")}</p>
         </div>
       </header>
 
       <section className="settings-card">
         <div className="settings-card-head">
-          <h2>Generation options</h2>
-          <p>Real-world seasons, unrelated to your calendars. Temperatures are in {symbol}, as set in Settings › Units &amp; formats.</p>
+          <h2>{t("gen.options")}</h2>
+          <p>{t("gen.optionsHint", { symbol })}</p>
         </div>
         <div className="settings-card-body">
-          <SettingRow label="Climate" description="The broad climate zone, from steamy tropics to polar ice." htmlFor="weather-climate">
+          <SettingRow label={t("gen.climate")} description={t("gen.climateHint")} htmlFor="weather-climate">
             <select id="weather-climate" value={opts.climate} onChange={(e) => set("climate", e.target.value)}>
-              <option value="random">Random</option>
+              <option value="random">{t("ui.random")}</option>
               {CLIMATES.map((c) => (
                 <option key={c} value={c}>
-                  {c}
+                  {climateLabel(c, t)}
                 </option>
               ))}
             </select>
           </SettingRow>
-          <SettingRow label="Geography" description="Height, water and shelter change the temperature, rain and wind.">
-            <InfoPicker ariaLabel="Geography" placeholder="Random" options={GEOGRAPHY_OPTIONS} value={opts.geography} onChange={(v) => set("geography", v ?? "random")} />
+          <SettingRow label={t("gen.geography")} description={t("gen.geographyHint")}>
+            <InfoPicker ariaLabel={t("gen.geography")} placeholder={t("ui.random")} options={geographyOptions} value={opts.geography} onChange={(v) => set("geography", v ?? "random")} />
           </SettingRow>
-          <SettingRow label="Season" htmlFor="weather-season">
+          <SettingRow label={t("gen.season")} htmlFor="weather-season">
             <select id="weather-season" value={opts.season} onChange={(e) => set("season", e.target.value)}>
-              <option value="random">Random</option>
+              <option value="random">{t("ui.random")}</option>
               {SEASONS.map((s) => (
                 <option key={s} value={s}>
-                  {s}
+                  {seasonLabel(s, t)}
                 </option>
               ))}
             </select>
           </SettingRow>
-          <SettingRow label={`Min temperature (${symbol})`} description="Optional. The day's low; leave empty to follow the climate." htmlFor="weather-min">
-            <input id="weather-min" type="text" inputMode="decimal" className="weather-temp-input" value={minText} placeholder="Auto" onChange={(e) => setMinText(e.target.value)} />
+          <SettingRow label={t("gen.minTemp", { symbol })} description={t("gen.minHint")} htmlFor="weather-min">
+            <input id="weather-min" type="text" inputMode="decimal" className="weather-temp-input" value={minText} placeholder={t("gen.auto")} onChange={(e) => setMinText(e.target.value)} />
           </SettingRow>
-          <SettingRow label={`Max temperature (${symbol})`} description="Optional. The day's high; leave empty to follow the climate." htmlFor="weather-max">
-            <input id="weather-max" type="text" inputMode="decimal" className="weather-temp-input" value={maxText} placeholder="Auto" onChange={(e) => setMaxText(e.target.value)} />
+          <SettingRow label={t("gen.maxTemp", { symbol })} description={t("gen.maxHint")} htmlFor="weather-max">
+            <input id="weather-max" type="text" inputMode="decimal" className="weather-temp-input" value={maxText} placeholder={t("gen.auto")} onChange={(e) => setMaxText(e.target.value)} />
           </SettingRow>
         </div>
       </section>
@@ -124,7 +128,7 @@ export default function WeatherGenerator({ worldId }: { worldId: string }) {
       <div className="tool-actions">
         <button type="button" className="btn btn-primary" onClick={generate}>
           <Dices size={16} strokeWidth={2.25} aria-hidden />
-          Generate
+          {t("gen.generate")}
         </button>
       </div>
 
@@ -135,8 +139,8 @@ export default function WeatherGenerator({ worldId }: { worldId: string }) {
       )}
 
       <RecentList
-        title="Recent weather"
-        noun="days of weather"
+        title={t("gen.recent")}
+        noun={t("gen.noun")}
         onOpen={setOpenId}
         items={entries.map((e) => {
           const wet = e.day.segments.find((s) => e.day.hours[s.start].precipitation && !e.day.underground);
@@ -144,11 +148,11 @@ export default function WeatherGenerator({ worldId }: { worldId: string }) {
             id: e.id,
             createdAt: e.createdAt,
             title: `${temp(e.day.low)} / ${temp(e.day.high)}`,
-            meta: `${e.day.climate} · ${e.day.geography} · ${e.day.season}${wet ? ` · ${wet.label.toLowerCase()} from ${hourLabel(wet.start)}` : ""}`,
+            meta: [climateLabel(e.day.climate, t), geographyLabel(e.day.geography, t), seasonLabel(e.day.season, t), ...(wet ? [t("gen.wetFrom", { label: weatherText(wet.label, t).toLocaleLowerCase(), hour: hourLabel(wet.start) })] : [])].join(" · "),
             extra: e.calendarDays.length > 0 && (
-              <span className="tool-history-badge" data-tooltip={`On the calendar: ${e.calendarDays.map(dateOf).join(", ")}`}>
+              <span className="tool-history-badge" data-tooltip={t("gen.onCalendarList", { dates: e.calendarDays.map(dateOf).join(", ") })}>
                 <CalendarCheck size={13} strokeWidth={2.5} aria-hidden />
-                Calendar
+                {t("gen.calendarBadge")}
               </span>
             ),
           };
@@ -167,7 +171,7 @@ export default function WeatherGenerator({ worldId }: { worldId: string }) {
             open.calendarDays.length > 0 && (
               <p className="weather-attached">
                 <CalendarCheck size={15} strokeWidth={2.25} aria-hidden />
-                On the calendar:{" "}
+                {t("gen.onCalendar")}{" "}
                 {open.calendarDays.map((d, i) => (
                   <span key={`${d}-${i}`}>
                     {i > 0 && ", "}
@@ -181,17 +185,17 @@ export default function WeatherGenerator({ worldId }: { worldId: string }) {
             <>
               <button type="button" className="btn btn-sm btn-ghost" onClick={generate}>
                 <Dices size={15} strokeWidth={2.25} aria-hidden />
-                Generate another
+                {t("gen.another")}
               </button>
               {attachedTo && (
                 <span className="cod-created" role="status">
                   <CalendarCheck size={15} strokeWidth={2.5} aria-hidden />
-                  Attached to {attachedTo}
+                  {t("gen.attachedTo", { date: attachedTo })}
                 </span>
               )}
               <button type="button" className="btn btn-sm btn-primary" onClick={() => setAttaching(true)}>
                 <CalendarPlus size={15} strokeWidth={2.25} aria-hidden />
-                Attach to calendar
+                {t("gen.attach")}
               </button>
             </>
           }

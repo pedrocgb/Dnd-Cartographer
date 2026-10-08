@@ -36,7 +36,6 @@ import {
   type InfoValues,
   requiredFields,
 } from "@/server/articles/info-fields";
-import { TEMPLATE_LABELS } from "@/server/articles/templates";
 import { COLOR_PRESETS } from "@/server/markers/icon-registry";
 import WorldDatePicker from "@/components/calendars/WorldDatePicker";
 import { dayLabel } from "@/components/calendars/evaluate";
@@ -45,11 +44,15 @@ import InfoPicker, { type PickerOption } from "./InfoPicker";
 import type { OpenArticle } from "./types";
 import { useSettings } from "@/components/settings/SettingsProvider";
 import { measureExample } from "@/server/settings/units";
+import { useT } from "@/i18n/useT";
+import { activeT } from "@/i18n/active";
+import { templateOf } from "./templates";
+import { optionLabel } from "@/server/articles/info-sets";
 
 /** Articles a link field can point at, by template (season profiles carry their current season as `detail`). */
 export type InfoLookups = Partial<Record<InfoLinkTarget, { id: string; name: string; detail?: string }[]>>;
 
-const targetLabel = (target: InfoLinkTarget) => (target === "seasonProfile" ? "Season Profiles" : TEMPLATE_LABELS[target]);
+const targetLabel = (target: InfoLinkTarget) => (target === "seasonProfile" ? activeT("articles")("info.seasonProfiles") : templateOf(target).label);
 
 /** Native selects get a search box once they reach this many options. */
 const SEARCHABLE_SELECT_MIN = 10;
@@ -57,13 +60,14 @@ const SEARCHABLE_SELECT_MIN = 10;
 /** Values longer than this many lines (text) or items (lists) start collapsed. */
 const COLLAPSE_AFTER = 3;
 
-const KIND: Record<InfoFieldKind, { Icon: LucideIcon; hint: string }> = {
-  text: { Icon: Type, hint: "Text" },
-  select: { Icon: ArrowDownWideNarrow, hint: "Dropdown" },
-  link: { Icon: ExternalLink, hint: "Link" },
-  color: { Icon: Palette, hint: "Color" },
-  url: { Icon: Link2, hint: "Web address" },
-  date: { Icon: CalendarDays, hint: "Date" },
+/** Each kind's hint is `articles` `info.kind.<kind>`. */
+const KIND: Record<InfoFieldKind, { Icon: LucideIcon }> = {
+  text: { Icon: Type },
+  select: { Icon: ArrowDownWideNarrow },
+  link: { Icon: ExternalLink },
+  color: { Icon: Palette },
+  url: { Icon: Link2 },
+  date: { Icon: CalendarDays },
 };
 
 const isEmpty = (v: InfoValue | undefined) => v === null || v === undefined || v === "" || (Array.isArray(v) && v.length === 0);
@@ -111,7 +115,8 @@ export function InfoRow({ label, children }: { label: string; children: React.Re
 
 /** The subtle show more / show less toggle under a collapsed value. */
 function ExpandToggle({ expanded, onToggle }: { expanded: boolean; onToggle: () => void }) {
-  const label = expanded ? "Show less" : "Show more";
+  const ta = useT("articles");
+  const label = expanded ? ta("info.showLess") : ta("info.showMore");
   return (
     <button type="button" className="info-expand" onClick={onToggle} aria-expanded={expanded} aria-label={label} data-tooltip={label}>
       {expanded ? <EyeOff size={12} strokeWidth={2.25} /> : <Maximize2 size={12} strokeWidth={2.25} />}
@@ -188,6 +193,7 @@ export function InfoView({
   /** Read-only rows after the fields (e.g. authorities). */
   extra?: React.ReactNode;
 }) {
+  const ta = useT("articles");
   const fields = fieldsInOrder(set, values);
   // Dates are world days, shown in the world's default calendar.
   const { calendar, loading } = useDefaultCalendarStatus(fields.some((f) => f.kind === "date"));
@@ -197,7 +203,7 @@ export function InfoView({
     if (!found) {
       return (
         <span key={id} className="field-label">
-          (removed)
+          {ta("info.removed")}
         </span>
       );
     }
@@ -219,7 +225,7 @@ export function InfoView({
     );
   }
 
-  if (fields.length === 0 && !leading && !extra) return <p className="article-card-placeholder">No information yet. Use Edit to add some.</p>;
+  if (fields.length === 0 && !leading && !extra) return <p className="article-card-placeholder">{ta("info.empty")}</p>;
 
   return (
     <dl className="info-list">
@@ -239,12 +245,12 @@ export function InfoView({
           const day = parseWorldDay(value)!;
           shown = calendar ? (
             <span className="info-value">
-              <Link className="politics-link-button" href={`/calendars?day=${day}`} data-tooltip="Open this day in Calendars">
+              <Link className="politics-link-button" href={`/calendars?day=${day}`} data-tooltip={ta("info.openDay")}>
                 {dayLabel(calendar.def, day, { weekday: false })}
               </Link>
             </span>
           ) : (
-            <span className="field-label">{loading ? "…" : "Needs a calendar (create one in Calendars)"}</span>
+            <span className="field-label">{loading ? "…" : ta("info.needsCalendar")}</span>
           );
         } else if (field.kind === "url") {
           shown = (
@@ -256,8 +262,9 @@ export function InfoView({
           const ids = Array.isArray(value) ? value : [value as string];
           shown = <CollapsedList items={ids.map((id) => linkButton(field.link!.targets, id))} />;
         } else if (Array.isArray(value)) {
-          shown = <CollapsedList items={value.map((v, i) => <span key={v}>{i < value.length - 1 ? `${v},` : v}</span>)} />;
-        } else shown = <ClampedText text={String(value)} />;
+          const word = (v: string) => (field.kind === "select" ? optionLabel(v) : v);
+          shown = <CollapsedList items={value.map((v, i) => <span key={v}>{i < value.length - 1 ? `${word(v)},` : word(v)}</span>)} />;
+        } else shown = <ClampedText text={field.kind === "select" ? optionLabel(String(value)) : String(value)} />;
         return (
           <InfoRow key={field.key} label={field.label}>
             {shown}
@@ -284,6 +291,7 @@ function InfoFieldMenu({
   onPick: (field: InfoField) => void;
   onClose: () => void;
 }) {
+  const ta = useT("articles");
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [active, setActive] = useState(0);
@@ -293,7 +301,8 @@ function InfoFieldMenu({
   const groups = set.groups
     .map((g) => ({
       ...g,
-      fields: available.filter((f) => f.group === g.key && (!needle || f.label.toLowerCase().includes(needle))),
+      // Alphabetical in the user's language (the data files sort by the English label).
+      fields: available.filter((f) => f.group === g.key && (!needle || f.label.toLowerCase().includes(needle))).sort((a, b) => a.label.localeCompare(b.label)),
     }))
     .filter((g) => g.fields.length > 0);
   // Searching shows every match; otherwise only expanded groups' fields are reachable.
@@ -315,13 +324,13 @@ function InfoFieldMenu({
   }
 
   return (
-    <div className="info-menu" role="dialog" aria-label="Add more information">
+    <div className="info-menu" role="dialog" aria-label={ta("info.addMore")}>
       <label className="info-menu-search">
         <Search size={14} strokeWidth={2.25} aria-hidden />
         <input
           type="text"
-          placeholder="Search information…"
-          aria-label="Search information"
+          placeholder={ta("info.search")}
+          aria-label={ta("info.searchLabel")}
           value={query}
           autoFocus
           onChange={(e) => {
@@ -339,8 +348,8 @@ function InfoFieldMenu({
           }}
         />
       </label>
-      <div className="info-menu-list" ref={listRef} role="listbox" aria-label="Available information">
-        {groups.length === 0 && <p className="field-label info-menu-empty">No information matches &ldquo;{query.trim()}&rdquo;.</p>}
+      <div className="info-menu-list" ref={listRef} role="listbox" aria-label={ta("info.available")}>
+        {groups.length === 0 && <p className="field-label info-menu-empty">{ta("info.noMatch", { query: query.trim() })}</p>}
         {groups.map((g) => {
           const expanded = isOpen(g.key);
           return (
@@ -353,7 +362,7 @@ function InfoFieldMenu({
               {expanded &&
                 g.fields.map((field) => {
                   const index = visible.indexOf(field);
-                  const { Icon, hint } = KIND[field.kind];
+                  const { Icon } = KIND[field.kind];
                   return (
                     <button
                       key={field.key}
@@ -367,7 +376,7 @@ function InfoFieldMenu({
                     >
                       <Icon size={14} strokeWidth={2.25} aria-hidden />
                       <span className="info-menu-option-label">{field.label}</span>
-                      <span className="info-menu-option-kind">{hint}</span>
+                      <span className="info-menu-option-kind">{ta(`info.kind.${field.kind}`)}</span>
                     </button>
                   );
                 })}
@@ -381,10 +390,11 @@ function InfoFieldMenu({
 
 /** The ? next to a field's remove button: hovering or focusing it shows the field's hint. */
 function FieldHint({ field }: { field: InfoField }) {
+  const ta = useT("articles");
   const id = `info-hint-${field.key}`;
   return (
     <span className="info-hint">
-      <button type="button" className="btn btn-ghost btn-icon" aria-label={`About ${field.label}`} aria-describedby={id}>
+      <button type="button" className="btn btn-ghost btn-icon" aria-label={ta("info.about", { field: field.label })} aria-describedby={id}>
         <CircleQuestionMark size={13} strokeWidth={2.25} />
       </button>
       <span role="tooltip" id={id} className="info-hint-bubble">
@@ -396,12 +406,13 @@ function FieldHint({ field }: { field: InfoField }) {
 
 /** Chips of a list value, each removable. */
 function Chips({ items, onRemove }: { items: { value: string; label: string }[]; onRemove: (value: string) => void }) {
+  const ta = useT("articles");
   return (
     <>
       {items.map((item) => (
         <span key={item.value} className="article-tag">
           {item.label}
-          <button type="button" onClick={() => onRemove(item.value)} aria-label={`Remove ${item.label}`} data-tooltip="Remove">
+          <button type="button" onClick={() => onRemove(item.value)} aria-label={ta("info.removeItem", { item: item.label })} data-tooltip={ta("info.remove")}>
             <X size={11} strokeWidth={2.5} />
           </button>
         </span>
@@ -450,6 +461,7 @@ function Dropdown({
  * written before the field was a date is shown until a date replaces it.
  */
 function DateFieldEditor({ field, value, onChange }: { field: InfoField; value: InfoValue; onChange: (value: InfoValue) => void }) {
+  const ta = useT("articles");
   const { calendar, loading } = useDefaultCalendarStatus();
   const day = parseWorldDay(value);
   const oldText = day === null && typeof value === "string" && value.trim() ? value : null;
@@ -465,11 +477,11 @@ function DateFieldEditor({ field, value, onChange }: { field: InfoField; value: 
           onClear={field.required ? undefined : () => onChange(null)}
         />
       ) : (
-        <span className="field-label">{loading ? "Loading the calendar…" : "Create a calendar in Calendars to pick dates."}</span>
+        <span className="field-label">{loading ? ta("info.loadingCalendar") : ta("info.createCalendar")}</span>
       )}
       {oldText && (
         <span className="field-label info-date-old">
-          Written as &ldquo;{oldText}&rdquo;. {calendar ? "Pick a date to replace it." : ""}
+          {ta("info.writtenAs", { text: oldText })} {calendar ? ta("info.pickToReplace") : ""}
         </span>
       )}
     </div>
@@ -487,6 +499,7 @@ function FieldEditor({
   lookups: InfoLookups;
   onChange: (value: InfoValue) => void;
 }) {
+  const ta = useT("articles");
   const { settings } = useSettings();
   if (field.kind === "text") {
     return (
@@ -517,7 +530,7 @@ function FieldEditor({
         value={text}
         maxLength={MAX_INFO_URL_LENGTH}
         onChange={(e) => onChange(e.target.value)}
-        data-tooltip={invalid ? "Needs a full address starting with http:// or https:// (otherwise it isn't saved)" : undefined}
+        data-tooltip={invalid ? ta("info.urlInvalid") : undefined}
       />
     );
   }
@@ -533,14 +546,14 @@ function FieldEditor({
             className={c === current ? "color-swatch active" : "color-swatch"}
             style={{ background: c }}
             onClick={() => onChange(c)}
-            aria-label={`${field.label} ${c}`}
+            aria-label={ta("info.colorPreset", { field: field.label, color: c })}
             data-tooltip={c}
           />
         ))}
-        <input type="color" aria-label={`Custom ${field.label.toLowerCase()}`} value={current ?? "#808080"} onChange={(e) => onChange(e.target.value.toUpperCase())} />
+        <input type="color" aria-label={ta("info.customColor", { field: field.label.toLowerCase() })} value={current ?? "#808080"} onChange={(e) => onChange(e.target.value.toUpperCase())} />
         {current && !field.required && (
           <button type="button" className="btn btn-ghost btn-sm" onClick={() => onChange(null)}>
-            None
+            {ta("info.none")}
           </button>
         )}
       </div>
@@ -554,15 +567,15 @@ function FieldEditor({
   if (field.kind === "select") {
     const choices = field.options ?? [];
     if (field.multiple) {
-      const remaining = choices.filter((o) => !list.includes(o)).map((o) => ({ value: o, label: o }));
+      const remaining = choices.filter((o) => !list.includes(o)).map((o) => ({ value: o, label: optionLabel(o) }));
       return (
         <div className="info-multi">
-          <Chips items={list.map((v) => ({ value: v, label: v }))} onRemove={removeFrom} />
+          <Chips items={list.map((v) => ({ value: v, label: optionLabel(v) }))} onRemove={removeFrom} />
           <Dropdown
             options={remaining}
             value={null}
-            placeholder={remaining.length ? "Add…" : "All added"}
-            ariaLabel={`Add to ${field.label}`}
+            placeholder={remaining.length ? ta("info.add") : ta("info.allAdded")}
+            ariaLabel={ta("info.addTo", { field: field.label })}
             dataField={field.key}
             disabled={remaining.length === 0}
             onChange={addTo}
@@ -575,10 +588,10 @@ function FieldEditor({
     const all = current && !choices.includes(current) ? [current, ...choices] : choices;
     return (
       <Dropdown
-        options={all.map((o) => ({ value: o, label: o }))}
+        options={all.map((o) => ({ value: o, label: optionLabel(o) }))}
         value={current}
-        placeholder="Select…"
-        clearLabel={field.required ? undefined : "None"}
+        placeholder={ta("select")}
+        clearLabel={field.required ? undefined : ta("info.none")}
         ariaLabel={field.label}
         dataField={field.key}
         onChange={(v) => (v || !field.required ? onChange(v) : undefined)}
@@ -592,8 +605,8 @@ function FieldEditor({
       <InfoPicker
         options={options}
         value={(value as string | null) ?? null}
-        placeholder={options.length ? "None" : "Nothing to link yet"}
-        clearLabel="None"
+        placeholder={options.length ? ta("info.none") : ta("info.nothingToLink")}
+        clearLabel={ta("info.none")}
         ariaLabel={field.label}
         dataField={field.key}
         onChange={onChange}
@@ -603,12 +616,12 @@ function FieldEditor({
   const remaining = options.filter((o) => !list.includes(o.value));
   return (
     <div className="info-multi">
-      <Chips items={list.map((id) => ({ value: id, label: options.find((o) => o.value === id)?.label ?? "(removed)" }))} onRemove={removeFrom} />
+      <Chips items={list.map((id) => ({ value: id, label: options.find((o) => o.value === id)?.label ?? ta("info.removed") }))} onRemove={removeFrom} />
       <InfoPicker
         options={remaining}
         value={null}
-        placeholder={remaining.length ? "Add…" : options.length ? "Nothing more to add" : "Nothing to link yet"}
-        ariaLabel={`Add to ${field.label}`}
+        placeholder={remaining.length ? ta("info.add") : options.length ? ta("info.nothingMore") : ta("info.nothingToLink")}
+        ariaLabel={ta("info.addTo", { field: field.label })}
         dataField={field.key}
         disabled={remaining.length === 0}
         onChange={addTo}
@@ -650,8 +663,8 @@ export function InfoForm({
   fixedRows,
   fixedRowsAfter,
   editorFor,
-  saveLabel = "Save",
-  savingLabel = "Saving…",
+  saveLabel,
+  savingLabel,
   allowAdding = true,
   onBack,
   onSave,
@@ -679,6 +692,8 @@ export function InfoForm({
   onSaved: (res: Response) => void;
   onCancel: () => void;
 }) {
+  const ta = useT("articles");
+  const tc = useT("common");
   const nameId = useId();
   const [name, setName] = useState(initialName);
   const [values, setValues] = useState<InfoValues>(initialValues);
@@ -747,7 +762,7 @@ export function InfoForm({
 
   async function save() {
     if (!name.trim()) {
-      setError("A name is required.");
+      setError(ta("info.nameRequired"));
       return;
     }
     setSaving(true);
@@ -755,20 +770,21 @@ export function InfoForm({
     const res = await onSave(name, values);
     setSaving(false);
     if (res.ok) onSaved(res);
-    else setError((await res.json().catch(() => ({}))).error ?? "Could not save.");
+    else setError((await res.json().catch(() => ({}))).error ?? ta("info.saveFailed"));
   }
 
   return (
     <div className="politics-form info-form" ref={formRef}>
       <div className="info-edit-row info-edit-name">
-        <InfoEditLabel Icon={Type} label="Name" htmlFor={nameId} />
+        <InfoEditLabel Icon={Type} label={tc("name")} htmlFor={nameId} />
         <input id={nameId} type="text" value={name} autoFocus={!initialName} onChange={(e) => setName(e.target.value)} />
       </div>
 
       {fixedRows}
 
       {required.map((field) => {
-        const { Icon, hint } = KIND[field.kind];
+        const { Icon } = KIND[field.kind];
+        const hint = ta(`info.kind.${field.kind}`);
         return (
           <div key={field.key} className="info-edit-row info-edit-required">
             <InfoEditLabel Icon={Icon} label={field.label} title={hint} />
@@ -784,7 +800,8 @@ export function InfoForm({
         // The gap between this group and the rows above separates what every article has from what was added.
         <div className="info-edit-added" onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node) && setOverKey(null)}>
           {optional.map((field) => {
-            const { Icon, hint } = KIND[field.kind];
+            const { Icon } = KIND[field.kind];
+        const hint = ta(`info.kind.${field.kind}`);
             const isOver = overKey === field.key && dragKey !== null && dragKey !== field.key;
             const below = isOver && order.indexOf(dragKey!) < order.indexOf(field.key);
             const rowClass = ["info-edit-row", "info-edit-movable", isOver && (below ? "drop-below" : "drop-above"), dragKey === field.key && "dragging"]
@@ -817,8 +834,8 @@ export function InfoForm({
                 <button
                   type="button"
                   className="info-drag-handle"
-                  data-tooltip="Drag to reorder (or focus and use ↑/↓)"
-                  aria-label={`Reorder ${field.label}`}
+                  data-tooltip={ta("info.reorderHint")}
+                  aria-label={ta("info.reorder", { field: field.label })}
                   onMouseDown={() => setArmedKey(field.key)}
                   onMouseUp={() => setArmedKey(null)}
                   onKeyDown={(e) => {
@@ -833,7 +850,7 @@ export function InfoForm({
                 <InfoEditLabel Icon={Icon} label={field.label} title={hint} />
                 {editor(field)}
                 <FieldHint field={field} />
-                <button type="button" className="btn btn-ghost btn-icon" onClick={() => removeField(field.key)} aria-label={`Remove ${field.label}`} data-tooltip={`Remove ${field.label}`}>
+                <button type="button" className="btn btn-ghost btn-icon" onClick={() => removeField(field.key)} aria-label={ta("info.removeField", { field: field.label })} data-tooltip={ta("info.removeField", { field: field.label })}>
                   <X size={13} strokeWidth={2.25} />
                 </button>
               </div>
@@ -846,7 +863,7 @@ export function InfoForm({
         <div className="info-add" ref={addRef}>
           <button type="button" className="btn btn-sm" aria-expanded={menuOpen} aria-haspopup="dialog" onClick={() => setMenuOpen((o) => !o)}>
             <Plus size={14} strokeWidth={2.25} />
-            Add more information
+            {ta("info.addMore")}
           </button>
           {menuOpen && <InfoFieldMenu set={set} available={available} onPick={addField} onClose={() => setMenuOpen(false)} />}
         </div>
@@ -857,14 +874,14 @@ export function InfoForm({
         {onBack && (
           <button type="button" className="btn btn-sm btn-ghost" onClick={onBack} disabled={saving}>
             <ArrowLeft size={13} strokeWidth={2.25} />
-            Back
+            {ta("info.back")}
           </button>
         )}
         <button className="btn btn-sm btn-primary" onClick={save} disabled={saving}>
-          {saving ? savingLabel : saveLabel}
+          {saving ? (savingLabel ?? tc("saving")) : (saveLabel ?? tc("save"))}
         </button>
         <button className="btn btn-sm" onClick={onCancel}>
-          Cancel
+          {tc("cancel")}
         </button>
       </div>
     </div>

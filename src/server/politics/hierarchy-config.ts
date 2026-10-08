@@ -2,6 +2,10 @@
 // Kept dependency-free of the DB so both server routes and tests can call
 // these functions directly against plain objects.
 
+import { activeT } from "../../i18n/active";
+import type { Translator } from "../../i18n/translate";
+import type { MessageKey } from "../../i18n/messages";
+
 /** A suggested territory type + title, purely for the creation picker. */
 export interface TerritoryTypeCatalogEntry {
   type: string;
@@ -115,6 +119,23 @@ export const DEFAULT_HIERARCHY_LEVELS: HierarchyLevel[] = [
 
 export const DEFAULT_PROFILE_NAME = "Default";
 
+// Catalog values below are stored in English; these word them in the user's
+// language on display. A value outside its catalog (custom, or from an older
+// list) is shown as stored.
+function catalogLabel(prefix: string, catalog: readonly string[], value: string, t: Translator<"politics">): string {
+  return catalog.includes(value) ? t(`${prefix}.${value}` as MessageKey<"politics">) : value;
+}
+const TERRITORY_TYPES = TERRITORY_TYPE_CATALOG.map((c) => c.type);
+
+export const territoryTypeLabel = (type: string, t = activeT("politics")) => catalogLabel("territoryType", TERRITORY_TYPES, type, t);
+export const governmentFormLabel = (form: string, t = activeT("politics")) => catalogLabel("governmentForm", GOVERNMENT_FORMS, form, t);
+export const organizationKindLabel = (kind: string, t = activeT("politics")) => catalogLabel("organizationKind", ORGANIZATION_KINDS, kind, t);
+export const personStatusLabel = (status: string, t = activeT("politics")) => catalogLabel("personStatus", PERSON_STATUSES, status, t);
+export const authorityRoleLabel = (role: string, t = activeT("politics")) => catalogLabel("authorityRole", AUTHORITY_ROLES, role, t);
+
+/** The seeded profile keeps the stored name "Default" (it is looked up by it); show it in the user's language. */
+export const hierarchyProfileName = (name: string, t = activeT("politics")) => (name === DEFAULT_PROFILE_NAME ? t("defaultProfile.name") : name);
+
 export function parseHierarchyLevels(raw: string): HierarchyLevel[] {
   try {
     const parsed = JSON.parse(raw);
@@ -167,10 +188,13 @@ export function requiredTypes(levels: HierarchyLevel[]): string[] {
   return levels.filter((l) => l.required).map((l) => l.type);
 }
 
-export interface ChainValidationResult {
-  valid: boolean;
-  error?: string;
+/** An `errors` key; `params` hold territory types as stored (`chainErrorText` words them). */
+export interface ChainError {
+  key: "chainCycle" | "chainRootInvalid" | "chainParentInvalid";
+  params: Record<string, string>;
 }
+
+export type ChainValidationResult = { valid: true } | { valid: false; error: ChainError };
 
 /**
  * Validates an entire root-to-leaf chain of territories (each with its own
@@ -183,7 +207,7 @@ export function validateChain(
 ): ChainValidationResult {
   const seen = new Set<string>();
   for (const t of chain) {
-    if (seen.has(t.id)) return { valid: false, error: `Cycle detected at territory ${t.id}.` };
+    if (seen.has(t.id)) return { valid: false, error: { key: "chainCycle", params: { id: t.id } } };
     seen.add(t.id);
   }
   if (chain.length === 0) return { valid: true };
@@ -191,7 +215,7 @@ export function validateChain(
   const root = chain[0];
   const rootLevels = levelsByProfileId.get(root.hierarchyProfileId) ?? [];
   if (!isValidRootType(root.type, rootLevels)) {
-    return { valid: false, error: `"${root.type}" is not a permitted root type for its hierarchy profile.` };
+    return { valid: false, error: { key: "chainRootInvalid", params: { type: root.type } } };
   }
 
   for (let i = 1; i < chain.length; i++) {
@@ -201,7 +225,7 @@ export function validateChain(
     if (!isValidParentType(parent.type, child.type, childLevels)) {
       return {
         valid: false,
-        error: `"${child.type}" cannot have a parent of type "${parent.type}" under its hierarchy profile.`,
+        error: { key: "chainParentInvalid", params: { child: child.type, parent: parent.type } },
       };
     }
   }

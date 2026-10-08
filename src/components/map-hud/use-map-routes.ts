@@ -7,6 +7,7 @@ import type { FolderPatch, MapFolderData } from "@/components/LayerFolders";
 import type { SelectionApi } from "@/components/multi-select";
 import type { MapRouteData, RoutePt, RouteStyle } from "@/server/travel/route-config";
 import type { TravelSettings } from "@/server/travel/travel";
+import { activeT } from "@/i18n/active";
 
 const SAVE_DELAY_MS = 250;
 
@@ -54,7 +55,7 @@ export function useMapRoutes(mapId: string) {
 
   const send = useCallback(async (id: string, patch: RoutePatch) => {
     const res = await api<{ route: MapRouteData }>("PATCH", `/api/routes/${id}`, patch);
-    if (!res.ok) return setError(res.data.error ?? "Could not save the route.");
+    if (!res.ok) return setError(res.data.error ?? activeT("maps")("error.saveRoute"));
     setError(null);
     // The server's copy wins for what it normalizes (points, settings, folder rules).
     setRoutes((prev) => prev.map((r) => (r.id === id && !pending.current.has(id) ? res.data.route : r)));
@@ -64,7 +65,7 @@ export function useMapRoutes(mapId: string) {
     async (input: { layerId: string; groupId: string | null; points: RoutePt[]; name: string; style: RouteStyle; settings: TravelSettings }) => {
       const res = await api<{ route: MapRouteData }>("POST", `/api/maps/${mapId}/routes`, { ...input.style, ...input });
       if (!res.ok) {
-        setError(res.data.error ?? "Could not save the route.");
+        setError(res.data.error ?? activeT("maps")("error.saveRoute"));
         return null;
       }
       setError(null);
@@ -103,13 +104,13 @@ export function useMapRoutes(mapId: string) {
     pending.current.delete(id);
     setRoutes((prev) => prev.filter((r) => r.id !== id));
     const res = await api("DELETE", `/api/routes/${id}`);
-    if (!res.ok) setError(res.data.error ?? "Could not delete the route.");
+    if (!res.ok) setError(res.data.error ?? activeT("maps")("error.deleteRoute"));
   }, []);
 
   /** Brings a deleted route back (undo), as the server has it. */
   const restore = useCallback(async (route: MapRouteData) => {
     const res = await api<{ route: MapRouteData }>("POST", `/api/routes/${route.id}/restore`);
-    if (!res.ok) return setError(res.data.error ?? "Could not restore the route.");
+    if (!res.ok) return setError(res.data.error ?? activeT("maps")("error.restoreRoute"));
     setRoutes((prev) => (prev.some((r) => r.id === route.id) ? prev : [...prev, res.data.route]));
   }, []);
 
@@ -117,7 +118,7 @@ export function useMapRoutes(mapId: string) {
     async (name: string, layerId: string) => {
       const res = await api<{ group: MapFolderData }>("POST", `/api/maps/${mapId}/route-groups`, { name, layerId });
       if (!res.ok) {
-        setError(res.data.error ?? "Could not create the folder.");
+        setError(res.data.error ?? activeT("maps")("error.createFolder"));
         return null;
       }
       setGroups((prev) => [...prev, res.data.group]);
@@ -129,7 +130,7 @@ export function useMapRoutes(mapId: string) {
   /** Its routes go to Ungrouped, or with `cascade` are deleted with it. */
   const deleteGroup = useCallback(async (id: string, cascade: boolean) => {
     const res = await api("DELETE", `/api/route-groups/${id}${cascade ? "?mode=cascade" : ""}`);
-    if (!res.ok) return setError(res.data.error ?? "Could not delete the folder.");
+    if (!res.ok) return setError(res.data.error ?? activeT("maps")("error.deleteFolder"));
     setGroups((prev) => prev.filter((g) => g.id !== id));
     setRoutes((prev) => (cascade ? prev.filter((r) => r.groupId !== id) : prev.map((r) => (r.groupId === id ? { ...r, groupId: null } : r))));
   }, []);

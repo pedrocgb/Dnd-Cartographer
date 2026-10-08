@@ -1,20 +1,21 @@
 /**
  * Strict parsers for calendar JSON coming from clients (pure; relative
- * imports only). Each returns the cleaned value, or throws ParseError with a
- * plain-language message. Shape only — semantic checks (ids exist, lengths,
+ * imports only). Each returns the cleaned value, or throws ParseError. Shape
+ * errors only reach malformed requests, so they stay in English; the choices a
+ * user can miss carry a `calendars` Problem. Shape only — semantic checks (ids exist, lengths,
  * anchors) are the evaluators' validate/issues functions.
  */
-import type { CalendarDefinition, LeapRule, LocalDate, Period, Weekday, YearRule } from "./engine";
+import { CalendarError, type CalendarDefinition, type LeapRule, type LocalDate, type Period, type Problem, type Weekday, type YearRule } from "./engine";
 import type { AppearanceSchedule, CelestialConfig, CelestialType, CycleSegment, MoonPhase, StateOverride } from "./celestial";
 import type { MonthDay, SeasonMembership, SeasonProfileData } from "./seasons";
 import type { Condition, OccurrenceException, Recurrence } from "./recurrence";
 
-export class ParseError extends Error {}
+export class ParseError extends CalendarError {}
 
 const MAX_NAME = 80;
 const MAX_ITEMS = 400;
 
-const fail = (message: string): never => {
+const fail = (message: string | Problem): never => {
   throw new ParseError(message);
 };
 
@@ -109,7 +110,7 @@ export function parseDefinition(v: unknown): CalendarDefinition {
 const CELESTIAL_TYPES: readonly CelestialType[] = ["moon", "sun", "star", "constellation", "planet", "comet", "custom"];
 
 export function parseCelestialType(v: unknown): CelestialType {
-  return CELESTIAL_TYPES.includes(v as CelestialType) ? (v as CelestialType) : fail("Pick a celestial object type.");
+  return CELESTIAL_TYPES.includes(v as CelestialType) ? (v as CelestialType) : fail({ key: "problem.pickCelestialType" });
 }
 
 function schedule(v: unknown, i: number): AppearanceSchedule {
@@ -130,7 +131,7 @@ function schedule(v: unknown, i: number): AppearanceSchedule {
       alsoBefore: repeatUnit === "days" && x.repeatEvery != null && x.alsoBefore === true,
     };
   }
-  return fail("Pick how the appearance repeats.");
+  return fail({ key: "problem.pickAppearance" });
 }
 
 export function parseCelestialConfig(v: unknown): CelestialConfig {
@@ -202,7 +203,7 @@ function condition(v: unknown): Condition {
     case "celestial":
       return { type: "celestial", objectId: ident(x.objectId, "The condition object"), stateId: ident(x.stateId, "The condition phase") };
     default:
-      return fail("Pick a condition type.");
+      return fail({ key: "problem.pickCondition" });
   }
 }
 
@@ -237,11 +238,11 @@ export function parseRecurrence(v: unknown): Recurrence {
     case "condition": {
       const g = obj(r.group, "The condition group");
       const conditions = list(g.conditions, "Conditions", 8).map(condition);
-      if (conditions.length === 0) fail("Add at least one condition.");
+      if (conditions.length === 0) fail({ key: "problem.addCondition" });
       return { kind: "condition", group: { match: g.match === "any" ? "any" : "all", conditions }, trigger: r.trigger === "every" ? "every" : "enter" };
     }
     default:
-      return fail("Pick how the event repeats.");
+      return fail({ key: "problem.pickRepeat" });
   }
 }
 
@@ -274,7 +275,7 @@ export function parseArticleLinks(v: unknown): { template: string; articleId: st
 export function parseCalendarIds(v: unknown): string[] | null {
   if (v === null || v === "all") return null;
   const ids = [...new Set(list(v, "Calendars", 50).map((x) => ident(x, "A calendar")))];
-  return ids.length ? ids : fail("Pick at least one calendar, or All.");
+  return ids.length ? ids : fail({ key: "problem.pickCalendars" });
 }
 
 /** A season's calendar: null (shared by every calendar) or one calendar id. */

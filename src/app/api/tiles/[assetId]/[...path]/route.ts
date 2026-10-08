@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { errorResponse } from "@/i18n/server";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { eq } from "drizzle-orm";
@@ -23,12 +24,12 @@ export async function GET(
   const { assetId, path: pathSegments } = await params;
 
   if (pathSegments.some((segment) => segment === "..")) {
-    return NextResponse.json({ error: "Invalid path." }, { status: 400 });
+    return errorResponse("invalidPath", 400);
   }
 
   const asset = await db.query.mapAssets.findFirst({ where: eq(mapAssets.id, assetId) });
   if (!asset) {
-    return NextResponse.json({ error: "Asset not found." }, { status: 404 });
+    return errorResponse("assetNotFound", 404);
   }
 
   const relativeKey = `${assetId}/g${asset.generation}/${pathSegments.join("/")}`;
@@ -44,6 +45,6 @@ export async function GET(
       },
     });
   } catch {
-    return NextResponse.json({ error: "Tile not found." }, { status: 404 });
+    return errorResponse("tileNotFound", 404);
   }
 }

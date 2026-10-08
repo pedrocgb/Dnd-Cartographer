@@ -5,6 +5,7 @@ import Cropper, { type Area } from "react-easy-crop";
 import { Move, RotateCcw, RotateCw, Undo2, ZoomIn, ZoomOut } from "lucide-react";
 import Modal from "./Modal";
 import type { PortraitCrop, PortraitRotation } from "@/server/assets/portrait-crop";
+import { useT } from "@/i18n/useT";
 
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 4;
@@ -22,7 +23,7 @@ export default function ImageCropDialog({
   title,
   aspect = 1,
   initial,
-  confirmLabel = "Save image",
+  confirmLabel,
   busy = false,
   error,
   onConfirm,
@@ -39,6 +40,7 @@ export default function ImageCropDialog({
   onConfirm: (crop: PortraitCrop) => void;
   onCancel: () => void;
 }) {
+  const t = useT("common");
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(MIN_ZOOM);
   const [rotation, setRotation] = useState<PortraitRotation>(initial?.rotation ?? 0);
@@ -75,11 +77,11 @@ export default function ImageCropDialog({
       </div>
       <p className="field-label image-crop-hint">
         <Move size={13} strokeWidth={2.25} aria-hidden />
-        Drag to reposition · scroll or pinch to zoom · arrow keys nudge
+        {t("crop.hint")}
       </p>
       <div className="image-crop-controls">
         <div className="image-crop-zoom">
-          <button type="button" className="btn btn-ghost btn-icon" onClick={() => zoomBy(-ZOOM_STEP)} disabled={zoom <= MIN_ZOOM} aria-label="Zoom out" data-tooltip="Zoom out">
+          <button type="button" className="btn btn-ghost btn-icon" onClick={() => zoomBy(-ZOOM_STEP)} disabled={zoom <= MIN_ZOOM} aria-label={t("crop.zoomOut")} data-tooltip={t("crop.zoomOut")}>
             <ZoomOut size={15} strokeWidth={2.25} />
           </button>
           <input
@@ -88,23 +90,23 @@ export default function ImageCropDialog({
             max={MAX_ZOOM}
             step={0.01}
             value={zoom}
-            aria-label="Zoom"
+            aria-label={t("crop.zoom")}
             onChange={(e) => setZoom(Number(e.target.value))}
           />
-          <button type="button" className="btn btn-ghost btn-icon" onClick={() => zoomBy(ZOOM_STEP)} disabled={zoom >= MAX_ZOOM} aria-label="Zoom in" data-tooltip="Zoom in">
+          <button type="button" className="btn btn-ghost btn-icon" onClick={() => zoomBy(ZOOM_STEP)} disabled={zoom >= MAX_ZOOM} aria-label={t("crop.zoomIn")} data-tooltip={t("crop.zoomIn")}>
             <ZoomIn size={15} strokeWidth={2.25} />
           </button>
         </div>
         <div className="image-crop-tools">
-          <button type="button" className="btn btn-ghost btn-icon" onClick={() => rotate(-90)} aria-label="Rotate left" data-tooltip="Rotate left">
+          <button type="button" className="btn btn-ghost btn-icon" onClick={() => rotate(-90)} aria-label={t("crop.rotateLeft")} data-tooltip={t("crop.rotateLeft")}>
             <RotateCcw size={15} strokeWidth={2.25} />
           </button>
-          <button type="button" className="btn btn-ghost btn-icon" onClick={() => rotate(90)} aria-label="Rotate right" data-tooltip="Rotate right">
+          <button type="button" className="btn btn-ghost btn-icon" onClick={() => rotate(90)} aria-label={t("crop.rotateRight")} data-tooltip={t("crop.rotateRight")}>
             <RotateCw size={15} strokeWidth={2.25} />
           </button>
-          <button type="button" className="btn btn-sm btn-ghost" onClick={reset} data-tooltip="Center the image, no zoom or rotation">
+          <button type="button" className="btn btn-sm btn-ghost" onClick={reset} data-tooltip={t("crop.resetHint")}>
             <Undo2 size={13} strokeWidth={2.25} />
-            Reset
+            {t("crop.reset")}
           </button>
         </div>
       </div>
@@ -115,10 +117,10 @@ export default function ImageCropDialog({
       )}
       <div className="confirm-dialog-actions">
         <button type="button" className="btn btn-sm" onClick={onCancel} disabled={busy}>
-          Cancel
+          {t("cancel")}
         </button>
         <button type="button" className="btn btn-sm btn-primary" disabled={busy || !area} onClick={() => area && onConfirm({ ...area, rotation })}>
-          {busy ? "Saving…" : confirmLabel}
+          {busy ? t("saving") : (confirmLabel ?? t("crop.save"))}
         </button>
       </div>
     </Modal>

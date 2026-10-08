@@ -1,25 +1,27 @@
 import { eq } from "drizzle-orm";
 import { db } from "../db/client";
 import { mapCategories } from "../db/schema";
+import { serverT } from "@/i18n/server";
 
-const SEEDED_LABELS = [
-  "Cosmology / Planes",
-  "World",
-  "Continent",
-  "Region",
-  "Realm / Nation",
-  "Province",
-  "Archipelago / Island",
-  "Settlement",
-  "City",
-  "District",
-  "Wilderness",
-  "Underground",
-  "Dungeon",
-  "Building / Interior",
-  "Battlemap",
-  "Custom",
-];
+/** Seeded in the user's language when a world is new; after that the labels are the user's to edit. */
+const SEEDED_KEYS = [
+  "cosmology",
+  "world",
+  "continent",
+  "region",
+  "realm",
+  "province",
+  "archipelago",
+  "settlement",
+  "city",
+  "district",
+  "wilderness",
+  "underground",
+  "dungeon",
+  "building",
+  "battlemap",
+  "custom",
+] as const;
 
 /**
  * Seeded categories describe maps without dictating parent/child type
@@ -42,8 +44,9 @@ export async function ensureSeededCategories(worldId: string): Promise<void> {
     .limit(1);
   if (existing.length > 0) return;
 
+  const t = await serverT("maps");
   await db
     .insert(mapCategories)
-    .values(SEEDED_LABELS.map((label, index) => ({ worldId, label, sortOrder: index })))
+    .values(SEEDED_KEYS.map((key, index) => ({ worldId, label: t(`seedCategory.${key}`), sortOrder: index })))
     .onConflictDoNothing();
 }

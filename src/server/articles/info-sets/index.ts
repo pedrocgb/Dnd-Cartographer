@@ -1,4 +1,6 @@
 import type { InfoFieldSet } from "../info-fields";
+import { activeT } from "../../../i18n/active";
+import { MESSAGES, type MessageKey } from "../../../i18n/messages";
 import type { ArticleTemplateKey } from "../templates";
 import { BUILDING_INFO } from "./building";
 import { CHARACTER_INFO } from "./character";
@@ -55,6 +57,28 @@ export const INFO_FIELD_SETS: Partial<Record<ArticleTemplateKey, InfoFieldSet>> 
   document: DOCUMENT_INFO,
   language: LANGUAGE_INFO,
 };
+
+/*
+ * The data files keep the English labels and hints (the source text). Shown
+ * in the user's language: `label` and `hint` are read through the `info`
+ * namespace (`group.<key>`, `field.<key>`, `hint.<key>`, or
+ * `hint.<template>.<key>` where templates word a field's hint differently).
+ */
+const infoKeys = MESSAGES["en-US"].info;
+const word = (key: string) => activeT("info")(key as MessageKey<"info">);
+for (const [template, set] of Object.entries(INFO_FIELD_SETS)) {
+  for (const group of set!.groups) Object.defineProperty(group, "label", { get: () => word(`group.${group.key}`), configurable: true });
+  for (const field of set!.fields) {
+    const hintKey = `hint.${template}.${field.key}` in infoKeys ? `hint.${template}.${field.key}` : `hint.${field.key}`;
+    Object.defineProperty(field, "label", { get: () => word(`field.${field.key}`), configurable: true });
+    Object.defineProperty(field, "hint", { get: () => word(hintKey), configurable: true });
+  }
+}
+
+/** A select option's display text; the stored value stays English. A value from an older list shows as stored. */
+export function optionLabel(value: string): string {
+  return `option.${value}` in infoKeys ? word(`option.${value}`) : value;
+}
 
 export {
   BUILDING_INFO,

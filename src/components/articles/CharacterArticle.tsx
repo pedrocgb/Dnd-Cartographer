@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ChevronRight, ChevronDown, Pencil } from "lucide-react";
-import { PERSON_STATUSES } from "@/server/politics/hierarchy-config";
+import { PERSON_STATUSES, authorityRoleLabel, personStatusLabel, territoryTypeLabel } from "@/server/politics/hierarchy-config";
 import { parseTags } from "@/server/articles/tags";
 import { buildTerritoryTree, type TerritoryNode } from "@/components/TerritoryTree";
 import PortraitUploader from "@/components/PortraitUploader";
@@ -15,17 +15,13 @@ import { personTemplate, type PersonKind } from "@/server/articles/templates";
 import { InfoForm, InfoView, type InfoLookups } from "./InfoBar";
 import type { Authority, OpenArticle, Organization, Person, PersonAuthority, Territory } from "./types";
 import { useRelationValues } from "@/components/relations/relations-context";
+import { useT } from "@/i18n/useT";
 
 const recordUrl = (id: string) => `/api/politics/people/${id}`;
 
 type GroupMode = "all" | "house" | "authority" | "status";
 
-const GROUP_MODES: { key: GroupMode; label: string }[] = [
-  { key: "all", label: "All" },
-  { key: "house", label: "House" },
-  { key: "authority", label: "Authority" },
-  { key: "status", label: "Status" },
-];
+const GROUP_MODES: GroupMode[] = ["all", "house", "authority", "status"];
 
 /**
  * The Characters (or Player Characters) sidebar folder: all of them, or
@@ -44,6 +40,8 @@ export function CharacterFolder({
   selectedId: string | null;
   onSelect: (id: string) => void;
 }) {
+  const ta = useT("articles");
+  const tp = useT("politics");
   const [mode, setMode] = useState<GroupMode>("all");
   const [expanded, toggleExpand] = useExpandedSet();
   const [personAuthorities, setPersonAuthorities] = useState<Omit<Authority, "holderName">[]>([]);
@@ -124,11 +122,11 @@ export function CharacterFolder({
     <>
       <li className="articles-folder-modes">
         <label>
-          <span className="field-label">Group by</span>
+          <span className="field-label">{ta("character.groupBy")}</span>
           <select value={mode} onChange={(e) => setMode(e.target.value as GroupMode)}>
             {GROUP_MODES.map((m) => (
-              <option key={m.key} value={m.key}>
-                {m.label}
+              <option key={m} value={m}>
+                {ta(`character.group.${m}`)}
               </option>
             ))}
           </select>
@@ -139,7 +137,7 @@ export function CharacterFolder({
           <PickGroupRow
             key={g.house.id}
             groupId={`house:${g.house.id}`}
-            label={`${g.house.name} (${g.members.length})`}
+            label={ta("character.groupCount", { name: g.house.name, n: g.members.length })}
             members={g.members}
             expanded={expanded}
             onToggleExpand={toggleExpand}
@@ -152,7 +150,7 @@ export function CharacterFolder({
           <PickGroupRow
             key={g.status}
             groupId={`status:${g.status}`}
-            label={`${g.status} (${g.members.length})`}
+            label={ta("character.groupCount", { name: personStatusLabel(g.status, tp), n: g.members.length })}
             members={g.members}
             expanded={expanded}
             onToggleExpand={toggleExpand}
@@ -198,6 +196,8 @@ function AuthorityTreeRow({
   onSelectPerson: (id: string) => void;
   selectedId?: string | null;
 }) {
+  const tc = useT("common");
+  const tp = useT("politics");
   const holders = assignmentsByTerritory.get(node.id) ?? [];
   const hasContent = node.children.length > 0 || holders.length > 0;
   const groupId = `territory:${node.id}`;
@@ -210,7 +210,7 @@ function AuthorityTreeRow({
             type="button"
             className="politics-tree-toggle"
             onClick={() => onToggleExpand(groupId)}
-            aria-label={isExpanded ? "Collapse" : "Expand"}
+            aria-label={isExpanded ? tc("collapse") : tc("expand")}
             aria-expanded={isExpanded}
           >
             {isExpanded ? <ChevronDown size={13} strokeWidth={2.25} /> : <ChevronRight size={13} strokeWidth={2.25} />}
@@ -219,14 +219,14 @@ function AuthorityTreeRow({
           <span className="politics-tree-spacer" />
         )}
         <button type="button" className="politics-list-pick" onClick={() => hasContent && onToggleExpand(groupId)}>
-          {node.name} <span className="field-label">({node.type})</span>
+          {node.name} <span className="field-label">({territoryTypeLabel(node.type, tp)})</span>
         </button>
       </li>
       {isExpanded &&
         holders.map((h) => (
           <PickRow key={h.personId} item={{ id: h.personId, name: h.personName }} selectedId={selectedId} onSelect={onSelectPerson} depth={depth + 1}>
             {" "}
-            <span className="field-label">({h.title || h.role})</span>
+            <span className="field-label">({h.title || authorityRoleLabel(h.role, tp)})</span>
           </PickRow>
         ))}
       {isExpanded &&
@@ -261,6 +261,8 @@ export function CharacterArticle({
   onDeleted: () => void;
   onOpenArticle: OpenArticle;
 }) {
+  const ta = useT("articles");
+  const tp = useT("politics");
   const [editing, setEditing] = useEditingResetOnSelect(person.id);
   const [authorities, setAuthorities] = useState<PersonAuthority[]>([]);
 
@@ -287,12 +289,12 @@ export function CharacterArticle({
       actions={
         <DeleteArticleButton url={recordUrl(person.id)} name={person.name} template={template} onDeleted={onDeleted} />
       }
-      image={<PortraitUploader endpoint={`${recordUrl(person.id)}/portrait`} portraitKey={person.portraitKey} updatedAt={person.updatedAt} label="Image" onChanged={onChanged} />}
+      image={<PortraitUploader endpoint={`${recordUrl(person.id)}/portrait`} portraitKey={person.portraitKey} updatedAt={person.updatedAt} label={ta("portrait.image")} onChanged={onChanged} />}
       infoActions={
         !editing && (
           <button className="btn btn-sm btn-ghost" onClick={() => setEditing(true)}>
             <Pencil size={13} strokeWidth={2.25} />
-            Edit
+            {ta("view.edit")}
           </button>
         )
       }
@@ -320,17 +322,21 @@ export function CharacterArticle({
             extra={
               authorities.length > 0 && (
                 <div className="info-row">
-                  <dt>Authorities</dt>
+                  <dt>{ta("character.authorities")}</dt>
                   <dd>
-                    {authorities.map((a, i) => (
-                      <span key={`${a.territoryId}:${a.role}:${i}`}>
-                        {i > 0 && ", "}
-                        {a.title || a.role} of{" "}
-                        <button type="button" className="politics-link-button" onClick={() => onOpenArticle("territory", a.territoryId)}>
-                          {a.territoryName}
-                        </button>
-                      </span>
-                    ))}
+                    {authorities.map((a, i) => {
+                      const [before, after] = ta("character.authorityOf", { role: a.title || authorityRoleLabel(a.role, tp) }).split("{territory}");
+                      return (
+                        <span key={`${a.territoryId}:${a.role}:${i}`}>
+                          {i > 0 && ", "}
+                          {before}
+                          <button type="button" className="politics-link-button" onClick={() => onOpenArticle("territory", a.territoryId)}>
+                            {a.territoryName}
+                          </button>
+                          {after}
+                        </span>
+                      );
+                    })}
                   </dd>
                 </div>
               )
@@ -351,6 +357,7 @@ export function CharacterArticle({
 
 /** Creating a character (or player character) asks for its name and required fields; everything else is added from its Info Bar. */
 export function PersonForm({ kind, onSaved, onCancel, onBack }: { kind: PersonKind; onSaved: (p: Person) => void; onCancel: () => void; onBack?: () => void }) {
+  const tc = useT("common");
   const set = personInfoSet(kind);
   return (
     <InfoForm
@@ -359,8 +366,8 @@ export function PersonForm({ kind, onSaved, onCancel, onBack }: { kind: PersonKi
       initialValues={emptyRequiredInfo(set)}
       lookups={{}}
       allowAdding={false}
-      saveLabel="Create"
-      savingLabel="Creating…"
+      saveLabel={tc("create")}
+      savingLabel={tc("creating")}
       onSave={(name, values) =>
         fetch("/api/politics/people", {
           method: "POST",

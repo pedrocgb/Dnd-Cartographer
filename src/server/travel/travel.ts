@@ -1,4 +1,5 @@
 import type { ScaleConfig, ScaleUnit } from "../scale/scale-config";
+import { activeT } from "../../i18n/active";
 
 /**
  * Travel time over land, water and air (speeds and daily amounts after the
@@ -213,14 +214,15 @@ export function planTravel(miles: number, settings: TravelSettings): TravelPlan 
 
 /** "3 days 5 h", "6 h 30 min", "45 min". */
 export function formatDuration(fullDays: number, extraHours: number): string {
+  const t = activeT("maps");
   const parts: string[] = [];
-  if (fullDays > 0) parts.push(`${fullDays} day${fullDays === 1 ? "" : "s"}`);
+  if (fullDays > 0) parts.push(t("duration.days", { count: fullDays, n: fullDays }));
   const totalMinutes = Math.round(extraHours * 60);
   const h = Math.floor(totalMinutes / 60);
   const m = totalMinutes % 60;
-  if (h > 0) parts.push(`${h} h`);
-  if (m > 0 && fullDays === 0) parts.push(`${m} min`);
-  return parts.join(" ") || "0 min";
+  if (h > 0) parts.push(t("duration.hours", { n: h }));
+  if (m > 0 && fullDays === 0) parts.push(t("duration.minutes", { n: m }));
+  return parts.join(" ") || t("duration.minutes", { n: 0 });
 }
 
 /** Distance in miles expressed back in the map's unit. */

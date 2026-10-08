@@ -8,6 +8,7 @@ import { PageSkeleton } from "@/components/Skeleton";
 import { CAMPAIGNS_CHANGED, readActiveCampaign, rememberActiveCampaign } from "@/components/campaign/active-campaign";
 import CampaignWriter from "./CampaignWriter";
 import { useCampaigns } from "./useWriterData";
+import { useT } from "@/i18n/useT";
 
 /**
  * The Writer page: the active campaign's story (see CampaignWriter). The
@@ -15,6 +16,7 @@ import { useCampaigns } from "./useWriterData";
  * are created on the Sessions page.
  */
 export default function WriterManager() {
+  const t = useT("writer");
   const params = useSearchParams();
   const { campaigns, error, replace, reload } = useCampaigns();
   const urlCampaign = params.get("campaign");
@@ -34,7 +36,7 @@ export default function WriterManager() {
   useEffect(() => rememberActiveCampaign(resolvedId), [resolvedId]);
 
   if (error) return <p className="form-error ss-page-error">{error}</p>;
-  if (!campaigns) return <PageSkeleton label="Loading the writer…" main="cards" />;
+  if (!campaigns) return <PageSkeleton label={t("manager.loading")} main="cards" />;
 
   const live = campaigns.filter((c) => !c.archived || c.id === campaignId);
   const campaign = campaigns.find((c) => c.id === campaignId) ?? live[0] ?? null;
@@ -45,10 +47,10 @@ export default function WriterManager() {
         <main className="articles-main">
           <div className="articles-landing">
             <PenLine size={40} strokeWidth={1.5} aria-hidden />
-            <h1>Campaign Writer</h1>
-            <p className="cal-help">Write your campaign&apos;s story: arcs, chapters and scenes, the threads that run through them, and what happened at the table. Start by creating a campaign.</p>
+            <h1>{t("manager.title")}</h1>
+            <p className="cal-help">{t("manager.intro")}</p>
             <Link className="btn btn-primary" href="/sessions">
-              Create a campaign
+              {t("manager.createCampaign")}
             </Link>
           </div>
         </main>

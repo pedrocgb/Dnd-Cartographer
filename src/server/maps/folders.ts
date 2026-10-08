@@ -29,10 +29,10 @@ export function folderSubtree(folders: readonly FolderNode[], folderId: string):
  * Why `folderId` can't move under `newParentId`, or null when it can: the
  * parent must exist and not be the folder itself or one of its subfolders.
  */
-export function folderMoveError(folders: readonly FolderNode[], folderId: string, newParentId: string | null): string | null {
+export function folderMoveError(folders: readonly FolderNode[], folderId: string, newParentId: string | null): "folderUnknownParent" | "folderIntoItself" | null {
   if (newParentId === null) return null;
-  if (!folders.some((f) => f.id === newParentId)) return "Unknown parent folder.";
-  if (folderSubtree(folders, folderId).has(newParentId)) return "A folder can't go inside itself or one of its subfolders.";
+  if (!folders.some((f) => f.id === newParentId)) return "folderUnknownParent";
+  if (folderSubtree(folders, folderId).has(newParentId)) return "folderIntoItself";
   return null;
 }
 

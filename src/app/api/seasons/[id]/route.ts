@@ -6,7 +6,8 @@ import { seasonProfiles, seasons } from "@/server/db/schema";
 import { requireWorldId } from "@/server/world/active-world";
 import { cleanColor, cleanName, parseArticleLinks, parseSeasonCalendar } from "@/server/calendars/parse";
 import { checkCalendarIds, toClientSeason } from "@/server/calendars/store";
-import { badRequest, calendarErrorResponse, notFound, readBody } from "@/server/calendars/respond";
+import { calendarErrorResponse, readBody } from "@/server/calendars/respond";
+import { errorResponse } from "@/i18n/server";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -19,14 +20,14 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   const { id } = await params;
   const worldId = await requireWorldId();
   const row = await seasonOf(worldId, id);
-  if (!row) return notFound("Season not found.");
+  if (!row) return errorResponse("seasonNotFound", 404);
   const body = await readBody(request);
-  if (!body) return badRequest("Invalid request body.");
+  if (!body) return errorResponse("invalidBody", 400);
   try {
     const patch: Partial<typeof seasons.$inferInsert> = { updatedAt: new Date() };
     if ("name" in body) {
       const name = cleanName(body.name);
-      if (!name) return badRequest("A season name is required.");
+      if (!name) return errorResponse("seasonNameRequired", 400);
       patch.name = name;
     }
     if ("description" in body) patch.description = cleanName(body.description, 4000);
@@ -44,7 +45,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
           .from(seasonProfiles)
           .where(and(eq(seasonProfiles.worldId, worldId), like(seasonProfiles.data, `%"seasonId":"${id}"%`)));
         const elsewhere = users.filter((u) => u.calendarId !== calendarId);
-        if (elsewhere.length) return NextResponse.json({ error: `Used by ${elsewhere.map((u) => `"${u.name}"`).join(", ")} in another calendar. Remove it there first, or keep it shared.` }, { status: 409 });
+        if (elsewhere.length) return errorResponse("seasonInOtherCalendar", 409, undefined, { names: elsewhere.map((u) => `“${u.name}”`).join(", ") });
       }
       patch.calendarId = calendarId;
     }
@@ -59,12 +60,12 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 export async function DELETE(_request: Request, { params }: RouteContext) {
   const { id } = await params;
   const worldId = await requireWorldId();
-  if (!(await seasonOf(worldId, id))) return notFound("Season not found.");
+  if (!(await seasonOf(worldId, id))) return errorResponse("seasonNotFound", 404);
   const users = await db
     .select({ name: seasonProfiles.name })
     .from(seasonProfiles)
     .where(and(eq(seasonProfiles.worldId, worldId), like(seasonProfiles.data, `%"seasonId":"${id}"%`)));
-  if (users.length) return NextResponse.json({ error: `Used by ${users.map((u) => `"${u.name}"`).join(", ")}. Remove it from those profiles, or archive it instead.` }, { status: 409 });
+  if (users.length) return errorResponse("seasonInUse", 409, undefined, { names: users.map((u) => `“${u.name}”`).join(", ") });
   await db.delete(seasons).where(eq(seasons.id, id));
   return NextResponse.json({ ok: true });
 }

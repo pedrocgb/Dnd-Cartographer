@@ -7,6 +7,7 @@ import { isArticleDrag, readArticleDrag, writeArticleDrag, type ArticleDrag } fr
 import type { FolderNode } from "./folder-tree";
 import { DEFAULT_FOLDER_COLOR } from "@/components/maps/FolderSettingsPanel";
 import type { ArticleTemplateKey } from "@/server/articles/templates";
+import { useT } from "@/i18n/useT";
 
 type DropTarget = { kind: "root" } | { kind: "folder"; id: string };
 const targetKey = (t: DropTarget) => (t.kind === "root" ? "root" : `folder:${t.id}`);
@@ -46,6 +47,7 @@ export default function ArticleFoldersTree({
   selectedFolderId: string | null;
   actions: FolderTreeActions;
 }) {
+  const t = useT("articles");
   const [dragging, setDragging] = useState<ArticleDrag | null>(null);
   const [dropKey, setDropKey] = useState<string | null>(null);
 
@@ -114,7 +116,7 @@ export default function ArticleFoldersTree({
             </span>
           </button>
           <span className="maps-row-actions">
-            <button type="button" className="maps-row-action" aria-label={`Open ${folder.name}`} data-tooltip="Open folder" onClick={() => actions.onOpenFolder(folder.id)}>
+            <button type="button" className="maps-row-action" aria-label={t("folders.open", { name: folder.name })} data-tooltip={t("folders.openHint")} onClick={() => actions.onOpenFolder(folder.id)}>
               <Settings size={13} strokeWidth={2.25} />
             </button>
           </span>
@@ -140,7 +142,7 @@ export default function ArticleFoldersTree({
                 </li>
               );
             })}
-            {count === 0 && <li className="field-label maps-tree-empty">Empty: drag articles here, or open the folder to add some.</li>}
+            {count === 0 && <li className="field-label maps-tree-empty">{t("folders.emptyTree")}</li>}
           </ul>
         )}
       </li>
@@ -151,23 +153,23 @@ export default function ArticleFoldersTree({
     <>
       <nav
         className={dropKey === "root" ? "maps-tree article-folders-tree drop-target" : "maps-tree article-folders-tree"}
-        aria-label="Your folders"
+        aria-label={t("folders.yours")}
         {...dropProps({ kind: "root" })}
         onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node) && setDropKey(null)}
       >
         <ul className="maps-tree-root">{tree.map(renderNode)}</ul>
         {tree.length === 0 && (
-          <p className="field-label">{searching ? <>Nothing matches &ldquo;{query.trim()}&rdquo;.</> : "No folders yet. Create one to group articles your own way, a city with its people and laws, a faction, a campaign arc…"}</p>
+          <p className="field-label">{searching ? t("folders.nothingMatches", { query: query.trim() }) : t("folders.none")}</p>
         )}
         {dragging && (
           <p className="field-label maps-tree-drop-hint">
-            {dragging.kind === "folder" ? "Drop on a folder to nest it, or here for the top level." : "Drop on a folder to move it there. Hold Ctrl to also keep it here."}
+            {dragging.kind === "folder" ? t("folders.dropFolder") : t("folders.dropArticle")}
           </p>
         )}
       </nav>
       <button type="button" className="articles-folder maps-create-folder" onClick={actions.onNewFolder}>
         <FolderPlus size={16} strokeWidth={2.25} aria-hidden />
-        <span className="articles-folder-name">New folder</span>
+        <span className="articles-folder-name">{t("folders.new")}</span>
       </button>
     </>
   );

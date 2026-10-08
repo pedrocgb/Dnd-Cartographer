@@ -43,6 +43,9 @@ import { useMapRoutes, type NewRoute, type RouteControls, type RoutePatch } from
 import type { MapRouteData } from "@/server/travel/route-config";
 import { isModalOpen } from "./Modal";
 import { isTypingTarget } from "./keyboard";
+import { useT } from "@/i18n/useT";
+import type { Translator } from "@/i18n/translate";
+import { formatInteger } from "@/server/settings/number-format";
 import {
   ICONS,
   DEFAULT_ICON_KEY,
@@ -113,11 +116,15 @@ const MARKER_EDIT_KEYS = new Set(["u", "v", "iconKey", "color", "backgroundColor
 /** Edits made in one gesture: never merged with the next one. */
 const GESTURE_KEYS = new Set(["geometry", "points", "u", "v", "x", "y", "layerId", "extraLayerIds", "regionId"]);
 
-function editLabel(kind: SceneKind, keys: string[]): string {
-  if (keys.includes("geometry") || keys.includes("points")) return `Reshape ${kind}`;
-  if (keys.some((k) => k === "u" || k === "v" || k === "x" || k === "y")) return `Move ${kind}`;
-  if (keys.some((k) => k === "layerId" || k === "extraLayerIds" || k === "regionId")) return `Change ${kind} layer`;
-  return `Edit ${kind}`;
+/** An item kind's word ("zone", "zones") in the user's language. */
+const kindWord = (t: Translator<"maps">, kind: SceneKind, count = 1) => t(`noun.${kind}`, { count });
+
+function editLabel(t: Translator<"maps">, kind: SceneKind, keys: string[]): string {
+  const noun = kindWord(t, kind);
+  if (keys.includes("geometry") || keys.includes("points")) return t("undo.reshape", { noun });
+  if (keys.some((k) => k === "u" || k === "v" || k === "x" || k === "y")) return t("undo.move", { noun });
+  if (keys.some((k) => k === "layerId" || k === "extraLayerIds" || k === "regionId")) return t("undo.changeLayer", { noun });
+  return t("undo.edit", { noun });
 }
 
 /** Remembered style of the last zone drawn or restyled, per browser: the next new zone starts with it. */
@@ -299,6 +306,8 @@ export default function MapWorkspace({
   imageWidth: number;
   imageHeight: number;
 }) {
+  const t = useT("maps");
+  const tc = useT("common");
   const viewerElRef = useRef<HTMLDivElement | null>(null);
   /** The canvas area, whose open lateral panel the floating buttons stay clear of. */
   const [canvasArea, setCanvasArea] = useState<HTMLDivElement | null>(null);
@@ -334,7 +343,7 @@ export default function MapWorkspace({
   const selectedTextId = textSel.single;
   const setSelectedTextId = textSel.select;
   const [placingText, setPlacingText] = useState(false);
-  const [textDraft, setTextDraft] = useState<TextDraft>(() => ({ ...defaultTextStyle(imageWidth, imageHeight), text: "New text" }));
+  const [textDraft, setTextDraft] = useState<TextDraft>(() => ({ ...defaultTextStyle(imageWidth, imageHeight), text: t("defaults.newText") }));
   const [textUndo, setTextUndo] = useState<{ text: MapTextData; timer: ReturnType<typeof setTimeout> } | null>(null);
   const textPatchTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const pendingTextPatchesRef = useRef<Map<string, TextPatch>>(new Map());
@@ -746,7 +755,7 @@ export default function MapWorkspace({
     });
   }
 
-  function recordCreate(kind: SceneKind, id: string, label = `Add ${kind}`) {
+  function recordCreate(kind: SceneKind, id: string, label = t("undo.add", { noun: kindWord(t, kind) })) {
     let snapshot: MapItem | undefined;
     history.record({
       label,
@@ -761,7 +770,7 @@ export default function MapWorkspace({
   function recordDelete(kind: SceneKind, item: MapItem) {
     let snapshot = item;
     history.record({
-      label: `Delete ${kind}`,
+      label: t("undo.delete", { noun: kindWord(t, kind) }),
       undo: () => restoreItem(kind, snapshot),
       redo: () => {
         snapshot = findItem(kind, item.id) ?? snapshot;
@@ -778,7 +787,7 @@ export default function MapWorkspace({
     if (!item || keys.length === 0 || keys.every((k) => Object.is(item[k], patch[k]))) return;
     const before = Object.fromEntries(keys.map((k) => [k, item[k]]));
     history.record({
-      label: editLabel(kind, keys),
+      label: editLabel(t, kind, keys),
       key: keys.some((k) => GESTURE_KEYS.has(k)) ? undefined : `${kind}:${id}:${[...keys].sort().join(",")}`,
       undo: () => latestRef.current?.apply(kind, id, before),
       redo: () => latestRef.current?.apply(kind, id, patch),
@@ -823,7 +832,7 @@ export default function MapWorkspace({
     if (edits.length === 0) return;
     const keys = [...new Set(edits.flatMap((e) => Object.keys(e.patch)))].sort();
     history.record({
-      label: edits.length === 1 ? editLabel(kind, keys) : `${editLabel(kind, keys)} ×${edits.length}`,
+      label: edits.length === 1 ? editLabel(t, kind, keys) : t("undo.times", { label: editLabel(t, kind, keys), n: formatInteger(edits.length) }),
       key: keys.some((k) => GESTURE_KEYS.has(k)) ? undefined : `${kind}:bulk:${edits.map((e) => e.id).sort().join(",")}:${keys.join(",")}`,
       undo: () => edits.forEach((e) => latestRef.current?.apply(kind, e.id, e.before)),
       redo: () => edits.forEach((e) => latestRef.current?.apply(kind, e.id, e.patch)),
@@ -842,7 +851,7 @@ export default function MapWorkspace({
     if (items.length === 0) return;
     let snapshots = items;
     history.record({
-      label: `Delete ${items.length} ${kind}s`,
+      label: t("undo.deleteMany", { items: t("countNoun", { n: formatInteger(items.length), noun: kindWord(t, kind, items.length) }) }),
       undo: () => Promise.all(snapshots.map((item) => restoreItem(kind, item))),
       redo: () => {
         snapshots = snapshots.map((item) => findItem(kind, item.id) ?? item);
@@ -863,7 +872,7 @@ export default function MapWorkspace({
     const changed = ids.filter((id) => findItem(kind, id)?.visible !== visible);
     if (changed.length === 0) return;
     history.record({
-      label: `${visible ? "Show" : "Hide"} ${kind}s`,
+      label: t(visible ? "undo.showMany" : "undo.hideMany", { nouns: kindWord(t, kind, 2) }),
       undo: () => latestRef.current?.applyVisible(kind, changed, !visible),
       redo: () => latestRef.current?.applyVisible(kind, changed, visible),
     });
@@ -901,7 +910,7 @@ export default function MapWorkspace({
     const { iconKey, ...look } = lastChoiceRef.current;
     const body = forArticle
       ? { u, v, layerId: activeLayerId, ...look, article: { template: forArticle.template, id: forArticle.id } }
-      : { name: "New marker", u, v, layerId: activeLayerId, iconKey, ...look };
+      : { name: t("defaults.newMarker"), u, v, layerId: activeLayerId, iconKey, ...look };
     fetch(`/api/maps/${mapId}/markers`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -958,7 +967,7 @@ export default function MapWorkspace({
       .then((r) => json<{ marker: Marker }>(r))
       .then((d) => {
         setMarkers((prev) => [...prev, d.marker]);
-        recordCreate("marker", d.marker.id, "Duplicate marker");
+        recordCreate("marker", d.marker.id, t("undo.duplicateMarker"));
         setSelectedMarkerId(d.marker.id);
       });
   }
@@ -1203,7 +1212,7 @@ export default function MapWorkspace({
       .then((r) => json<{ zone?: ZoneData; error?: string }>(r))
       .then((d) => {
         if (!d.zone) {
-          window.alert(d.error ?? "Could not create zone.");
+          window.alert(d.error ?? t("error.createZone"));
           setActiveZoneTool("select");
           return;
         }
@@ -1223,11 +1232,11 @@ export default function MapWorkspace({
    * vanished on reload). Show why, and resync zones from the server so the
    * map shows what is actually saved.
    */
-  function reportSaveFailure(what: string, detail: string) {
+  function reportZoneSaveFailure(detail: string) {
     setSaveError((prev) => {
       if (prev) clearTimeout(prev.timer);
       const timer = setTimeout(() => setSaveError(null), 8000);
-      return { message: `Couldn't save ${what}: ${detail}`, timer };
+      return { message: t("error.saveZoneChange", { detail }), timer };
     });
   }
 
@@ -1274,10 +1283,10 @@ export default function MapWorkspace({
         .then(async (res) => {
           if (res.ok) return;
           const data: { error?: string } = await res.json().catch(() => ({}));
-          reportSaveFailure("zone change", data.error ?? `server returned ${res.status}`);
+          reportZoneSaveFailure(data.error ?? t("error.serverStatus", { status: res.status }));
           resyncZones();
         })
-        .catch(() => reportSaveFailure("zone change", "the server is not reachable"));
+        .catch(() => reportZoneSaveFailure(t("error.serverUnreachable")));
     };
     if ("geometry" in patch) send();
     else timers.set(id, setTimeout(send, 250));
@@ -1319,7 +1328,7 @@ export default function MapWorkspace({
       .then((r) => json<{ text?: MapTextData; error?: string }>(r))
       .then((d) => {
         if (!d.text) {
-          window.alert(d.error ?? "Could not place text.");
+          window.alert(d.error ?? t("error.placeText"));
           return;
         }
         setTexts((prev) => [...prev, d.text!]);
@@ -1410,7 +1419,7 @@ export default function MapWorkspace({
       .then((r) => json<{ line?: MapLineData; error?: string }>(r))
       .then((d) => {
         if (!d.line) {
-          window.alert(d.error ?? "Could not save the line.");
+          window.alert(d.error ?? t("error.saveLine"));
           return;
         }
         setLines((prev) => [...prev, d.line!]);
@@ -1468,7 +1477,7 @@ export default function MapWorkspace({
   /** The server applies the move (and its clamping); the response is the source of truth. */
   function moveLine(id: string, dx: number, dy: number) {
     history.record({
-      label: "Move line",
+      label: t("undo.move", { noun: kindWord(t, "line") }),
       undo: () => latestRef.current?.moveLine(id, -dx, -dy),
       redo: () => latestRef.current?.moveLine(id, dx, dy),
     });
@@ -1513,7 +1522,7 @@ export default function MapWorkspace({
     })
       .then((r) => json<{ group?: MapFolderData; error?: string }>(r))
       .then((d) => {
-        if (!d.group) return window.alert(d.error ?? "Could not create the folder.");
+        if (!d.group) return window.alert(d.error ?? t("error.createFolder"));
         if (kind === "line") {
           setLineGroups((prev) => [...prev, d.group!]);
           setActiveLineGroupId(d.group.id);
@@ -1798,15 +1807,15 @@ export default function MapWorkspace({
     const frame = { width: imageWidth, height: imageHeight };
     const post = (url: string, body: object) =>
       fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    const fail = (what: string) => (d: { error?: string }) => window.alert(d.error ?? `Could not paste the ${what}.`);
+    const fail = (fallback: string) => (d: { error?: string }) => window.alert(d.error ?? fallback);
 
     if (clip.kind === "marker") {
       post(`/api/markers/${clip.item.id}/duplicate`, { exact: true, u: point.x / imageWidth, v: point.y / imageHeight, layerId: activeLayerId })
         .then((r) => json<{ marker?: Marker; error?: string }>(r))
         .then((d) => {
-          if (!d.marker) return fail("marker")(d);
+          if (!d.marker) return fail(t("error.pasteMarker"))(d);
           setMarkers((prev) => [...prev, d.marker!]);
-          recordCreate("marker", d.marker.id, "Paste marker");
+          recordCreate("marker", d.marker.id, t("undo.paste", { noun: kindWord(t, "marker") }));
           ensureIconVisible(d.marker.iconKey);
           openItem("marker", d.marker.id);
         });
@@ -1819,9 +1828,9 @@ export default function MapWorkspace({
       post(`/api/maps/${mapId}/texts`, { ...fields, x: point.x, y: point.y, layerId: activeLayerId, groupId })
         .then((r) => json<{ text?: MapTextData; error?: string }>(r))
         .then((d) => {
-          if (!d.text) return fail("text")(d);
+          if (!d.text) return fail(t("error.pasteText"))(d);
           setTexts((prev) => [...prev, d.text!]);
-          recordCreate("text", d.text.id, "Paste text");
+          recordCreate("text", d.text.id, t("undo.paste", { noun: kindWord(t, "text") }));
           openItem("text", d.text.id);
         });
     } else {
@@ -1833,9 +1842,9 @@ export default function MapWorkspace({
       post(`/api/maps/${mapId}/lines`, { ...fields, points: translatePoints(points, dx, dy, frame), layerId: activeLayerId, groupId })
         .then((r) => json<{ line?: MapLineData; error?: string }>(r))
         .then((d) => {
-          if (!d.line) return fail("line")(d);
+          if (!d.line) return fail(t("error.pasteLine"))(d);
           setLines((prev) => [...prev, d.line!]);
-          recordCreate("line", d.line.id, "Paste line");
+          recordCreate("line", d.line.id, t("undo.paste", { noun: kindWord(t, "line") }));
           openItem("line", d.line.id);
         });
     }
@@ -1852,10 +1861,10 @@ export default function MapWorkspace({
       const res = await fetch(`/api/maps/${mapId}/zone-regions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: regionName ?? "Region 1", layerId: activeLayerId }),
+        body: JSON.stringify({ name: regionName ?? t("defaults.region", { n: 1 }), layerId: activeLayerId }),
       });
       const d = await json<{ region?: ZoneRegionData; error?: string }>(res);
-      if (!d.region) return window.alert(d.error ?? "Could not create a region for the zone.");
+      if (!d.region) return window.alert(d.error ?? t("error.createRegionForZone"));
       setZoneRegions((prev) => [...prev, d.region!]);
       regionId = d.region.id;
     }
@@ -1883,9 +1892,9 @@ export default function MapWorkspace({
       }),
     });
     const d = await json<{ zone?: ZoneData; error?: string }>(res);
-    if (!d.zone) return window.alert(d.error ?? "Could not paste the zone.");
+    if (!d.zone) return window.alert(d.error ?? t("error.pasteZone"));
     setZones((prev) => [...prev, d.zone!]);
-    recordCreate("zone", d.zone.id, "Paste zone");
+    recordCreate("zone", d.zone.id, t("undo.paste", { noun: kindWord(t, "zone") }));
     openItem("zone", d.zone.id, regionId);
   }
 
@@ -2088,20 +2097,19 @@ export default function MapWorkspace({
             onClick={() => setAddingMarker((a) => !a)}
           >
             <MapPin size={15} strokeWidth={2.25} />
-            {addingMarker ? (placing ? `Click the map to place “${placing.name}”…` : "Click the map…") : "Add marker"}
+            {addingMarker ? (placing ? t("toolbar.clickToPlace", { name: placing.name }) : t("toolbar.clickMap")) : t("toolbar.addMarker")}
           </button>
 
           <select
             className="layer-select"
             value={activeLayerId}
             onChange={(e) => onSetActiveLayer(e.target.value)}
-            aria-label="Active layer"
-            data-tooltip="Active layer — markers, zones, grid and image shown and edited"
+            aria-label={t("toolbar.activeLayer")}
+            data-tooltip={t("toolbar.activeLayerHint")}
           >
             {layerApi.layers.map((l) => (
               <option key={l.id} value={l.id}>
-                {l.name}
-                {l.visible ? "" : " (hidden)"}
+                {l.visible ? l.name : t("toolbar.hiddenLayer", { name: l.name })}
               </option>
             ))}
           </select>
@@ -2111,8 +2119,8 @@ export default function MapWorkspace({
               className="btn btn-icon"
               disabled={!history.undoLabel}
               onClick={history.undo}
-              aria-label={history.undoLabel ? `Undo: ${history.undoLabel}` : "Undo"}
-              data-tooltip={history.undoLabel ? `Undo: ${history.undoLabel} (Ctrl+Z)` : "Nothing to undo"}
+              aria-label={history.undoLabel ? t("toolbar.undoLabel", { label: history.undoLabel }) : tc("undo")}
+              data-tooltip={history.undoLabel ? t("toolbar.undoHint", { label: history.undoLabel }) : t("toolbar.nothingToUndo")}
             >
               <Undo2 size={16} strokeWidth={2.25} />
             </button>
@@ -2120,8 +2128,8 @@ export default function MapWorkspace({
               className="btn btn-icon"
               disabled={!history.redoLabel}
               onClick={history.redo}
-              aria-label={history.redoLabel ? `Redo: ${history.redoLabel}` : "Redo"}
-              data-tooltip={history.redoLabel ? `Redo: ${history.redoLabel} (Ctrl+Y)` : "Nothing to redo"}
+              aria-label={history.redoLabel ? t("toolbar.redoLabel", { label: history.redoLabel }) : t("toolbar.redo")}
+              data-tooltip={history.redoLabel ? t("toolbar.redoHint", { label: history.redoLabel }) : t("toolbar.nothingToRedo")}
             >
               <Redo2 size={16} strokeWidth={2.25} />
             </button>
@@ -2129,8 +2137,8 @@ export default function MapWorkspace({
               className="btn btn-icon"
               disabled={!viewer}
               onClick={() => viewer?.viewport.zoomBy(ZOOM_PER_CLICK)}
-              aria-label="Zoom in"
-              data-tooltip="Zoom in"
+              aria-label={t("toolbar.zoomIn")}
+              data-tooltip={t("toolbar.zoomIn")}
             >
               <ZoomIn size={16} strokeWidth={2.25} />
             </button>
@@ -2138,8 +2146,8 @@ export default function MapWorkspace({
               className="btn btn-icon"
               disabled={!viewer}
               onClick={() => viewer?.viewport.zoomBy(1 / ZOOM_PER_CLICK)}
-              aria-label="Zoom out"
-              data-tooltip="Zoom out"
+              aria-label={t("toolbar.zoomOut")}
+              data-tooltip={t("toolbar.zoomOut")}
             >
               <ZoomOut size={16} strokeWidth={2.25} />
             </button>
@@ -2147,8 +2155,8 @@ export default function MapWorkspace({
               className="btn btn-icon"
               disabled={!viewer}
               onClick={() => viewer?.viewport.goHome()}
-              aria-label="Reset view"
-              data-tooltip="Reset view"
+              aria-label={t("toolbar.resetView")}
+              data-tooltip={t("toolbar.resetView")}
             >
               <Home size={16} strokeWidth={2.25} />
             </button>
@@ -2156,8 +2164,8 @@ export default function MapWorkspace({
               className="btn btn-icon"
               disabled={!viewer}
               onClick={toggleFullscreen}
-              aria-label="Toggle fullscreen"
-              data-tooltip="Toggle fullscreen"
+              aria-label={t("toolbar.fullscreen")}
+              data-tooltip={t("toolbar.fullscreen")}
             >
               {isFullscreen ? <Minimize size={16} strokeWidth={2.25} /> : <Maximize size={16} strokeWidth={2.25} />}
             </button>
@@ -2283,7 +2291,7 @@ export default function MapWorkspace({
           onRouteDrawingChange={setRouteDrawing}
         />
 
-        {gridPanelOpen && !grid && <PanelSkeleton className="grid-panel" title="Grid" Icon={Grid3x3} onClose={onCloseGridPanel} rows={4} />}
+        {gridPanelOpen && !grid && <PanelSkeleton className="grid-panel" title={t("panel.grid")} Icon={Grid3x3} onClose={onCloseGridPanel} rows={4} />}
         {gridPanelOpen && grid && (
           <GridPanel
             layerName={layerLabel}
@@ -2296,7 +2304,7 @@ export default function MapWorkspace({
           />
         )}
 
-        {zonesPanelOpen && !itemsLoaded && <PanelSkeleton className="zones-panel" mainClassName="zones-panel-main" title="Zones" Icon={Shapes} onClose={onCloseZonesPanel} />}
+        {zonesPanelOpen && !itemsLoaded && <PanelSkeleton className="zones-panel" mainClassName="zones-panel-main" title={t("panel.zones")} Icon={Shapes} onClose={onCloseZonesPanel} />}
         {zonesPanelOpen && itemsLoaded && (
           <ZonesPanel
             layerName={layerLabel}
@@ -2345,7 +2353,7 @@ export default function MapWorkspace({
           />
         )}
 
-        {textPanelOpen && !itemsLoaded && <PanelSkeleton className="zones-panel zones-panel-editing text-panel" mainClassName="zones-panel-main" title="Text" Icon={TypeIcon} onClose={onCloseTextPanel} />}
+        {textPanelOpen && !itemsLoaded && <PanelSkeleton className="zones-panel zones-panel-editing text-panel" mainClassName="zones-panel-main" title={t("panel.text")} Icon={TypeIcon} onClose={onCloseTextPanel} />}
         {textPanelOpen && itemsLoaded && (
           <TextPanel
             layerName={layerLabel}
@@ -2388,7 +2396,7 @@ export default function MapWorkspace({
           />
         )}
 
-        {linePanelOpen && !itemsLoaded && <PanelSkeleton className="zones-panel zones-panel-editing line-panel" mainClassName="zones-panel-main" title="Lines" Icon={PenTool} onClose={onCloseLinePanel} />}
+        {linePanelOpen && !itemsLoaded && <PanelSkeleton className="zones-panel zones-panel-editing line-panel" mainClassName="zones-panel-main" title={t("panel.lines")} Icon={PenTool} onClose={onCloseLinePanel} />}
         {linePanelOpen && itemsLoaded && (
           <LinePanel
             layerName={layerLabel}
@@ -2437,7 +2445,7 @@ export default function MapWorkspace({
           />
         )}
 
-        {scenePanelOpen && !itemsLoaded && <PanelSkeleton className="layers-panel scene-panel" title="Scene" Icon={ListTree} onClose={onCloseScenePanel} />}
+        {scenePanelOpen && !itemsLoaded && <PanelSkeleton className="layers-panel scene-panel" title={t("panel.scene")} Icon={ListTree} onClose={onCloseScenePanel} />}
         {scenePanelOpen && itemsLoaded && (
           <ScenePanel
             layerName={layerLabel}
@@ -2454,7 +2462,7 @@ export default function MapWorkspace({
           />
         )}
 
-        {markersPanelOpen && !itemsLoaded && <PanelSkeleton className="markers-panel" mainClassName="markers-panel-col" title="Markers on this map" Icon={MapPinned} onClose={onCloseMarkersPanel} rows={6} />}
+        {markersPanelOpen && !itemsLoaded && <PanelSkeleton className="markers-panel" mainClassName="markers-panel-col" title={t("panel.markers")} Icon={MapPinned} onClose={onCloseMarkersPanel} rows={6} />}
         {markersPanelOpen && itemsLoaded && <MarkersPanel markers={markers} layers={layerApi.layers} onSelectMarker={onFocusMarker} iconFilter={iconFilter} onClose={onCloseMarkersPanel} />}
 
         {saveError && (
@@ -2466,29 +2474,29 @@ export default function MapWorkspace({
                 setSaveError(null);
               }}
             >
-              Dismiss
+              {tc("dismiss")}
             </button>
           </div>
         )}
 
         {lineUndo && (
           <div className="undo-toast">
-            <span>Deleted line</span>
-            <button onClick={undoLineDelete}>Undo</button>
+            <span>{t("toast.deletedLine")}</span>
+            <button onClick={undoLineDelete}>{tc("undo")}</button>
           </div>
         )}
 
         {textUndo && (
           <div className="undo-toast">
-            <span>Deleted &ldquo;{textUndo.text.text.split("\n")[0]}&rdquo;</span>
-            <button onClick={undoTextDelete}>Undo</button>
+            <span>{t("toast.deletedNamed", { name: textUndo.text.text.split("\n")[0] })}</span>
+            <button onClick={undoTextDelete}>{tc("undo")}</button>
           </div>
         )}
 
         {zoneUndo && (
           <div className="undo-toast">
-            <span>Deleted &ldquo;{zoneUndo.zone.name}&rdquo;</span>
-            <button onClick={undoZoneDelete}>Undo</button>
+            <span>{t("toast.deletedNamed", { name: zoneUndo.zone.name })}</span>
+            <button onClick={undoZoneDelete}>{tc("undo")}</button>
           </div>
         )}
 
@@ -2512,14 +2520,14 @@ export default function MapWorkspace({
                 </button>
               );
             })}
-            <button onClick={() => setOverlapChoices(null)}>Cancel</button>
+            <button onClick={() => setOverlapChoices(null)}>{tc("cancel")}</button>
           </div>
         )}
 
         {undo && (
           <div className="undo-toast">
-            <span>Deleted &ldquo;{undo.marker.name}&rdquo;</span>
-            <button onClick={undoDelete}>Undo</button>
+            <span>{t("toast.deletedNamed", { name: undo.marker.name })}</span>
+            <button onClick={undoDelete}>{tc("undo")}</button>
           </div>
         )}
       </div>

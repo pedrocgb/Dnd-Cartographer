@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Folder, Plus, RotateCcw, Settings, Trash2, X } from "lucide-react";
 import ColorWheel from "@/components/ColorWheel";
 import { MAX_FOLDER_NAME_LENGTH } from "@/server/maps/folders";
+import { useT } from "@/i18n/useT";
 import type { FolderSummary } from "./types";
 
 /** The folder icon's color when none is set (--brass-400). */
@@ -32,6 +33,8 @@ export default function FolderSettingsPanel({
   onDelete: () => void;
   onClose: () => void;
 }) {
+  const t = useT("maps");
+  const tc = useT("common");
   const [name, setName] = useState(folder.name);
   const [color, setColor] = useState(folder.color);
   const [error, setError] = useState<string | null>(null);
@@ -58,13 +61,13 @@ export default function FolderSettingsPanel({
   }
 
   return (
-    <aside className="marker-side-panel maps-settings-panel" aria-label="Folder settings">
+    <aside className="marker-side-panel maps-settings-panel" aria-label={t("folderSettings.title")}>
       <div className="marker-side-panel-header">
         <h2>
           <Settings size={16} strokeWidth={2.25} aria-hidden />
-          Folder settings
+          {t("folderSettings.title")}
         </h2>
-        <button className="btn btn-ghost btn-icon" onClick={onClose} aria-label="Close folder settings">
+        <button className="btn btn-ghost btn-icon" onClick={onClose} aria-label={t("folderSettings.close")}>
           <X size={16} strokeWidth={2.25} />
         </button>
       </div>
@@ -76,7 +79,7 @@ export default function FolderSettingsPanel({
       </p>
 
       <label className="field-label" htmlFor="folder-settings-name">
-        Name
+        {tc("name")}
       </label>
       <input
         id="folder-settings-name"
@@ -89,7 +92,7 @@ export default function FolderSettingsPanel({
       />
 
       <div className="maps-settings-row">
-        <span className="field-label">Color</span>
+        <span className="field-label">{t("folderSettings.color")}</span>
         {color && (
           <button
             type="button"
@@ -98,10 +101,10 @@ export default function FolderSettingsPanel({
               changeColor(null);
               setWheelKey((k) => k + 1);
             }}
-            data-tooltip="Back to the default folder color"
+            data-tooltip={t("folderSettings.defaultColorHint")}
           >
             <RotateCcw size={12} strokeWidth={2.25} />
-            Default
+            {t("folderSettings.defaultColor")}
           </button>
         )}
       </div>
@@ -112,11 +115,11 @@ export default function FolderSettingsPanel({
       <div className="maps-settings-actions">
         <button type="button" className="btn btn-sm btn-create" onClick={onCreateMap}>
           <Plus size={13} strokeWidth={2.25} />
-          Create map in this folder
+          {t("folderSettings.createMap")}
         </button>
         <button type="button" className="btn btn-sm btn-danger" onClick={onDelete}>
           <Trash2 size={13} strokeWidth={2.25} />
-          Delete folder
+          {t("deleteFolder")}
         </button>
       </div>
     </aside>

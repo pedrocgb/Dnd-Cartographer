@@ -1,4 +1,5 @@
 import type { ArticleTemplateKey } from "../articles/templates";
+import type { MessageKey } from "../../i18n/messages";
 import {
   allows,
   ATTITUDE_MAX,
@@ -39,7 +40,8 @@ export interface ExistingRelation {
   pairKey: string;
 }
 
-export type Validated = { ok: true; value: RelationFields & { pairKey: string } } | { ok: false; error: string };
+/** On failure, `error` is an `errors` key (worded by the route, see `RelationError`). */
+export type Validated = { ok: true; value: RelationFields & { pairKey: string } } | { ok: false; error: MessageKey<"errors">; params?: Record<string, string> };
 
 const str = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
 const day = (v: unknown) => (typeof v === "number" && Number.isInteger(v) ? v : null);
@@ -58,22 +60,22 @@ export function validateRelation(
   selfId?: string
 ): Validated {
   const type = relationType(typeof raw.type === "string" ? raw.type : "");
-  if (!type) return { ok: false, error: "Unknown relation type." };
+  if (!type) return { ok: false, error: "relationTypeUnknown" };
   const fromId = typeof raw.fromId === "string" ? raw.fromId : "";
   const toId = typeof raw.toId === "string" ? raw.toId : "";
-  if (!templates.from || !templates.to) return { ok: false, error: "Both ends must be existing articles." };
-  if (fromId === toId) return { ok: false, error: "An article can't be related to itself." };
+  if (!templates.from || !templates.to) return { ok: false, error: "relationEndsMissing" };
+  if (fromId === toId) return { ok: false, error: "relationSelf" };
   if (!allows(type.endpoints.from, templates.from) || !allows(type.endpoints.to, templates.to)) {
-    return { ok: false, error: `"${type.label}" doesn't fit these two kinds of article.` };
+    return { ok: false, error: "relationTypeMismatch", params: { type: type.key } };
   }
 
   const label = str(raw.label, MAX_RELATION_LABEL);
-  if (type.key === "custom" && !label) return { ok: false, error: "A custom relation needs a label." };
+  if (type.key === "custom" && !label) return { ok: false, error: "relationLabelRequired" };
   const attitude = typeof raw.attitude === "number" && Number.isFinite(raw.attitude) ? Math.round(raw.attitude) : null;
-  if (attitude !== null && (attitude < ATTITUDE_MIN || attitude > ATTITUDE_MAX)) return { ok: false, error: `Attitude goes from ${ATTITUDE_MIN} to ${ATTITUDE_MAX}.` };
+  if (attitude !== null && (attitude < ATTITUDE_MIN || attitude > ATTITUDE_MAX)) return { ok: false, error: "relationAttitudeRange", params: { min: String(ATTITUDE_MIN), max: String(ATTITUDE_MAX) } };
   const sinceDay = day(raw.sinceDay);
   const untilDay = day(raw.untilDay);
-  if (sinceDay !== null && untilDay !== null && sinceDay > untilDay) return { ok: false, error: "The relation can't end before it starts." };
+  if (sinceDay !== null && untilDay !== null && sinceDay > untilDay) return { ok: false, error: "relationDatesReversed" };
 
   const attrs = type.attrs ?? [];
   const parentKind = attrs.includes("parentKind") ? ((PARENT_KINDS as readonly unknown[]).includes(raw.parentKind) ? (raw.parentKind as ParentKind) : "biological") : null;
@@ -82,10 +84,10 @@ export function validateRelation(
   const pairKey = pairKeyOf(type, fromId, toId);
   const others = existing.filter((r) => r.id !== selfId);
   if (type.key !== "custom" && others.some((r) => r.type === type.key && r.pairKey === pairKey)) {
-    return { ok: false, error: `That "${type.label}" relation already exists.` };
+    return { ok: false, error: "relationDuplicate", params: { type: type.key } };
   }
   if (type.acyclic && reaches(others.filter((r) => r.type === type.key), toId, fromId)) {
-    return { ok: false, error: `That would make a loop of "${type.label}" relations.` };
+    return { ok: false, error: "relationLoop", params: { type: type.key } };
   }
 
   return {

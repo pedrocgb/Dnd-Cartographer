@@ -6,6 +6,7 @@ import { CalendarDays, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { usePopover } from "@/components/usePopover";
 import { fromWorldDay, type CalendarDefinition } from "@/server/calendars/engine";
 import { dayLabel, monthBlock, periodsOf, safe, stepPeriod, type MonthCell } from "./evaluate";
+import { useT } from "@/i18n/useT";
 
 /** Width of one day column in the popup, gap included. */
 const CELL_PX = 38;
@@ -31,7 +32,7 @@ export default function WorldDatePicker({
   label,
   currentDay = null,
   min = null,
-  placeholder = "Pick a date",
+  placeholder,
   onClear,
 }: {
   def: CalendarDefinition;
@@ -43,6 +44,8 @@ export default function WorldDatePicker({
   placeholder?: string;
   onClear?: () => void;
 }) {
+  const t = useT("calendars");
+  const tc = useT("common");
   const { open, setOpen, root, trigger, pop } = usePopover();
   const [shown, setShown] = useState<Shown | null>(null);
   // The year box's text while typing (null: show the viewed year).
@@ -106,16 +109,16 @@ export default function WorldDatePicker({
           type="button"
           ref={trigger}
           className="dp-trigger"
-          aria-label={`${label}: ${value !== null ? dayLabel(def, value) : "not set"}`}
+          aria-label={tc("datePicker.fieldValue", { label, value: value !== null ? dayLabel(def, value) : tc("datePicker.notSet") })}
           aria-haspopup="dialog"
           aria-expanded={open}
           onClick={toggle}
         >
           <CalendarDays size={15} aria-hidden />
-          <span className={value !== null ? undefined : "dp-placeholder"}>{value !== null ? dayLabel(def, value) : placeholder}</span>
+          <span className={value !== null ? undefined : "dp-placeholder"}>{value !== null ? dayLabel(def, value) : (placeholder ?? tc("datePicker.placeholder"))}</span>
         </button>
         {value !== null && onClear && (
-          <button type="button" className="btn btn-ghost btn-icon btn-sm dp-clear" aria-label={`Clear ${label}`} data-tooltip="Clear" onClick={onClear}>
+          <button type="button" className="btn btn-ghost btn-icon btn-sm dp-clear" aria-label={tc("datePicker.clearField", { label })} data-tooltip={tc("datePicker.clear")} onClick={onClear}>
             <X size={14} />
           </button>
         )}
@@ -127,28 +130,27 @@ export default function WorldDatePicker({
             {shown ? (
               <>
                 <div className="dp-head">
-                  <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label="Previous month" onClick={() => (setShown(stepPeriod(def, shown.year, shown.periodId, -1)), setYearDraft(null))}>
+                  <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={tc("datePicker.previousMonth")} onClick={() => (setShown(stepPeriod(def, shown.year, shown.periodId, -1)), setYearDraft(null))}>
                     <ChevronLeft size={16} />
                   </button>
                   <div className="dp-title">
-                    <select aria-label="Month" value={shown.periodId} onChange={(e) => setShown({ ...shown, periodId: e.target.value })}>
+                    <select aria-label={tc("datePicker.month")} value={shown.periodId} onChange={(e) => setShown({ ...shown, periodId: e.target.value })}>
                       {periods.map((p) => (
                         <option key={p.period.id} value={p.period.id}>
-                          {p.period.name}
-                          {p.period.kind === "special" ? " (special)" : ""}
+                          {p.period.kind === "special" ? t("date.special", { name: p.period.name }) : p.period.name}
                         </option>
                       ))}
                     </select>
                     <span className="wdp-year">
-                      <input type="number" aria-label="Year" value={yearDraft ?? shown.year} onChange={(e) => typeYear(e.target.value)} onBlur={() => setYearDraft(null)} />
+                      <input type="number" aria-label={tc("datePicker.year")} value={yearDraft ?? shown.year} onChange={(e) => typeYear(e.target.value)} onBlur={() => setYearDraft(null)} />
                       {def.year.suffix && <span className="cal-date-suffix">{def.year.suffix}</span>}
                     </span>
                   </div>
-                  <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label="Next month" onClick={() => (setShown(stepPeriod(def, shown.year, shown.periodId, 1)), setYearDraft(null))}>
+                  <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={tc("datePicker.nextMonth")} onClick={() => (setShown(stepPeriod(def, shown.year, shown.periodId, 1)), setYearDraft(null))}>
                     <ChevronRight size={16} />
                   </button>
                 </div>
-                {badYear && <p className="wdp-note">That year can&apos;t be shown{!def.year.hasYearZero && yearDraft?.trim() === "0" ? " (this calendar has no year 0)" : ""}.</p>}
+                {badYear && <p className="wdp-note">{!def.year.hasYearZero && yearDraft?.trim() === "0" ? t("picker.badYearZero") : t("picker.badYear")}</p>}
                 {block && block.rows.length > 0 && (
                   <div className="dp-grid" role="grid" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
                     {weekdays.map((w) => (
@@ -161,24 +163,24 @@ export default function WorldDatePicker({
                 )}
                 {block && block.outOfWeek.length > 0 && (
                   <div className="wdp-strip">
-                    <span className="wdp-strip-label">{block.rows.length > 0 ? "Outside the week" : block.special ? `${block.name} (special days)` : block.name}</span>
+                    <span className="wdp-strip-label">{block.rows.length > 0 ? t("views.outsideWeek") : block.special ? t("picker.specialDays", { name: block.name }) : block.name}</span>
                     <div className="wdp-strip-days">{block.outOfWeek.map(dayButton)}</div>
                   </div>
                 )}
-                {!block && <p className="wdp-note">This month can&apos;t be shown.</p>}
+                {!block && <p className="wdp-note">{t("picker.monthUnavailable")}</p>}
               </>
             ) : (
-              <p className="wdp-note">This date is outside the calendar&apos;s supported range.</p>
+              <p className="wdp-note">{t("picker.outOfRange")}</p>
             )}
             <div className="dp-foot">
               {currentDay !== null && (
                 <button type="button" className="btn btn-ghost btn-sm" disabled={min !== null && currentDay < min} onClick={() => pick(currentDay)}>
-                  Today
+                  {tc("datePicker.today")}
                 </button>
               )}
               {value !== null && (
                 <button type="button" className="btn btn-ghost btn-sm" onClick={() => (setShown(shownOf(value)), setYearDraft(null))}>
-                  Selected
+                  {t("picker.selected")}
                 </button>
               )}
             </div>

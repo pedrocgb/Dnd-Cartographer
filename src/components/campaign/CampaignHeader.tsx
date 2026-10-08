@@ -7,10 +7,11 @@ import { PenLine, ScrollText, Swords } from "lucide-react";
 import { api } from "@/components/calendars/api";
 import type { ClientCampaign } from "@/components/sessions/types";
 import { CAMPAIGNS_CHANGED, readActiveCampaign, rememberActiveCampaign } from "./active-campaign";
+import { useT } from "@/i18n/useT";
 
 const TABS = [
-  { href: "/sessions", label: "Sessions", icon: ScrollText, hint: "Sessions, quests, fronts and the relationship map" },
-  { href: "/writer", label: "Writer", icon: PenLine, hint: "Outline, plot threads and the story so far" },
+  { href: "/sessions", id: "sessions", icon: ScrollText },
+  { href: "/writer", id: "writer", icon: PenLine },
 ] as const;
 
 /** Address parameters that belong to one campaign's content, dropped when switching campaigns. */
@@ -22,6 +23,7 @@ const PER_CAMPAIGN_PARAMS = ["session", "quest", "node"];
  * managed on the Sessions tab.
  */
 export default function CampaignHeader() {
+  const t = useT("campaign");
   const pathname = usePathname();
   const params = useSearchParams();
   const router = useRouter();
@@ -58,10 +60,10 @@ export default function CampaignHeader() {
     <header className="campaign-header">
       <span className="campaign-header-title">
         <Swords size={16} strokeWidth={2.25} aria-hidden />
-        Campaign
+        {t("header.campaign")}
       </span>
-      <nav className="campaign-tabs" aria-label="Campaign">
-        {TABS.map(({ href, label, icon: Icon, hint }) => {
+      <nav className="campaign-tabs" aria-label={t("header.campaign")}>
+        {TABS.map(({ href, id, icon: Icon }) => {
           const current = pathname.startsWith(href);
           return (
             <Link
@@ -69,22 +71,21 @@ export default function CampaignHeader() {
               href={active ? `${href}?campaign=${encodeURIComponent(active.id)}` : href}
               className={current ? "cal-tab active campaign-tab" : "cal-tab campaign-tab"}
               aria-current={current ? "page" : undefined}
-              data-tooltip={hint}
+              data-tooltip={t(`header.tab.${id}Hint`)}
             >
               <Icon size={14} strokeWidth={2.25} aria-hidden />
-              {label}
+              {t(`header.tab.${id}`)}
             </Link>
           );
         })}
       </nav>
       {listed.length > 0 && active && (
         <label className="campaign-picker">
-          <span className="field-label">Active campaign</span>
-          <select value={active.id} onChange={(e) => pick(e.target.value)} aria-label="Active campaign">
+          <span className="field-label">{t("header.activeCampaign")}</span>
+          <select value={active.id} onChange={(e) => pick(e.target.value)} aria-label={t("header.activeCampaign")}>
             {listed.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.name}
-                {c.archived ? " (archived)" : ""}
+                {c.archived ? t("header.archivedName", { name: c.name }) : c.name}
               </option>
             ))}
           </select>

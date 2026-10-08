@@ -7,7 +7,9 @@ import InfoPicker, { type PickerOption } from "@/components/articles/InfoPicker"
 import WorldDatePicker from "@/components/calendars/WorldDatePicker";
 import { dayLabel } from "@/components/calendars/evaluate";
 import type { CalendarDefinition } from "@/server/calendars/engine";
-import { TEMPLATE_LABELS, type ArticleTemplateKey } from "@/server/articles/templates";
+import { templateLabel, type ArticleTemplateKey } from "@/server/articles/templates";
+import { useT } from "@/i18n/useT";
+import { activeT } from "@/i18n/active";
 import { derivedSiblings, webEdges } from "@/server/relations/graph";
 import {
   ATTITUDE_MAX,
@@ -18,6 +20,7 @@ import {
   PARENT_KINDS,
   perspectiveOptions,
   RELATION_GROUPS,
+  derivedLabel,
   relationType,
   SPOUSE_STATUSES,
   type RelationGroup,
@@ -30,6 +33,7 @@ const RelationsCanvas = dynamic(() => import("./RelationsCanvas"), { ssr: false 
 
 /** The record's neighborhood as a small graph (1–3 hops). */
 function MiniWeb({ recordId }: { recordId: string }) {
+  const t = useT("relations");
   const { relations, derived, catalog, openArticle, openWeb } = useRelations();
   const [hideSecrets] = useHideSecrets();
   const [depth, setDepth] = useState(1);
@@ -38,12 +42,12 @@ function MiniWeb({ recordId }: { recordId: string }) {
   return (
     <div className="rel-mini">
       <label className="rel-field rel-depth">
-        <span className="field-label">Hops: {depth}</span>
+        <span className="field-label">{t("card.hops", { n: depth })}</span>
         <input type="range" min={1} max={3} value={depth} onChange={(e) => setDepth(Number(e.target.value))} />
       </label>
       <div className="rel-mini-canvas">
         {graph.cards.length <= 1 ? (
-          <p className="cal-help rel-empty">No ties to draw yet.</p>
+          <p className="cal-help rel-empty">{t("card.noTies")}</p>
         ) : (
           <RelationsCanvas key={`${depth}|${graph.cards.map((c) => c.id).join("|")}`} cards={graph.cards} lines={graph.lines} compact onOpen={(e) => openArticle(e.template, e.id)} onFocus={openWeb} />
         )}
@@ -52,12 +56,10 @@ function MiniWeb({ recordId }: { recordId: string }) {
   );
 }
 
-const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-
 async function send(method: string, url: string, body?: unknown): Promise<string | null> {
   const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
   if (res.ok) return null;
-  return (await res.json().catch(() => ({}))).error ?? "Could not save the relation.";
+  return (await res.json().catch(() => ({}))).error ?? activeT("relations")("card.couldNotSave");
 }
 
 /**
@@ -67,6 +69,7 @@ async function send(method: string, url: string, body?: unknown): Promise<string
  * a row to add a new one.
  */
 export default function RelationshipsCard({ recordId, template }: { recordId: string; template: ArticleTemplateKey }) {
+  const t = useT("relations");
   const { relations, derived, catalog, openArticle, openWeb, openFamily, refresh } = useRelations();
   const [tab, setTab] = useState<"list" | "web">("list");
   const isPerson = template === "character" || template === "playerCharacter";
@@ -85,10 +88,10 @@ export default function RelationshipsCard({ recordId, template }: { recordId: st
       .map((d) => ({ id: d.id, otherId: d.fromId === recordId ? d.toId : d.fromId, label: d.fromId === recordId ? d.label : inverseDerived(d.kind, d.label) }));
     const explicit = new Set(mine.filter((r) => r.type === "sibling").map((r) => (r.fromId === recordId ? r.toId : r.fromId)));
     for (const s of derivedSiblings(relations, recordId)) {
-      if (!explicit.has(s.id) && catalog.has(s.id)) rows.push({ id: `sibling:${s.id}`, otherId: s.id, label: s.full ? "Sibling of (by parents)" : "Half-sibling of (by a parent)" });
+      if (!explicit.has(s.id) && catalog.has(s.id)) rows.push({ id: `sibling:${s.id}`, otherId: s.id, label: s.full ? t("card.siblingFull") : t("card.siblingHalf") });
     }
     return rows;
-  }, [derived, relations, recordId, mine, catalog]);
+  }, [derived, relations, recordId, mine, catalog, t]);
 
   const run = async (op: Promise<string | null>) => {
     const failed = await op;
@@ -98,7 +101,7 @@ export default function RelationshipsCard({ recordId, template }: { recordId: st
 
   const groups = RELATION_GROUPS.map((g) => ({ ...g, rows: mine.filter((r) => !r.pinned && relationType(r.type)?.group === g.key) })).filter((g) => g.rows.length);
   const pinned = mine.filter((r) => r.pinned);
-  const nameOf = (id: string) => catalog.get(id)?.name ?? "(removed)";
+  const nameOf = (id: string) => catalog.get(id)?.name ?? t("ui.removed");
   const open = (id: string) => {
     const entry = catalog.get(id);
     if (entry) openArticle(entry.template, id);
@@ -120,26 +123,26 @@ export default function RelationshipsCard({ recordId, template }: { recordId: st
   );
 
   return (
-    <section className="article-card rel-card" aria-label="Relationships">
+    <section className="article-card rel-card" aria-label={t("card.title")}>
       <header className="article-card-header">
         <span className="article-card-label">
           <Network size={15} strokeWidth={2.25} />
-          Relationships
+          {t("card.title")}
         </span>
-        <div className="rel-tabs" role="tablist" aria-label="Relationships view">
+        <div className="rel-tabs" role="tablist" aria-label={t("card.view")}>
           <button type="button" role="tab" aria-selected={tab === "list"} className={tab === "list" ? "rel-chip active" : "rel-chip"} onClick={() => setTab("list")}>
-            List
+            {t("card.list")}
           </button>
           <button type="button" role="tab" aria-selected={tab === "web"} className={tab === "web" ? "rel-chip active" : "rel-chip"} onClick={() => setTab("web")}>
-            Web
+            {t("card.web")}
           </button>
         </div>
-        <button type="button" className="btn btn-sm btn-ghost" onClick={() => openWeb(recordId)} data-tooltip="Open the Relationships view centered here">
-          <Waypoints size={14} /> Open web
+        <button type="button" className="btn btn-sm btn-ghost" onClick={() => openWeb(recordId)} data-tooltip={t("card.openWebHint")}>
+          <Waypoints size={14} /> {t("card.openWeb")}
         </button>
         {isPerson && (
-          <button type="button" className="btn btn-sm btn-ghost" onClick={() => openFamily(recordId)} data-tooltip="Open this character's family tree">
-            <GitFork size={14} /> Family tree
+          <button type="button" className="btn btn-sm btn-ghost" onClick={() => openFamily(recordId)} data-tooltip={t("card.familyTreeHint")}>
+            <GitFork size={14} /> {t("card.familyTree")}
           </button>
         )}
         <button
@@ -147,17 +150,17 @@ export default function RelationshipsCard({ recordId, template }: { recordId: st
           className={hideSecrets ? "btn btn-sm btn-ghost active" : "btn btn-sm btn-ghost"}
           onClick={() => setHideSecrets(!hideSecrets)}
           aria-pressed={hideSecrets}
-          data-tooltip={hideSecrets ? "Secret ties are hidden everywhere (for sharing your screen). Click to show them." : "Hide secret ties everywhere, e.g. while players can see your screen"}
+          data-tooltip={hideSecrets ? t("card.secretsHiddenHint") : t("card.hideSecretsHint")}
         >
           {hideSecrets ? <EyeOff size={14} /> : <Eye size={14} />}
-          {hideSecrets ? "Secrets hidden" : "Hide secrets"}
+          {hideSecrets ? t("secrets.hidden") : t("card.hideSecrets")}
         </button>
       </header>
 
       {tab === "web" && <MiniWeb recordId={recordId} />}
-      {tab === "list" && mine.length === 0 && computed.length === 0 && <p className="article-card-placeholder">No relationships yet.</p>}
+      {tab === "list" && mine.length === 0 && computed.length === 0 && <p className="article-card-placeholder">{t("card.none")}</p>}
       {tab === "list" && pinned.length > 0 && (
-        <RelationGroupList label="Pinned" icon={<Pin size={12} />}>
+        <RelationGroupList label={t("card.pinned")} icon={<Pin size={12} />}>
           {pinned.map(renderRow)}
         </RelationGroupList>
       )}
@@ -167,7 +170,7 @@ export default function RelationshipsCard({ recordId, template }: { recordId: st
         </RelationGroupList>
       ))}
       {tab === "list" && computed.length > 0 && (
-        <RelationGroupList label="From other information" icon={<Lock size={12} />}>
+        <RelationGroupList label={t("ui.fromOtherInfo")} icon={<Lock size={12} />}>
           {computed.map((c) => (
             <li key={c.id} className="rel-row rel-row-derived">
               <div className="rel-row-main">
@@ -191,12 +194,16 @@ export default function RelationshipsCard({ recordId, template }: { recordId: st
   );
 }
 
+/** An attitude with its sign ("+2", "-1", "0"). */
+const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
+
 /** How a derived edge reads from its other end. */
 function inverseDerived(kind: string, label: string): string {
-  if (kind === "house") return "House of";
-  if (kind === "territoryParent") return "Liege of";
-  if (kind === "rules") return `Ruled by (${label})`;
-  if (kind === "seat") return label === "Capital of" ? "Capital:" : "Seat:";
+  const t = activeT("relations");
+  if (kind === "house") return t("card.houseOf");
+  if (kind === "territoryParent") return t("card.liegeOf");
+  if (kind === "rules") return t("card.ruledBy", { role: label });
+  if (kind === "seat") return label === derivedLabel("capital") ? t("card.capital") : t("card.seat");
   return label;
 }
 
@@ -233,18 +240,19 @@ function RelationRow({
   onPatch: (patch: Record<string, unknown>) => void;
   onDelete: () => void;
 }) {
+  const t = useT("relations");
   const type = relationType(r.type);
   const [label, setLabel] = useState(r.label);
   const [notes, setNotes] = useState(r.notes);
   const span = [r.sinceDay, r.untilDay].some((d) => d !== null) && calendar
     ? `${r.sinceDay !== null ? dayLabel(calendar.def, r.sinceDay, { weekday: false, short: true }) : "…"} – ${r.untilDay !== null ? dayLabel(calendar.def, r.untilDay, { weekday: false, short: true }) : "…"}`
     : null;
-  const detail = [r.parentKind && r.parentKind !== "biological" ? cap(r.parentKind) : null, r.spouseStatus && r.spouseStatus !== "unknown" ? cap(r.spouseStatus) : null].filter(Boolean).join(", ");
+  const detail = [r.parentKind && r.parentKind !== "biological" ? t(`parentKind.${r.parentKind}`) : null, r.spouseStatus && r.spouseStatus !== "unknown" ? t(`spouseStatus.${r.spouseStatus}`) : null].filter(Boolean).join(", ");
 
   return (
     <li className={["rel-row", r.secret && "rel-row-secret", open && "open"].filter(Boolean).join(" ")}>
       <div className="rel-row-main">
-        <button type="button" className="rel-row-toggle" onClick={onToggle} aria-expanded={open} aria-label={open ? "Close details" : "Edit details"} data-tooltip={open ? "Close" : "Edit this tie"}>
+        <button type="button" className="rel-row-toggle" onClick={onToggle} aria-expanded={open} aria-label={open ? t("card.closeDetails") : t("card.editDetails")} data-tooltip={open ? t("ui.close") : t("card.editTie")}>
           {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
         </button>
         <span className="rel-row-label" style={{ ["--rel-color" as string]: type?.color }}>
@@ -258,18 +266,18 @@ function RelationRow({
         {span && <span className="field-label">{span}</span>}
         <span className="rel-row-badges">
           {r.attitude !== null && (
-            <span className={r.attitude < 0 ? "rel-attitude neg" : "rel-attitude"} data-tooltip={`Attitude ${r.attitude > 0 ? "+" : ""}${r.attitude}`}>
+            <span className={r.attitude < 0 ? "rel-attitude neg" : "rel-attitude"} data-tooltip={t("card.attitude", { value: signed(r.attitude) })}>
               {r.attitude > 0 ? "+" : ""}
               {r.attitude}
             </span>
           )}
           {r.secret && (
-            <span data-tooltip="Secret tie" aria-label="Secret">
+            <span data-tooltip={t("card.secretTie")} aria-label={t("ui.secret")}>
               <EyeOff size={13} />
             </span>
           )}
           {r.pinned && (
-            <span data-tooltip="Pinned" aria-label="Pinned">
+            <span data-tooltip={t("card.pinnedFlag")} aria-label={t("card.pinnedFlag")}>
               <Pin size={13} />
             </span>
           )}
@@ -278,30 +286,30 @@ function RelationRow({
       {open && type && (
         <div className="rel-row-editor">
           <section className="rel-editor-section">
-            <h4>Details</h4>
+            <h4>{t("card.details")}</h4>
             <div className="rel-editor-grid">
               <label className="rel-field">
-                <span className="field-label">{r.type === "custom" ? "Label" : "Extra wording"}</span>
+                <span className="field-label">{r.type === "custom" ? t("card.label") : t("card.extraWording")}</span>
                 <input
                   type="text"
                   value={label}
                   maxLength={MAX_RELATION_LABEL}
-                  placeholder={r.type === "custom" ? "Owes a debt to" : "e.g. in secret, by marriage"}
+                  placeholder={r.type === "custom" ? t("card.labelPlaceholder") : t("card.extraPlaceholder")}
                   onChange={(e) => setLabel(e.target.value)}
                   onBlur={() => label !== r.label && onPatch({ label })}
                 />
-                {r.type !== "custom" && <span className="rel-field-hint">Reads as “{labelFor(r, recordId)}{label ? ` · ${label}` : " · …"}”</span>}
+                {r.type !== "custom" && <span className="rel-field-hint">{t("card.readsAs", { text: `${labelFor(r, recordId)} · ${label || "…"}` })}</span>}
               </label>
               {type.attrs?.includes("parentKind") && (
                 <label className="rel-field">
-                  <span className="field-label">Parent</span>
-                  <InfoPicker options={PARENT_KINDS.map((k) => ({ value: k, label: cap(k) }))} value={r.parentKind} placeholder="Biological" ariaLabel="Kind of parent" searchable={false} onChange={(v) => v && onPatch({ parentKind: v })} />
+                  <span className="field-label">{t("card.parent")}</span>
+                  <InfoPicker options={PARENT_KINDS.map((k) => ({ value: k, label: t(`parentKind.${k}`) }))} value={r.parentKind} placeholder={t("parentKind.biological")} ariaLabel={t("card.parentKindLabel")} searchable={false} onChange={(v) => v && onPatch({ parentKind: v })} />
                 </label>
               )}
               {type.attrs?.includes("spouseStatus") && (
                 <label className="rel-field">
-                  <span className="field-label">Status</span>
-                  <InfoPicker options={SPOUSE_STATUSES.map((k) => ({ value: k, label: cap(k) }))} value={r.spouseStatus} placeholder="Unknown" ariaLabel="Status" searchable={false} onChange={(v) => v && onPatch({ spouseStatus: v })} />
+                  <span className="field-label">{t("card.status")}</span>
+                  <InfoPicker options={SPOUSE_STATUSES.map((k) => ({ value: k, label: t(`spouseStatus.${k}`) }))} value={r.spouseStatus} placeholder={t("spouseStatus.unknown")} ariaLabel={t("card.status")} searchable={false} onChange={(v) => v && onPatch({ spouseStatus: v })} />
                 </label>
               )}
             </div>
@@ -309,22 +317,22 @@ function RelationRow({
 
           <section className="rel-editor-section">
             <h4>
-              Attitude
-              {r.attitude !== null && <span className={r.attitude < 0 ? "rel-attitude neg" : "rel-attitude"}>{`${r.attitude > 0 ? "+" : ""}${r.attitude}`}</span>}
+              {t("card.attitudeTitle")}
+              {r.attitude !== null && <span className={r.attitude < 0 ? "rel-attitude neg" : "rel-attitude"}>{signed(r.attitude)}</span>}
             </h4>
             {r.attitude === null ? (
               <div className="rel-editor-empty">
-                <span className="field-label">How they feel about each other, from hostile to friendly.</span>
+                <span className="field-label">{t("card.attitudeHelp")}</span>
                 <button type="button" className="btn btn-sm" onClick={() => onPatch({ attitude: 0 })}>
-                  Set attitude
+                  {t("card.setAttitude")}
                 </button>
               </div>
             ) : (
               <div className="rel-attitude-scale">
-                <span className="field-label">Hostile</span>
-                <input type="range" min={ATTITUDE_MIN} max={ATTITUDE_MAX} step={1} value={r.attitude} aria-label="Attitude" onChange={(e) => onPatch({ attitude: Number(e.target.value) })} />
-                <span className="field-label">Friendly</span>
-                <button type="button" className="btn btn-ghost btn-icon btn-sm" onClick={() => onPatch({ attitude: null })} aria-label="Clear attitude" data-tooltip="Clear attitude">
+                <span className="field-label">{t("card.hostile")}</span>
+                <input type="range" min={ATTITUDE_MIN} max={ATTITUDE_MAX} step={1} value={r.attitude} aria-label={t("card.attitudeTitle")} onChange={(e) => onPatch({ attitude: Number(e.target.value) })} />
+                <span className="field-label">{t("card.friendly")}</span>
+                <button type="button" className="btn btn-ghost btn-icon btn-sm" onClick={() => onPatch({ attitude: null })} aria-label={t("card.clearAttitude")} data-tooltip={t("card.clearAttitude")}>
                   <X size={13} />
                 </button>
               </div>
@@ -333,19 +341,19 @@ function RelationRow({
 
           {calendar && (
             <section className="rel-editor-section">
-              <h4>When</h4>
+              <h4>{t("card.when")}</h4>
               <div className="rel-dates">
                 {(["sinceDay", "untilDay"] as const).map((key) => (
                   <div key={key} className="rel-field">
-                    <span className="field-label">{key === "sinceDay" ? "Since" : "Until"}</span>
+                    <span className="field-label">{key === "sinceDay" ? t("card.since") : t("card.until")}</span>
                     {r[key] === null ? (
-                      <button type="button" className="btn btn-sm rel-date-empty" onClick={() => onPatch({ [key]: calendar.currentDay })} data-tooltip="Starts at today's in-world date; change it after">
-                        <CalendarDays size={13} /> {key === "sinceDay" ? "No start date" : "Ongoing"}
+                      <button type="button" className="btn btn-sm rel-date-empty" onClick={() => onPatch({ [key]: calendar.currentDay })} data-tooltip={t("card.dateHint")}>
+                        <CalendarDays size={13} /> {key === "sinceDay" ? t("card.noStart") : t("card.ongoing")}
                       </button>
                     ) : (
                       <span className="rel-date">
-                        <WorldDatePicker def={calendar.def} label={key === "sinceDay" ? "Since" : "Until"} value={r[key]!} currentDay={calendar.currentDay} onChange={(d) => onPatch({ [key]: d })} />
-                        <button type="button" className="btn btn-ghost btn-icon btn-sm" onClick={() => onPatch({ [key]: null })} aria-label="Clear date" data-tooltip="No date: open-ended">
+                        <WorldDatePicker def={calendar.def} label={key === "sinceDay" ? t("card.since") : t("card.until")} value={r[key]!} currentDay={calendar.currentDay} onChange={(d) => onPatch({ [key]: d })} />
+                        <button type="button" className="btn btn-ghost btn-icon btn-sm" onClick={() => onPatch({ [key]: null })} aria-label={t("card.clearDate")} data-tooltip={t("card.openEnded")}>
                           <X size={13} />
                         </button>
                       </span>
@@ -357,32 +365,32 @@ function RelationRow({
           )}
 
           <section className="rel-editor-section">
-            <h4>Notes</h4>
-            <textarea className="rel-notes" value={notes} maxLength={MAX_RELATION_NOTES} rows={2} aria-label="Notes" placeholder="How it began, what each side wants…" onChange={(e) => setNotes(e.target.value)} onBlur={() => notes !== r.notes && onPatch({ notes })} />
+            <h4>{t("card.notes")}</h4>
+            <textarea className="rel-notes" value={notes} maxLength={MAX_RELATION_NOTES} rows={2} aria-label={t("card.notes")} placeholder={t("card.notesPlaceholder")} onChange={(e) => setNotes(e.target.value)} onBlur={() => notes !== r.notes && onPatch({ notes })} />
           </section>
 
           <div className="rel-row-actions">
-            <div className="rel-flags" role="group" aria-label="Options">
-              <button type="button" className={r.secret ? "rel-flag active" : "rel-flag"} aria-pressed={r.secret} onClick={() => onPatch({ secret: !r.secret })} data-tooltip="A secret tie: hidden whenever secrets are hidden (e.g. while showing players)">
-                <EyeOff size={13} /> Secret
+            <div className="rel-flags" role="group" aria-label={t("card.options")}>
+              <button type="button" className={r.secret ? "rel-flag active" : "rel-flag"} aria-pressed={r.secret} onClick={() => onPatch({ secret: !r.secret })} data-tooltip={t("card.secretHint")}>
+                <EyeOff size={13} /> {t("ui.secret")}
               </button>
-              <button type="button" className={r.pinned ? "rel-flag active" : "rel-flag"} aria-pressed={r.pinned} onClick={() => onPatch({ pinned: !r.pinned })} data-tooltip="Listed first">
-                <Pin size={13} /> Pinned
+              <button type="button" className={r.pinned ? "rel-flag active" : "rel-flag"} aria-pressed={r.pinned} onClick={() => onPatch({ pinned: !r.pinned })} data-tooltip={t("card.pinnedHint")}>
+                <Pin size={13} /> {t("card.pinnedFlag")}
               </button>
               {type.symmetric && (
-                <button type="button" className={r.oneWay ? "rel-flag active" : "rel-flag"} aria-pressed={r.oneWay} onClick={() => onPatch({ oneWay: !r.oneWay })} data-tooltip="Only one side holds this tie (e.g. an ally who isn't allied back): drawn as an arrow">
-                  <ArrowRight size={13} /> One-way
+                <button type="button" className={r.oneWay ? "rel-flag active" : "rel-flag"} aria-pressed={r.oneWay} onClick={() => onPatch({ oneWay: !r.oneWay })} data-tooltip={t("card.oneWayHint")}>
+                  <ArrowRight size={13} /> {t("card.oneWay")}
                 </button>
               )}
             </div>
             <div className="rel-row-buttons">
               {!type.symmetric && r.type !== "custom" && (
-                <button type="button" className="btn btn-sm" onClick={() => onPatch({ reverse: true })} data-tooltip="Swap the two ends (Parent of ⇄ Child of)">
-                  <ArrowLeftRight size={13} /> Reverse
+                <button type="button" className="btn btn-sm" onClick={() => onPatch({ reverse: true })} data-tooltip={t("card.reverseHint")}>
+                  <ArrowLeftRight size={13} /> {t("card.reverse")}
                 </button>
               )}
               <button type="button" className="btn btn-sm btn-ghost rel-delete" onClick={onDelete}>
-                <Trash2 size={13} /> Delete
+                <Trash2 size={13} /> {t("ui.delete")}
               </button>
             </div>
           </div>
@@ -394,6 +402,8 @@ function RelationRow({
 
 /** Pick another article, then how it's related (phrased from this article's side). */
 function AddRelation({ recordId, template, onAdd }: { recordId: string; template: ArticleTemplateKey; onAdd: (body: Record<string, unknown>) => Promise<void> }) {
+  const t = useT("relations");
+  const ta = useT("articles");
   const { catalog } = useRelations();
   const [otherId, setOtherId] = useState<string | null>(null);
   const [choice, setChoice] = useState<string | null>(null);
@@ -404,8 +414,8 @@ function AddRelation({ recordId, template, onAdd }: { recordId: string; template
       [...catalog.values()]
         .filter((e) => e.id !== recordId)
         .sort((a, b) => a.template.localeCompare(b.template) || a.name.localeCompare(b.name))
-        .map((e) => ({ value: e.id, label: e.name, group: TEMPLATE_LABELS[e.template] })),
-    [catalog, recordId]
+        .map((e) => ({ value: e.id, label: e.name, group: templateLabel(e.template, ta) })),
+    [catalog, recordId, ta]
   );
   const other = otherId ? catalog.get(otherId) : undefined;
   const phrasings = useMemo(() => (other ? perspectiveOptions(template, other.template) : []), [other, template]);
@@ -423,22 +433,22 @@ function AddRelation({ recordId, template, onAdd }: { recordId: string; template
 
   return (
     <div className="rel-add">
-      <InfoPicker options={others} value={otherId} placeholder="Add a relationship with…" ariaLabel="Related article" collapsibleGroups onChange={(v) => (setOtherId(v), setChoice(null))} />
+      <InfoPicker options={others} value={otherId} placeholder={t("card.addWith")} ariaLabel={t("card.related")} collapsibleGroups onChange={(v) => (setOtherId(v), setChoice(null))} />
       {other && (
-        <InfoPicker options={options} value={choice} placeholder={`${catalog.get(recordId)?.name ?? "This"} is…`} ariaLabel="Kind of relationship" onChange={setChoice} />
+        <InfoPicker options={options} value={choice} placeholder={t("card.is", { name: catalog.get(recordId)?.name ?? t("card.this") })} ariaLabel={t("card.kind")} onChange={setChoice} />
       )}
       {picked && (
         <input
           type="text"
           value={label}
           maxLength={MAX_RELATION_LABEL}
-          placeholder={picked.type === "custom" ? "Label (required)" : "Extra wording (optional)"}
-          aria-label="Relationship label"
+          placeholder={picked.type === "custom" ? t("card.labelRequired") : t("card.extraOptional")}
+          aria-label={t("card.relationshipLabel")}
           onChange={(e) => setLabel(e.target.value)}
         />
       )}
       <button type="button" className="btn btn-sm btn-primary" disabled={!picked || (picked.type === "custom" && !label.trim())} onClick={() => void add()}>
-        <Plus size={13} /> Add
+        <Plus size={13} /> {t("ui.add")}
       </button>
     </div>
   );

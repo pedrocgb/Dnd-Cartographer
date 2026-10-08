@@ -22,6 +22,7 @@ import AreaPanel from "./AreaPanel";
 import { PanelSkeleton } from "../Skeleton";
 import { useMapLegends } from "./use-map-legends";
 import type { MapScaleBarApi } from "./use-map-scale-bar";
+import { useT } from "@/i18n/useT";
 
 /** The legend shown on `layerId`: its own, else one set to also show there (visible ones only). */
 export function legendForLayer(legends: ClientLegend[], layerId: string): ClientLegend | null {
@@ -85,6 +86,7 @@ export default function MapHud({
   /** Tells the workspace whether a route is being drawn (it keeps Ctrl+Z out of the way then). */
   onRouteDrawingChange: (drawing: boolean) => void;
 }) {
+  const t = useT("maps");
   const legendApi = useMapLegends(mapId);
   const { scaleBar, loaded: scaleLoaded, update: updateScale, error: scaleError } = scale;
   // The Area tool: shapes measured while its panel is open (never saved).
@@ -229,7 +231,7 @@ export default function MapHud({
           }}
         />
       )}
-      {legendPanelOpen && !legendApi.loaded && <PanelSkeleton className="zones-panel legend-panel" mainClassName="zones-panel-main" title="Legend" Icon={LayoutList} onClose={onCloseLegendPanel} rows={4} />}
+      {legendPanelOpen && !legendApi.loaded && <PanelSkeleton className="zones-panel legend-panel" mainClassName="zones-panel-main" title={t("panel.legend")} Icon={LayoutList} onClose={onCloseLegendPanel} rows={4} />}
       {legendPanelOpen && legendApi.loaded && (
         <LegendPanel
           layerName={layerName}
@@ -245,7 +247,7 @@ export default function MapHud({
           onClose={onCloseLegendPanel}
         />
       )}
-      {travelPanelOpen && !(routes.loaded && scaleLoaded) && <PanelSkeleton className="zones-panel travel-panel" mainClassName="zones-panel-main" title="Travel" Icon={Route} onClose={onCloseTravelPanel} />}
+      {travelPanelOpen && !(routes.loaded && scaleLoaded) && <PanelSkeleton className="zones-panel travel-panel" mainClassName="zones-panel-main" title={t("panel.travel")} Icon={Route} onClose={onCloseTravelPanel} />}
       {travelPanelOpen && routes.loaded && scaleLoaded && (
         <TravelPanel
           config={scaleBar.config}
@@ -288,7 +290,7 @@ export default function MapHud({
           onAdd={(shape) => setAreaShapes((prev) => [...prev, { id: crypto.randomUUID(), shape }])}
         />
       )}
-      {areaPanelOpen && !scaleLoaded && <PanelSkeleton className="grid-panel area-panel" title="Area" Icon={LandPlot} onClose={onCloseAreaPanel} rows={4} />}
+      {areaPanelOpen && !scaleLoaded && <PanelSkeleton className="grid-panel area-panel" title={t("panel.area")} Icon={LandPlot} onClose={onCloseAreaPanel} rows={4} />}
       {areaPanelOpen && scaleLoaded && (
         <AreaPanel
           tool={areaTool}
@@ -309,7 +311,7 @@ export default function MapHud({
           onClose={onCloseAreaPanel}
         />
       )}
-      {scalePanelOpen && !scaleLoaded && <PanelSkeleton className="grid-panel scale-panel" title="Scale & measure" Icon={Ruler} onClose={onCloseScalePanel} rows={4} />}
+      {scalePanelOpen && !scaleLoaded && <PanelSkeleton className="grid-panel scale-panel" title={t("panel.scale")} Icon={Ruler} onClose={onCloseScalePanel} rows={4} />}
       {scalePanelOpen && scaleLoaded && (
         <ScalePanel scaleBar={scaleBar} error={scaleError} measureMode={measureMode} onSetMeasureMode={setMeasureMode} onUpdate={updateScale} onClose={onCloseScalePanel} />
       )}

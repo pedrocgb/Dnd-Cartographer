@@ -1,6 +1,7 @@
 import { activeSeasons } from "@/server/calendars/seasons";
 import { safe } from "./evaluate";
 import type { WorldCalendars } from "./types";
+import { activeT } from "@/i18n/active";
 
 /**
  * Season profiles as Info Bar link targets, each with its current season:
@@ -8,12 +9,13 @@ import type { WorldCalendars } from "./types";
  * calendar (never the calendar someone last viewed).
  */
 export function seasonProfileLookup(world: WorldCalendars): { id: string; name: string; detail: string }[] {
+  const t = activeT("calendars");
   return world.profiles.map((p) => {
     const def = world.calendars.find((c) => c.id === p.data.calendarId)?.definition;
     const ids = def ? safe(() => activeSeasons(def, p.data, world.chronology.currentDay), []) : [];
-    const names = ids.map((id) => world.seasons.find((s) => s.id === id)?.name ?? "(removed season)");
-    const detail = !def ? "its calendar is missing" : names.length ? `now ${names.join(" & ")}` : "no season today";
-    return { id: p.id, name: p.archived ? `${p.name} (archived)` : p.name, detail };
+    const names = ids.map((id) => world.seasons.find((s) => s.id === id)?.name ?? t("lookup.removedSeason"));
+    const detail = !def ? t("lookup.noCalendar") : names.length ? t("lookup.now", { seasons: names.join(t("lookup.and")) }) : t("lookup.none");
+    return { id: p.id, name: p.archived ? t("lookup.archived", { name: p.name }) : p.name, detail };
   });
 }
 

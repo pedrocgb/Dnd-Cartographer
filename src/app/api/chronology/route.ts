@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireWorldId } from "@/server/world/active-world";
 import { calendarOf, chronologyOf, toClientCalendar, updateChronology } from "@/server/calendars/store";
-import { badRequest, calendarErrorResponse, readBody } from "@/server/calendars/respond";
+import { calendarErrorResponse, readBody } from "@/server/calendars/respond";
+import { errorResponse } from "@/i18n/server";
 
 /** Supported shared-day range (physical days from the epoch). */
 const MAX_DAY = 100_000_000;
@@ -29,30 +30,30 @@ export async function GET() {
  */
 export async function PATCH(request: Request) {
   const body = await readBody(request);
-  if (!body || !Number.isSafeInteger(body.expectedRevision)) return badRequest("expectedRevision is required.");
+  if (!body || !Number.isSafeInteger(body.expectedRevision)) return errorResponse("expectedRevisionRequired", 400);
   const worldId = await requireWorldId();
   const current = await chronologyOf(worldId);
   if (body.expectedRevision !== current.revision) {
-    return NextResponse.json({ error: "Someone else changed the world date. The latest date has been loaded; try again.", stale: true, chronology: toClient(current) }, { status: 409 });
+    return errorResponse("worldDateStale", 409, { stale: true, chronology: toClient(current) });
   }
 
   const patch: { currentDay?: number; defaultCalendarId?: string | null } = {};
   if ("currentDay" in body) {
-    if (!Number.isSafeInteger(body.currentDay)) return badRequest("The current day must be a whole number.");
+    if (!Number.isSafeInteger(body.currentDay)) return errorResponse("currentDayInvalid", 400);
     patch.currentDay = body.currentDay as number;
   }
   if ("advanceDays" in body) {
     const days = body.advanceDays as number;
-    if (!Number.isSafeInteger(days) || days === 0 || Math.abs(days) > 1_000_000) return badRequest("Advance by a whole number of days, up to 1000000.");
+    if (!Number.isSafeInteger(days) || days === 0 || Math.abs(days) > 1_000_000) return errorResponse("advanceInvalid", 400, undefined, { max: 1_000_000 });
     patch.currentDay = current.currentDay + days;
   }
-  if (patch.currentDay !== undefined && Math.abs(patch.currentDay) > MAX_DAY) return badRequest("That date is outside the supported range.");
+  if (patch.currentDay !== undefined && Math.abs(patch.currentDay) > MAX_DAY) return errorResponse("dateOutOfRange", 400);
   if ("defaultCalendarId" in body) {
     const calendar = typeof body.defaultCalendarId === "string" ? await calendarOf(worldId, body.defaultCalendarId) : null;
-    if (!calendar) return badRequest("Pick an active calendar of this world.");
+    if (!calendar) return errorResponse("defaultCalendarPick", 400);
     patch.defaultCalendarId = calendar.id;
   }
-  if (Object.keys(patch).length === 0) return badRequest("Nothing to change.");
+  if (Object.keys(patch).length === 0) return errorResponse("nothingToChange", 400);
 
   try {
     const row = await updateChronology(worldId, current.revision, patch);

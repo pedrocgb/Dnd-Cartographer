@@ -1,3 +1,5 @@
+import { activeT } from "@/i18n/active";
+
 /** Tiny JSON fetch wrapper: never throws on HTTP errors, returns the body with `ok`/`status`. */
 export async function api<T = Record<string, unknown>>(method: string, url: string, body?: unknown): Promise<{ ok: boolean; status: number; data: T & { error?: string } }> {
   try {
@@ -13,7 +15,7 @@ export async function api<T = Record<string, unknown>>(method: string, url: stri
     if (res.status === 409 && data.noWorld) window.location.assign("/worlds");
     return { ok: res.ok, status: res.status, data };
   } catch {
-    return { ok: false, status: 0, data: { error: "Could not reach the server." } as T & { error?: string } };
+    return { ok: false, status: 0, data: { error: activeT("common")("serverUnreachable") } as T & { error?: string } };
   }
 }
 

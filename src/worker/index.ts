@@ -6,6 +6,7 @@ import { db } from "../server/db/client";
 import { mapAssets, mapLayers, maps, processingJobs } from "../server/db/schema";
 import { originalPath, tilesBasenamePath, tilesDzKey, thumbnailPath, thumbnailKey } from "../server/assets/paths";
 import { maybeAutoPurge } from "../server/trash/auto-purge";
+import { WORKER_ASSET_MISSING } from "./messages";
 
 const LEASE_MS = 60_000;
 const POLL_INTERVAL_MS = 1_000;
@@ -121,7 +122,7 @@ async function processJob(job: ClaimedJob): Promise<void> {
   const asset = await db.query.mapAssets.findFirst({ where: eq(mapAssets.id, job.assetId) });
   if (!asset) {
     console.error(`[worker] job ${job.jobId} references missing asset ${job.assetId}, marking failed`);
-    await markJobFailed(job.jobId, job.assetId, job.attempts, new Error("Asset record missing"));
+    await markJobFailed(job.jobId, job.assetId, job.attempts, new Error(WORKER_ASSET_MISSING));
     return;
   }
 

@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { readFile, stat } from "node:fs/promises";
 import { resolveAssetPath } from "@/server/storage/storage-adapter";
+import { errorResponse } from "@/i18n/server";
 
 export const runtime = "nodejs";
 
 export async function GET(request: Request, { params }: { params: Promise<{ path: string[] }> }) {
   const { path: pathSegments } = await params;
   if (pathSegments.some((segment) => segment === "..")) {
-    return NextResponse.json({ error: "Invalid path." }, { status: 400 });
+    return errorResponse("invalidPath", 400);
   }
 
   try {
@@ -22,6 +23,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ path
     if (request.headers.get("if-none-match") === etag) return new NextResponse(null, { status: 304, headers });
     return new NextResponse(await readFile(file), { headers });
   } catch {
-    return NextResponse.json({ error: "Portrait not found." }, { status: 404 });
+    return errorResponse("portraitNotFound", 404);
   }
 }

@@ -5,7 +5,8 @@ import { definitionRevisions } from "@/server/db/schema";
 import { requireWorldId } from "@/server/world/active-world";
 import { restoreCalendarRevision } from "@/server/calendars/mutations";
 import { calendarOf } from "@/server/calendars/store";
-import { badRequest, calendarErrorResponse, notFound, readBody } from "@/server/calendars/respond";
+import { calendarErrorResponse, readBody } from "@/server/calendars/respond";
+import { errorResponse } from "@/i18n/server";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -13,7 +14,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 export async function GET(_request: Request, { params }: RouteContext) {
   const { id } = await params;
   const worldId = await requireWorldId();
-  if (!(await calendarOf(worldId, id))) return notFound("Calendar not found.");
+  if (!(await calendarOf(worldId, id))) return errorResponse("calendarNotFound", 404);
   const rows = await db
     .select({ id: definitionRevisions.id, version: definitionRevisions.version, reason: definitionRevisions.reason, createdAt: definitionRevisions.createdAt })
     .from(definitionRevisions)
@@ -28,10 +29,10 @@ export async function POST(request: Request, { params }: RouteContext) {
   const { id } = await params;
   const worldId = await requireWorldId();
   const row = await calendarOf(worldId, id);
-  if (!row) return notFound("Calendar not found.");
+  if (!row) return errorResponse("calendarNotFound", 404);
   const body = await readBody(request);
-  if (!body || typeof body.revisionId !== "string") return badRequest("Pick a revision to restore.");
-  if (body.expectedVersion !== row.version) return NextResponse.json({ error: "This calendar was changed elsewhere. Reload it and try again.", stale: true }, { status: 409 });
+  if (!body || typeof body.revisionId !== "string") return errorResponse("revisionPick", 400);
+  if (body.expectedVersion !== row.version) return errorResponse("calendarStale", 409, { stale: true });
   try {
     return NextResponse.json({ calendar: await restoreCalendarRevision(worldId, row, body.revisionId) });
   } catch (error) {

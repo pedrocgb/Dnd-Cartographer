@@ -18,10 +18,12 @@ import type { ClientCalendar, ClientCelestial, ClientEntry, ClientProfile, Clien
 import { sessionHref, type BriefSession } from "@/components/sessions/types";
 import { questHref } from "@/components/quests/href";
 import { QUEST_DAY_LABELS, QUEST_STATUS_LABELS, type BriefQuest, type QuestDayKind } from "@/server/quests/types";
+import { useT } from "@/i18n/useT";
 
 function ArticleLinkName({ template, id, names }: { template: string | null; id: string; names: Record<string, string> }) {
+  const t = useT("calendars");
   const name = names[id];
-  if (!name || !template || !isArticleTemplate(template)) return <span className="cal-removed">(removed)</span>;
+  if (!name || !template || !isArticleTemplate(template)) return <span className="cal-removed">{t("sidebar.removed")}</span>;
   return (
     <Link className="politics-link-button" href={articleHref(template, id)}>
       {name}
@@ -31,10 +33,11 @@ function ArticleLinkName({ template, id, names }: { template: string | null; id:
 
 /** "What do you want to add?": note, event or article link; picking one opens its editor. */
 function AddEntryChooser({ onPick, onClose }: { onPick: (kind: EntryKind) => void; onClose: () => void }) {
+  const t = useT("calendars");
   return (
-    <Modal open onClose={onClose} title="Add to this day">
+    <Modal open onClose={onClose} title={t("day.addTitle")}>
       <div className="cel-types">
-        <p className="cal-help">What do you want to add?</p>
+        <p className="cal-help">{t("day.whatToAdd")}</p>
         <div className="cel-type-grid day-add-choices">
           {(["note", "event", "link"] as const).map((k) => {
             const meta = ENTRY_KINDS[k];
@@ -102,6 +105,9 @@ export default function DayDetails({
   onChanged: (entry: ClientEntry | null, removedId?: string) => void;
   onClose: () => void;
 }) {
+  const te = useT("editor");
+  const t = useT("calendars");
+  const tc = useT("common");
   const def: CalendarDefinition = calendar.definition;
   const [editingNote, setEditingNote] = useState<string | null>(null);
   // Entries start collapsed (name and icon only); a click opens one.
@@ -126,51 +132,52 @@ export default function DayDetails({
   async function cancelOccurrence(item: DayOccurrence) {
     const res = await api<{ entry: ClientEntry }>("PATCH", `/api/calendar-entries/${item.entry.id}`, { occurrence: item.occurrence.key, exception: { cancelled: true } });
     if (res.ok) onChanged(res.data.entry);
-    else setError(res.data.error ?? "Could not change that occurrence.");
+    else setError(res.data.error ?? t("day.changeFailed"));
     setDeleting(null);
   }
 
   async function restoreOccurrence(item: DayOccurrence) {
     const res = await api<{ entry: ClientEntry }>("PATCH", `/api/calendar-entries/${item.entry.id}`, { occurrence: item.occurrence.key, exception: null });
     if (res.ok) onChanged(res.data.entry);
-    else setError(res.data.error ?? "Could not restore that occurrence.");
+    else setError(res.data.error ?? t("day.restoreFailed"));
   }
 
   async function remove(item: DayOccurrence) {
     const res = await api("DELETE", `/api/calendar-entries/${item.entry.id}`);
     if (res.ok) onChanged(null, item.entry.id);
-    else setError(res.data.error ?? "Could not delete it.");
+    else setError(res.data.error ?? t("day.deleteFailed"));
     setDeleting(null);
   }
 
   const repeating = (e: ClientEntry) => e.recurrence.kind !== "none";
+  const [linkedBefore, linkedAfter] = t("day.linkedToDay").split("{article}");
 
   return (
-    <aside className="cal-details" aria-label="Day details">
+    <aside className="cal-details" aria-label={t("day.label")}>
       <div className="cal-details-head">
         <div>
-          <h2>{date ? dayLabel(def, worldDay, { weekday: false }) : "Outside the supported range"}</h2>
+          <h2>{date ? dayLabel(def, worldDay, { weekday: false }) : t("date.outOfRange")}</h2>
           <p className="cal-help">
-            {weekday !== null ? def.weekdays[weekday].name : def.weekdays.length ? "Outside the week (no weekday)" : ""}
-            {worldDay === currentDay ? " · Current date" : ""}
+            {weekday !== null ? def.weekdays[weekday].name : def.weekdays.length ? t("day.outsideWeek") : ""}
+            {worldDay === currentDay ? t("day.currentSuffix") : ""}
           </p>
         </div>
-        <button type="button" className="btn btn-ghost btn-icon" aria-label="Close day details" onClick={onClose}>
+        <button type="button" className="btn btn-ghost btn-icon" aria-label={t("day.close")} onClick={onClose}>
           <X size={16} />
         </button>
       </div>
       {worldDay !== currentDay && (
         <button type="button" className="btn btn-sm" disabled={busy} onClick={onSetCurrent}>
-          <CalendarCheck size={14} /> Set as current date
+          <CalendarCheck size={14} /> {t("day.setCurrent")}
         </button>
       )}
 
       <section className="cal-details-section">
-        <h3 className="field-label">Seasons{profile ? ` · ${profile.name}` : ""}</h3>
+        <h3 className="field-label">{profile ? t("day.seasonsOf", { profile: profile.name }) : t("sidebar.seasons")}</h3>
         {!profile ? (
-          <p className="cal-help">Pick a season profile to preview (none is assigned to a place here — articles choose their own).</p>
+          <p className="cal-help">{t("day.pickProfile")}</p>
         ) : seasonIds.length === 0 ? (
-          <p className="cal-help">No season on this day.</p>
+          <p className="cal-help">{t("day.noSeason")}</p>
         ) : (
           <ul className="cal-tags">
             {seasonIds.map((id) => {
@@ -178,12 +185,12 @@ export default function DayDetails({
               return (
                 <li key={id}>
                   {s ? (
-                    <button type="button" className="cal-tag cal-tag-button" data-tooltip={`About ${s.name}`} onClick={() => onViewSeason(s)}>
+                    <button type="button" className="cal-tag cal-tag-button" data-tooltip={t("day.about", { name: s.name })} onClick={() => onViewSeason(s)}>
                       <span className="cal-swatch" style={{ background: s.color }} aria-hidden />
                       {s.name}
                     </button>
                   ) : (
-                    <span className="cal-tag">(removed)</span>
+                    <span className="cal-tag">{t("sidebar.removed")}</span>
                   )}
                 </li>
               );
@@ -193,17 +200,17 @@ export default function DayDetails({
       </section>
 
       {sessions.length > 0 && (
-        <FoldSection title="Sessions" count={sessions.length}>
+        <FoldSection title={t("day.sessions")} count={sessions.length}>
           <ul className="day-sessions">
             {sessions.map((s) => (
               <li key={s.id}>
                 <Link href={sessionHref(s)}>
                   <span aria-hidden>📜</span>
                   <span>
-                    <strong>{s.title || `Session ${s.number}`}</strong>
+                    <strong>{s.title || t("views.session", { n: s.number })}</strong>
                     <span className="cal-help">
                       {" "}
-                      · {s.campaignName}, session {s.number}
+                      {t("day.sessionMeta", { campaign: s.campaignName, n: s.number })}
                     </span>
                   </span>
                 </Link>
@@ -214,7 +221,7 @@ export default function DayDetails({
       )}
 
       {quests.length > 0 && (
-        <FoldSection title="Quests" count={quests.length}>
+        <FoldSection title={t("day.quests")} count={quests.length}>
           <ul className="day-sessions">
             {quests.map(({ quest: q, kind }) => (
               <li key={`${q.id}:${kind}`}>
@@ -234,19 +241,19 @@ export default function DayDetails({
         </FoldSection>
       )}
 
-      <FoldSection title="Sky" count={states.length}>
+      <FoldSection title={t("sidebar.sky")} count={states.length}>
         {states.length === 0 ? (
-          <p className="cal-help">{objects.length ? "Nothing notable in the sky on this day." : "No celestial objects yet."}</p>
+          <p className="cal-help">{objects.length ? t("day.skyQuiet") : t("day.noObjects")}</p>
         ) : (
           <ul className="cal-sky">
             {states.map(({ object, states: s }) => (
               <li key={object.id}>
-                <button type="button" className="cal-sky-item" data-tooltip={`About ${object.name}`} onClick={() => onViewObject(object)}>
+                <button type="button" className="cal-sky-item" data-tooltip={t("day.about", { name: object.name })} onClick={() => onViewObject(object)}>
                   <span style={{ color: object.color }} aria-hidden>
                     {s[0]?.icon || object.icon || "•"}
                   </span>
                   <span>{object.name}</span>
-                  <span className="cal-help">{s.map((x) => `${x.name}${x.override ? " (special date)" : ""}`).join(", ")}</span>
+                  <span className="cal-help">{s.map((x) => (x.override ? t("day.specialDate", { name: x.name }) : x.name)).join(", ")}</span>
                 </button>
               </li>
             ))}
@@ -257,15 +264,15 @@ export default function DayDetails({
       <DayWeather worldDay={worldDay} />
 
       <FoldSection
-        title="On this day"
+        title={t("day.onThisDay")}
         count={items.length}
         action={
-          <button type="button" className="btn btn-ghost btn-icon btn-sm day-fold-add" aria-label="Add to this day" data-tooltip="Add a note, event or article link" onClick={() => setChoosing(true)}>
+          <button type="button" className="btn btn-ghost btn-icon btn-sm day-fold-add" aria-label={t("day.addTitle")} data-tooltip={t("day.addHint")} onClick={() => setChoosing(true)}>
             <Plus size={16} />
           </button>
         }
       >
-        {items.length === 0 && <p className="cal-help">Nothing recorded on this day yet.</p>}
+        {items.length === 0 && <p className="cal-help">{t("day.nothing")}</p>}
         <ul className="day-entries">
           {items.map((item) => {
             const e = item.entry;
@@ -281,8 +288,8 @@ export default function DayDetails({
                   <span className="day-entry-icon" style={{ color: accent }} aria-label={meta.label}>
                     <meta.Icon size={15} strokeWidth={2} />
                   </span>
-                  <span className="day-entry-title">{e.kind === "link" ? (articleNames[e.articleId ?? ""] ?? "(removed article)") : occurrenceTitle(item) || "Untitled note"}</span>
-                  {repeating(e) && <Repeat size={12} className="day-entry-flag" aria-label="Repeats" />}
+                  <span className="day-entry-title">{e.kind === "link" ? (articleNames[e.articleId ?? ""] ?? t("day.removedArticle")) : occurrenceTitle(item) || t("day.untitledNote")}</span>
+                  {repeating(e) && <Repeat size={12} className="day-entry-flag" aria-label={t("day.repeats")} />}
                   <ChevronDown size={15} className="day-entry-chevron" aria-hidden />
                 </button>
                 {open && (
@@ -297,7 +304,7 @@ export default function DayDetails({
                         {repeating(e) && (
                           <span>
                             <Repeat size={11} aria-hidden /> {describeRecurrence(e.recurrence, ctx)}
-                            {item.occurrence.exception?.moveTo !== undefined ? " · moved here" : ""}
+                            {item.occurrence.exception?.moveTo !== undefined ? t("day.movedHere") : ""}
                           </span>
                         )}
                         {e.category && <span className="cal-tag">{e.category}</span>}
@@ -305,13 +312,15 @@ export default function DayDetails({
                     )}
                     {e.kind === "link" && (
                       <p className="day-entry-text">
-                        <ArticleLinkName template={e.articleTemplate} id={e.articleId ?? ""} names={articleNames} /> is linked to this day.
+                        {linkedBefore}
+                        <ArticleLinkName template={e.articleTemplate} id={e.articleId ?? ""} names={articleNames} />
+                        {linkedAfter}
                       </p>
                     )}
                     {description && <p className="day-entry-text">{description}</p>}
                     {e.kind === "note" && e.documentId && (
                       <div className={editingNote === e.id ? "day-entry-note editing" : "day-entry-note"}>
-                        <RichEditor key={`${e.documentId}:${editingNote === e.id}`} documentId={e.documentId} editable={editingNote === e.id} placeholder={editingNote === e.id ? "" : "No text yet — use Write to add some."} />
+                        <RichEditor key={`${e.documentId}:${editingNote === e.id}`} documentId={e.documentId} editable={editingNote === e.id} placeholder={editingNote === e.id ? "" : te("placeholder.dayNote")} />
                       </div>
                     )}
                     {e.articleLinks.length > 0 && (
@@ -327,25 +336,25 @@ export default function DayDetails({
                     <div className="day-entry-actions">
                       {e.kind === "note" && (
                         <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditingNote(editingNote === e.id ? null : e.id)}>
-                          <Pencil size={13} /> {editingNote === e.id ? "Done" : "Write"}
+                          <Pencil size={13} /> {editingNote === e.id ? tc("done") : t("day.write")}
                         </button>
                       )}
                       {repeating(e) && (
                         <button type="button" className="btn btn-ghost btn-sm" onClick={() => onEdit({ kind: "occurrence", entry: e, key: item.occurrence.key })}>
-                          <CalendarCheck size={13} /> This occurrence
+                          <CalendarCheck size={13} /> {t("day.thisOccurrence")}
                         </button>
                       )}
                       <button type="button" className="btn btn-ghost btn-sm" onClick={() => onEdit({ kind: "edit", entry: e })}>
-                        <Settings2 size={13} /> {repeating(e) ? "Entire series" : "Edit"}
+                        <Settings2 size={13} /> {repeating(e) ? t("day.entireSeries") : t("sidebar.edit")}
                       </button>
                       {item.occurrence.exception && (
                         <button type="button" className="btn btn-ghost btn-sm" onClick={() => restoreOccurrence(item)}>
-                          <Undo2 size={13} /> Undo change
+                          <Undo2 size={13} /> {t("day.undoChange")}
                         </button>
                       )}
                       <span className="cal-spacer" />
                       <button type="button" className="btn btn-ghost btn-sm day-entry-delete" onClick={() => setDeleting(item)}>
-                        <Trash2 size={13} /> Delete
+                        <Trash2 size={13} /> {tc("delete")}
                       </button>
                     </div>
                   </div>
@@ -378,21 +387,23 @@ export default function DayDetails({
 }
 
 function DeleteEntryDialog({ item, onCancel, onOccurrence, onAll }: { item: DayOccurrence; onCancel: () => void; onOccurrence: () => void; onAll: () => void }) {
+  const t = useT("calendars");
+  const tc = useT("common");
   const series = item.entry.recurrence.kind !== "none";
   const [scope, setScope] = useState<"one" | "all">(series ? "one" : "all");
   return (
-    <ConfirmDialog open title={series ? "Delete event" : "Delete"} confirmLabel={scope === "one" ? "Skip this occurrence" : "Delete"} onCancel={onCancel} onConfirm={() => (scope === "one" ? onOccurrence() : onAll())}>
+    <ConfirmDialog open title={series ? t("day.deleteEvent") : tc("delete")} confirmLabel={scope === "one" ? t("day.skipOccurrence") : tc("delete")} onCancel={onCancel} onConfirm={() => (scope === "one" ? onOccurrence() : onAll())}>
       {series ? (
         <fieldset className="cal-radio">
           <label className="cal-check">
-            <input type="radio" checked={scope === "one"} onChange={() => setScope("one")} /> Only this occurrence (the series continues)
+            <input type="radio" checked={scope === "one"} onChange={() => setScope("one")} /> {t("day.onlyThis")}
           </label>
           <label className="cal-check">
-            <input type="radio" checked={scope === "all"} onChange={() => setScope("all")} /> The entire series, every occurrence (moves to the Trash)
+            <input type="radio" checked={scope === "all"} onChange={() => setScope("all")} /> {t("day.wholeSeries")}
           </label>
         </fieldset>
       ) : (
-        <p>This removes it from the calendar. You can restore it from Settings → Trash.</p>
+        <p>{t("day.removeHelp")}</p>
       )}
     </ConfirmDialog>
   );

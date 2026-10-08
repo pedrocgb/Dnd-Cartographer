@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
+import { errorResponse } from "@/i18n/server";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { outlineNodes } from "@/server/db/schema";
 import { requireWorldId } from "@/server/world/active-world";
 import { createEmptyDocument } from "@/server/documents/create";
-import { notFound } from "@/server/calendars/respond";
 import { nodeOf, toClientNode } from "@/server/writer/store";
 
 type RouteContext = { params: Promise<{ nodeId: string }> };
@@ -14,7 +14,7 @@ export async function POST(_request: Request, { params }: RouteContext) {
   const { nodeId } = await params;
   const worldId = await requireWorldId();
   const row = await nodeOf(worldId, nodeId);
-  if (!row) return notFound("Outline item not found.");
+  if (!row) return errorResponse("outlineNodeNotFound", 404);
   if (row.documentId) return NextResponse.json({ node: toClientNode(row) });
   const doc = await createEmptyDocument(worldId);
   // Only if still without one: two tabs opening it at once share the first document.

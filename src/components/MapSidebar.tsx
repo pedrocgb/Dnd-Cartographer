@@ -21,6 +21,7 @@ import {
 import { isModalOpen } from "./Modal";
 import { isTypingTarget } from "./keyboard";
 import { SHORTCUT_KEYS, type SidebarTool } from "./shortcuts";
+import { useT } from "@/i18n/useT";
 
 /** Hovering a tool this long expands the bar to show every tool's name. */
 const PEEK_DELAY_MS = 750;
@@ -150,6 +151,7 @@ export default function MapSidebar({
   activeTool: SidebarTool | null;
   onToggleSelectTool: () => void;
 }) {
+  const t = useT("maps");
   const [pinned, setPinned] = useState(loadPinned);
   const [peeking, setPeeking] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -178,7 +180,7 @@ export default function MapSidebar({
     setPeeking(false);
   }
 
-  const upload = (disabled: boolean, title: string) => (disabled ? "Upload an image first" : title);
+  const upload = (disabled: boolean, title: string) => (disabled ? t("rail.uploadFirst") : title);
 
   /** What each tool's shortcut does: the same as clicking its button (the Selection tool only turns on). */
   const toolActions: Record<SidebarTool, { disabled: boolean; run: () => void }> = {
@@ -217,8 +219,8 @@ export default function MapSidebar({
         <SidebarButton
           className={btnClass(selectToolOn || activeTool === "select")}
           icon={<MousePointer2 size={19} strokeWidth={2.25} />}
-          label="Selection"
-          title={upload(sceneDisabled, "Select: click anything on this layer to edit it")}
+          label={t("rail.selection")}
+          title={upload(sceneDisabled, t("rail.selectionHint"))}
           shortcut={sceneDisabled ? undefined : "select"}
           hover={hover}
           onClick={onToggleSelectTool}
@@ -227,9 +229,9 @@ export default function MapSidebar({
         />
         <SidebarButton
           icon={<ListTree size={19} strokeWidth={2.25} />}
-          label="Scene"
+          label={t("rail.scene")}
           className={btnClass(activeTool === "scene")}
-          title={upload(sceneDisabled, "Scene: everything on this layer")}
+          title={upload(sceneDisabled, t("rail.sceneHint"))}
           shortcut={sceneDisabled ? undefined : "scene"}
           hover={hover}
           onClick={onOpenScene}
@@ -237,7 +239,7 @@ export default function MapSidebar({
         />
         <SidebarButton
           icon={<Layers size={19} strokeWidth={2.25} />}
-          label="Layers"
+          label={t("rail.layers")}
           className={btnClass(activeTool === "layers")}
           shortcut={layersDisabled ? undefined : "layers"}
           hover={hover}
@@ -247,9 +249,9 @@ export default function MapSidebar({
         <div className="map-sidebar-gap" aria-hidden />
         <SidebarButton
           icon={<MapPin size={19} strokeWidth={2.25} />}
-          label="Markers"
+          label={t("rail.markers")}
           className={btnClass(activeTool === "markers")}
-          title={upload(markersDisabled, "Markers: the map's markers and the icon filter")}
+          title={upload(markersDisabled, t("rail.markersHint"))}
           shortcut={markersDisabled ? undefined : "markers"}
           hover={hover}
           onClick={onOpenMarkers}
@@ -257,9 +259,9 @@ export default function MapSidebar({
         />
         <SidebarButton
           icon={<Shapes size={19} strokeWidth={2.25} />}
-          label="Zones"
+          label={t("rail.zones")}
           className={btnClass(activeTool === "zones")}
-          title={upload(zonesDisabled, "Zones")}
+          title={upload(zonesDisabled, t("rail.zones"))}
           shortcut={zonesDisabled ? undefined : "zones"}
           hover={hover}
           onClick={onOpenZones}
@@ -267,9 +269,9 @@ export default function MapSidebar({
         />
         <SidebarButton
           icon={<Type size={19} strokeWidth={2.25} />}
-          label="Text"
+          label={t("rail.text")}
           className={btnClass(activeTool === "text")}
-          title={upload(textDisabled, "Text")}
+          title={upload(textDisabled, t("rail.text"))}
           shortcut={textDisabled ? undefined : "text"}
           hover={hover}
           onClick={onOpenText}
@@ -277,9 +279,9 @@ export default function MapSidebar({
         />
         <SidebarButton
           icon={<PenTool size={19} strokeWidth={2.25} />}
-          label="Lines"
+          label={t("rail.lines")}
           className={btnClass(activeTool === "lines")}
-          title={upload(linesDisabled, "Lines")}
+          title={upload(linesDisabled, t("rail.lines"))}
           shortcut={linesDisabled ? undefined : "lines"}
           hover={hover}
           onClick={onOpenLines}
@@ -288,9 +290,9 @@ export default function MapSidebar({
         <div className="map-sidebar-gap" aria-hidden />
         <SidebarButton
           icon={<Ruler size={19} strokeWidth={2.25} />}
-          label="Scale"
+          label={t("rail.scale")}
           className={btnClass(activeTool === "scale")}
-          title={upload(scaleDisabled, "Scale bar & measure")}
+          title={upload(scaleDisabled, t("rail.scaleHint"))}
           shortcut={scaleDisabled ? undefined : "scale"}
           hover={hover}
           onClick={onOpenScale}
@@ -298,9 +300,9 @@ export default function MapSidebar({
         />
         <SidebarButton
           icon={<LandPlot size={19} strokeWidth={2.25} />}
-          label="Area"
+          label={t("rail.area")}
           className={btnClass(activeTool === "area")}
-          title={upload(areaDisabled, "Area calculation")}
+          title={upload(areaDisabled, t("rail.areaHint"))}
           shortcut={areaDisabled ? undefined : "area"}
           hover={hover}
           onClick={onOpenArea}
@@ -308,9 +310,9 @@ export default function MapSidebar({
         />
         <SidebarButton
           icon={<Route size={19} strokeWidth={2.25} />}
-          label="Travel"
+          label={t("rail.travel")}
           className={btnClass(activeTool === "travel")}
-          title={upload(travelDisabled, "Travel time")}
+          title={upload(travelDisabled, t("rail.travelHint"))}
           shortcut={travelDisabled ? undefined : "travel"}
           hover={hover}
           onClick={onOpenTravel}
@@ -319,9 +321,9 @@ export default function MapSidebar({
         <div className="map-sidebar-gap" aria-hidden />
         <SidebarButton
           icon={<Grid3x3 size={19} strokeWidth={2.25} />}
-          label="Grid"
+          label={t("rail.grid")}
           className={btnClass(activeTool === "grid")}
-          title={upload(gridDisabled, "Grid overlay")}
+          title={upload(gridDisabled, t("rail.gridHint"))}
           shortcut={gridDisabled ? undefined : "grid"}
           hover={hover}
           onClick={onOpenGrid}
@@ -329,9 +331,9 @@ export default function MapSidebar({
         />
         <SidebarButton
           icon={<LayoutList size={19} strokeWidth={2.25} />}
-          label="Legend"
+          label={t("rail.legend")}
           className={btnClass(activeTool === "legend")}
-          title={upload(legendDisabled, "Map legend")}
+          title={upload(legendDisabled, t("rail.legendHint"))}
           shortcut={legendDisabled ? undefined : "legend"}
           hover={hover}
           onClick={onOpenLegend}
@@ -340,9 +342,9 @@ export default function MapSidebar({
         <div className="map-sidebar-gap" aria-hidden />
         <SidebarButton
           icon={<Settings size={19} strokeWidth={2.25} />}
-          label="Settings"
+          label={t("rail.settings")}
           className={btnClass(activeTool === "settings")}
-          title="Map settings"
+          title={t("mapSettings.title")}
           shortcut="settings"
           hover={hover}
           onClick={onOpenSettings}
@@ -353,8 +355,8 @@ export default function MapSidebar({
           className="map-sidebar-pin"
           onClick={togglePinned}
           aria-pressed={pinned}
-          aria-label={pinned ? "Collapse the tool bar" : "Keep the tool bar expanded"}
-          data-tooltip={pinned ? "Collapse the tool bar" : "Keep the tool bar expanded"}
+          aria-label={pinned ? t("rail.collapse") : t("rail.pin")}
+          data-tooltip={pinned ? t("rail.collapse") : t("rail.pin")}
         >
           {pinned ? <ChevronsLeft size={16} strokeWidth={2.25} /> : <ChevronsRight size={16} strokeWidth={2.25} />}
         </button>

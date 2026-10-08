@@ -11,6 +11,8 @@ import type { ArticleTemplateKey } from "@/server/articles/templates";
 import { ARTICLE_TEMPLATES, templateOf } from "./templates";
 import type { ArticleFolderStore } from "./article-folders";
 import type { ArticleFolder, ArticleRef, FolderNode } from "./folder-tree";
+import { useT } from "@/i18n/useT";
+import { formatInteger } from "@/server/settings/number-format";
 
 /** The color wheel reports every drag step; saves wait for it to settle. */
 const COLOR_SAVE_DELAY_MS = 300;
@@ -22,6 +24,8 @@ function byTemplate(articles: ArticleRef[]): { template: ArticleTemplateKey; art
 
 /** Pick existing articles to file in the folder: search, tick, add. Already-filed ones show ticked. */
 function AddArticlesDialog({ folderName, catalog, filed, onAdd, onClose }: { folderName: string; catalog: Map<string, ArticleRef>; filed: Set<string>; onAdd: (ids: string[]) => Promise<string | null>; onClose: () => void }) {
+  const t = useT("articles");
+  const tc = useT("common");
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
@@ -48,13 +52,13 @@ function AddArticlesDialog({ folderName, catalog, filed, onAdd, onClose }: { fol
   }
 
   return (
-    <Modal open onClose={() => !busy && onClose()} title={`Add articles to “${folderName}”`}>
+    <Modal open onClose={() => !busy && onClose()} title={t("folderView.addTitle", { name: folderName })}>
       <label className="settings-search">
         <Search size={15} strokeWidth={2.25} aria-hidden />
-        <input type="search" placeholder="Search articles…" aria-label="Search articles" value={query} autoFocus onChange={(e) => setQuery(e.target.value)} />
+        <input type="search" placeholder={t("sidebar.search")} aria-label={t("sidebar.searchLabel")} value={query} autoFocus onChange={(e) => setQuery(e.target.value)} />
       </label>
       <div className="folder-picker">
-        {groups.length === 0 && <p className="field-label">{catalog.size === 0 ? "No articles yet." : <>No article matches &ldquo;{query.trim()}&rdquo;.</>}</p>}
+        {groups.length === 0 && <p className="field-label">{catalog.size === 0 ? t("folderView.noArticles") : t("folderView.noMatch", { query: query.trim() })}</p>}
         {groups.map(({ template, articles }) => {
           const { Icon, plural } = templateOf(template);
           return (
@@ -69,7 +73,7 @@ function AddArticlesDialog({ folderName, catalog, filed, onAdd, onClose }: { fol
                   <label key={a.id} className={already ? "folder-picker-row filed" : "folder-picker-row"}>
                     <input type="checkbox" checked={already || picked.has(a.id)} disabled={already} onChange={() => toggle(a.id)} />
                     <span>{a.name}</span>
-                    {already && <span className="field-label">in this folder</span>}
+                    {already && <span className="field-label">{t("folderView.inFolder")}</span>}
                   </label>
                 );
               })}
@@ -84,10 +88,10 @@ function AddArticlesDialog({ folderName, catalog, filed, onAdd, onClose }: { fol
       )}
       <div className="confirm-dialog-actions">
         <button type="button" className="btn btn-sm" onClick={onClose} disabled={busy}>
-          Cancel
+          {tc("cancel")}
         </button>
         <button type="button" className="btn btn-sm btn-primary" onClick={() => void add()} disabled={busy || picked.size === 0}>
-          {busy ? "Adding…" : picked.size > 0 ? `Add ${picked.size} article${picked.size === 1 ? "" : "s"}` : "Add"}
+          {busy ? t("folderView.adding") : picked.size > 0 ? t("folderView.addCount", { count: picked.size, n: formatInteger(picked.size) }) : t("folderView.add")}
         </button>
       </div>
     </Modal>
@@ -124,6 +128,8 @@ export default function ArticleFolderView({
   onNewSubfolder: () => void;
   onDeleted: () => void;
 }) {
+  const t = useT("articles");
+  const tc = useT("common");
   const { folder } = node;
   const [name, setName] = useState(folder.name);
   const [color, setColor] = useState(folder.color);
@@ -158,6 +164,8 @@ export default function ArticleFolderView({
     setError(await store.removeArticles(folder.id, [articleId]));
   }
 
+  const deleteBody = (subfolderCount > 0 ? t("folderView.deleteBodySubs", { count: subfolderCount, n: formatInteger(subfolderCount) }) : t("folderView.deleteBody")).split("{name}");
+
   async function confirmDelete() {
     setBusy(true);
     const problem = await store.deleteFolder(folder.id);
@@ -170,7 +178,7 @@ export default function ArticleFolderView({
   return (
     <div className="article-folder-view">
       {path.length > 0 && (
-        <nav className="article-folder-path" aria-label="Folder path">
+        <nav className="article-folder-path" aria-label={t("folderView.path")}>
           {path.map((p) => (
             <span key={p.id}>
               <button type="button" className="btn-link" onClick={() => onOpenFolder(p.id)}>
@@ -186,7 +194,7 @@ export default function ArticleFolderView({
         <Folder size={30} strokeWidth={1.75} aria-hidden style={{ color: color ?? DEFAULT_FOLDER_COLOR }} />
         <input
           className="article-folder-name"
-          aria-label="Folder name"
+          aria-label={t("folders.nameLabel")}
           value={name}
           maxLength={MAX_FOLDER_NAME_LENGTH}
           onChange={(e) => setName(e.target.value)}
@@ -194,29 +202,29 @@ export default function ArticleFolderView({
           onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
         />
       </header>
-      <p className="field-label">Your own grouping: filing an article here never changes it, its type, relationships or family trees.</p>
+      <p className="field-label">{t("folderView.lead")}</p>
 
       <div className="article-folder-actions">
         <button type="button" className="btn btn-sm btn-primary" onClick={() => setAdding(true)}>
           <ListPlus size={14} strokeWidth={2.25} />
-          Add articles
+          {t("folderView.addArticles")}
         </button>
         <button type="button" className="btn btn-sm btn-create" onClick={onCreateArticle}>
           <CirclePlus size={14} strokeWidth={2.25} />
-          Create article here
+          {t("folderView.createHere")}
         </button>
         <button type="button" className="btn btn-sm" onClick={onNewSubfolder}>
           <FolderPlus size={14} strokeWidth={2.25} />
-          New subfolder
+          {t("folders.newSub")}
         </button>
         <button type="button" className="btn btn-sm btn-danger" onClick={() => setDeleting(true)}>
           <Trash2 size={14} strokeWidth={2.25} />
-          Delete folder
+          {t("folderView.delete")}
         </button>
       </div>
 
       <details className="article-folder-color">
-        <summary>Folder color</summary>
+        <summary>{t("folderView.color")}</summary>
         <div className="article-folder-color-body">
           {color && (
             <button
@@ -226,10 +234,10 @@ export default function ArticleFolderView({
                 changeColor(null);
                 setWheelKey((k) => k + 1);
               }}
-              data-tooltip="Back to the default folder color"
+              data-tooltip={t("folderView.colorReset")}
             >
               <RotateCcw size={12} strokeWidth={2.25} />
-              Default
+              {t("folderView.colorDefault")}
             </button>
           )}
           <ColorWheel key={wheelKey} value={color ?? DEFAULT_FOLDER_COLOR} onChange={changeColor} />
@@ -243,8 +251,8 @@ export default function ArticleFolderView({
       )}
 
       {node.folders.length > 0 && (
-        <section className="article-folder-section" aria-label="Subfolders">
-          <h2>Subfolders</h2>
+        <section className="article-folder-section" aria-label={t("folderView.subfolders")}>
+          <h2>{t("folderView.subfolders")}</h2>
           <div className="article-folder-tiles">
             {node.folders.map((sub) => (
               <button key={sub.folder.id} type="button" className="article-folder-tile" onClick={() => onOpenFolder(sub.folder.id)}>
@@ -260,8 +268,8 @@ export default function ArticleFolderView({
       {node.articles.length === 0 ? (
         <div className="trash-state">
           <Folder size={28} strokeWidth={1.75} aria-hidden />
-          <strong>No articles in this folder yet</strong>
-          <p>Add existing ones, create a new one here, or drag articles onto the folder in the sidebar.</p>
+          <strong>{t("folderView.empty")}</strong>
+          <p>{t("folderView.emptyHint")}</p>
         </div>
       ) : (
         byTemplate(node.articles).map(({ template, articles }) => {
@@ -278,7 +286,7 @@ export default function ArticleFolderView({
                     <button type="button" className="article-folder-article" onClick={() => onOpenArticle(a.template, a.id)}>
                       {a.name}
                     </button>
-                    <button type="button" className="btn btn-icon btn-ghost" aria-label={`Remove ${a.name} from this folder`} data-tooltip="Remove from folder" onClick={() => void remove(a.id)}>
+                    <button type="button" className="btn btn-icon btn-ghost" aria-label={t("folderView.remove", { name: a.name })} data-tooltip={t("folderView.removeHint")} onClick={() => void remove(a.id)}>
                       <X size={14} strokeWidth={2.25} />
                     </button>
                   </li>
@@ -291,13 +299,14 @@ export default function ArticleFolderView({
 
       {adding && <AddArticlesDialog folderName={folder.name} catalog={catalog} filed={filed} onAdd={(ids) => store.addArticles(folder.id, ids)} onClose={() => setAdding(false)} />}
       {deleting && (
-        <ConfirmDialog open title="Delete this folder?" confirmLabel="Delete folder" busyLabel="Deleting…" busy={busy} error={error} onConfirm={() => void confirmDelete()} onCancel={() => setDeleting(false)}>
+        <ConfirmDialog open title={t("folderView.deleteTitle")} confirmLabel={t("folderView.delete")} busyLabel={tc("deleting")} busy={busy} error={error} onConfirm={() => void confirmDelete()} onCancel={() => setDeleting(false)}>
           <p>
-            <strong>&ldquo;{folder.name}&rdquo;</strong>
-            {subfolderCount > 0 ? ` and its ${subfolderCount} subfolder${subfolderCount === 1 ? "" : "s"}` : ""} will be deleted.
+            {deleteBody[0]}
+            <strong>{folder.name}</strong>
+            {deleteBody[1]}
           </p>
           <ul>
-            <li>The articles in it stay in the app, under their type and in any other folder.</li>
+            <li>{t("folderView.deleteKeeps")}</li>
           </ul>
         </ConfirmDialog>
       )}

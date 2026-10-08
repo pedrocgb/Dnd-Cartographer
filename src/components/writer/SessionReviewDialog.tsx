@@ -8,6 +8,7 @@ import type { ClientSession } from "@/components/sessions/types";
 import { sessionLabel } from "@/components/sessions/types";
 import { TIPS } from "@/server/writer/guides";
 import { REVIEW_OUTCOME_LABELS, REVIEW_OUTCOMES, STATUS_KIND_LABELS, STATUS_KINDS, type OutlineNode, type ReviewOutcome, type StatusKind } from "@/server/writer/types";
+import { useT } from "@/i18n/useT";
 
 export interface ReviewResult {
   sessions: ClientSession[];
@@ -23,6 +24,8 @@ type Change = { kind: StatusKind; text: string };
  * secrets came out (the rest carry on); and what changed in the world.
  */
 export default function SessionReviewDialog({ session, scenes, guides, onDone, onClose }: { session: ClientSession; scenes: OutlineNode[]; guides: boolean; onDone: (r: ReviewResult) => void; onClose: () => void }) {
+  const t = useT("writer");
+  const tc = useT("common");
   const [outcomes, setOutcomes] = useState<Record<string, { outcome: ReviewOutcome; changeNote: string }>>(() =>
     Object.fromEntries(scenes.map((n) => [n.id, { outcome: n.status === "changed" || n.status === "played" ? n.status : ("played" as ReviewOutcome), changeNote: n.changeNote }]))
   );
@@ -40,24 +43,24 @@ export default function SessionReviewDialog({ session, scenes, guides, onDone, o
     });
     setSaving(false);
     if (res.ok) onDone(res.data);
-    else setError(res.data.error ?? "Could not save the review.");
+    else setError(res.data.error ?? t("review.couldNotSave"));
   }
 
   const setOutcome = (id: string, patch: Partial<{ outcome: ReviewOutcome; changeNote: string }>) => setOutcomes((o) => ({ ...o, [id]: { ...o[id], ...patch } }));
   const carried = scenes.filter((n) => outcomes[n.id]?.outcome === "later").length + session.prep.secrets.filter((s) => !revealed[s.id]).length;
 
   return (
-    <Modal open onClose={onClose} title={`What happened in ${sessionLabel(session)}?`} size="wide">
+    <Modal open onClose={onClose} title={t("review.title", { session: sessionLabel(session) })} size="wide">
       <div className="cel-editor">
         <div className="cel-body">
           {guides && <p className="wr-tip">{TIPS.review}</p>}
           <section className="cel-section">
-            <h3>Scenes</h3>
-            {scenes.length === 0 && <p className="cal-help">No scenes were planned for this session.</p>}
+            <h3>{t("review.scenes")}</h3>
+            {scenes.length === 0 && <p className="cal-help">{t("review.noScenes")}</p>}
             {scenes.map((n) => (
               <div key={n.id} className="wr-review-scene">
                 <strong>{n.title}</strong>
-                <div className="wr-segmented" role="radiogroup" aria-label={`What happened to ${n.title}`}>
+                <div className="wr-segmented" role="radiogroup" aria-label={t("review.whatHappenedTo", { title: n.title })}>
                   {REVIEW_OUTCOMES.map((o) => (
                     <label key={o} className={outcomes[n.id]?.outcome === o ? "active" : undefined}>
                       <input type="radio" name={`outcome-${n.id}`} checked={outcomes[n.id]?.outcome === o} onChange={() => setOutcome(n.id, { outcome: o })} />
@@ -66,7 +69,7 @@ export default function SessionReviewDialog({ session, scenes, guides, onDone, o
                   ))}
                 </div>
                 {outcomes[n.id]?.outcome === "changed" && (
-                  <textarea rows={2} maxLength={4000} aria-label={`How ${n.title} changed`} value={outcomes[n.id].changeNote} placeholder="What happened instead" onChange={(e) => setOutcome(n.id, { changeNote: e.target.value })} />
+                  <textarea rows={2} maxLength={4000} aria-label={t("review.howChanged", { title: n.title })} value={outcomes[n.id].changeNote} placeholder={t("review.insteadPlaceholder")} onChange={(e) => setOutcome(n.id, { changeNote: e.target.value })} />
                 )}
               </div>
             ))}
@@ -74,7 +77,7 @@ export default function SessionReviewDialog({ session, scenes, guides, onDone, o
 
           {session.prep.secrets.length > 0 && (
             <section className="cel-section">
-              <h3>Secrets that came out</h3>
+              <h3>{t("review.secrets")}</h3>
               <ul className="wr-checklist">
                 {session.prep.secrets.map((s) => (
                   <li key={s.id}>
@@ -88,26 +91,26 @@ export default function SessionReviewDialog({ session, scenes, guides, onDone, o
           )}
 
           <section className="cel-section">
-            <h3>What changed in the world</h3>
+            <h3>{t("review.worldChanges")}</h3>
             {guides && <p className="cal-help">{TIPS.status}</p>}
             {changes.map((c, i) => (
               <div key={i} className="ss-line">
-                <select aria-label={`Change ${i + 1} type`} value={c.kind} onChange={(e) => setChanges((list) => list.map((x, j) => (j === i ? { ...x, kind: e.target.value as StatusKind } : x)))}>
+                <select aria-label={t("review.changeType", { n: i + 1 })} value={c.kind} onChange={(e) => setChanges((list) => list.map((x, j) => (j === i ? { ...x, kind: e.target.value as StatusKind } : x)))}>
                   {STATUS_KINDS.map((k) => (
                     <option key={k} value={k}>
                       {STATUS_KIND_LABELS[k]}
                     </option>
                   ))}
                 </select>
-                <input type="text" aria-label={`Change ${i + 1}`} maxLength={4000} value={c.text} placeholder="The baron knows the party freed his prisoners." onChange={(e) => setChanges((list) => list.map((x, j) => (j === i ? { ...x, text: e.target.value } : x)))} />
-                <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={`Remove change ${i + 1}`} data-tooltip="Remove" onClick={() => setChanges((list) => list.filter((_, j) => j !== i))}>
+                <input type="text" aria-label={t("review.change", { n: i + 1 })} maxLength={4000} value={c.text} placeholder={t("review.changePlaceholder")} onChange={(e) => setChanges((list) => list.map((x, j) => (j === i ? { ...x, text: e.target.value } : x)))} />
+                <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={t("review.removeChange", { n: i + 1 })} data-tooltip={t("ui.remove")} onClick={() => setChanges((list) => list.filter((_, j) => j !== i))}>
                   <X size={14} />
                 </button>
               </div>
             ))}
             <div>
               <button type="button" className="btn btn-sm" disabled={changes.length >= 50} onClick={() => setChanges((list) => [...list, { kind: "world", text: "" }])}>
-                <Plus size={14} /> Add a change
+                <Plus size={14} /> {t("review.addChange")}
               </button>
             </div>
           </section>
@@ -118,12 +121,12 @@ export default function SessionReviewDialog({ session, scenes, guides, onDone, o
           </p>
         )}
         <div className="cel-footer">
-          {carried > 0 && <span className="cal-help">{carried} item{carried === 1 ? "" : "s"} will move to the next session.</span>}
+          {carried > 0 && <span className="cal-help">{t("review.carried", { count: carried })}</span>}
           <button type="button" className="btn btn-sm" onClick={onClose} disabled={saving}>
-            Cancel
+            {tc("cancel")}
           </button>
           <button type="button" className="btn btn-sm btn-primary" disabled={saving} onClick={() => void submit()}>
-            {saving ? "Saving…" : "Save review"}
+            {saving ? tc("saving") : t("review.save")}
           </button>
         </div>
       </div>

@@ -8,7 +8,10 @@ import { generateCharacter, resolveSpecies } from "@/lib/character-on-demand/gen
 import type { HistoryEntry } from "@/lib/character-on-demand/history";
 import { loadNames } from "@/lib/character-on-demand/load-names";
 import { BACKGROUNDS, DEFAULT_OPTIONS, GENDERS, HAIRLESS_SPECIES, SPECIES, type GenerateOptions } from "@/lib/character-on-demand/options";
-import CharacterModal, { speciesLabel } from "./CharacterModal";
+import CharacterModal from "./CharacterModal";
+import { genderLabel, speciesLabel } from "@/lib/character-on-demand/labels";
+import { optionLabel } from "@/server/articles/info-sets";
+import { useT } from "@/i18n/useT";
 import RecentList from "./RecentList";
 import { useCharacterHistory } from "./useCharacterHistory";
 
@@ -28,6 +31,7 @@ function OptionRow({ id, label, hint, children, tooltip }: { id?: string; label:
 
 /** Advanced Tools › Character On Demand: rolls a quick named character and turns it into a Character article. */
 export default function CharacterOnDemand({ worldId }: { worldId: string }) {
+  const t = useT("character");
   const router = useRouter();
   const { entries, add, markArticle } = useCharacterHistory(worldId);
   const [opts, setOpts] = useState<GenerateOptions>(DEFAULT_OPTIONS);
@@ -37,7 +41,7 @@ export default function CharacterOnDemand({ worldId }: { worldId: string }) {
 
   const set = <K extends keyof GenerateOptions>(key: K, value: GenerateOptions[K]) => setOpts((o) => ({ ...o, [key]: value }));
   const hairless = opts.species !== "random" && HAIRLESS_SPECIES.has(opts.species);
-  const hairlessHint = hairless ? "Dragonborn have no hair or beard" : undefined;
+  const hairlessHint = hairless ? t("hairless") : undefined;
   const open = entries.find((e) => e.id === openId) ?? null;
 
   async function generate() {
@@ -50,7 +54,7 @@ export default function CharacterOnDemand({ worldId }: { worldId: string }) {
       add(entry);
       setOpenId(entry.id);
     } catch {
-      setError("Couldn't load the names for that species. Try again.");
+      setError(t("namesFailed"));
     } finally {
       setBusy(null);
     }
@@ -76,11 +80,11 @@ export default function CharacterOnDemand({ worldId }: { worldId: string }) {
         }),
       });
       const data = await res.json().catch(() => null);
-      if (!res.ok || !data?.person?.id) throw new Error(data?.error ?? "Couldn't create the article.");
+      if (!res.ok || !data?.person?.id) throw new Error(data?.error ?? t("createFailed"));
       markArticle(entry.id, data.person.id);
       router.push(`/articles?type=character&id=${encodeURIComponent(data.person.id)}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't create the article.");
+      setError(e instanceof Error ? e.message : t("createFailed"));
       setBusy(null);
     }
   }
@@ -91,69 +95,69 @@ export default function CharacterOnDemand({ worldId }: { worldId: string }) {
         <div>
           <h1 className="tool-title">
             <Dices size={22} strokeWidth={2.25} aria-hidden />
-            Character On Demand
+            {t("title")}
           </h1>
-          <p>Roll a quick character with a name, look and background in one click. Pick what matters, leave the rest to chance, and turn the result into a Character article when you like it.</p>
+          <p>{t("intro")}</p>
         </div>
       </header>
 
       <section className="settings-card">
         <div className="settings-card-head">
-          <h2>Generation options</h2>
-          <p>Species decides which name list is used; gender picks male or female first names.</p>
+          <h2>{t("options")}</h2>
+          <p>{t("optionsHint")}</p>
         </div>
         <div className="settings-card-body">
-          <OptionRow id="cod-gender" label="Gender" hint="Chooses between male and female names.">
+          <OptionRow id="cod-gender" label={t("opt.gender")} hint={t("opt.genderHint")}>
             <select id="cod-gender" value={opts.gender} onChange={(e) => set("gender", e.target.value as GenerateOptions["gender"])}>
-              <option value="random">Random</option>
+              <option value="random">{t("ui.random")}</option>
               {GENDERS.map((g) => (
                 <option key={g} value={g}>
-                  {g}
+                  {genderLabel(g, t)}
                 </option>
               ))}
             </select>
           </OptionRow>
-          <OptionRow id="cod-species" label="Species" hint="The name list to draw from.">
+          <OptionRow id="cod-species" label={t("opt.species")} hint={t("opt.speciesHint")}>
             <select id="cod-species" value={opts.species} onChange={(e) => set("species", e.target.value as GenerateOptions["species"])}>
-              <option value="random">Random</option>
+              <option value="random">{t("ui.random")}</option>
               {SPECIES.map((s) => (
                 <option key={s.key} value={s.key}>
-                  {s.label}
+                  {speciesLabel(s.key, t)}
                 </option>
               ))}
             </select>
           </OptionRow>
-          <OptionRow id="cod-background" label="Background" hint="Optional. Fills the Social Background of the article.">
+          <OptionRow id="cod-background" label={t("opt.background")} hint={t("opt.backgroundHint")}>
             <select id="cod-background" value={opts.background} onChange={(e) => set("background", e.target.value as GenerateOptions["background"])}>
-              <option value="random">Random</option>
-              <option value="none">None</option>
+              <option value="random">{t("ui.random")}</option>
+              <option value="none">{t("ui.none")}</option>
               {BACKGROUNDS.map((b) => (
                 <option key={b} value={b}>
-                  {b}
+                  {optionLabel(b)}
                 </option>
               ))}
             </select>
           </OptionRow>
-          <OptionRow id="cod-middle" label="Middle name" hint="Random gives about one character in three a middle name.">
+          <OptionRow id="cod-middle" label={t("opt.middle")} hint={t("opt.middleHint")}>
             <select id="cod-middle" value={opts.middleName} onChange={(e) => set("middleName", e.target.value as GenerateOptions["middleName"])}>
-              <option value="random">Random</option>
-              <option value="always">Always</option>
-              <option value="never">Never</option>
+              <option value="random">{t("ui.random")}</option>
+              <option value="always">{t("opt.always")}</option>
+              <option value="never">{t("opt.never")}</option>
             </select>
           </OptionRow>
-          <OptionRow label="Hairstyle" hint="A hairstyle that fits the gender, and a hair color." tooltip={hairlessHint}>
-            <Toggle checked={opts.hair && !hairless} disabled={hairless} label="Generate" onChange={(on) => set("hair", on)} />
+          <OptionRow label={t("opt.hair")} hint={t("opt.hairHint")} tooltip={hairlessHint}>
+            <Toggle checked={opts.hair && !hairless} disabled={hairless} label={t("ui.generate")} onChange={(on) => set("hair", on)} />
           </OptionRow>
-          <OptionRow id="cod-beard" label="Beard" hint="Who gets a beard (clean-shaven can come up too)." tooltip={hairlessHint}>
+          <OptionRow id="cod-beard" label={t("opt.beard")} hint={t("opt.beardHint")} tooltip={hairlessHint}>
             <select id="cod-beard" value={opts.beard} disabled={hairless} onChange={(e) => set("beard", e.target.value as GenerateOptions["beard"])}>
-              <option value="male">Male only</option>
-              <option value="female">Female only</option>
-              <option value="both">Both</option>
-              <option value="none">None</option>
+              <option value="male">{t("opt.beardMale")}</option>
+              <option value="female">{t("opt.beardFemale")}</option>
+              <option value="both">{t("opt.beardBoth")}</option>
+              <option value="none">{t("ui.none")}</option>
             </select>
           </OptionRow>
-          <OptionRow label="Backstory" hint="Clothes that fit the background, what they want right now, a quirk, a fear and a secret.">
-            <Toggle checked={opts.backstory} label="Generate" onChange={(on) => set("backstory", on)} />
+          <OptionRow label={t("opt.backstory")} hint={t("opt.backstoryHint")}>
+            <Toggle checked={opts.backstory} label={t("ui.generate")} onChange={(on) => set("backstory", on)} />
           </OptionRow>
         </div>
       </section>
@@ -161,7 +165,7 @@ export default function CharacterOnDemand({ worldId }: { worldId: string }) {
       <div className="tool-actions">
         <button type="button" className="btn btn-primary" onClick={generate} disabled={busy !== null}>
           <Dices size={16} strokeWidth={2.25} aria-hidden />
-          Generate
+          {t("ui.generate")}
         </button>
       </div>
 
@@ -172,18 +176,18 @@ export default function CharacterOnDemand({ worldId }: { worldId: string }) {
       )}
 
       <RecentList
-        title="Recent characters"
-        noun="characters"
+        title={t("recent")}
+        noun={t("noun")}
         onOpen={setOpenId}
         items={entries.map((e) => ({
           id: e.id,
           createdAt: e.createdAt,
           title: e.character.name,
-          meta: `${e.character.gender} ${speciesLabel(e.character.species)}${e.character.background ? ` · ${e.character.background}` : ""}`,
+          meta: [t("meta", { gender: genderLabel(e.character.gender, t), species: speciesLabel(e.character.species, t) }), ...(e.character.background ? [optionLabel(e.character.background)] : [])].join(" · "),
           extra: e.personId && (
-            <span className="tool-history-badge" data-tooltip="An article was created from this character">
+            <span className="tool-history-badge" data-tooltip={t("articleBadgeHint")}>
               <Check size={13} strokeWidth={2.5} aria-hidden />
-              Article
+              {t("articleBadge")}
             </span>
           ),
         }))}

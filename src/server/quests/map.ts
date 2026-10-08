@@ -4,6 +4,7 @@
  * layered layout that saved positions override.
  */
 import { questTree, type TreeNode } from "./logic";
+import { activeT } from "../../i18n/active";
 import { LINK_ROLE_LABELS, type ArticleRef, type FrontData, type MapPoint, type QuestData, type QuestStatus } from "./types";
 
 export type MapNodeKind = "front" | "quest" | "clue" | "article";
@@ -104,7 +105,7 @@ export function questMapGraph(
     if (q.parentId && inMap.has(q.parentId)) edge(nodeId.quest(q.parentId), qid, "sub");
     if (q.giver) {
       const a = article(q.giver);
-      if (a) edge(qid, a, "link", "Giver");
+      if (a) edge(qid, a, "link", activeT("campaign")("mapEdge.giver"));
     }
     for (const l of q.articleLinks) {
       const a = article(l);

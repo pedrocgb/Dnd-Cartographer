@@ -4,7 +4,8 @@ import { useState } from "react";
 import { X, Lock, Unlock, Copy, Check, Trash2, Pencil, ChevronLeft } from "lucide-react";
 import DescriptionSection from "./DescriptionSection";
 import MarkerIcon from "./MarkerIcon";
-import { DEFAULT_MARKER_CATEGORY } from "@/server/markers/icon-registry";
+import { DEFAULT_MARKER_CATEGORY, markerCategoryLabel } from "@/server/markers/icon-registry";
+import { markerTagLabel } from "@/server/markers/tag-registry";
 import type { Marker } from "./MarkerLayer";
 import type { MapLayerData } from "./layer-images";
 import PoliticalReferencesPanel from "./PoliticalReferencesPanel";
@@ -17,6 +18,7 @@ import { MarkerSubjectEdit, MarkerSubjectView } from "./marker-panel/MarkerSubje
 import { MarkerLinkedMapEdit, MarkerLinkedMapView } from "./marker-panel/MarkerLinkedMap";
 import { useMarkerArticleLinks } from "./marker-panel/use-marker-article-links";
 import type { MarkerUpdate } from "./marker-panel/types";
+import { useT } from "@/i18n/useT";
 
 export type MarkerSection = "basic" | "politics" | "articles" | "links";
 
@@ -27,11 +29,12 @@ interface MapOption {
 
 /** View mode's classification chips and, apart from them, the accepted territory chain. */
 function TagChips({ marker, layer, chain }: { marker: Marker; layer: MapLayerData | null; chain: { id: string; name: string }[] | null }) {
+  const tm = useT("maps");
   const tags = [
-    marker.category ?? DEFAULT_MARKER_CATEGORY,
-    marker.environment,
-    marker.ownership,
-    ...marker.statusTags,
+    markerCategoryLabel(marker.category ?? DEFAULT_MARKER_CATEGORY),
+    marker.environment && markerTagLabel("environment", marker.environment),
+    marker.ownership && markerTagLabel("ownership", marker.ownership),
+    ...marker.statusTags.map((s) => markerTagLabel("status", s)),
   ].filter((t): t is string => !!t);
   return (
     <div className="marker-view-tags">
@@ -42,13 +45,13 @@ function TagChips({ marker, layer, chain }: { marker: Marker; layer: MapLayerDat
           </span>
         ))}
         {layer && (
-          <span className="marker-chip marker-chip-muted" data-tooltip="Layer">
+          <span className="marker-chip marker-chip-muted" data-tooltip={tm("field.layer")}>
             {layer.name}
           </span>
         )}
       </div>
       {chain && chain.length > 0 && (
-        <div className="politics-breadcrumb" aria-label="Territory">
+        <div className="politics-breadcrumb" aria-label={tm("markerPanel.territory")}>
           {chain.map((t, i) => (
             <span key={t.id}>
               {i > 0 && <span className="politics-breadcrumb-sep">›</span>}
@@ -74,6 +77,8 @@ function MarkerActions({
   onDelete: () => void;
   onDone: () => void;
 }) {
+  const tm = useT("maps");
+  const tc = useT("common");
   const [copied, setCopied] = useState(false);
 
   function copyLink() {
@@ -86,27 +91,27 @@ function MarkerActions({
 
   return (
     <>
-      <h3 className="marker-section-title">Actions</h3>
+      <h3 className="marker-section-title">{tm("markerPanel.actions")}</h3>
       <div className="marker-panel-actions">
         <button className="btn btn-sm" onClick={() => onUpdate({ locked: !marker.locked })}>
           {marker.locked ? <Unlock size={14} strokeWidth={2.25} /> : <Lock size={14} strokeWidth={2.25} />}
-          {marker.locked ? "Unlock" : "Lock"}
+          {marker.locked ? tm("markerPanel.unlock") : tm("markerPanel.lock")}
         </button>
         <button className="btn btn-sm" onClick={onDuplicate}>
           <Copy size={14} strokeWidth={2.25} />
-          Duplicate
+          {tm("markerPanel.duplicate")}
         </button>
         <button className="btn btn-sm" onClick={copyLink}>
           {copied ? <Check size={14} strokeWidth={2.25} /> : <Copy size={14} strokeWidth={2.25} />}
-          {copied ? "Copied!" : "Copy link"}
+          {copied ? tm("markerPanel.copied") : tm("markerPanel.copyLink")}
         </button>
         <button className="btn btn-sm btn-danger" onClick={onDelete}>
           <Trash2 size={14} strokeWidth={2.25} />
-          Delete
+          {tc("delete")}
         </button>
         <button className="btn btn-sm btn-primary" onClick={onDone}>
           <ChevronLeft size={14} strokeWidth={2.25} />
-          Done
+          {tc("done")}
         </button>
       </div>
     </>
@@ -136,6 +141,7 @@ export default function MarkerPanel({
   onDelete: () => void;
   onClose: () => void;
 }) {
+  const tm = useT("maps");
   // Seeded once per marker — the parent remounts this component (via key={marker.id})
   // whenever the selected marker changes, so neither of these go stale across selections.
   const [name, setName] = useState(() => marker.name);
@@ -176,7 +182,7 @@ export default function MarkerPanel({
           <input
             type="text"
             value={name}
-            aria-label="Marker name"
+            aria-label={tm("markerPanel.nameAria")}
             autoFocus={autoFocusName}
             onChange={(e) => setName(e.target.value)}
             onBlur={() => name.trim() && name !== marker.name && onUpdate({ name })}
@@ -194,7 +200,7 @@ export default function MarkerPanel({
             <h2>{marker.name}</h2>
           </div>
         )}
-        <button className="btn btn-ghost btn-icon" onClick={onClose} aria-label="Close marker panel">
+        <button className="btn btn-ghost btn-icon" onClick={onClose} aria-label={tm("markerPanel.close")}>
           <X size={16} strokeWidth={2.25} />
         </button>
       </div>
@@ -220,7 +226,7 @@ export default function MarkerPanel({
           </>
         )}
 
-        <MarkerCard title="Description" bare={!editing}>
+        <MarkerCard title={tm("markerPanel.description")} bare={!editing}>
           <DescriptionSection
             documentId={marker.descriptionDocumentId}
             editable={editing}
@@ -239,7 +245,7 @@ export default function MarkerPanel({
         {!editing && (
           <button className="btn btn-primary marker-edit-fab" onClick={() => setEditing(true)}>
             <Pencil size={14} strokeWidth={2.25} />
-            Edit
+            {tm("markerPanel.edit")}
           </button>
         )}
       </div>

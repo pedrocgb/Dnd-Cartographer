@@ -6,6 +6,7 @@ import { moveNode, outlineTree, type OutlineTreeNode } from "@/server/writer/log
 import type { OutlineMove } from "@/server/writer/parse";
 import { beatOf } from "@/server/writer/templates";
 import { CHILD_KIND, NODE_KIND_LABELS, NODE_STATUS_LABELS, type NodeKind, type OutlineNode } from "@/server/writer/types";
+import { useT } from "@/i18n/useT";
 
 type Where = "before" | "after" | "inside";
 
@@ -31,6 +32,7 @@ export default function OutlineTree({
   onAdd: (kind: NodeKind, parentId: string | null) => void;
   onMove: (moves: OutlineMove[]) => void;
 }) {
+  const t = useT("writer");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [dragId, setDragId] = useState<string | null>(null);
   const [drop, setDrop] = useState<{ id: string; where: Where } | null>(null);
@@ -73,7 +75,7 @@ export default function OutlineTree({
   }
 
   const renderList = (list: OutlineTreeNode<OutlineNode>[], depth: number): React.ReactNode => (
-    <ul className={depth === 0 ? "wr-tree" : "wr-tree-children"} role={depth === 0 ? "tree" : "group"} aria-label={depth === 0 ? "Story outline" : undefined}>
+    <ul className={depth === 0 ? "wr-tree" : "wr-tree-children"} role={depth === 0 ? "tree" : "group"} aria-label={depth === 0 ? t("writer.outline") : undefined}>
       {list.map(({ node, children }) => {
         const childKind = CHILD_KIND[node.kind];
         const open = !collapsed.has(node.id);
@@ -110,19 +112,19 @@ export default function OutlineTree({
             >
               <GripVertical size={12} className="wr-grip" aria-hidden />
               {childKind ? (
-                <button type="button" className="wr-toggle" aria-label={open ? `Collapse ${node.title}` : `Expand ${node.title}`} onClick={() => toggle(node.id)}>
+                <button type="button" className="wr-toggle" aria-label={open ? t("tree.collapse", { title: node.title }) : t("tree.expand", { title: node.title })} onClick={() => toggle(node.id)}>
                   {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                 </button>
               ) : (
                 <span className="wr-toggle" aria-hidden />
               )}
               <span className={`wr-dot wr-dot-${node.status}`} data-tooltip={NODE_STATUS_LABELS[node.status]} aria-label={NODE_STATUS_LABELS[node.status]} role="img" />
-              <button type="button" className="wr-row-title" onClick={() => onSelect(node.id)} onKeyDown={(e) => onKey(node, e)} data-tooltip={beat ? `${NODE_KIND_LABELS[node.kind]} · beat: ${beat.name}` : NODE_KIND_LABELS[node.kind]}>
+              <button type="button" className="wr-row-title" onClick={() => onSelect(node.id)} onKeyDown={(e) => onKey(node, e)} data-tooltip={beat ? t("tree.kindBeat", { kind: NODE_KIND_LABELS[node.kind], beat: beat.name }) : NODE_KIND_LABELS[node.kind]}>
                 {node.title}
-                {node.hidden && <EyeOff size={12} className="wr-row-hidden" aria-label="Hidden from shares" />}
+                {node.hidden && <EyeOff size={12} className="wr-row-hidden" aria-label={t("tree.hidden")} />}
               </button>
               {childKind && (
-                <button type="button" className="btn btn-ghost btn-icon btn-sm wr-row-add" aria-label={`Add a ${NODE_KIND_LABELS[childKind].toLowerCase()} to ${node.title}`} data-tooltip={`Add ${NODE_KIND_LABELS[childKind].toLowerCase()}`} onClick={() => onAdd(childKind, node.id)}>
+                <button type="button" className="btn btn-ghost btn-icon btn-sm wr-row-add" aria-label={t(`addKindTo.${childKind}`, { title: node.title })} data-tooltip={t(`addKind.${childKind}`)} onClick={() => onAdd(childKind, node.id)}>
                   <Plus size={13} />
                 </button>
               )}
@@ -135,11 +137,11 @@ export default function OutlineTree({
   );
 
   const tree = outlineTree(nodes);
-  if (tree.length === 0) return <p className="cal-help">No arcs yet.</p>;
+  if (tree.length === 0) return <p className="cal-help">{t("tree.noArcs")}</p>;
   return (
     <>
       {renderList(tree, 0)}
-      <p className="cal-help wr-tree-hint">Drag to reorder · Alt+↑/↓ to move</p>
+      <p className="cal-help wr-tree-hint">{t("tree.hint")}</p>
     </>
   );
 }

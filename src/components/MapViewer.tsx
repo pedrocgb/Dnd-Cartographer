@@ -17,6 +17,11 @@ import type { MapFolderData } from "./LayerFolders";
 import { useMapLayers } from "./use-map-layers";
 import { MapPageSkeleton, Skeleton, SkeletonRegion } from "./Skeleton";
 import LoadingScreen from "./LoadingScreen";
+import { useT } from "@/i18n/useT";
+import { activeT } from "@/i18n/active";
+import { WORKER_ASSET_MISSING } from "@/worker/messages";
+import type { Translator } from "@/i18n/translate";
+import { formatInteger } from "@/server/settings/number-format";
 
 interface MapAsset {
   id: string;
@@ -60,24 +65,34 @@ interface MapStatus {
 
 async function fetchStatus(mapId: string): Promise<MapStatus> {
   const res = await fetch(`/api/maps/${mapId}`, { cache: "no-store" });
-  if (!res.ok) throw new Error("Failed to load map status.");
+  if (!res.ok) throw new Error(activeT("maps")("viewer.statusFailed"));
   return res.json();
 }
 
-function assetLoadingMessage(asset: MapAsset, job: MapStatus["job"]): string {
+function assetLoadingMessage(asset: MapAsset, job: MapStatus["job"], t: Translator<"maps">, tc: Translator<"common">): string {
   switch (asset.state) {
     case "uploading":
-      return "Uploading image…";
+      return t("viewer.uploadingImage");
     case "queued":
-      return `Queued for processing${job ? ` (attempt ${job.attempts})` : ""}…`;
+      return job ? t("viewer.queuedAttempt", { n: formatInteger(job.attempts) }) : t("viewer.queued");
     case "processing":
-      return "Preparing your map…";
+      return t("viewer.preparing");
     default:
-      return "Loading…";
+      return tc("loading");
   }
 }
 
+/**
+ * The worker's `lastError` as shown: its own known messages are worded; the
+ * rest come from the image library and stay as written (technical detail).
+ */
+function workerError(message: string): string {
+  return message === WORKER_ASSET_MISSING ? activeT("maps")("viewer.assetMissing") : message;
+}
+
 export default function MapViewer({ mapId }: { mapId: string }) {
+  const t = useT("maps");
+  const tc = useT("common");
   const router = useRouter();
   const [status, setStatus] = useState<MapStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -240,7 +255,7 @@ export default function MapViewer({ mapId }: { mapId: string }) {
     });
     setUploading(false);
     if (res.ok) schedulePoll(0);
-    else window.alert((await res.json()).error ?? "Upload failed.");
+    else window.alert((await res.json()).error ?? t("art.uploadFailed"));
   }
 
   function closeToolPanels() {
@@ -366,28 +381,30 @@ export default function MapViewer({ mapId }: { mapId: string }) {
 
   async function deleteLayer(id: string) {
     const layer = layerApi.layers.find((l) => l.id === id);
-    if (!layer || !window.confirm(`Delete layer "${layer.name}"?`)) return;
+    if (!layer || !window.confirm(t("viewer.deleteLayerConfirm", { name: layer.name }))) return;
     let res = await layerApi.deleteLayer(id, false);
     if (res.status === 409) {
       const data: { markerCount?: number; regionCount?: number; textCount?: number; lineCount?: number; hasGrid?: boolean; hasLegend?: boolean; routeCount?: number; error?: string } = await res.json();
       if (data.markerCount === undefined) {
-        window.alert(data.error ?? "This layer can't be deleted.");
+        window.alert(data.error ?? t("viewer.layerCantDelete"));
         return;
       }
+      const counted = (key: "markers" | "regions" | "texts" | "lines" | "routes", count: number | undefined) =>
+        count ? t(`layerParts.${key}`, { count, n: formatInteger(count) }) : null;
       const parts = [
-        data.markerCount ? `${data.markerCount} marker(s)` : null,
-        data.regionCount ? `${data.regionCount} zone region(s)` : null,
-        data.textCount ? `${data.textCount} text(s)` : null,
-        data.lineCount ? `${data.lineCount} line(s)` : null,
-        data.hasGrid ? "a grid" : null,
-        data.hasLegend ? "a legend" : null,
-        data.routeCount ? `${data.routeCount} route${data.routeCount === 1 ? "" : "s"}` : null,
+        counted("markers", data.markerCount),
+        counted("regions", data.regionCount),
+        counted("texts", data.textCount),
+        counted("lines", data.lineCount),
+        data.hasGrid ? t("layerParts.grid") : null,
+        data.hasLegend ? t("layerParts.legend") : null,
+        counted("routes", data.routeCount),
       ].filter(Boolean);
-      if (!window.confirm(`"${layer.name}" still has ${parts.join(", ")}. Delete the layer and all of it?`)) return;
+      if (!window.confirm(t("viewer.deleteLayerAll", { name: layer.name, parts: parts.join(", ") }))) return;
       res = await layerApi.deleteLayer(id, true);
     }
     if (!res.ok) {
-      window.alert("Failed to delete layer.");
+      window.alert(t("viewer.deleteLayerFailed"));
       return;
     }
     const regionIds = new Set(zoneRegions.filter((r) => r.layerId === id).map((r) => r.id));
@@ -401,7 +418,7 @@ export default function MapViewer({ mapId }: { mapId: string }) {
     setTextGroups((prev) => prev.filter((g) => g.layerId !== id));
   }
 
-  if (error) return <div className="map-status">Error: {error}</div>;
+  if (error) return <div className="map-status">{tc("errorWith", { error })}</div>;
   if (!status) return <MapPageSkeleton />;
 
   const { asset, job } = status;
@@ -470,10 +487,10 @@ export default function MapViewer({ mapId }: { mapId: string }) {
 
         {!asset && !hasFrame && (
           <div className="map-status">
-            <p>No image uploaded yet for &ldquo;{status.map.name}&rdquo;.</p>
+            <p>{t("viewer.noImage", { name: status.map.name })}</p>
             <label className="btn btn-primary" style={{ cursor: uploading ? "default" : "pointer" }}>
               <ImageUp size={15} strokeWidth={2.25} />
-              {uploading ? "Uploading…" : "Upload image"}
+              {uploading ? t("art.uploading") : t("art.upload")}
               <input
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
@@ -490,7 +507,7 @@ export default function MapViewer({ mapId }: { mapId: string }) {
         )}
 
         {hasFrame && !activeLayerId && (
-          <SkeletonRegion label="Loading the map…" className="map-skeleton-canvas-region">
+          <SkeletonRegion label={tc("loadingMap")} className="map-skeleton-canvas-region">
             <Skeleton className="map-skeleton-canvas" height="auto" radius={0} />
           </SkeletonRegion>
         )}
@@ -570,16 +587,16 @@ export default function MapViewer({ mapId }: { mapId: string }) {
 
         {!hasFrame && asset && asset.state === "failed" && (
           <div className="map-status">
-            <p>Processing failed{job?.lastError ? `: ${job.lastError}` : "."}</p>
+            <p>{job?.lastError ? t("viewer.processingFailedWith", { error: workerError(job.lastError) }) : t("viewer.processingFailed")}</p>
             <button className="btn btn-primary" onClick={retry}>
               <RefreshCw size={15} strokeWidth={2.25} />
-              Retry
+              {tc("retry")}
             </button>
           </div>
         )}
 
         {!hasFrame && asset && !["ready", "failed"].includes(asset.state) && (
-          <LoadingScreen message={assetLoadingMessage(asset, job)} />
+          <LoadingScreen message={assetLoadingMessage(asset, job, t, tc)} />
         )}
       </div>
 

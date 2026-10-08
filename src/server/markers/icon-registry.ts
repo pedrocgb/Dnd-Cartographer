@@ -5,6 +5,8 @@
  * needs to change, and every saved marker keeps working.
  */
 import type { ArticleTemplateKey } from "@/server/articles/templates";
+import { activeT } from "../../i18n/active";
+import type { MessageKey } from "../../i18n/messages";
 
 /** Picker sections, in display order. */
 export const ICON_GROUPS = ["Settlements", "Structures", "Nature", "Creatures", "Travel", "Adventure", "Combat", "Services", "Magic", "Danger", "Shapes"] as const;
@@ -373,11 +375,23 @@ export const TEMPLATE_MARKER_DEFAULTS: Partial<Record<ArticleTemplateKey, { icon
   document: { iconKey: "scroll", category: "Point of Interest" },
 };
 
-/** Icons whose label, key or synonyms contain the query (case-insensitive), in registry order. */
+/** An icon's name in the user's language ("Icon" for an unknown key). */
+export function iconLabel(key: string): string {
+  const t = activeT("icons");
+  return ICON_KEYS.has(key) ? t(`icon.${key}` as MessageKey<"icons">) : t("icon.fallback");
+}
+
+/** An icon group's heading in the user's language. */
+export const iconGroupLabel = (group: IconGroup) => activeT("icons")(`group.${group}`);
+
+/** A stored marker category in the user's language; one from an older list shows as stored. */
+export const markerCategoryLabel = (category: string) => (isValidMarkerCategory(category) ? activeT("icons")(`category.${category}`) : category);
+
+/** Icons whose label (English or the user's language), key or synonyms contain the query (case-insensitive), in registry order. */
 export function searchIcons(query: string): IconDefinition[] {
   const q = query.trim().toLowerCase();
   if (!q) return ICONS;
-  return ICONS.filter((i) => i.label.toLowerCase().includes(q) || i.key.includes(q) || i.synonyms.some((s) => s.includes(q)));
+  return ICONS.filter((i) => i.label.toLowerCase().includes(q) || iconLabel(i.key).toLowerCase().includes(q) || i.key.includes(q) || i.synonyms.some((s) => s.includes(q)));
 }
 
 /** Icons split into their picker sections, empty sections left out. */

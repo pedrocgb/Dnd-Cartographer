@@ -1,4 +1,7 @@
 import type { ArticleTemplateKey } from "../articles/templates";
+import { activeT } from "../../i18n/active";
+import { wordedFields } from "../../i18n/worded";
+import type { MessageKey } from "../../i18n/messages";
 
 /**
  * Relation types: pure data shared by the server (validation, Info Bar
@@ -38,12 +41,13 @@ export interface RelationTypeDef {
   hidden?: boolean;
 }
 
-export const RELATION_GROUPS: readonly { key: RelationGroup; label: string }[] = [
-  { key: "family", label: "Family" },
-  { key: "social", label: "Social" },
-  { key: "political", label: "Political" },
-  { key: "custom", label: "Custom" },
-];
+/** `label` is worded on read, in the active language. */
+export const RELATION_GROUPS: readonly { key: RelationGroup; readonly label: string }[] = (["family", "social", "political", "custom"] as const).map((key) => ({
+  key,
+  get label() {
+    return activeT("relations")(`group.${key}`);
+  },
+}));
 
 const PEOPLE = ["character", "playerCharacter"] as const;
 const PEOPLE_ORGS = [...PEOPLE, "organization"] as const;
@@ -74,6 +78,10 @@ const dir = (key: string, group: RelationGroup, label: string, inverseLabel: str
   ...extra,
 });
 
+/**
+ * The English `label`/`inverseLabel` below are the en-US source; once built,
+ * both are getters worded on read from the `relations` namespace.
+ */
 export const RELATION_TYPES: readonly RelationTypeDef[] = [
   // Family (people only)
   dir("parent", "family", "Parent of", "Child of", PEOPLE, PEOPLE, "#D4A24C", "solid", { family: "parent", acyclic: true, attrs: ["parentKind"] }),
@@ -101,7 +109,7 @@ export const RELATION_TYPES: readonly RelationTypeDef[] = [
   dir("foundIn", "ecology", "Found in", "Home of", ["fauna", "flora", "monster"], ["territory", "geography", "building"], "#65A30D", "dotted", { hidden: true }),
   // Anything else, named by its label
   dir("custom", "custom", "Related to", "Related to", "*", "*", "#9CA3AF"),
-];
+].map((t) => wordedFields(t, "relations", `type.${t.key}`, ["label", "inverseLabel"]));
 
 /**
  * Edges computed from other data (never stored): shown read-only on graphs
@@ -114,6 +122,9 @@ export const DERIVED_KINDS = [
   { key: "territoryParent", label: "Vassal of", color: "#A855F7", line: "dotted" },
   { key: "linked", label: "Linked", color: "#6B7280", line: "dotted" },
 ] as const satisfies readonly { key: string; label: string; color: string; line: RelationLine }[];
+
+/** A derived kind's name in the active language (`DERIVED_KINDS` labels are the en-US source). */
+export const derivedLabel = (key: DerivedKind | "capital") => activeT("relations")(`derived.${key}` as MessageKey<"relations">);
 export type DerivedKind = (typeof DERIVED_KINDS)[number]["key"];
 
 export const PARENT_KINDS = ["biological", "adoptive", "step"] as const;

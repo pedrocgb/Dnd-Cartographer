@@ -8,16 +8,19 @@ import { candidateOptions, loadCandidates, type Candidate } from "@/components/a
 import { articleHref, isArticleTemplate } from "@/server/articles/templates";
 import type { ArticleRef } from "./types";
 import { Skeleton } from "@/components/Skeleton";
+import { useT } from "@/i18n/useT";
+import { activeT } from "@/i18n/active";
 
 /** A card listing linked articles (each opens its article, each can be unlinked) with a searchable "Link an article…" picker. */
-export default function ArticleLinksSection({ links, onChange, title = "Linked articles", hint }: { links: ArticleRef[]; onChange: (links: ArticleRef[]) => void; title?: string; hint?: string }) {
+export default function ArticleLinksSection({ links, onChange, title, hint }: { links: ArticleRef[]; onChange: (links: ArticleRef[]) => void; title?: string; hint?: string }) {
+  const t = useT("calendars");
   const [candidates, setCandidates] = useState<Candidate[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
     loadCandidates()
       .then((c) => !cancelled && setCandidates(c))
-      .catch(() => !cancelled && setError("Could not load the articles."));
+      .catch(() => !cancelled && setError(activeT("calendars")("entry.loadFailed")));
     return () => {
       cancelled = true;
     };
@@ -29,12 +32,12 @@ export default function ArticleLinksSection({ links, onChange, title = "Linked a
     <div className="cel-section">
       <header className="cel-section-head">
         <div>
-          <h3>{title}</h3>
+          <h3>{title ?? t("views.linkedArticles")}</h3>
           {hint && <p className="cal-help">{hint}</p>}
         </div>
       </header>
       {links.length === 0 ? (
-        <p className="cel-empty">No linked articles yet.</p>
+        <p className="cel-empty">{t("links.none")}</p>
       ) : (
         <ul className="cel-links">
           {links.map((l) => {
@@ -47,9 +50,9 @@ export default function ArticleLinksSection({ links, onChange, title = "Linked a
                     {c.name}
                   </Link>
                 ) : (
-                  <span className="cal-removed">{candidates ? "(removed)" : <Skeleton className="skeleton-inline" width={110} />}</span>
+                  <span className="cal-removed">{candidates ? t("sidebar.removed") : <Skeleton className="skeleton-inline" width={110} />}</span>
                 )}
-                <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={`Unlink ${c?.name ?? "article"}`} onClick={() => onChange(links.filter((x) => x.articleId !== l.articleId))}>
+                <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={t("links.unlink", { name: c?.name ?? t("links.article") })} onClick={() => onChange(links.filter((x) => x.articleId !== l.articleId))}>
                   <X size={14} />
                 </button>
               </li>
@@ -61,8 +64,8 @@ export default function ArticleLinksSection({ links, onChange, title = "Linked a
         <InfoPicker
           options={candidateOptions(candidates ?? [], linked)}
           value={null}
-          placeholder={candidates ? "Link an article…" : "Loading articles…"}
-          ariaLabel="Link an article"
+          placeholder={candidates ? t("links.add") : t("entry.loadingArticles")}
+          ariaLabel={t("links.addAria")}
           collapsibleGroups
           disabled={!candidates}
           onChange={(id) => {

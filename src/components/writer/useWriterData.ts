@@ -5,6 +5,7 @@ import { api } from "@/components/calendars/api";
 import type { ClientCampaign, ClientSession } from "@/components/sessions/types";
 import type { FrontData, QuestData } from "@/server/quests/types";
 import type { OutlineNode, PlotThread, ThreadBeat } from "@/server/writer/types";
+import { activeT } from "@/i18n/active";
 
 export interface WriterData {
   nodes: OutlineNode[];
@@ -31,7 +32,7 @@ export function useWriterData(campaignId: string | null) {
       api<{ quests: QuestData[] }>("GET", `/api/campaigns/${c}/quests`),
       api<{ fronts: FrontData[] }>("GET", `/api/campaigns/${c}/fronts`),
     ]);
-    if (!outline.ok) return { error: outline.data.error ?? "Could not load the story." };
+    if (!outline.ok) return { error: outline.data.error ?? activeT("writer")("data.couldNotLoadStory") };
     return {
       data: {
         nodes: outline.data.nodes,
@@ -82,7 +83,7 @@ export function useCampaigns() {
     void api<{ campaigns: ClientCampaign[] }>("GET", "/api/campaigns").then((res) => {
       if (cancelled) return;
       if (res.ok) setCampaigns(res.data.campaigns);
-      else setError(res.data.error ?? "Could not load the campaigns.");
+      else setError(res.data.error ?? activeT("writer")("data.couldNotLoadCampaigns"));
     });
     return () => {
       cancelled = true;

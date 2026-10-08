@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { errorResponse, serverT } from "@/i18n/server";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { markerAffiliations, markerArticleLinks, markers, politicalLinks, richDocuments } from "@/server/db/schema";
@@ -20,11 +21,11 @@ function unit(n: unknown): number | null {
  */
 export async function POST(request: Request, { params }: { params: Promise<{ markerId: string }> }) {
   const { markerId } = await params;
-  const denied = await notInWorld("markers", markerId, "Marker not found.");
+  const denied = await notInWorld("markers", markerId, "markerNotFound");
   if (denied) return denied;
   const source = await db.query.markers.findFirst({ where: eq(markers.id, markerId) });
   if (!source) {
-    return NextResponse.json({ error: "Marker not found." }, { status: 404 });
+    return errorResponse("markerNotFound", 404);
   }
 
   const body: Record<string, unknown> = await request.json().catch(() => ({}));
@@ -34,13 +35,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ mar
   let v = Math.min(1, source.v + OFFSET);
   if (exact) {
     if (!(await isLayerOfMap(body.layerId, source.mapId))) {
-      return NextResponse.json({ error: "Layer must belong to the marker's map." }, { status: 400 });
+      return errorResponse("layerOfMarkerMap", 400);
     }
     layerId = body.layerId as string;
     u = unit(body.u) ?? source.u;
     v = unit(body.v) ?? source.v;
   }
 
+  // Worded before the transaction: the copy's name follows the user's language.
+  const copyName = exact ? source.name : (await serverT("maps"))("defaults.copyOf", { name: source.name });
   const duplicate = await db.transaction(async (tx) => {
     let descriptionDocumentId: string | null = null;
     if (exact && source.descriptionDocumentId) {
@@ -59,7 +62,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ mar
       .values({
         mapId: source.mapId,
         layerId,
-        name: exact ? source.name : `${source.name} (copy)`,
+        name: copyName,
         u,
         v,
         iconKey: source.iconKey,

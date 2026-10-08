@@ -25,146 +25,59 @@ import {
   WandSparkles,
   type LucideIcon,
 } from "lucide-react";
-import { ARTICLE_TEMPLATE_KEYS, TEMPLATE_LABELS, type ArticleTemplateKey } from "@/server/articles/templates";
+import { ARTICLE_TEMPLATE_KEYS, type ArticleTemplateKey } from "@/server/articles/templates";
+import { activeT } from "@/i18n/active";
 
 export interface ArticleTemplate {
   key: ArticleTemplateKey;
-  /** Singular name — also the article's fixed tag. */
-  label: string;
+  /** Singular name — also the article's fixed tag. In the user's language (worded on read). */
+  readonly label: string;
   /** Sidebar folder name. */
-  plural: string;
+  readonly plural: string;
   Icon: LucideIcon;
-  description: string;
+  readonly description: string;
 }
 
-const DETAILS: Record<ArticleTemplateKey, Omit<ArticleTemplate, "key" | "label">> = {
-  generic: {
-    plural: "Generic",
-    Icon: FileText,
-    description: "A blank page for anything that doesn't fit elsewhere: lore notes, session recaps, loose ideas.",
-  },
-  character: {
-    plural: "Characters",
-    Icon: UserRound,
-    description: "Heroes, villains, rulers and wandering bards. Track their house, status and the seats they hold.",
-  },
-  playerCharacter: {
-    plural: "Player Characters",
-    Icon: UserStar,
-    description: "The heroes at your table: who plays them, their class and level, their quests, their party and the legacy they leave.",
-  },
-  organization: {
-    plural: "Organizations",
-    Icon: UserRoundGroup,
-    description: "Noble houses, guilds, councils and secret orders, and the people who swear by them.",
-  },
-  territory: {
-    plural: "Territories",
-    Icon: MapPinned,
-    description: "Empires, kingdoms, duchies and marches, arranged into the hierarchy that rules your world.",
-  },
-  settlement: {
-    plural: "Settlements",
-    Icon: Landmark,
-    description: "Cities, towns, villages and outposts: who lives there, what they trade, what they fear.",
-  },
-  building: {
-    plural: "Buildings",
-    Icon: Building,
-    description: "Castles, taverns, temples and ruins worth a detailed floor plan and a whispered rumor.",
-  },
-  geography: {
-    plural: "Geography",
-    Icon: MapIcon,
-    description: "Mountains, rivers, forests and seas: the land itself, its dangers and its secrets.",
-  },
-  military: {
-    plural: "Military",
-    Icon: Shield,
-    description: "Armies, fleets, legions and warbands: who commands them, how they fight, and where they march.",
-  },
-  conflict: {
-    plural: "Conflicts",
-    Icon: Swords,
-    description: "Wars, sieges, rebellions and feuds: their causes, their battles and the scars they leave.",
-  },
-  technology: {
-    plural: "Technology",
-    Icon: Cog,
-    description: "Machines, techniques and inventions, how they work, and who would kill to control them.",
-  },
-  title: {
-    plural: "Titles",
-    Icon: ChessQueen,
-    description: "Crowns, ranks and honors: how they are earned, inherited, and stolen.",
-  },
-  law: {
-    plural: "Laws",
-    Icon: Scale,
-    description: "Edicts, codes and customs of justice, and the price of breaking them.",
-  },
-  tradition: {
-    plural: "Traditions",
-    Icon: HandHelping,
-    description: "Festivals, rites of passage and old habits that bind a people together.",
-  },
-  culture: {
-    plural: "Culture",
-    Icon: BookOpen,
-    description: "Art, language, cuisine and values: what makes a people who they are.",
-  },
-  species: {
-    plural: "Species",
-    Icon: Dna,
-    description: "Peoples, beasts and monsters: their origins, their nature, and how to survive them.",
-  },
-  fauna: {
-    plural: "Fauna",
-    Icon: PawPrint,
-    description: "Animals of the wild and the farm: where they roam, what they eat, and what people make of them.",
-  },
-  flora: {
-    plural: "Flora",
-    Icon: Sprout,
-    description: "Trees, herbs, fungi and stranger growths: where they grow, what they heal, and what they poison.",
-  },
-  monster: {
-    plural: "Monsters",
-    Icon: Skull,
-    description: "Creatures to fear: their lairs, their habits, their legends, and a link to their stat block.",
-  },
-  religion: {
-    plural: "Religion",
-    Icon: Church,
-    description: "Gods, pantheons, cults and faiths, with their tenets, clergy and holy sites.",
-  },
-  item: {
-    plural: "Items",
-    Icon: Sword,
-    description: "Legendary blades, cursed relics and humble heirlooms with a story to tell.",
-  },
-  magic: {
-    plural: "Magic & Spells",
-    Icon: WandSparkles,
-    description: "Spells, rituals, schools and traditions of magic: how they're cast, and what they cost.",
-  },
-  document: {
-    plural: "Document",
-    Icon: File,
-    description: "Letters, prophecies, treaties and in-world texts your players can find and read.",
-  },
-  language: {
-    plural: "Languages",
-    Icon: Languages,
-    description: "Tongues, dialects, scripts and secret cants: who speaks them, and what they unlock.",
-  },
+const ICONS: Record<ArticleTemplateKey, LucideIcon> = {
+  generic: FileText,
+  character: UserRound,
+  playerCharacter: UserStar,
+  organization: UserRoundGroup,
+  territory: MapPinned,
+  settlement: Landmark,
+  building: Building,
+  geography: MapIcon,
+  military: Shield,
+  conflict: Swords,
+  technology: Cog,
+  title: ChessQueen,
+  law: Scale,
+  tradition: HandHelping,
+  culture: BookOpen,
+  species: Dna,
+  fauna: PawPrint,
+  flora: Sprout,
+  monster: Skull,
+  religion: Church,
+  item: Sword,
+  magic: WandSparkles,
+  document: File,
+  language: Languages,
 };
 
 /** Every template, in sidebar and "Create new article" order. */
 export const ARTICLE_TEMPLATES: ArticleTemplate[] = ARTICLE_TEMPLATE_KEYS.map((key) => ({
   key,
-  label: TEMPLATE_LABELS[key],
-  ...DETAILS[key],
+  Icon: ICONS[key],
+  get label() {
+    return activeT("articles")(`template.${key}.label`);
+  },
+  get plural() {
+    return activeT("articles")(`template.${key}.plural`);
+  },
+  get description() {
+    return activeT("articles")(`template.${key}.description`);
+  },
 }));
 
 export function templateOf(key: ArticleTemplateKey): ArticleTemplate {

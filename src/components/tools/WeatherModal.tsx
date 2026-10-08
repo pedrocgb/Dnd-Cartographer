@@ -8,6 +8,9 @@ import { fromCelsius, fromKmh, speedUnit, temperatureSymbol } from "@/server/set
 import { DARK_TIMES } from "@/lib/weather/options";
 import { hourLabel, type WeatherDay, type WeatherHour } from "@/lib/weather/generate";
 import WeatherTimeline from "./WeatherTimeline";
+import { useT } from "@/i18n/useT";
+import { activeT } from "@/i18n/active";
+import { beaufortLabel, climateLabel, directionLabel, geographyLabel, seasonLabel, timeOfDayLabel, weatherText } from "@/lib/weather/labels";
 
 /** The hour shown first: midday, when most scenes happen. */
 const FIRST_HOUR = 12;
@@ -30,12 +33,15 @@ export function hourIcon(h: WeatherHour): LucideIcon {
 }
 
 /** "Mostly cloudy; light rain 14:00–18:00": the longest dry stretch, then each wet one. */
-export function daySummary(day: WeatherDay): string {
+export function daySummary(day: WeatherDay, t = activeT("weather")): string {
   const dry = day.segments.filter((s) => !day.hours[s.start].precipitation);
   const longest = [...dry].sort((a, b) => b.end - b.start - (a.end - a.start))[0];
   const wet = day.segments.filter((s) => day.hours[s.start].precipitation && !day.underground);
-  const parts = [longest ? longest.label : "Wet all day", ...wet.slice(0, 2).map((s) => `${s.label.toLowerCase()} ${hourLabel(s.start)}–${hourLabel(s.end)}`)];
-  if (wet.length > 2) parts.push("more showers later");
+  const parts = [
+    longest ? weatherText(longest.label, t) : t("summary.wetAllDay"),
+    ...wet.slice(0, 2).map((s) => t("summary.wet", { label: weatherText(s.label, t).toLocaleLowerCase(), from: hourLabel(s.start), to: hourLabel(s.end) })),
+  ];
+  if (wet.length > 2) parts.push(t("summary.more"));
   return parts.join("; ");
 }
 
@@ -63,27 +69,28 @@ interface WeatherModalProps {
  * another day starts again at midday.
  */
 export default function WeatherModal({ day, onClose, extra, actions }: WeatherModalProps) {
+  const t = useT("weather");
   const { settings } = useSettings();
   const [selected, setSelected] = useState(FIRST_HOUR);
   const temp = (c: number) => `${Math.round(fromCelsius(c, settings.temperatureUnit))}${temperatureSymbol(settings.temperatureUnit)}`;
   const speed = (kmh: number) => `${Math.round(fromKmh(kmh, settings.lengthSystem))} ${speedUnit(settings.lengthSystem)}`;
   const h = day.hours[selected];
-  const windows = (w: [number, number][]) => (w.length === 1 && w[0][0] === 0 && w[0][1] === 24 ? "All day" : w.map(([a, b]) => `${hourLabel(a)}–${hourLabel(b)}`).join(", "));
+  const windows = (w: [number, number][]) => (w.length === 1 && w[0][0] === 0 && w[0][1] === 24 ? t("modal.allDay") : w.map(([a, b]) => `${hourLabel(a)}–${hourLabel(b)}`).join(", "));
 
   return (
-    <Modal open onClose={onClose} title="Weather" size="wide">
+    <Modal open onClose={onClose} title={t("modal.title")} size="wide">
       <div className="tool-hero">
         <div className="tool-avatar weather-icon" aria-hidden>
           {createElement(hourIcon(day.hours[FIRST_HOUR]), { size: 30, strokeWidth: 2 })}
         </div>
         <div className="tool-hero-text">
           <h3 className="tool-hero-name">
-            {temp(day.low)} / {temp(day.high)} <span className="weather-summary">{daySummary(day)}</span>
+            {temp(day.low)} / {temp(day.high)} <span className="weather-summary">{daySummary(day, t)}</span>
           </h3>
           <div className="tool-tags">
-            <span className="tool-tag">{day.climate}</span>
-            <span className="tool-tag">{day.geography}</span>
-            <span className="tool-tag tool-tag-accent">{day.season}</span>
+            <span className="tool-tag">{climateLabel(day.climate, t)}</span>
+            <span className="tool-tag">{geographyLabel(day.geography, t)}</span>
+            <span className="tool-tag tool-tag-accent">{seasonLabel(day.season, t)}</span>
           </div>
         </div>
       </div>
@@ -94,25 +101,25 @@ export default function WeatherModal({ day, onClose, extra, actions }: WeatherMo
         <div className="weather-hour-head">
           {createElement(hourIcon(h), { size: 18, strokeWidth: 2.25, "aria-hidden": true })}
           <strong>
-            {hourLabel(h.hour)} · {h.timeOfDay}
+            {hourLabel(h.hour)} · {timeOfDayLabel(h.timeOfDay, t)}
           </strong>
           <span>{temp(h.temp)}</span>
         </div>
         <div className="tool-facts">
-          <Fact label="Sky" value={h.sky} />
-          <Fact label="Precipitation" value={h.precipitationLabel} />
+          <Fact label={t("modal.sky")} value={weatherText(h.sky, t)} />
+          <Fact label={t("modal.precipitation")} value={weatherText(h.precipitationLabel, t)} />
         </div>
         <div className="tool-facts">
-          <Fact label="Wind force" value={h.windForce} />
-          <Fact label="Wind speed" value={speed(h.windKmh)} />
-          <Fact label="Gusts" value={h.gustKmh === null ? "None" : `Up to ${speed(h.gustKmh)}`} />
-          <Fact label="Wind direction" value={h.direction} />
+          <Fact label={t("modal.windForce")} value={beaufortLabel(h.beaufort, t)} />
+          <Fact label={t("modal.windSpeed")} value={speed(h.windKmh)} />
+          <Fact label={t("modal.gusts")} value={h.gustKmh === null ? t("ui.none") : t("modal.gustsUpTo", { speed: speed(h.gustKmh) })} />
+          <Fact label={t("modal.windDirection")} value={directionLabel(h.direction, t)} />
         </div>
         <div className="weather-effects">
-          <span className="tool-fact-label">At this hour</span>
+          <span className="tool-fact-label">{t("modal.atThisHour")}</span>
           <ul>
             {h.effects.map((effect) => (
-              <li key={effect}>{effect}</li>
+              <li key={effect}>{weatherText(effect, t)}</li>
             ))}
           </ul>
         </div>
@@ -120,11 +127,11 @@ export default function WeatherModal({ day, onClose, extra, actions }: WeatherMo
 
       <div className="tool-sheet">
         <div className="weather-effects">
-          <span className="tool-fact-label">Practical effects today</span>
+          <span className="tool-fact-label">{t("modal.effectsToday")}</span>
           <ul>
             {day.effects.map((effect) => (
               <li key={effect.text}>
-                {effect.text}
+                {weatherText(effect.text, t)}
                 <span className="weather-when">{windows(effect.windows)}</span>
               </li>
             ))}

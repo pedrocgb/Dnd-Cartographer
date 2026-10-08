@@ -6,6 +6,7 @@ import { celestialStates, dayLabel, monthBlock, occurrenceTitle, periodsOf, type
 import type { ClientCelestial, ClientSeason } from "./types";
 import type { BriefSession } from "@/components/sessions/types";
 import { isClosed, QUEST_DAY_LABELS, type BriefQuest, type QuestDayKind } from "@/server/quests/types";
+import { useT } from "@/i18n/useT";
 
 export interface ViewProps {
   def: CalendarDefinition;
@@ -34,6 +35,7 @@ function byIconPriority<T extends { object: ClientCelestial }>(states: T[]): T[]
 }
 
 function DayCell({ cell, props, dense }: { cell: MonthCell; props: ViewProps; dense: boolean }) {
+  const t = useT("calendars");
   const items = props.occurrences.get(cell.worldDay) ?? [];
   const current = cell.worldDay === props.currentDay;
   const selected = cell.worldDay === props.selectedDay;
@@ -88,7 +90,7 @@ function DayCell({ cell, props, dense }: { cell: MonthCell; props: ViewProps; de
         <span className="cal-day-chips" aria-hidden>
           {daySessions.slice(0, MAX_CHIPS).map((s) => (
             <span key={s.id} className="cal-chip session">
-              📜 {s.title || `Session ${s.number}`}
+              📜 {s.title || t("views.session", { n: s.number })}
             </span>
           ))}
           {deadlines.slice(0, questChips).map((q) => (
@@ -98,10 +100,10 @@ function DayCell({ cell, props, dense }: { cell: MonthCell; props: ViewProps; de
           ))}
           {items.slice(0, entryChips).map((item) => (
             <span key={`${item.entry.id}:${item.occurrence.key}`} className={`cal-chip ${item.entry.kind}`} style={item.entry.color ? { borderLeftColor: item.entry.color } : undefined}>
-              {occurrenceTitle(item) || (item.entry.kind === "note" ? "Note" : "Link")}
+              {occurrenceTitle(item) || (item.entry.kind === "note" ? t("views.note") : t("views.link"))}
             </span>
           ))}
-          {items.length > entryChips && <span className="cal-more">+{items.length - entryChips} more</span>}
+          {items.length > entryChips && <span className="cal-more">{t("views.more", { n: items.length - entryChips })}</span>}
         </span>
       )}
     </button>
@@ -122,8 +124,9 @@ function Weekheads({ def, dense, column }: { def: CalendarDefinition; dense: boo
 }
 
 function Grid({ def, periodId, props, dense }: { def: CalendarDefinition; periodId: string; props: ViewProps; dense: boolean }) {
+  const t = useT("calendars");
   const block = monthBlock(def, props.year, periodId);
-  if (!block) return <p className="cal-help">This month doesn&apos;t occur in year {props.year}.</p>;
+  if (!block) return <p className="cal-help">{t("views.monthAbsent", { year: props.year })}</p>;
   const cols = def.weekdays.length || 10;
   const column = dense ? "minmax(0, 1fr)" : "minmax(96px, 1fr)";
   return (
@@ -134,7 +137,7 @@ function Grid({ def, periodId, props, dense }: { def: CalendarDefinition; period
       </div>
       {block.outOfWeek.length > 0 && (
         <div className="cal-outside-week">
-          <span className="field-label">Outside the week</span>
+          <span className="field-label">{t("views.outsideWeek")}</span>
           <div className="cal-grid" style={{ gridTemplateColumns: `repeat(${dense ? cols : Math.min(block.outOfWeek.length, cols)}, ${column})` }}>
             {block.outOfWeek.map((cell) => (
               <DayCell key={cell.worldDay} cell={cell} props={props} dense={dense} />
@@ -152,6 +155,7 @@ export function MonthView({ periodId, ...props }: ViewProps & { periodId: string
 
 /** Every period of the year as a compact grid; clicking a name opens that month. */
 export function YearView({ onOpenMonth, ...props }: ViewProps & { onOpenMonth: (periodId: string) => void }) {
+  const t = useT("calendars");
   const periods = periodsOf(props.def, props.year);
   return (
     <div className="cal-year">
@@ -159,7 +163,7 @@ export function YearView({ onOpenMonth, ...props }: ViewProps & { onOpenMonth: (
         <section key={p.period.id} className={p.period.kind === "special" ? "cal-year-month special" : "cal-year-month"}>
           <button type="button" className="cal-year-title" onClick={() => onOpenMonth(p.period.id)}>
             {p.period.name}
-            <span className="cal-year-days">{p.days} days</span>
+            <span className="cal-year-days">{t("preview.days", { count: p.days, n: p.days })}</span>
           </button>
           <Grid def={props.def} periodId={p.period.id} props={props} dense />
         </section>
@@ -169,8 +173,9 @@ export function YearView({ onOpenMonth, ...props }: ViewProps & { onOpenMonth: (
 }
 
 /** Chronological list of every occurrence in the viewed range. */
-export function AgendaView({ def, items, onSelect, selectedDay, rangeLabel }: { def: CalendarDefinition; items: DayOccurrence[]; onSelect: (d: number) => void; selectedDay: number | null; rangeLabel: string }) {
-  if (items.length === 0) return <p className="cal-empty">Nothing recorded in {rangeLabel}.</p>;
+export function AgendaView({ def, items, onSelect, selectedDay, emptyText }: { def: CalendarDefinition; items: DayOccurrence[]; onSelect: (d: number) => void; selectedDay: number | null; emptyText: string }) {
+  const t = useT("calendars");
+  if (items.length === 0) return <p className="cal-empty">{emptyText}</p>;
   return (
     <ol className="cal-agenda">
       {items.map((item) => (
@@ -181,7 +186,7 @@ export function AgendaView({ def, items, onSelect, selectedDay, rangeLabel }: { 
               {item.occurrence.end > item.occurrence.start && ` – ${dayLabel(def, item.occurrence.end, { weekday: false })}`}
             </span>
             <span className={`cal-chip ${item.entry.kind}`} style={item.entry.color ? { borderLeftColor: item.entry.color } : undefined}>
-              {occurrenceTitle(item) || (item.entry.kind === "note" ? "Note" : "Article link")}
+              {occurrenceTitle(item) || (item.entry.kind === "note" ? t("views.note") : t("views.articleLink"))}
             </span>
             {item.entry.category && <span className="cal-agenda-category">{item.entry.category}</span>}
           </button>

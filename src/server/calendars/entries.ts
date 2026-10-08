@@ -39,16 +39,16 @@ export async function checkRecurrence(worldId: string, rule: Recurrence) {
     refs.profileIds.length ? db.select({ id: seasonProfiles.id }).from(seasonProfiles).where(and(eq(seasonProfiles.worldId, worldId), inArray(seasonProfiles.id, refs.profileIds))) : [],
     refs.objectIds.length ? db.select({ id: celestialObjects.id }).from(celestialObjects).where(and(eq(celestialObjects.worldId, worldId), inArray(celestialObjects.id, refs.objectIds))) : [],
   ]);
-  if (cal.length !== refs.calendarIds.length) throw new InvalidError("The repeat rule points at a calendar that doesn't exist.");
-  if (prof.length !== refs.profileIds.length) throw new InvalidError("A condition points at a season profile that doesn't exist.");
-  if (obj.length !== refs.objectIds.length) throw new InvalidError("A condition points at a celestial object that doesn't exist.");
+  if (cal.length !== refs.calendarIds.length) throw new InvalidError({ key: "problem.repeatCalendarGone" });
+  if (prof.length !== refs.profileIds.length) throw new InvalidError({ key: "problem.profileGone" });
+  if (obj.length !== refs.objectIds.length) throw new InvalidError({ key: "problem.objectGone" });
 }
 
 /** Live articles of the world only; a link to a deleted, missing or other-world article is refused. */
 export async function checkArticles(worldId: string, links: { template: string; articleId: string }[]) {
-  if (links.some((l) => !isArticleTemplate(l.template))) throw new InvalidError("Unknown article type.");
+  if (links.some((l) => !isArticleTemplate(l.template))) throw new InvalidError({ key: "problem.unknownArticleType" });
   const names = await resolveArticleNames(worldId, links);
-  if (links.some((l) => !names.has(l.articleId))) throw new InvalidError("A linked article doesn't exist (it may have been deleted).");
+  if (links.some((l) => !names.has(l.articleId))) throw new InvalidError({ key: "problem.linkedArticleGone" });
 }
 
 /** The links that point at live articles of the world (others, e.g. since deleted, are dropped), as stored JSON. */
@@ -83,7 +83,7 @@ export async function parseEntryFields(worldId: string, kind: EntryKind, body: R
   if ("worldDay" in body) out.worldDay = dayInt(body.worldDay, "The date");
   if ("durationDays" in body) {
     const d = dayInt(body.durationDays, "The duration");
-    if (d < 1 || d > MAX_DURATION_DAYS) throw new ParseError(`Events last between 1 and ${MAX_DURATION_DAYS} days.`);
+    if (d < 1 || d > MAX_DURATION_DAYS) throw new ParseError({ key: "problem.eventLength", params: { max: MAX_DURATION_DAYS } });
     out.durationDays = kind === "event" ? d : 1;
   }
   if ("title" in body) out.title = cleanName(body.title, 200);
@@ -98,7 +98,7 @@ export async function parseEntryFields(worldId: string, kind: EntryKind, body: R
   if (kind === "link" && ("articleId" in body || "articleTemplate" in body)) {
     const template = typeof body.articleTemplate === "string" ? body.articleTemplate : "";
     const articleId = typeof body.articleId === "string" ? body.articleId : "";
-    if (!template || !articleId) throw new ParseError("Pick the article to link.");
+    if (!template || !articleId) throw new ParseError({ key: "problem.pickArticle" });
     await checkArticles(worldId, [{ template, articleId }]);
     out.articleTemplate = template;
     out.articleId = articleId;

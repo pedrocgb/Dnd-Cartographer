@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/components/calendars/api";
 import { DEFAULT_SCALE, type ScaleConfig } from "@/server/scale/scale-config";
+import { activeT } from "@/i18n/active";
 
 const SAVE_DELAY_MS = 250;
 
@@ -51,7 +52,7 @@ export function useMapScaleBar(mapId: string) {
       const timer = setTimeout(async () => {
         pending.current = null;
         const res = await api("PUT", `/api/maps/${mapId}/scale-bar`, merged);
-        setError(res.ok ? null : (res.data.error ?? "Could not save the scale bar."));
+        setError(res.ok ? null : (res.data.error ?? activeT("maps")("error.saveScaleBar")));
       }, SAVE_DELAY_MS);
       pending.current = { patch: merged, timer };
     },

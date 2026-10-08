@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import type OpenSeadragonType from "openseadragon";
 import { clientToImagePoint, type Pt } from "@/components/osd-coords";
-import { formatDistance, formatNumber, SCALE_UNIT_LABELS, SCALE_UNITS, type ScaleConfig, type ScaleUnit } from "@/server/scale/scale-config";
+import { formatDistance, formatNumber, scaleUnitLabel, SCALE_UNITS, type ScaleConfig, type ScaleUnit } from "@/server/scale/scale-config";
 import { useViewportTick } from "./MapScaleBar";
+import { useT } from "@/i18n/useT";
 
 export type MeasureMode = "measure" | "calibrate" | "travel";
 
@@ -59,6 +60,8 @@ export default function MeasureLayer({
   /** Replaces the "Total …" label at the path's end. */
   summary?: (framePx: number) => string;
 }) {
+  const t = useT("maps");
+  const tc = useT("common");
   useViewportTick(viewer);
   const [points, setPoints] = useState<Pt[]>([]);
   const [cursor, setCursor] = useState<Pt | null>(null);
@@ -198,48 +201,48 @@ export default function MeasureLayer({
           ))}
         {end && segments.length > 0 && (
           <text x={end.x + 10} y={end.y - 10} className="measure-label">
-            {calibrating ? label(total) : summary ? summary(total) : `Total ${label(total)}`}
+            {calibrating ? label(total) : summary ? summary(total) : t("measure.total", { value: label(total) })}
           </text>
         )}
       </svg>
       <div className="measure-hint" role="status">
         {calibrating
           ? full
-            ? "Now type the real distance between the two points."
+            ? t("measure.typeDistance")
             : points.length
-              ? "Click the second point."
-              : "Click the first of two points a known distance apart (e.g. two cities)."
+              ? t("measure.secondPoint")
+              : t("measure.firstPoint")
           : points.length
             ? onFinish
-              ? "Click to add points · Shift keeps 45° angles · Right-click or Enter finishes and saves · Backspace undoes · Esc cancels"
-              : "Click to add points · Shift keeps 45° angles · Backspace undoes · Esc or right-click clears"
+              ? t("measure.routeHint")
+              : t("measure.pathHint")
             : mode === "travel"
-              ? "Click on the map to draw the route, point by point."
+              ? t("measure.travelStart")
             : ppu
-              ? "Click on the map to start measuring."
-              : "Calibrate the scale first to read real distances (showing map pixels)."}
+              ? t("measure.start")
+              : t("measure.uncalibrated")}
       </div>
       {full && end && (
         <form className="measure-calibrate rich-floating" style={{ left: end.x + 12, top: end.y + 12 }} onSubmit={submitCalibration}>
           <label className="field-label" htmlFor="measure-distance">
-            Real distance
+            {t("measure.realDistance")}
           </label>
           <div className="measure-calibrate-row">
-            <input id="measure-distance" type="text" inputMode="decimal" autoFocus value={distance} placeholder="e.g. 120" onChange={(e) => setDistance(e.target.value)} />
-            <select aria-label="Unit" value={unit} onChange={(e) => setUnit(e.target.value as ScaleUnit)}>
+            <input id="measure-distance" type="text" inputMode="decimal" autoFocus value={distance} placeholder={t("measure.distancePlaceholder")} onChange={(e) => setDistance(e.target.value)} />
+            <select aria-label={t("scale.unit")} value={unit} onChange={(e) => setUnit(e.target.value as ScaleUnit)}>
               {SCALE_UNITS.map((u) => (
                 <option key={u} value={u}>
-                  {u === "custom" ? config.customLabel || "Custom unit" : SCALE_UNIT_LABELS[u]}
+                  {u === "custom" ? config.customLabel || scaleUnitLabel(u) : scaleUnitLabel(u)}
                 </option>
               ))}
             </select>
           </div>
           <div className="marker-panel-actions">
             <button type="submit" className="btn btn-sm btn-primary" disabled={!(Number(distance.replace(",", ".")) > 0)}>
-              Set scale
+              {t("measure.setScale")}
             </button>
             <button type="button" className="btn btn-sm" onClick={onCancelCalibration}>
-              Cancel
+              {tc("cancel")}
             </button>
           </div>
         </form>

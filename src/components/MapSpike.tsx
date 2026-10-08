@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type OpenSeadragonType from "openseadragon";
+import { useT } from "@/i18n/useT";
 
 type MarkerCount = 0 | 1000 | 5000;
 
@@ -49,6 +50,8 @@ function buildMarkers(count: number): Marker[] {
 }
 
 export default function MapSpike() {
+  const tm = useT("maps");
+  const tc = useT("common");
   const viewerElRef = useRef<HTMLDivElement | null>(null);
   const viewerRef = useRef<OpenSeadragonType.Viewer | null>(null);
   const osdRef = useRef<typeof OpenSeadragonType | null>(null);
@@ -157,26 +160,27 @@ export default function MapSpike() {
     <div className="spike-root">
       <div className="spike-hud">
         <div className="spike-hud-row">
-          <span className="spike-label">Markers</span>
+          <span className="spike-label">{tm("spike.markers")}</span>
           {[0, 1000, 5000].map((count) => (
             <button
               key={count}
               className={markerCount === count ? "spike-btn active" : "spike-btn"}
               onClick={() => setMarkerCount(count as MarkerCount)}
             >
-              {count === 0 ? "None" : count.toLocaleString()}
+              {count === 0 ? tm("spike.none") : count.toLocaleString()}
             </button>
           ))}
         </div>
         <div className="spike-hud-row">
-          <span className="spike-stat">FPS: {fps}</span>
+          <span className="spike-stat">{tm("spike.fps", { fps })}</span>
           {memoryMb !== null && (
-            <span className="spike-stat">JS heap: {memoryMb} MB</span>
+            <span className="spike-stat">{tm("spike.heap", { mb: memoryMb })}</span>
           )}
-          <span className="spike-stat">{ready ? "Image loaded" : "Loading…"}</span>
+          <span className="spike-stat">{ready ? tm("spike.loaded") : tc("loading")}</span>
         </div>
       </div>
       <div ref={viewerElRef} className="spike-viewer" />
+      {/* eslint-disable-next-line react/jsx-no-literals -- styled-jsx needs the CSS inline */}
       <style jsx global>{`
         .spike-marker {
           width: 28px;

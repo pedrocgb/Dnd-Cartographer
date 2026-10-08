@@ -10,13 +10,16 @@ import { validateChain, computeMissingRequiredTypes } from "@/server/politics/hi
 import { sanitizeInfo } from "@/server/articles/info-fields";
 import { TERRITORY_INFO } from "@/server/articles/info-sets";
 import { RelationError } from "@/server/relations/store";
+import { relationErrorResponse } from "@/server/relations/respond";
 import { withRelationSync } from "@/server/relations/sync";
+import { errorResponse } from "@/i18n/server";
+import { chainErrorResponse, chainErrorText } from "@/server/politics/chain-errors";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const worldId = await requireWorldId();
   const territory = await db.query.territories.findFirst({ where: and(eq(territories.id, id), eq(territories.worldId, worldId)) });
-  if (!territory) return NextResponse.json({ error: "Territory not found." }, { status: 404 });
+  if (!territory) return errorResponse("territoryNotFound", 404);
 
   const { searchParams } = new URL(request.url);
   if (searchParams.get("withChain") !== "true") {
@@ -39,10 +42,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const { id } = await params;
   const worldId = await requireWorldId();
   const territory = await db.query.territories.findFirst({ where: and(eq(territories.id, id), eq(territories.worldId, worldId)) });
-  if (!territory) return NextResponse.json({ error: "Territory not found." }, { status: 404 });
+  if (!territory) return errorResponse("territoryNotFound", 404);
 
   const body = await request.json().catch(() => null);
-  if (!body) return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+  if (!body) return errorResponse("invalidBody", 400);
 
   const patch: Partial<typeof territories.$inferInsert> = { updatedAt: new Date() };
   if (typeof body.name === "string" && body.name.trim()) patch.name = body.name.trim();
@@ -76,20 +79,20 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const nextProfileId = changingProfile ? String(body.hierarchyProfileId) : territory.hierarchyProfileId;
 
     if (nextParentId === id) {
-      return NextResponse.json({ error: "A territory cannot be its own parent." }, { status: 400 });
+      return errorResponse("territoryOwnParent", 400);
     }
     if (nextParentId) {
       // Reject if nextParentId is a descendant of this territory (would create a cycle).
       const descendantChain = await resolveChain(worldId, nextParentId);
-      if (descendantChain.at(-1)?.id !== nextParentId) return NextResponse.json({ error: "Parent territory not found in this world." }, { status: 400 });
+      if (descendantChain.at(-1)?.id !== nextParentId) return errorResponse("parentTerritoryNotFound", 400);
       if (descendantChain.some((t) => t.id === id)) {
-        return NextResponse.json({ error: "That reparenting would create a cycle." }, { status: 400 });
+        return errorResponse("territoryCycle", 400);
       }
     }
     if (changingProfile) {
       const profile = await db.query.hierarchyProfiles.findFirst({ where: eq(hierarchyProfiles.id, nextProfileId) });
       if (!profile || profile.worldId !== territory.worldId) {
-        return NextResponse.json({ error: "Hierarchy profile not found in this world." }, { status: 400 });
+        return errorResponse("profileNotInWorld", 400);
       }
     }
 
@@ -98,7 +101,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const chain = [...ancestors, candidate];
     const levelsMap = await levelsByProfileId(chain.map((t) => t.hierarchyProfileId));
     const result = validateChain(chain, levelsMap);
-    if (!result.valid) return NextResponse.json({ error: result.error }, { status: 400 });
+    if (!result.valid) return chainErrorResponse(result, 400);
 
     // Atomic: also verify every existing descendant subtree still validates
     // under the changed root/type/profile before committing anything. Each
@@ -112,10 +115,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       const descLevels = await levelsByProfileId(descChain.map((t) => t.hierarchyProfileId));
       const descResult = validateChain(descChain, descLevels);
       if (!descResult.valid) {
-        return NextResponse.json(
-          { error: `Cannot apply change: descendant "${desc.name}" would become invalid — ${descResult.error}` },
-          { status: 409 }
-        );
+        return errorResponse("descendantInvalid", 409, undefined, { name: desc.name, reason: await chainErrorText(descResult) });
       }
     }
 
@@ -130,7 +130,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return row;
     });
   } catch (err) {
-    if (err instanceof RelationError) return NextResponse.json({ error: err.message }, { status: 409 });
+    if (err instanceof RelationError) return relationErrorResponse(err);
     throw err;
   }
   return NextResponse.json({ territory: updated });
@@ -155,20 +155,17 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   const { id } = await params;
   const worldId = await requireWorldId();
   const territory = await db.query.territories.findFirst({ where: and(eq(territories.id, id), eq(territories.worldId, worldId)) });
-  if (!territory) return NextResponse.json({ error: "Territory not found." }, { status: 404 });
+  if (!territory) return errorResponse("territoryNotFound", 404);
 
   const children = await db.query.territories.findMany({ where: and(eq(territories.parentId, id), isNull(territories.deletedAt)) });
   if (children.length > 0) {
-    return NextResponse.json(
-      { error: `Cannot delete: ${children.length} territor${children.length === 1 ? "y" : "ies"} still list this as their parent.` },
-      { status: 409 }
-    );
+    return errorResponse("territoryHasChildren", 409, undefined, { count: children.length, n: children.length });
   }
   const affiliated = await db.query.markerAffiliations.findFirst({
     where: eq(markerAffiliations.territoryId, id),
   });
   if (affiliated) {
-    return NextResponse.json({ error: "Cannot delete: a marker is affiliated with this territory." }, { status: 409 });
+    return errorResponse("territoryHasMarkers", 409);
   }
 
   await db.update(territories).set({ deletedAt: new Date(), updatedAt: new Date() }).where(and(eq(territories.id, id), eq(territories.worldId, worldId)));

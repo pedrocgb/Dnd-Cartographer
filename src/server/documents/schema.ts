@@ -10,6 +10,8 @@
  */
 
 import { MAP_FONTS, mapFontFamily } from "../texts/fonts";
+import { translate, type TranslateParams } from "../../i18n/translate";
+import type { MessageKey } from "../../i18n/messages";
 import { MAX_MENTION_LABEL, MENTION_ID, isMentionKind, mentionDisplayText } from "../mentions/kinds";
 import { ARTICLE_IMAGE_KEY, ARTICLE_IMAGE_URL_PREFIX, HEADING_LEVELS, IMAGE_ALIGNS, MAX_IMAGE_DIMENSION, TEXT_ALIGNS } from "./rich-attrs";
 
@@ -54,7 +56,15 @@ export const LIMITS = {
   maxWorldDay: 100_000_000,
 };
 
-export class DocumentValidationError extends Error {}
+/** A document that failed validation; `key`/`params` are an `errors` message for the route to word. */
+export class DocumentValidationError extends Error {
+  constructor(
+    readonly key: MessageKey<"errors">,
+    readonly params?: TranslateParams,
+  ) {
+    super(translate("en-US", "errors", key, params));
+  }
+}
 
 interface JsonNode {
   type?: string;
@@ -89,83 +99,83 @@ const isSpan = (v: unknown) => Number.isInteger(v) && (v as number) >= 1 && (v a
 const isColumnWidth = (v: unknown) => Number.isFinite(v) && (v as number) > 0 && (v as number) <= LIMITS.maxColumnWidth;
 const oneOf = (list: readonly (string | number)[], v: unknown) => (list as readonly unknown[]).includes(v);
 
-function fail(message: string): never {
-  throw new DocumentValidationError(message);
+function fail(key: MessageKey<"errors">, params?: TranslateParams): never {
+  throw new DocumentValidationError(key, params);
 }
 
 function checkNodeAttrs(node: JsonNode): void {
   const attrs = node.attrs ?? {};
   if (ALIGNABLE.has(node.type!) && !isNullish(attrs.textAlign) && !oneOf(TEXT_ALIGNS, attrs.textAlign)) {
-    fail(`Unsupported text alignment: ${String(attrs.textAlign)}`);
+    fail("docTextAlign", { value: String(attrs.textAlign) });
   }
   if (node.type === "heading" && !oneOf(HEADING_LEVELS, attrs.level)) {
-    fail(`Unsupported heading level: ${String(attrs.level)}`);
+    fail("docHeadingLevel", { value: String(attrs.level) });
   }
   if (node.type === "calendarDate") {
-    if (!(Number.isSafeInteger(attrs.day) && Math.abs(attrs.day as number) <= LIMITS.maxWorldDay)) fail("Invalid calendar date.");
-    if (!isNullish(attrs.label) && !(typeof attrs.label === "string" && attrs.label.length <= MAX_DATE_LABEL)) fail("Invalid calendar date label.");
+    if (!(Number.isSafeInteger(attrs.day) && Math.abs(attrs.day as number) <= LIMITS.maxWorldDay)) fail("docCalendarDate");
+    if (!isNullish(attrs.label) && !(typeof attrs.label === "string" && attrs.label.length <= MAX_DATE_LABEL)) fail("docCalendarDateLabel");
     return;
   }
   if (node.type === "secret") {
-    if (!isNullish(attrs.revealed) && typeof attrs.revealed !== "boolean") fail("Invalid secret state.");
+    if (!isNullish(attrs.revealed) && typeof attrs.revealed !== "boolean") fail("docSecretState");
     return;
   }
   if (node.type === "tableRow") {
-    if (!isNullish(attrs.height) && !(Number.isInteger(attrs.height) && (attrs.height as number) > 0 && (attrs.height as number) <= LIMITS.maxRowHeight)) fail("Invalid table row height.");
+    if (!isNullish(attrs.height) && !(Number.isInteger(attrs.height) && (attrs.height as number) > 0 && (attrs.height as number) <= LIMITS.maxRowHeight)) fail("docRowHeight");
     return;
   }
   if (TABLE_CELLS.has(node.type!)) {
     for (const key of ["colspan", "rowspan"] as const) {
-      if (!isNullish(attrs[key]) && !isSpan(attrs[key])) fail(`Invalid table cell ${key}.`);
+      if (!isNullish(attrs[key]) && !isSpan(attrs[key])) fail("docCellAttr", { attr: key });
     }
-    if (!isNullish(attrs.colwidth) && !(Array.isArray(attrs.colwidth) && attrs.colwidth.every((w) => w === 0 || isColumnWidth(w)))) fail("Invalid table column width.");
-    if (!isNullish(attrs.align) && !oneOf(CELL_ALIGNS, attrs.align)) fail(`Unsupported cell alignment: ${String(attrs.align)}`);
+    if (!isNullish(attrs.colwidth) && !(Array.isArray(attrs.colwidth) && attrs.colwidth.every((w) => w === 0 || isColumnWidth(w)))) fail("docColumnWidth");
+    if (!isNullish(attrs.align) && !oneOf(CELL_ALIGNS, attrs.align)) fail("docCellAlign", { value: String(attrs.align) });
     return;
   }
   if (node.type === "tableOfContents") {
-    if (!isNullish(attrs.maxLevel) && !oneOf(HEADING_LEVELS, attrs.maxLevel)) fail("Invalid table of contents depth.");
+    if (!isNullish(attrs.maxLevel) && !oneOf(HEADING_LEVELS, attrs.maxLevel)) fail("docTocDepth");
     for (const key of ["collapsed", "numbered"] as const) {
-      if (!isNullish(attrs[key]) && typeof attrs[key] !== "boolean") fail("Invalid table of contents option.");
+      if (!isNullish(attrs[key]) && typeof attrs[key] !== "boolean") fail("docTocOption");
     }
     return;
   }
   if (node.type === "mention") {
-    if (!isMentionKind(attrs.kind)) fail("Unsupported mention.");
-    if (typeof attrs.id !== "string" || !MENTION_ID.test(attrs.id)) fail("Invalid mention target.");
-    if (!(typeof attrs.label === "string" && attrs.label.length <= MAX_MENTION_LABEL)) fail("Invalid mention label.");
-    if (!isNullish(attrs.campaign) && !(typeof attrs.campaign === "string" && MENTION_ID.test(attrs.campaign))) fail("Invalid mention campaign.");
-    if (!isNullish(attrs.text) && !(typeof attrs.text === "string" && attrs.text.length <= MAX_MENTION_LABEL)) fail("Invalid mention text.");
+    if (!isMentionKind(attrs.kind)) fail("docMention");
+    if (typeof attrs.id !== "string" || !MENTION_ID.test(attrs.id)) fail("docMentionTarget");
+    if (!(typeof attrs.label === "string" && attrs.label.length <= MAX_MENTION_LABEL)) fail("docMentionLabel");
+    if (!isNullish(attrs.campaign) && !(typeof attrs.campaign === "string" && MENTION_ID.test(attrs.campaign))) fail("docMentionCampaign");
+    if (!isNullish(attrs.text) && !(typeof attrs.text === "string" && attrs.text.length <= MAX_MENTION_LABEL)) fail("docMentionText");
     return;
   }
   if (node.type !== "image") return;
-  if (!isArticleImageSrc(attrs.src)) fail("Images must be uploaded to this app.");
-  if (!isNullish(attrs.href) && !isValidHref(attrs.href)) fail("Image links must use http:, https:, or mailto:.");
-  if (!isNullish(attrs.align) && !oneOf(IMAGE_ALIGNS, attrs.align)) fail(`Unsupported image alignment: ${String(attrs.align)}`);
+  if (!isArticleImageSrc(attrs.src)) fail("docImageSrc");
+  if (!isNullish(attrs.href) && !isValidHref(attrs.href)) fail("docImageHref");
+  if (!isNullish(attrs.align) && !oneOf(IMAGE_ALIGNS, attrs.align)) fail("docImageAlign", { value: String(attrs.align) });
   for (const key of ["width", "height"] as const) {
     const v = attrs[key];
-    if (!isNullish(v) && !(typeof v === "number" && Number.isFinite(v) && v > 0 && v <= MAX_IMAGE_DIMENSION)) fail(`Invalid image ${key}.`);
+    if (!isNullish(v) && !(typeof v === "number" && Number.isFinite(v) && v > 0 && v <= MAX_IMAGE_DIMENSION)) fail("docImageAttr", { attr: key });
   }
   for (const key of ["alt", "title", "caption"] as const) {
     const v = attrs[key];
-    if (!isNullish(v) && !(typeof v === "string" && v.length <= MAX_ALT_LENGTH)) fail(`Invalid image ${key}.`);
+    if (!isNullish(v) && !(typeof v === "string" && v.length <= MAX_ALT_LENGTH)) fail("docImageAttr", { attr: key });
   }
 }
 
 function checkMark(mark: { type: string; attrs?: Record<string, unknown> }): void {
-  if (!ALLOWED_MARK_TYPES.has(mark.type)) fail(`Unsupported mark type: ${mark.type}`);
-  if (mark.type === "link" && !isValidHref(mark.attrs?.href)) fail("Links must use http:, https:, or mailto:.");
+  if (!ALLOWED_MARK_TYPES.has(mark.type)) fail("docMarkType", { type: String(mark.type) });
+  if (mark.type === "link" && !isValidHref(mark.attrs?.href)) fail("docLinkHref");
   if (mark.type !== "textStyle") return;
   const { color, fontFamily } = mark.attrs ?? {};
-  if (!isNullish(color) && !(typeof color === "string" && HEX_COLOR.test(color))) fail("Text color must be a hex color.");
-  if (!isNullish(fontFamily) && !(typeof fontFamily === "string" && FONT_FAMILIES.has(fontFamily))) fail("Unsupported font.");
+  if (!isNullish(color) && !(typeof color === "string" && HEX_COLOR.test(color))) fail("docTextColor");
+  if (!isNullish(fontFamily) && !(typeof fontFamily === "string" && FONT_FAMILIES.has(fontFamily))) fail("docFont");
 }
 
 function walk(node: JsonNode, depth: number): void {
   if (depth > LIMITS.maxNestingDepth) {
-    throw new DocumentValidationError(`Document nesting exceeds ${LIMITS.maxNestingDepth} levels.`);
+    throw new DocumentValidationError("docNesting", { max: LIMITS.maxNestingDepth });
   }
   if (!node.type || !ALLOWED_NODE_TYPES.has(node.type)) {
-    throw new DocumentValidationError(`Unsupported node type: ${node.type}`);
+    throw new DocumentValidationError("docNodeType", { type: String(node.type) });
   }
   checkNodeAttrs(node);
   for (const mark of node.marks ?? []) checkMark(mark);
@@ -178,14 +188,14 @@ function walk(node: JsonNode, depth: number): void {
 export function validateDocument(json: unknown): void {
   const text = JSON.stringify(json);
   if (text.length > LIMITS.maxJsonBytes) {
-    throw new DocumentValidationError(`Document is too large (${text.length} bytes).`);
+    throw new DocumentValidationError("docTooLarge", { size: text.length });
   }
   if (typeof json !== "object" || json === null) {
-    throw new DocumentValidationError("Document must be a JSON object.");
+    throw new DocumentValidationError("docNotObject");
   }
   const root = json as JsonNode;
   if (root.type !== "doc") {
-    throw new DocumentValidationError("Document root must be a 'doc' node.");
+    throw new DocumentValidationError("docRoot");
   }
   walk(root, 0);
 }

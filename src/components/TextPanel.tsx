@@ -32,6 +32,8 @@ import ToolSection from "./ToolSection";
 import { useListDrag } from "./use-list-drag";
 import { LIMITS, type TextAlign, type TextStyle } from "@/server/texts/text-config";
 import { COLOR_PRESETS, normalizeColor } from "@/server/markers/icon-registry";
+import { useT } from "@/i18n/useT";
+import { activeT } from "@/i18n/active";
 
 export type TextDraft = TextStyle & { text: string };
 export type TextPatch = Partial<TextDraft & { layerId: string; extraLayerIds: string[]; visible: boolean; locked: boolean; groupId: string | null; sortOrder: number }>;
@@ -41,7 +43,7 @@ const NO_MIXED: ReadonlySet<string> = new Set();
 
 /** A text's label in the list: its first line, shortened. */
 const textLabel = (t: MapTextData) => {
-  const first = t.text.split("\n")[0].trim() || "Text";
+  const first = t.text.split("\n")[0].trim() || activeT("maps")("panel.text");
   return first.length > LABEL_MAX ? `${first.slice(0, LABEL_MAX - 1)}…` : first;
 };
 function Swatches({ value, mixed = false, onChange, label }: { value: string; mixed?: boolean; onChange: (c: string) => void; label: string }) {
@@ -61,10 +63,10 @@ function Swatches({ value, mixed = false, onChange, label }: { value: string; mi
   );
 }
 
-const ALIGNS: { key: TextAlign; label: string; Icon: typeof AlignLeft }[] = [
-  { key: "left", label: "Left", Icon: AlignLeft },
-  { key: "center", label: "Center", Icon: AlignCenter },
-  { key: "right", label: "Right", Icon: AlignRight },
+const ALIGNS: { key: TextAlign; Icon: typeof AlignLeft }[] = [
+  { key: "left", Icon: AlignLeft },
+  { key: "center", Icon: AlignCenter },
+  { key: "right", Icon: AlignRight },
 ];
 
 function Group({ id, title, sectioned, children }: { id: string; title: string; sectioned: boolean; children: React.ReactNode }) {
@@ -82,6 +84,7 @@ function Group({ id, title, sectioned, children }: { id: string; title: string; 
  * server rejects it), but the field can still be cleared while typing.
  */
 function TextContentField({ sourceKey, value, mixed = false, onChange }: { sourceKey: string; value: string; /** Several texts that say different things: typing replaces them all. */ mixed?: boolean; onChange: (text: string) => void }) {
+  const tm = useT("maps");
   const [textValue, setTextValue] = useState(mixed ? "" : value);
   const focusedRef = useRef(false);
   useEffect(() => {
@@ -90,13 +93,13 @@ function TextContentField({ sourceKey, value, mixed = false, onChange }: { sourc
   return (
     <label className="grid-field">
       <span className="field-label">
-        Text <MixedTag show={mixed} />
+        {tm("panel.text")} <MixedTag show={mixed} />
       </span>
       <textarea
         className="text-panel-textarea"
         rows={3}
         value={textValue}
-        placeholder={mixed ? "They say different things. Typing here replaces the text of all of them." : undefined}
+        placeholder={mixed ? tm("text.mixedPlaceholder") : undefined}
         onFocus={() => {
           focusedRef.current = true;
         }}
@@ -128,13 +131,14 @@ function TextStyleFields({
   mixed?: ReadonlySet<string>;
   onChange: (patch: TextPatch) => void;
 }) {
+  const tm = useT("maps");
   const m = (key: keyof TextStyle) => mixed.has(key);
   return (
     <>
-      <Group id="text-font" title="Font and size" sectioned={sectioned}>
+      <Group id="text-font" title={tm("text.fontSize")} sectioned={sectioned}>
         <div className="grid-field">
           <span className="field-label">
-            Font <MixedTag show={m("fontKey") || m("bold")} />
+            {tm("text.font")} <MixedTag show={m("fontKey") || m("bold")} />
           </span>
           <div className="text-panel-font-row">
             <FontPicker value={v.fontKey} bold={v.bold} mixed={m("fontKey")} onChange={(fontKey) => onChange({ fontKey })} />
@@ -142,22 +146,22 @@ function TextStyleFields({
               type="button"
               className={v.bold && !m("bold") ? "btn btn-icon active" : "btn btn-icon"}
               aria-pressed={m("bold") ? "mixed" : v.bold}
-              aria-label="Bold"
-              data-tooltip={m("bold") ? "Bold (mixed: click to make them all bold)" : "Bold"}
+              aria-label={tm("text.bold")}
+              data-tooltip={m("bold") ? tm("text.boldMixed") : tm("text.bold")}
               onClick={() => onChange({ bold: m("bold") ? true : !v.bold })}
             >
               <Bold size={15} strokeWidth={2.5} />
             </button>
           </div>
         </div>
-        <SliderField label="Size" value={Math.round(v.fontSize)} mixed={m("fontSize")} min={4} max={maxFontSize} defaultValue={Math.round(maxFontSize / 10)} suffix=" px" onChange={(fontSize) => onChange({ fontSize })} />
-        <SliderField label="Rotation" value={Math.round(v.rotation)} mixed={m("rotation")} min={-180} max={180} defaultValue={0} suffix="°" onChange={(rotation) => onChange({ rotation })} />
+        <SliderField label={tm("style.size")} value={Math.round(v.fontSize)} mixed={m("fontSize")} min={4} max={maxFontSize} defaultValue={Math.round(maxFontSize / 10)} suffix=" px" onChange={(fontSize) => onChange({ fontSize })} />
+        <SliderField label={tm("text.rotation")} value={Math.round(v.rotation)} mixed={m("rotation")} min={-180} max={180} defaultValue={0} suffix="°" onChange={(rotation) => onChange({ rotation })} />
       </Group>
 
-      <Group id="text-layout" title="Layout" sectioned={sectioned}>
-        <SliderField label="Curve" value={v.curve} mixed={m("curve")} min={LIMITS.curve[0]} max={LIMITS.curve[1]} defaultValue={0} onChange={(curve) => onChange({ curve })} />
+      <Group id="text-layout" title={tm("text.layout")} sectioned={sectioned}>
+        <SliderField label={tm("text.curve")} value={v.curve} mixed={m("curve")} min={LIMITS.curve[0]} max={LIMITS.curve[1]} defaultValue={0} onChange={(curve) => onChange({ curve })} />
         <SliderField
-          label="Letter spacing"
+          label={tm("text.letterSpacing")}
           value={v.letterSpacing}
           mixed={m("letterSpacing")}
           min={LIMITS.letterSpacing[0]}
@@ -169,41 +173,41 @@ function TextStyleFields({
         />
         <div className="grid-field">
           <span className="field-label">
-            Alignment <MixedTag show={m("align")} />
+            {tm("text.alignment")} <MixedTag show={m("align")} />
           </span>
-          <div className="text-panel-align" role="group" aria-label="Alignment">
-            {ALIGNS.map(({ key, label, Icon }) => (
+          <div className="text-panel-align" role="group" aria-label={tm("text.alignment")}>
+            {ALIGNS.map(({ key, Icon }) => (
               <button key={key} type="button" className={!m("align") && v.align === key ? "btn btn-sm active" : "btn btn-sm"} aria-pressed={!m("align") && v.align === key} onClick={() => onChange({ align: key })}>
                 <Icon size={14} strokeWidth={2.25} />
-                {label}
+                {tm(`text.align.${key}`)}
               </button>
             ))}
           </div>
         </div>
       </Group>
 
-      <Group id="text-color" title="Color" sectioned={sectioned}>
+      <Group id="text-color" title={tm("style.color")} sectioned={sectioned}>
         {m("color") && (
           <span className="field-label">
-            Color <MixedTag show />
+            {tm("style.color")} <MixedTag show />
           </span>
         )}
         <ColorWheel value={v.color} mixed={m("color")} onChange={(color) => onChange({ color })} />
       </Group>
 
-      <Group id="text-outline" title="Outline" sectioned={sectioned}>
+      <Group id="text-outline" title={tm("zones.outline")} sectioned={sectioned}>
         <MixedCheckbox checked={v.outlineEnabled} mixed={m("outlineEnabled")} onChange={(outlineEnabled) => onChange({ outlineEnabled })}>
-          <span className="field-label">Outline</span>
+          <span className="field-label">{tm("zones.outline")}</span>
         </MixedCheckbox>
         {(v.outlineEnabled || m("outlineEnabled")) && (
           <>
             <span className="field-label">
-              Outline color <MixedTag show={m("outlineColor")} />
+              {tm("zones.outlineColor")} <MixedTag show={m("outlineColor")} />
             </span>
-            <Swatches label="Outline color" value={v.outlineColor} mixed={m("outlineColor")} onChange={(outlineColor) => onChange({ outlineColor })} />
-            <SliderField label="Outline opacity" value={Math.round(v.outlineOpacity * 100)} mixed={m("outlineOpacity")} min={0} max={100} defaultValue={80} suffix="%" onChange={(o) => onChange({ outlineOpacity: o / 100 })} />
+            <Swatches label={tm("zones.outlineColor")} value={v.outlineColor} mixed={m("outlineColor")} onChange={(outlineColor) => onChange({ outlineColor })} />
+            <SliderField label={tm("zones.outlineOpacity")} value={Math.round(v.outlineOpacity * 100)} mixed={m("outlineOpacity")} min={0} max={100} defaultValue={80} suffix="%" onChange={(o) => onChange({ outlineOpacity: o / 100 })} />
             <SliderField
-              label="Outline width"
+              label={tm("zones.outlineWidth")}
               value={v.outlineWidth}
               mixed={m("outlineWidth")}
               min={LIMITS.outlineWidth[0]}
@@ -217,15 +221,15 @@ function TextStyleFields({
         )}
       </Group>
 
-      <Group id="text-shadow" title="Shadow" sectioned={sectioned}>
+      <Group id="text-shadow" title={tm("style.shadow")} sectioned={sectioned}>
         <MixedCheckbox checked={v.shadowEnabled} mixed={m("shadowEnabled")} onChange={(shadowEnabled) => onChange({ shadowEnabled })}>
-          <span className="field-label">Shadow</span>
+          <span className="field-label">{tm("style.shadow")}</span>
         </MixedCheckbox>
         {(v.shadowEnabled || m("shadowEnabled")) && (
           <>
-            <SliderField label="Shadow direction" value={Math.round(v.shadowAngle)} mixed={m("shadowAngle")} min={-180} max={180} defaultValue={45} suffix="°" onChange={(shadowAngle) => onChange({ shadowAngle })} />
+            <SliderField label={tm("text.shadowDirection")} value={Math.round(v.shadowAngle)} mixed={m("shadowAngle")} min={-180} max={180} defaultValue={45} suffix="°" onChange={(shadowAngle) => onChange({ shadowAngle })} />
             <SliderField
-              label="Shadow distance"
+              label={tm("text.shadowDistance")}
               value={v.shadowDistance}
               mixed={m("shadowDistance")}
               min={LIMITS.shadowDistance[0]}
@@ -236,10 +240,10 @@ function TextStyleFields({
               onChange={(shadowDistance) => onChange({ shadowDistance })}
             />
             <span className="field-label">
-              Shadow color <MixedTag show={m("shadowColor")} />
+              {tm("style.shadowColor")} <MixedTag show={m("shadowColor")} />
             </span>
-            <Swatches label="Shadow color" value={v.shadowColor} mixed={m("shadowColor")} onChange={(shadowColor) => onChange({ shadowColor })} />
-            <SliderField label="Shadow opacity" value={Math.round(v.shadowOpacity * 100)} mixed={m("shadowOpacity")} min={0} max={100} defaultValue={60} suffix="%" onChange={(o) => onChange({ shadowOpacity: o / 100 })} />
+            <Swatches label={tm("style.shadowColor")} value={v.shadowColor} mixed={m("shadowColor")} onChange={(shadowColor) => onChange({ shadowColor })} />
+            <SliderField label={tm("style.shadowOpacity")} value={Math.round(v.shadowOpacity * 100)} mixed={m("shadowOpacity")} min={0} max={100} defaultValue={60} suffix="%" onChange={(o) => onChange({ shadowOpacity: o / 100 })} />
           </>
         )}
       </Group>
@@ -317,6 +321,8 @@ export default function TextPanel({
   onUpdateMany: (ids: string[], patchOf: (text: MapTextData) => TextPatch, opts?: { includeLocked?: boolean }) => void;
   onDeleteMany: (ids: string[]) => void;
 }) {
+  const tm = useT("maps");
+  const tc = useT("common");
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set([UNGROUPED]));
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<{ folder: MapFolderData; count: number } | null>(null);
@@ -326,7 +332,7 @@ export default function TextPanel({
   const { ownGroups, itemsOf: textsOf, ungrouped, shared, order } = tree;
   const picked = new Set(selectedIds);
   const multi = selectedIds.length > 1 ? texts.filter((t) => picked.has(t.id)) : [];
-  const layerNameOf = (id: string | null) => layers.find((l) => l.id === id)?.name ?? "another layer";
+  const layerNameOf = (id: string | null) => layers.find((l) => l.id === id)?.name ?? tm("panel.anotherLayer");
   const groupOf = (t: MapTextData) => (t.groupId ? groups.find((g) => g.id === t.groupId) : undefined);
   const openFolder = ownGroups.find((g) => g.id === openFolderId) ?? null;
 
@@ -339,6 +345,7 @@ export default function TextPanel({
 
   const target = ownGroups.find((g) => g.id === activeGroupId) ?? null;
   const placeBlocked = Boolean(target && (target.locked || !target.visible));
+  const [targetBefore, targetAfter] = tm("text.target").split("{folder}");
   const toggle = (key: string) =>
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -402,28 +409,30 @@ export default function TextPanel({
         <div className="marker-side-panel-header">
           <h2>
             <Type size={16} strokeWidth={2.25} style={{ verticalAlign: "-2px", marginRight: "6px" }} />
-            Text
+            {tm("panel.text")}
           </h2>
-          <button className="btn btn-ghost btn-icon" onClick={onClose} aria-label="Close text panel">
+          <button className="btn btn-ghost btn-icon" onClick={onClose} aria-label={tc("closePanel", { title: tm("panel.text") })}>
             <X size={16} strokeWidth={2.25} />
           </button>
         </div>
-        <p className="panel-layer-label">Layer: {layerName}</p>
+        <p className="panel-layer-label">{tm("panel.layer", { name: layerName })}</p>
 
-        <button type="button" className={placing ? "btn btn-primary" : "btn"} onClick={onTogglePlacing} disabled={placeBlocked && !placing} data-tooltip={placeBlocked ? "The folder is hidden or locked" : undefined}>
+        <button type="button" className={placing ? "btn btn-primary" : "btn"} onClick={onTogglePlacing} disabled={placeBlocked && !placing} data-tooltip={placeBlocked ? tm("panel.folderBlocked") : undefined}>
           <MousePointerClick size={15} strokeWidth={2.25} />
-          {placing ? "Click the map to place…" : "Place text"}
+          {placing ? tm("text.placing") : tm("text.place")}
         </button>
         <p className="field-label zone-tool-hint">
           {selected
-            ? "Editing the selected text. Drag it to move, the corners to scale, the round handle to rotate (Shift snaps)."
-            : "Click a text on the map or in the list to edit it, a folder for its settings. Ctrl/Shift+click picks several, Ctrl+A a whole folder."}
+            ? tm("text.editingHint")
+            : tm("text.idleHint")}
         </p>
         <p className="field-label line-panel-target">
           <FolderOpen size={13} strokeWidth={2.25} aria-hidden />
-          New texts go into: <strong>{target ? target.name : "Ungrouped"}</strong>
-          {target?.locked && " (locked)"}
-          {target && !target.visible && " (hidden)"}
+          {targetBefore}
+          <strong>{target ? target.name : tm("panel.ungrouped")}</strong>
+          {targetAfter}
+          {target?.locked && tm("panel.targetLocked")}
+          {target && !target.visible && tm("panel.targetHidden")}
         </p>
 
         <ul className="zone-region-list">
@@ -448,14 +457,14 @@ export default function TextPanel({
                 dropProps={drag.folderProps(group.id, !group.locked)}
                 dropPlace={drag.placeOf(group.id)}
               >
-                {items.length === 0 && <li className="field-label zone-empty-hint">No texts yet.</li>}
+                {items.length === 0 && <li className="field-label zone-empty-hint">{tm("text.emptyFolder")}</li>}
                 {items.map((t) => textRow(t, textLabel(t), group.locked))}
               </FolderRow>
             );
           })}
           <li className="zone-region">
             <div className={["zone-region-row", activeGroupId === null && "active", drag.placeOf(UNGROUPED) && "drop-into"].filter(Boolean).join(" ")} {...drag.folderProps(UNGROUPED, true)}>
-              <button className="zone-tree-toggle" onClick={() => toggle(UNGROUPED)} aria-label={expanded.has(UNGROUPED) ? "Collapse" : "Expand"}>
+              <button className="zone-tree-toggle" onClick={() => toggle(UNGROUPED)} aria-label={expanded.has(UNGROUPED) ? tm("layerFolders.collapse") : tm("layerFolders.expand")}>
                 {expanded.has(UNGROUPED) ? <ChevronDown size={13} strokeWidth={2.25} /> : <ChevronRight size={13} strokeWidth={2.25} />}
               </button>
               <button
@@ -464,14 +473,14 @@ export default function TextPanel({
                   onSetActiveGroup(null);
                   setOpenFolderId(null);
                 }}
-                data-tooltip="Texts outside any folder. Click: new texts go here."
+                data-tooltip={tm("text.ungroupedHint")}
               >
-                Ungrouped <span className="field-label">({ungrouped.length})</span>
+                {tm("panel.ungrouped")} <span className="field-label">({ungrouped.length})</span>
               </button>
             </div>
             {expanded.has(UNGROUPED) && (
               <ul className="zone-list">
-                {ungrouped.length === 0 && <li className="field-label zone-empty-hint">No texts outside folders.</li>}
+                {ungrouped.length === 0 && <li className="field-label zone-empty-hint">{tm("text.ungroupedEmpty")}</li>}
                 {ungrouped.map((t) => textRow(t, textLabel(t), false))}
               </ul>
             )}
@@ -479,11 +488,11 @@ export default function TextPanel({
           {shared.length > 0 && (
             <li className="zone-region">
               <div className="zone-region-row">
-                <button className="zone-tree-toggle" onClick={() => toggle(SHARED)} aria-label={expanded.has(SHARED) ? "Collapse" : "Expand"}>
+                <button className="zone-tree-toggle" onClick={() => toggle(SHARED)} aria-label={expanded.has(SHARED) ? tm("layerFolders.collapse") : tm("layerFolders.expand")}>
                   {expanded.has(SHARED) ? <ChevronDown size={13} strokeWidth={2.25} /> : <ChevronRight size={13} strokeWidth={2.25} />}
                 </button>
                 <button className="zone-region-name" onClick={() => toggle(SHARED)}>
-                  From other layers <span className="field-label">({shared.length})</span>
+                  {tm("panel.fromOtherLayers")} <span className="field-label">({shared.length})</span>
                 </button>
               </div>
               {expanded.has(SHARED) && <ul className="zone-list">{shared.map((t) => textRow(t, `${textLabel(t)} · ${layerNameOf(t.layerId)}`, Boolean(groupOf(t)?.locked)))}</ul>}
@@ -495,8 +504,8 @@ export default function TextPanel({
           <div className="zone-new-region">
             <NameInput
               value=""
-              placeholder="Folder name (e.g. Kingdoms, Seas)"
-              label="New folder name"
+              placeholder={tm("text.folderPlaceholder")}
+              label={tm("panel.newFolderName")}
               onSave={(name) => {
                 setCreating(false);
                 if (name) onCreateGroup(name);
@@ -507,7 +516,7 @@ export default function TextPanel({
         ) : (
           <button className="btn btn-sm" onClick={() => setCreating(true)}>
             <Plus size={14} strokeWidth={2.25} />
-            New folder
+            {tm("panel.newFolder")}
           </button>
         )}
       </div>
@@ -532,24 +541,24 @@ export default function TextPanel({
               <span className="line-panel-name">{textLabel(selected)}</span>
               <button type="button" className="btn btn-sm btn-primary zone-editor-done" onClick={onDone}>
                 <Check size={13} strokeWidth={2.25} />
-                Done
+                {tc("done")}
               </button>
             </div>
             {selectedLocked && (
               <p className="field-label line-panel-locked">
-                <Lock size={12} strokeWidth={2.25} aria-hidden /> Locked{selectedGroup?.locked ? " by its folder" : ""}. Unlock it to move or edit it.
+                <Lock size={12} strokeWidth={2.25} aria-hidden /> {selectedGroup?.locked ? tm("text.lockedByFolder") : tm("text.locked")}
               </p>
             )}
             <fieldset className="line-panel-fieldset" disabled={selectedLocked}>
-              <ToolSection id="text-content" title="Text">
+              <ToolSection id="text-content" title={tm("panel.text")}>
                 <TextContentField sourceKey={selected.id} value={selected.text} onChange={(text) => onChange({ text })} />
               </ToolSection>
               <TextStyleFields v={selected} maxFontSize={maxFontSize} onChange={onChange} />
-              <ToolSection id="text-layers" title="Folder and layers">
+              <ToolSection id="text-layers" title={tm("panel.folderLayers")}>
                 <FolderSelect
                   value={selectedGroup && selectedFolderOptions.includes(selectedGroup) ? selectedGroup.id : null}
                   folders={selectedFolderOptions}
-                  noneLabel="Ungrouped"
+                  noneLabel={tm("panel.ungrouped")}
                   onChange={(groupId) => onChange({ groupId })}
                 />
                 <LayerSelect value={selected.layerId} layers={layers} onChange={(layerId) => onChange({ layerId })} />
@@ -565,7 +574,7 @@ export default function TextPanel({
             </fieldset>
             <button type="button" className="btn btn-danger" onClick={onDelete} disabled={selectedLocked}>
               <Trash2 size={14} strokeWidth={2.25} />
-              Delete text
+              {tm("text.delete")}
             </button>
           </>
         ) : openFolder ? (
@@ -589,18 +598,18 @@ export default function TextPanel({
           <>
             <div className="zone-editor-header">
               <Type size={14} strokeWidth={2.25} />
-              <span className="line-panel-name">Next text</span>
+              <span className="line-panel-name">{tm("text.next")}</span>
             </div>
-            <p className="field-label zone-tool-hint">What the next text you place says and looks like. Select a text to edit it instead.</p>
-            <ToolSection id="text-content" title="Text">
+            <p className="field-label zone-tool-hint">{tm("text.nextHint")}</p>
+            <ToolSection id="text-content" title={tm("panel.text")}>
               <TextContentField sourceKey="draft" value={draft.text} onChange={(text) => onChange({ text })} />
             </ToolSection>
             {target?.defaultStyle ? (
               <>
-                <p className="field-label zone-tool-hint">New texts in “{target.name}” use the folder&apos;s default style.</p>
+                <p className="field-label zone-tool-hint">{tm("text.folderStyle", { name: target.name })}</p>
                 <button type="button" className="btn btn-sm" onClick={() => setOpenFolderId(target.id)}>
                   <FolderOpen size={13} strokeWidth={2.25} />
-                  Edit the folder&apos;s style
+                  {tm("panel.editFolderStyle")}
                 </button>
               </>
             ) : (
@@ -649,6 +658,7 @@ function MultiTextEditor({
   onDelete: () => void;
   onDone: () => void;
 }) {
+  const tm = useT("maps");
   const [first] = texts;
   const mixed = mixedKeys(texts);
   const layersOf = sharedLayers(texts.map((t) => t.extraLayerIds));
@@ -672,18 +682,18 @@ function MultiTextEditor({
         onDelete={onDelete}
         onDone={onDone}
       />
-      <ToolSection id="text-content" title="Text">
+      <ToolSection id="text-content" title={tm("panel.text")}>
         <TextContentField sourceKey={texts.map((t) => t.id).join(",")} value={first.text} mixed={mixed.has("text")} onChange={(text) => setAll({ text })} />
       </ToolSection>
       <TextStyleFields v={first} maxFontSize={maxFontSize} mixed={mixed} onChange={setAll} />
-      <ToolSection id="text-layers" title="Folder and layers">
+      <ToolSection id="text-layers" title={tm("panel.folderLayers")}>
         <FolderSelect
           value={folderOf(first)}
           mixed={folders.size > 1}
           folders={folderOptions}
-          noneLabel="Ungrouped"
+          noneLabel={tm("panel.ungrouped")}
           disabled={!oneLayer}
-          hint={oneLayer ? undefined : "They're on different layers: move them to one layer first."}
+          hint={oneLayer ? undefined : tm("panel.differentLayers")}
           onChange={(groupId) => setAll({ groupId })}
         />
         <LayerSelect value={first.layerId} mixed={!oneLayer} layers={layers} onChange={(layerId) => setAll({ layerId })} />

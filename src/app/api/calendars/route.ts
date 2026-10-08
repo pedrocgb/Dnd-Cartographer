@@ -7,7 +7,8 @@ import { requireWorldId } from "@/server/world/active-world";
 import { validateDefinition } from "@/server/calendars/engine";
 import { cleanName, parseArticleLinks, parseDefinition } from "@/server/calendars/parse";
 import { chronologyOf, loadWorldCalendars, toClientCalendar, updateChronology } from "@/server/calendars/store";
-import { badRequest, calendarErrorResponse, readBody } from "@/server/calendars/respond";
+import { calendarErrorResponse, problemWords, readBody } from "@/server/calendars/respond";
+import { errorResponse } from "@/i18n/server";
 
 /** The world's chronology, calendars, celestial objects, seasons and profiles. */
 export async function GET() {
@@ -18,13 +19,13 @@ export async function GET() {
 /** Creates a calendar. The world's first one becomes the default. */
 export async function POST(request: Request) {
   const body = await readBody(request);
-  if (!body) return badRequest("Invalid request body.");
+  if (!body) return errorResponse("invalidBody", 400);
   try {
     const name = cleanName(body.name);
-    if (!name) return badRequest("A calendar name is required.");
+    if (!name) return errorResponse("calendarNameRequired", 400);
     const definition = parseDefinition(body.definition);
     const issues = validateDefinition(definition);
-    if (issues.length) return NextResponse.json({ error: issues[0].message, issues }, { status: 400 });
+    if (issues.length) return NextResponse.json({ error: await problemWords(issues[0].problem), issues }, { status: 400 });
 
     const worldId = await requireWorldId();
     const existing = await db.select({ id: calendars.id }).from(calendars).where(eq(calendars.worldId, worldId));

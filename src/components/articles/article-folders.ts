@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import type { ArticleFolder, FolderItem } from "./folder-tree";
+import { activeT } from "@/i18n/active";
 
 /**
  * The Articles page's folders (GET /api/article-folders) and every change to
@@ -29,7 +30,7 @@ async function send(url: string, method: string, body?: unknown): Promise<{ ok: 
     });
     return { ok: res.ok, data: await res.json().catch(() => ({})) };
   } catch {
-    return { ok: false, data: { error: "Could not reach the server. Try again." } };
+    return { ok: false, data: { error: activeT("common")("serverUnreachable") } };
   }
 }
 
@@ -60,15 +61,15 @@ export function useArticleFolderStore(): ArticleFolderStore {
       refresh,
       createFolder: async (name, parentId) => {
         const res = await send("/api/article-folders", "POST", { name, parentId });
-        if (!res.ok) return { error: errorOf(res.data, "Could not create the folder.") };
+        if (!res.ok) return { error: errorOf(res.data, activeT("articles")("folders.createFailed")) };
         await refresh();
         return { error: null, folder: res.data.folder as ArticleFolder };
       },
-      patchFolder: (id, body) => change(`/api/article-folders/${id}`, "PATCH", body, "Could not save the folder."),
-      deleteFolder: (id) => change(`/api/article-folders/${id}`, "DELETE", undefined, "Could not delete the folder."),
-      addArticles: (folderId, articleIds) => change(`/api/article-folders/${folderId}/items`, "POST", { articleIds }, "Could not add to the folder."),
-      removeArticles: (folderId, articleIds) => change(`/api/article-folders/${folderId}/items`, "DELETE", { articleIds }, "Could not remove from the folder."),
-      moveArticle: (articleId, from, to) => change("/api/article-folders/move", "POST", { articleId, from, to }, "Could not move the article."),
+      patchFolder: (id, body) => change(`/api/article-folders/${id}`, "PATCH", body, activeT("articles")("folders.saveFailed")),
+      deleteFolder: (id) => change(`/api/article-folders/${id}`, "DELETE", undefined, activeT("articles")("folders.deleteFailed")),
+      addArticles: (folderId, articleIds) => change(`/api/article-folders/${folderId}/items`, "POST", { articleIds }, activeT("articles")("folders.addFailed")),
+      removeArticles: (folderId, articleIds) => change(`/api/article-folders/${folderId}/items`, "DELETE", { articleIds }, activeT("articles")("folders.removeFailed")),
+      moveArticle: (articleId, from, to) => change("/api/article-folders/move", "POST", { articleId, from, to }, activeT("articles")("folders.moveFailed")),
     }),
     [data, refresh, change],
   );

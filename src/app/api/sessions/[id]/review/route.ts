@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
+import { errorResponse } from "@/i18n/server";
 import { and, asc, eq, gt, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { campaignStatusLog, outlineNodes, sessions } from "@/server/db/schema";
 import { requireWorldId } from "@/server/world/active-world";
 import { checkArticles } from "@/server/calendars/entries";
 import { safeJson } from "@/server/calendars/parse";
-import { badRequest, calendarErrorResponse, notFound, readBody } from "@/server/calendars/respond";
+import { calendarErrorResponse, readBody } from "@/server/calendars/respond";
 import { campaignOf, createNextSession, sessionOf, toClientSession } from "@/server/sessions/store";
 import { carrySecrets, reviewScene } from "@/server/writer/logic";
 import { parseReview, readPrep } from "@/server/writer/parse";
@@ -23,17 +24,17 @@ export async function POST(request: Request, { params }: RouteContext) {
   const { id } = await params;
   const worldId = await requireWorldId();
   const session = await sessionOf(worldId, id);
-  if (!session) return notFound("Session not found.");
+  if (!session) return errorResponse("sessionNotFound", 404);
   const campaign = await campaignOf(worldId, session.campaignId);
-  if (!campaign) return notFound("Campaign not found.");
+  if (!campaign) return errorResponse("campaignNotFound", 404);
   const body = await readBody(request);
-  if (!body) return badRequest("Invalid request body.");
+  if (!body) return errorResponse("invalidBody", 400);
   try {
     const review = parseReview(body);
     await checkArticles(worldId, review.entries.flatMap((e) => (e.subject ? [e.subject] : [])));
     const nodes = await nodesOf(campaign.id);
     const scenes = review.scenes.map((r) => ({ r, node: nodes.find((n) => n.id === r.id && n.kind === "scene") }));
-    if (scenes.some((s) => !s.node)) return badRequest("A reviewed scene isn't in this campaign's outline.");
+    if (scenes.some((s) => !s.node)) return errorResponse("reviewSceneMissing", 400);
 
     const prep = readPrep(safeJson<unknown>(session.prep, {}));
     const carriesSecrets = prep.secrets.some((s) => s.state !== "revealed" && !review.secrets[s.id]);

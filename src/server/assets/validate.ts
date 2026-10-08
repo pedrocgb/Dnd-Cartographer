@@ -1,4 +1,6 @@
 import sharp from "sharp";
+import { translate, type TranslateParams } from "../../i18n/translate";
+import type { MessageKey } from "../../i18n/messages";
 
 export const LIMITS = {
   maxBytes: 300 * 1024 * 1024, // 300 MiB
@@ -8,7 +10,17 @@ export const LIMITS = {
 
 const ALLOWED_FORMATS = new Set(["png", "jpeg", "webp"]);
 
-export class InvalidImageError extends Error {}
+/** A rejected upload. `key`/`params` word it for the user (errors namespace); `message` is the en-US text, for logs. */
+export class InvalidImageError extends Error {
+  constructor(
+    readonly key: MessageKey<"errors">,
+    readonly params?: TranslateParams,
+  ) {
+    super(translate("en-US", "errors", key, params));
+  }
+}
+
+const mib = (bytes: number) => Math.round((bytes / 1024 / 1024) * 10) / 10;
 
 export interface ValidatedImage {
   format: string;
@@ -19,40 +31,34 @@ export interface ValidatedImage {
 
 export async function validateImageFile(filePath: string, byteSize: number): Promise<ValidatedImage> {
   if (byteSize <= 0) {
-    throw new InvalidImageError("Empty upload.");
+    throw new InvalidImageError("imageEmpty");
   }
   if (byteSize > LIMITS.maxBytes) {
-    throw new InvalidImageError(
-      `File is ${(byteSize / 1024 / 1024).toFixed(1)} MiB, over the ${LIMITS.maxBytes / 1024 / 1024} MiB limit.`
-    );
+    throw new InvalidImageError("imageTooLarge", { size: mib(byteSize), max: mib(LIMITS.maxBytes) });
   }
 
   let metadata;
   try {
     metadata = await sharp(filePath, { limitInputPixels: LIMITS.maxPixels }).metadata();
   } catch {
-    throw new InvalidImageError("File is not a readable PNG, JPEG, or WebP image.");
+    throw new InvalidImageError("imageUnreadable");
   }
 
   if (!metadata.format || !ALLOWED_FORMATS.has(metadata.format)) {
-    throw new InvalidImageError(
-      `Unsupported image format: ${metadata.format ?? "unknown"}. Accepted: PNG, JPEG, WebP.`
-    );
+    throw new InvalidImageError("imageFormat", { format: metadata.format ?? "?" });
   }
   if ((metadata.pages ?? 1) > 1) {
-    throw new InvalidImageError("Animated images are not supported.");
+    throw new InvalidImageError("imageAnimated");
   }
   if (!metadata.width || !metadata.height) {
-    throw new InvalidImageError("Could not determine image dimensions.");
+    throw new InvalidImageError("imageNoDimensions");
   }
   if (metadata.width > LIMITS.maxDimension || metadata.height > LIMITS.maxDimension) {
-    throw new InvalidImageError(
-      `Image dimensions ${metadata.width}x${metadata.height} exceed the ${LIMITS.maxDimension}px limit per side.`
-    );
+    throw new InvalidImageError("imageTooWide", { width: String(metadata.width), height: String(metadata.height), max: LIMITS.maxDimension });
   }
   const pixels = metadata.width * metadata.height;
   if (pixels > LIMITS.maxPixels) {
-    throw new InvalidImageError(`Image has ${pixels.toLocaleString()} pixels, over the configured limit.`);
+    throw new InvalidImageError("imageTooManyPixels", { pixels });
   }
 
   const extension = metadata.format === "jpeg" ? ".jpg" : `.${metadata.format}`;

@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
-import { TERRITORY_TYPE_CATALOG, type HierarchyLevel } from "@/server/politics/hierarchy-config";
+import { TERRITORY_TYPE_CATALOG, hierarchyProfileName, territoryTypeLabel, type HierarchyLevel } from "@/server/politics/hierarchy-config";
+import { useT } from "@/i18n/useT";
 import DescriptionSection from "@/components/DescriptionSection";
 import Modal from "@/components/Modal";
 import { TypeSelect, json, patchRecord, useEditingResetOnSelect } from "./shared";
@@ -23,6 +24,7 @@ export default function HierarchyProfiles({
   /** After a profile is created or edited, so territory forms see the new rules. */
   onChanged: () => void;
 }) {
+  const t = useT("politics");
   const [profiles, setProfiles] = useState<HierarchyProfile[]>([]);
   const [creating, setCreating] = useState(false);
 
@@ -50,14 +52,14 @@ export default function HierarchyProfiles({
                 className={p.id === selectedId ? "politics-list-pick selected" : "politics-list-pick"}
                 onClick={() => onSelect(p.id)}
               >
-                {p.name}
+                {hierarchyProfileName(p.name, t)}
               </button>
             </li>
           ))}
         </ul>
         <button className="btn btn-sm btn-primary" onClick={() => setCreating(true)}>
           <Plus size={14} strokeWidth={2.25} />
-          New profile
+          {t("profiles.new")}
         </button>
       </div>
       <div className="politics-column politics-detail">
@@ -72,20 +74,21 @@ export default function HierarchyProfiles({
           />
         )}
         {!creating && selected && <ProfileDetail profile={selected} onChanged={changed} />}
-        {!creating && !selected && <p className="field-label">Select a hierarchy profile, or create a new one.</p>}
+        {!creating && !selected && <p className="field-label">{t("profiles.selectHint")}</p>}
       </div>
     </div>
   );
 }
 
 function ProfileDetail({ profile, onChanged }: { profile: HierarchyProfile; onChanged: () => void }) {
+  const t = useT("politics");
   const [editing, setEditing] = useEditingResetOnSelect(profile.id);
 
   return (
     <div className="politics-form">
       {/* Name and description stay mounted (CSS-hidden while editing,
           never removed) — see PersonDetail's identical comment for why. */}
-      <h2 style={editing ? { display: "none" } : undefined}>{profile.name}</h2>
+      <h2 style={editing ? { display: "none" } : undefined}>{hierarchyProfileName(profile.name, t)}</h2>
       <DescriptionSection
         documentId={profile.descriptionDocumentId}
         editable={editing}
@@ -104,18 +107,20 @@ function ProfileDetail({ profile, onChanged }: { profile: HierarchyProfile; onCh
         />
       ) : (
         <>
-          <label className="field-label">Levels (root to leaf)</label>
+          <label className="field-label">{t("profiles.levels")}</label>
           <ul className="politics-list">
             {profile.levels.map((l, i) => (
               <li key={i} className="politics-list-row">
                 <span>
-                  {l.type || <em>(unset)</em>}
+                  {l.type ? territoryTypeLabel(l.type, t) : <em>{t("profiles.unset")}</em>}
                   {l.canBeRoot || l.required || l.attachable ? (
                     <span className="field-label">
                       {" "}
-                      (
-                      {[l.canBeRoot && "root", l.required && "required", l.attachable && "attachable"].filter(Boolean).join(", ")}
-                      )
+                      {t("profiles.flags", {
+                        flags: [l.canBeRoot && t("profiles.flag.root"), l.required && t("profiles.flag.required"), l.attachable && t("profiles.flag.attachable")]
+                          .filter(Boolean)
+                          .join(", "),
+                      })}
                     </span>
                   ) : null}
                 </span>
@@ -124,7 +129,7 @@ function ProfileDetail({ profile, onChanged }: { profile: HierarchyProfile; onCh
           </ul>
           <div className="marker-panel-actions politics-detail-actions">
             <button className="btn btn-sm" onClick={() => setEditing(true)}>
-              Edit
+              {t("profiles.edit")}
             </button>
           </div>
         </>
@@ -142,6 +147,8 @@ function ProfileForm({
   onSaved: (p: HierarchyProfile) => void;
   onCancel: () => void;
 }) {
+  const t = useT("politics");
+  const tc = useT("common");
   const [name, setName] = useState(initial?.name ?? "");
   const [levels, setLevels] = useState<HierarchyLevel[]>(initial?.levels ?? []);
   const [error, setError] = useState<string | null>(null);
@@ -159,7 +166,7 @@ function ProfileForm({
       : await fetch("/api/politics/hierarchy-profiles", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const data = await res.json();
     if (!res.ok) {
-      setError(data.error ?? "Could not save profile.");
+      setError(data.error ?? t("profiles.saveFailed"));
       return;
     }
     onSaved(data.profile);
@@ -167,18 +174,18 @@ function ProfileForm({
 
   return (
     <div className="politics-form">
-      <label className="field-label">Name</label>
+      <label className="field-label">{tc("name")}</label>
       <input type="text" value={name} onChange={(e) => setName(e.target.value)} />
 
-      <label className="field-label">Levels (root to leaf)</label>
+      <label className="field-label">{t("profiles.levels")}</label>
       <table className="politics-levels-table">
         <thead>
           <tr>
-            <th>Type</th>
-            <th>Root?</th>
-            <th>Required?</th>
-            <th>Attachable?</th>
-            <th>Allowed parents</th>
+            <th>{t("profiles.column.type")}</th>
+            <th>{t("profiles.column.root")}</th>
+            <th>{t("profiles.column.required")}</th>
+            <th>{t("profiles.column.attachable")}</th>
+            <th>{t("profiles.column.parents")}</th>
             <th />
           </tr>
         </thead>
@@ -199,11 +206,11 @@ function ProfileForm({
               </td>
               <td>
                 <button type="button" className="btn btn-sm" onClick={() => setEditingParentsForIndex(i)}>
-                  Edit ({l.allowedParentTypes.length})
+                  {t("profiles.editParents", { n: l.allowedParentTypes.length })}
                 </button>
               </td>
               <td>
-                <button className="btn btn-ghost btn-icon" onClick={() => setLevels((prev) => prev.filter((_, idx) => idx !== i))} aria-label="Remove level">
+                <button className="btn btn-ghost btn-icon" onClick={() => setLevels((prev) => prev.filter((_, idx) => idx !== i))} aria-label={t("profiles.removeLevel")}>
                   <Trash2 size={13} strokeWidth={2.25} />
                 </button>
               </td>
@@ -216,16 +223,16 @@ function ProfileForm({
         onClick={() => setLevels((prev) => [...prev, { type: "", canBeRoot: false, required: false, attachable: false, allowedParentTypes: [] }])}
       >
         <Plus size={13} strokeWidth={2.25} />
-        Add level
+        {t("profiles.addLevel")}
       </button>
 
       {error && <p className="form-error">{error}</p>}
       <div className="marker-panel-actions">
         <button className="btn btn-sm btn-primary" onClick={submit}>
-          Save
+          {tc("save")}
         </button>
         <button className="btn btn-sm" onClick={onCancel}>
-          Close
+          {tc("close")}
         </button>
       </div>
 
@@ -265,21 +272,23 @@ function AllowedParentsModal({
   onToggle: (type: string) => void;
   onClose: () => void;
 }) {
+  const t = useT("politics");
+  const tc = useT("common");
   return (
-    <Modal open onClose={onClose} title="Allowed parent types">
+    <Modal open onClose={onClose} title={t("profiles.allowedParents")}>
       <ul className="allowed-parents-list">
         {TERRITORY_TYPE_CATALOG.map((c) => (
           <li key={c.type}>
             <label className="allowed-parents-option">
               <input type="checkbox" checked={selected.includes(c.type)} onChange={() => onToggle(c.type)} />
-              {c.type}
+              {territoryTypeLabel(c.type, t)}
             </label>
           </li>
         ))}
       </ul>
       <div className="marker-panel-actions">
         <button type="button" className="btn btn-sm btn-primary" onClick={onClose}>
-          Done
+          {tc("done")}
         </button>
       </div>
     </Modal>

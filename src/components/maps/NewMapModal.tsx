@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ImageUp, Plus, X } from "lucide-react";
 import Modal from "@/components/Modal";
 import InfoPicker, { type PickerOption } from "@/components/articles/InfoPicker";
+import { useT } from "@/i18n/useT";
 
 const ACCEPTED_IMAGES = "image/png,image/jpeg,image/webp";
 
@@ -27,6 +28,8 @@ export default function NewMapModal({
   onClose: () => void;
   onCreated: (mapId: string) => void;
 }) {
+  const t = useT("maps");
+  const tc = useT("common");
   const [name, setName] = useState("");
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [parentId, setParentId] = useState<string | null>(null);
@@ -60,11 +63,11 @@ export default function NewMapModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, categoryId, parentId, folderId }),
       });
-      if (!mapRes.ok) throw new Error((await mapRes.json().catch(() => ({}))).error ?? "Could not create the map.");
+      if (!mapRes.ok) throw new Error((await mapRes.json().catch(() => ({}))).error ?? t("newMapModal.createFailed"));
       const { map } = await mapRes.json();
       if (file) {
         const uploadRes = await fetch(`/api/maps/${map.id}/assets`, { method: "POST", headers: { "Content-Type": file.type }, body: file });
-        if (!uploadRes.ok) throw new Error((await uploadRes.json().catch(() => ({}))).error ?? "The map was created, but the artwork upload failed.");
+        if (!uploadRes.ok) throw new Error((await uploadRes.json().catch(() => ({}))).error ?? t("newMapModal.uploadFailed"));
       }
       onCreated(map.id);
     } catch (err) {
@@ -74,7 +77,7 @@ export default function NewMapModal({
   }
 
   return (
-    <Modal open onClose={() => !busy && onClose()} title="New Map">
+    <Modal open onClose={() => !busy && onClose()} title={t("newMap")}>
       <form
         className="new-map-form"
         onSubmit={(e) => {
@@ -83,41 +86,41 @@ export default function NewMapModal({
         }}
       >
         <label className="field-label" htmlFor="new-map-name">
-          Map name
+          {t("field.mapName")}
         </label>
-        <input id="new-map-name" type="text" placeholder="e.g. The Sundered Coast" value={name} maxLength={200} autoFocus onChange={(e) => setName(e.target.value)} />
+        <input id="new-map-name" type="text" placeholder={t("newMapModal.namePlaceholder")} value={name} maxLength={200} autoFocus onChange={(e) => setName(e.target.value)} />
 
-        <span className="field-label">Category (optional)</span>
+        <span className="field-label">{t("field.categoryOptional")}</span>
         <InfoPicker
           options={categories ?? []}
           value={categoryId}
-          placeholder={categories === null ? "Loading…" : "No category"}
-          clearLabel="No category"
-          ariaLabel="Category"
+          placeholder={categories === null ? tc("loading") : t("picker.noCategory")}
+          clearLabel={t("picker.noCategory")}
+          ariaLabel={t("field.category")}
           searchable={(categories?.length ?? 0) >= 10}
           onChange={setCategoryId}
         />
 
-        <span className="field-label">Parent map (optional)</span>
-        <InfoPicker options={mapOptions} value={parentId} placeholder="No parent (root map)" clearLabel="No parent (root map)" ariaLabel="Parent map" onChange={setParentId} />
+        <span className="field-label">{t("field.parentOptional")}</span>
+        <InfoPicker options={mapOptions} value={parentId} placeholder={t("picker.noParent")} clearLabel={t("picker.noParent")} ariaLabel={t("field.parent")} onChange={setParentId} />
 
-        <span className="field-label">Folder (optional)</span>
+        <span className="field-label">{t("field.folderOptional")}</span>
         <InfoPicker
           options={folderOptions}
           value={folderId}
-          placeholder={folderOptions.length ? "No folder" : "No folders yet"}
-          clearLabel="No folder"
-          ariaLabel="Folder"
+          placeholder={folderOptions.length ? t("picker.noFolder") : t("picker.noFolders")}
+          clearLabel={t("picker.noFolder")}
+          ariaLabel={t("field.folder")}
           disabled={folderOptions.length === 0}
           onChange={setFolderId}
         />
 
-        <span className="field-label">Map artwork (optional)</span>
+        <span className="field-label">{t("field.artworkOptional")}</span>
         <input ref={fileRef} type="file" accept={ACCEPTED_IMAGES} hidden onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
         <div className="new-map-file">
           <button type="button" className="btn btn-sm" onClick={() => fileRef.current?.click()}>
             <ImageUp size={13} strokeWidth={2.25} />
-            {file ? "Change image" : "Choose image"}
+            {file ? t("art.change") : t("art.choose")}
           </button>
           {file ? (
             <>
@@ -127,8 +130,8 @@ export default function NewMapModal({
               <button
                 type="button"
                 className="btn btn-ghost btn-icon"
-                aria-label="Remove the chosen image"
-                data-tooltip="Remove the chosen image"
+                aria-label={t("art.remove")}
+                data-tooltip={t("art.remove")}
                 onClick={() => {
                   setFile(null);
                   if (fileRef.current) fileRef.current.value = "";
@@ -138,18 +141,18 @@ export default function NewMapModal({
               </button>
             </>
           ) : (
-            <span className="field-label">PNG, JPEG or WebP — you can also add it later.</span>
+            <span className="field-label">{t("art.formats")}</span>
           )}
         </div>
 
         {error && <p className="form-error">{error}</p>}
         <div className="confirm-dialog-actions">
           <button type="button" className="btn btn-sm" onClick={onClose} disabled={busy}>
-            Cancel
+            {tc("cancel")}
           </button>
           <button type="submit" className="btn btn-sm btn-primary" disabled={busy || !name.trim()}>
             <Plus size={13} strokeWidth={2.25} />
-            {busy ? "Creating…" : "Create map"}
+            {busy ? tc("creating") : t("createMap")}
           </button>
         </div>
       </form>

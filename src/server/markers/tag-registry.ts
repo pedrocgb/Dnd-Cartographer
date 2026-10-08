@@ -1,4 +1,6 @@
 import { parseLayerIds } from "../layers/layer-ids";
+import { activeT } from "../../i18n/active";
+import type { MessageKey } from "../../i18n/messages";
 // Marker tag systems: Status (multi-select), Environment (single-select),
 // and Ownership (single-select). None of these have icons — they're plain
 // text labels used for filtering/searching markers.
@@ -93,6 +95,13 @@ export type OwnershipTag = (typeof OWNERSHIP_TAGS)[number];
 const OWNERSHIP_TAG_SET = new Set<string>(OWNERSHIP_TAGS);
 export function isValidOwnershipTag(value: string): value is OwnershipTag {
   return OWNERSHIP_TAG_SET.has(value);
+}
+
+const TAG_SETS = { status: STATUS_TAG_SET, environment: ENVIRONMENT_TAG_SET, ownership: OWNERSHIP_TAG_SET };
+
+/** A stored tag in the user's language (the English value is the key); an unknown one shows as stored. */
+export function markerTagLabel(kind: keyof typeof TAG_SETS, value: string): string {
+  return TAG_SETS[kind].has(value) ? activeT("maps")(`markerTag.${kind}.${value}` as MessageKey<"maps">) : value;
 }
 
 /** Parses the JSON-encoded statusTags column, tolerating malformed/legacy data. */

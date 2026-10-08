@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
+import { errorResponse } from "@/i18n/server";
 import { and, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { campaigns, quests } from "@/server/db/schema";
 import { requireWorldId } from "@/server/world/active-world";
-import { badRequest } from "@/server/calendars/respond";
 import { questsForArticle } from "@/server/quests/store";
 import type { BriefQuest } from "@/server/quests/types";
 
@@ -37,8 +37,8 @@ export async function GET(request: Request) {
   }
   const from = Number(url.searchParams.get("from"));
   const to = Number(url.searchParams.get("to"));
-  if (!url.searchParams.has("from") || !Number.isSafeInteger(from) || !Number.isSafeInteger(to) || to < from) return badRequest("Pass an articleId, or a from/to day range.");
-  if (to - from > MAX_WINDOW) return badRequest(`Ask for at most ${MAX_WINDOW} days at once.`);
+  if (!url.searchParams.has("from") || !Number.isSafeInteger(from) || !Number.isSafeInteger(to) || to < from) return errorResponse("questRangeMissing", 400);
+  if (to - from > MAX_WINDOW) return errorResponse("entryRangeTooLong", 400, undefined, { n: MAX_WINDOW });
   const inRange = (col: typeof quests.startDay | typeof quests.deadlineDay | typeof quests.endDay) => and(gte(col, from), lte(col, to));
   const rows = await db
     .select()

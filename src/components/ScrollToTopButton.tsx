@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ArrowUp } from "lucide-react";
+import { useT } from "@/i18n/useT";
 
 const SIZE = 40;
 /** Space between the content's edge and the button, and from the pane's edges. */
@@ -28,11 +29,12 @@ function placement(container: HTMLElement): Position {
  * fixed on screen beside the content so it stays put while scrolling.
  */
 export default function ScrollToTopButton({ container }: { container: HTMLElement | null }) {
+  const t = useT("common");
   const { scrollable, position } = useFloatingInPane(container, placement);
 
   if (!scrollable || !container || !position) return null;
   return (
-    <button type="button" className="scroll-to-top" style={position} aria-label="Back to top" data-tooltip="Back to top" onClick={() => scrollToTop(container)}>
+    <button type="button" className="scroll-to-top" style={position} aria-label={t("backToTop")} data-tooltip={t("backToTop")} onClick={() => scrollToTop(container)}>
       <ArrowUp size={18} strokeWidth={2.25} />
     </button>
   );

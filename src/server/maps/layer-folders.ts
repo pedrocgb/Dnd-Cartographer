@@ -121,19 +121,21 @@ export function toClientFolder<T extends { extraLayerIds: string; defaultStyle: 
   return { ...row, extraLayerIds: parseLayerIds(row.extraLayerIds), defaultStyle: parseStyle(row.defaultStyle) };
 }
 
+export type FolderErrorKey = "groupIdInvalid" | "folderNotOnMap" | "folderOtherLayer" | "folderLocked";
+
 /**
  * Checks a line's or text's folder: null (Ungrouped) is always fine;
  * otherwise a live folder of the same map and home layer, unlocked for
- * `forWrite`. Returns an error message, or null when valid.
+ * `forWrite`. Returns an errors-namespace key, or null when valid.
  */
-export async function folderError(kind: GroupedKind, groupId: unknown, mapId: string, layerId: string | null, forWrite = true): Promise<string | null> {
+export async function folderError(kind: GroupedKind, groupId: unknown, mapId: string, layerId: string | null, forWrite = true): Promise<FolderErrorKey | null> {
   if (groupId === null) return null;
-  if (typeof groupId !== "string") return "groupId must be a folder id or null.";
+  if (typeof groupId !== "string") return "groupIdInvalid";
   const table = folderTable(kind);
   const [group] = await db.select().from(table).where(and(eq(table.id, groupId), isNull(table.deletedAt)));
-  if (!group || group.mapId !== mapId) return "Folder not found on this map.";
-  if (group.layerId !== layerId) return "The folder is on another layer.";
-  if (forWrite && group.locked) return "The folder is locked.";
+  if (!group || group.mapId !== mapId) return "folderNotOnMap";
+  if (group.layerId !== layerId) return "folderOtherLayer";
+  if (forWrite && group.locked) return "folderLocked";
   return null;
 }
 

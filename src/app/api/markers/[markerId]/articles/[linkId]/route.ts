@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { errorResponse } from "@/i18n/server";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { markerArticleLinks } from "@/server/db/schema";
@@ -10,15 +11,15 @@ const MAX_LABEL_LENGTH = 80;
 /** Changes a link's relationship label, or makes it the marker's primary article (`primary: true`). */
 export async function PATCH(request: Request, { params }: { params: Promise<{ markerId: string; linkId: string }> }) {
   const { markerId, linkId } = await params;
-  const denied = await notInWorld("markers", markerId, "Marker not found.");
+  const denied = await notInWorld("markers", markerId, "markerNotFound");
   if (denied) return denied;
   const link = await db.query.markerArticleLinks.findFirst({
     where: and(eq(markerArticleLinks.id, linkId), eq(markerArticleLinks.markerId, markerId)),
   });
-  if (!link) return NextResponse.json({ error: "Link not found." }, { status: 404 });
+  if (!link) return errorResponse("linkNotFound", 404);
 
   const body = await request.json().catch(() => null);
-  if (!body) return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+  if (!body) return errorResponse("invalidBody", 400);
 
   await db.transaction(async (tx) => {
     if (typeof body.label === "string") {
@@ -36,7 +37,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ma
 /** Unlinks; removing the primary article promotes the oldest remaining link. */
 export async function DELETE(_request: Request, { params }: { params: Promise<{ markerId: string; linkId: string }> }) {
   const { markerId, linkId } = await params;
-  const denied = await notInWorld("markers", markerId, "Marker not found.");
+  const denied = await notInWorld("markers", markerId, "markerNotFound");
   if (denied) return denied;
   await removeLink(markerId, linkId);
   return NextResponse.json({ ok: true });

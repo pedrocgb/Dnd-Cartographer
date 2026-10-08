@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { errorResponse } from "@/i18n/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { markers } from "@/server/db/schema";
@@ -7,7 +8,7 @@ import { notInWorld } from "@/server/world/guards";
 
 export async function POST(_request: Request, { params }: { params: Promise<{ markerId: string }> }) {
   const { markerId } = await params;
-  const denied = await notInWorld("markers", markerId, "Marker not found.");
+  const denied = await notInWorld("markers", markerId, "markerNotFound");
   if (denied) return denied;
   const [restored] = await db
     .update(markers)
@@ -15,7 +16,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ ma
     .where(eq(markers.id, markerId))
     .returning();
   if (!restored) {
-    return NextResponse.json({ error: "Marker not found." }, { status: 404 });
+    return errorResponse("markerNotFound", 404);
   }
   return NextResponse.json({ marker: toClientMarker(restored) });
 }

@@ -32,13 +32,13 @@ export async function questFields(body: Record<string, unknown>, { worldId, camp
   if ("objectives" in body) patch.objectives = JSON.stringify(parseObjectives(body.objectives));
   if ("parentId" in body) {
     const parentId = body.parentId === null || body.parentId === "" ? null : String(body.parentId);
-    if (parentId !== null && !campaignQuests.some((q) => q.id === parentId)) throw new InvalidError("The parent quest isn't in this campaign.");
-    if (parentId !== null && selfId !== null && wouldCycle(campaignQuests, selfId, parentId)) throw new InvalidError("A quest can't sit under itself or one of its own sub-quests.");
+    if (parentId !== null && !campaignQuests.some((q) => q.id === parentId)) throw new InvalidError({ ns: "campaign", key: "problem.parentNotInCampaign" });
+    if (parentId !== null && selfId !== null && wouldCycle(campaignQuests, selfId, parentId)) throw new InvalidError({ ns: "campaign", key: "problem.parentCycle" });
     patch.parentId = parentId;
   }
   if ("frontId" in body) {
     const frontId = body.frontId === null || body.frontId === "" ? null : String(body.frontId);
-    if (frontId !== null && !frontIds.has(frontId)) throw new InvalidError("That front isn't in this campaign.");
+    if (frontId !== null && !frontIds.has(frontId)) throw new InvalidError({ ns: "campaign", key: "problem.frontNotInCampaign" });
     patch.frontId = frontId;
   }
   if ("clock" in body) {

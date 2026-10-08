@@ -20,24 +20,26 @@ import StoryReader from "./StoryReader";
 import ReaderDock from "./ReaderDock";
 import { upsert, useWriterData } from "./useWriterData";
 import ShareDialog, { type ShareScope } from "@/components/share/ShareDialog";
+import { useT } from "@/i18n/useT";
+import { activeT } from "@/i18n/active";
 
 type Tab = "story" | "sessions" | "threads" | "status";
-const TABS: { key: Tab; label: string; icon: typeof BookOpen; hint: string }[] = [
-  { key: "story", label: "Story", icon: BookOpen, hint: "Arcs, chapters and scenes, and their text" },
-  { key: "sessions", label: "Sessions", icon: CalendarCheck, hint: "Prep the next session, then mark what happened" },
-  { key: "threads", label: "Threads", icon: Spline, hint: "Promises, setups and mysteries: where they start and pay off" },
-  { key: "status", label: "World status", icon: Globe, hint: "What changed in the world, session by session" },
+const TABS: { key: Tab; icon: typeof BookOpen }[] = [
+  { key: "story", icon: BookOpen },
+  { key: "sessions", icon: CalendarCheck },
+  { key: "threads", icon: Spline },
+  { key: "status", icon: Globe },
 ];
 
-const kindName = (n: OutlineNode) => NODE_KIND_LABELS[n.kind].toLowerCase();
+/** `Arc “The Ash Queen”`, in the active language. */
+const kindTitle = (n: OutlineNode) => activeT("writer")("ui.kindTitle", { kind: NODE_KIND_LABELS[n.kind], title: n.title });
 
 /** What a link to `root` (or the whole campaign) leaves out: the hidden items inside it, not counting what's inside those. */
 function hiddenNote(nodes: OutlineNode[], root: OutlineNode | null): string | undefined {
   const inside = (parentId: string | null): OutlineNode[] => nodes.filter((n) => n.parentId === parentId).flatMap((n) => (n.hidden ? [n] : inside(n.id)));
   const hidden = inside(root?.id ?? null);
   if (!hidden.length) return undefined;
-  const names = hidden.map((n) => `${NODE_KIND_LABELS[n.kind]} "${n.title}"`).join(", ");
-  return `Hidden from shares, so left out (with everything inside): ${names}.`;
+  return activeT("writer")("share.leftOut", { names: hidden.map(kindTitle).join(", ") });
 }
 
 /**
@@ -48,15 +50,19 @@ function hiddenNote(nodes: OutlineNode[], root: OutlineNode | null): string | un
 function shareScopes(campaignId: string, nodes: OutlineNode[], selected: OutlineNode | null): ShareScope[] {
   const chain: OutlineNode[] = [];
   for (let n = selected; n && chain.length < 4; n = nodes.find((p) => p.id === n!.parentId) ?? null) chain.unshift(n);
+  const t = activeT("writer");
   return [
-    { label: "Whole campaign", target: { kind: "campaign", id: campaignId }, note: hiddenNote(nodes, null) },
+    { label: t("share.wholeCampaign"), target: { kind: "campaign", id: campaignId }, note: hiddenNote(nodes, null) },
     ...chain.map((n, i): ShareScope => {
       const hiddenBy = n.hidden ? n : chain.slice(0, i).find((a) => a.hidden);
+      const label = t("ui.kindTitleLabel", { kind: NODE_KIND_LABELS[n.kind], title: n.title });
       return {
-        label: `${NODE_KIND_LABELS[n.kind]}: ${n.title}${hiddenBy ? " (hidden)" : ""}`,
+        label: hiddenBy ? t("share.hiddenSuffix", { label }) : label,
         target: { kind: "outline", id: n.id },
         warning: hiddenBy
-          ? `This ${kindName(n)} is hidden from shares${hiddenBy === n ? "" : ` (its ${kindName(hiddenBy)} "${hiddenBy.title}" is hidden)`}. Sharing it on its own will force reveal it to anyone with this link.`
+          ? hiddenBy === n
+            ? t(`share.hiddenSelf.${n.kind}`)
+            : t("share.hiddenBy", { kind: NODE_KIND_LABELS[n.kind].toLowerCase(), parent: kindTitle(hiddenBy) })
           : undefined,
         note: hiddenNote(nodes, n),
       };
@@ -94,6 +100,7 @@ export default function CampaignWriter({
   initialMode: string | null;
   onCampaignChanged: (c: ClientCampaign) => void;
 }) {
+  const t = useT("writer");
   const { data, loading, error, reload, update } = useWriterData(campaign.id);
   const [tab, setTab] = useState<Tab>(tabParam(initialTab));
   const [selectedId, setSelectedId] = useState<string | null>(initialNode);
@@ -114,9 +121,9 @@ export default function CampaignWriter({
   const setNodes = (fn: (nodes: OutlineNode[]) => OutlineNode[]) => update((d) => ({ ...d, nodes: fn(d.nodes) }));
 
   async function addNode(kind: NodeKind, parentId: string | null) {
-    const title = kind === "arc" ? "New arc" : kind === "chapter" ? "New chapter" : "New scene";
+    const title = t(`newNode.${kind}`);
     const res = await api<{ node: OutlineNode }>("POST", `/api/campaigns/${campaign.id}/outline`, { kind, parentId, title });
-    if (!res.ok) return setNotice(res.data.error ?? "Could not add it.");
+    if (!res.ok) return setNotice(res.data.error ?? t("writer.couldNotAdd"));
     setNodes((list) => [...list, res.data.node]);
     setSelectedId(res.data.node.id);
     setTab("story");
@@ -129,7 +136,7 @@ export default function CampaignWriter({
     const res = await api<{ nodes: OutlineNode[] }>("POST", `/api/campaigns/${campaign.id}/outline/reorder`, { moves });
     if (res.ok) setNodes(() => res.data.nodes);
     else {
-      setNotice(res.data.error ?? "Could not move it.");
+      setNotice(res.data.error ?? t("writer.couldNotMove"));
       await reload();
     }
   }
@@ -137,7 +144,7 @@ export default function CampaignWriter({
   async function applyTemplate(parentId: string | null, template: string) {
     setTemplateFor(null);
     const res = await api<{ nodes: OutlineNode[] }>("POST", `/api/campaigns/${campaign.id}/outline/apply-template`, { parentId, template });
-    if (!res.ok) return setNotice(res.data.error ?? "Could not lay out the structure.");
+    if (!res.ok) return setNotice(res.data.error ?? t("writer.couldNotLayOut"));
     setNodes(() => res.data.nodes);
     if (parentId === null) setSelectedId(res.data.nodes.find((n) => n.parentId === null)?.id ?? null);
   }
@@ -145,18 +152,18 @@ export default function CampaignWriter({
   async function saveSetup(setup: Partial<ClientCampaign["setup"]>) {
     const res = await api<{ campaign: ClientCampaign }>("PATCH", `/api/campaigns/${campaign.id}`, { setup });
     if (res.ok) onCampaignChanged(res.data.campaign);
-    else setNotice(res.data.error ?? "Could not save the campaign setup.");
+    else setNotice(res.data.error ?? t("writer.couldNotSaveSetup"));
     return res.ok;
   }
 
-  if (loading) return <PageSkeleton label="Loading the story…" main="cards" />;
+  if (loading) return <PageSkeleton label={t("writer.loadingStory")} main="cards" />;
   const shareOptions = sharing ? shareScopes(campaign.id, data.nodes, selected) : null;
 
   const sidebar = (
-    <aside className="articles-sidebar wr-sidebar" aria-label="Story outline">
+    <aside className="articles-sidebar wr-sidebar" aria-label={t("writer.outline")}>
       <section className="cal-side-section wr-outline-section">
         <h2 className="field-label">
-          <ListTree size={14} aria-hidden /> Outline
+          <ListTree size={14} aria-hidden /> {t("writer.outlineHeading")}
         </h2>
         <OutlineTree
           nodes={data.nodes}
@@ -170,7 +177,7 @@ export default function CampaignWriter({
         />
         <button type="button" className="articles-folder articles-create" onClick={() => void addNode("arc", null)}>
           <Plus size={16} />
-          <span className="articles-folder-name">New arc</span>
+          <span className="articles-folder-name">{t("writer.newArc")}</span>
         </button>
       </section>
     </aside>
@@ -183,34 +190,34 @@ export default function CampaignWriter({
         <header className="ss-header">
           <div className="ss-header-text">
             <h1>{campaign.name}</h1>
-            {campaign.setup.pitch ? <p className="ss-description">{campaign.setup.pitch}</p> : <p className="cal-help">No pitch yet. Open the campaign setup to write it in a sentence or two.</p>}
+            {campaign.setup.pitch ? <p className="ss-description">{campaign.setup.pitch}</p> : <p className="cal-help">{t("writer.noPitch")}</p>}
           </div>
           <div className="ss-header-actions">
             {tab === "story" && (
-              <div className="wr-mode" role="group" aria-label="Story mode">
-                <button type="button" className={reading ? "btn btn-sm btn-ghost" : "btn btn-sm btn-ghost active"} aria-pressed={!reading} data-tooltip="Write and organize the story" onClick={() => setReading(false)}>
-                  <PenLine size={14} /> Edit
+              <div className="wr-mode" role="group" aria-label={t("writer.storyMode")}>
+                <button type="button" className={reading ? "btn btn-sm btn-ghost" : "btn btn-sm btn-ghost active"} aria-pressed={!reading} data-tooltip={t("writer.editHint")} onClick={() => setReading(false)}>
+                  <PenLine size={14} /> {t("ui.edit")}
                 </button>
-                <button type="button" className={reading ? "btn btn-sm btn-ghost active" : "btn btn-sm btn-ghost"} aria-pressed={reading} data-tooltip="Read the story like a book, without editing" onClick={() => setReading(true)}>
-                  <Eye size={14} /> Read
+                <button type="button" className={reading ? "btn btn-sm btn-ghost active" : "btn btn-sm btn-ghost"} aria-pressed={reading} data-tooltip={t("writer.readHint")} onClick={() => setReading(true)}>
+                  <Eye size={14} /> {t("writer.read")}
                 </button>
               </div>
             )}
-            <button type="button" className={guides ? "btn btn-sm btn-ghost active" : "btn btn-sm btn-ghost"} aria-pressed={guides} data-tooltip={guides ? "Hide the writing guides" : "Show the writing guides"} onClick={() => void saveSetup({ guidesHidden: guides })}>
-              <HelpCircle size={14} /> Guides
+            <button type="button" className={guides ? "btn btn-sm btn-ghost active" : "btn btn-sm btn-ghost"} aria-pressed={guides} data-tooltip={guides ? t("writer.hideGuides") : t("writer.showGuides")} onClick={() => void saveSetup({ guidesHidden: guides })}>
+              <HelpCircle size={14} /> {t("writer.guides")}
             </button>
-            <button type="button" className="btn btn-sm btn-share" data-tooltip="A read-only link to the story or part of it" onClick={() => setSharing(true)}>
-              <Share2 size={14} /> Share
+            <button type="button" className="btn btn-sm btn-share" data-tooltip={t("writer.shareHint")} onClick={() => setSharing(true)}>
+              <Share2 size={14} /> {t("writer.share")}
             </button>
             <button type="button" className="btn btn-sm" onClick={() => setSetupOpen(true)}>
-              <Settings2 size={14} /> Campaign setup
+              <Settings2 size={14} /> {t("writer.campaignSetup")}
             </button>
           </div>
         </header>
-        <nav className="cal-editor-tabs ss-view-tabs" role="tablist" aria-label="Show">
-          {TABS.map(({ key, label, icon: Icon, hint }) => (
-            <button key={key} type="button" role="tab" aria-selected={tab === key} className={tab === key ? "cal-tab active" : "cal-tab"} data-tooltip={hint} onClick={() => setTab(key)}>
-              <Icon size={14} aria-hidden /> {label}
+        <nav className="cal-editor-tabs ss-view-tabs" role="tablist" aria-label={t("writer.show")}>
+          {TABS.map(({ key, icon: Icon }) => (
+            <button key={key} type="button" role="tab" aria-selected={tab === key} className={tab === key ? "cal-tab active" : "cal-tab"} data-tooltip={t(`tab.${key}Hint`)} onClick={() => setTab(key)}>
+              <Icon size={14} aria-hidden /> {t(`tab.${key}`)}
             </button>
           ))}
         </nav>
@@ -267,26 +274,27 @@ export default function CampaignWriter({
 
 /** The Story tab with nothing selected: where to begin. */
 function EmptyStory({ hasOutline, guides, onTemplate, onBlank, onSetup }: { hasOutline: boolean; guides: boolean; onTemplate: () => void; onBlank: () => void; onSetup: () => void }) {
-  if (hasOutline) return <p className="cal-help wr-empty">Pick an arc, chapter or scene in the outline to write it.</p>;
+  const t = useT("writer");
+  if (hasOutline) return <p className="cal-help wr-empty">{t("empty.pick")}</p>;
   return (
     <div className="wr-start">
-      <h2>Where do you want to begin?</h2>
+      <h2>{t("empty.title")}</h2>
       {guides && <p className="cal-help">{TIPS.emptyOutline}</p>}
       <div className="wr-start-options">
         <button type="button" className="wr-start-card" onClick={onSetup}>
           <Settings2 size={20} aria-hidden />
-          <strong>Set up the campaign</strong>
-          <span className="cal-help">A pitch, a few truths about the world, session zero and safety tools. A guided start.</span>
+          <strong>{t("empty.setup")}</strong>
+          <span className="cal-help">{t("empty.setupHint")}</span>
         </button>
         <button type="button" className="wr-start-card" onClick={onTemplate}>
           <Spline size={20} aria-hidden />
-          <strong>Start from a story structure</strong>
-          <span className="cal-help">Three acts, Hero&apos;s Journey, Save the Cat… Lays out arcs you then fill in.</span>
+          <strong>{t("empty.structure")}</strong>
+          <span className="cal-help">{t("empty.structureHint")}</span>
         </button>
         <button type="button" className="wr-start-card" onClick={onBlank}>
           <Plus size={20} aria-hidden />
-          <strong>Blank arc</strong>
-          <span className="cal-help">Just start writing. You can add structure later.</span>
+          <strong>{t("empty.blank")}</strong>
+          <span className="cal-help">{t("empty.blankHint")}</span>
         </button>
       </div>
     </div>

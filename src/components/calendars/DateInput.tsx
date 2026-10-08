@@ -2,6 +2,7 @@
 
 import { dateError, type CalendarDefinition, type LocalDate } from "@/server/calendars/engine";
 import { periodsOf } from "./evaluate";
+import { useT } from "@/i18n/useT";
 
 /**
  * A fantasy date in one calendar: day, month (the year's own periods,
@@ -24,6 +25,7 @@ export default function DateInput({
   /** Month and day only (a yearly date); `value.year` is kept as given and only used to list that year's months. */
   hideYear?: boolean;
 }) {
+  const t = useT("calendars");
   const periods = periodsOf(def, value.year);
   const current = periods.find((p) => p.period.id === value.periodId);
   // A period missing this year stays selectable so the error can explain it.
@@ -35,27 +37,26 @@ export default function DateInput({
     <fieldset className={compact ? "cal-date-input compact" : "cal-date-input"}>
       <legend className="field-label">{label}</legend>
       <div className="cal-date-input-row">
-        <select aria-label={`${label}: day`} value={value.day} onChange={(e) => onChange({ ...value, day: Number(e.target.value) })}>
+        <select aria-label={t("date.dayAria", { label })} value={value.day} onChange={(e) => onChange({ ...value, day: Number(e.target.value) })}>
           {Array.from({ length: Math.max(days, value.day) }, (_, i) => (
             <option key={i + 1} value={i + 1}>
               {i + 1}
             </option>
           ))}
         </select>
-        <select aria-label={`${label}: month`} value={value.periodId} onChange={(e) => onChange({ ...value, periodId: e.target.value, day: Math.min(value.day, periods.find((p) => p.period.id === e.target.value)?.days ?? value.day) })}>
+        <select aria-label={t("date.monthAria", { label })} value={value.periodId} onChange={(e) => onChange({ ...value, periodId: e.target.value, day: Math.min(value.day, periods.find((p) => p.period.id === e.target.value)?.days ?? value.day) })}>
           {periods.map((p) => (
             <option key={p.period.id} value={p.period.id}>
-              {p.period.name}
-              {p.period.kind === "special" ? " (special)" : ""}
+              {p.period.kind === "special" ? t("date.special", { name: p.period.name }) : p.period.name}
             </option>
           ))}
-          {missing && <option value={missing.id}>{missing.name} (not this year)</option>}
+          {missing && <option value={missing.id}>{t("date.notThisYear", { name: missing.name })}</option>}
         </select>
         {!hideYear && (
           <span className="cal-date-year">
             <input
               type="number"
-              aria-label={`${label}: year`}
+              aria-label={t("date.yearAria", { label })}
               value={value.year}
               onChange={(e) => {
                 const year = Number(e.target.value);

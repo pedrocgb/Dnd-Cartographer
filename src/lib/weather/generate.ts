@@ -43,8 +43,15 @@ export interface WeatherHour {
   /** km/h; gusts null when the air is (nearly) still. */
   windKmh: number;
   gustKmh: number | null;
+  /** An English compass point or "Variable", worded on display. */
   direction: string;
+  /** The Beaufort name in English; the display words `beaufort` instead. */
   windForce: string;
+  /**
+   * `sky`, `precipitationLabel`, `label` and `effects` are `weather` message
+   * keys (`sky.*`, `precip.*`, `effect.*`), worded on display by `weatherText`.
+   * Days saved before that hold English text, which is shown as stored.
+   */
   sky: string;
   precipitationLabel: string;
   condition: Condition;
@@ -288,7 +295,7 @@ export function generateWeatherDay(opts: WeatherOptions, rng: Rng = Math.random)
       sky,
       precipitationLabel,
       condition,
-      label: precipitation ? precipitationLabel : condition === "clear" ? "Clear" : sky,
+      label: precipitation ? precipitationLabel : condition === "clear" ? "sky.clear" : sky,
       effects: practicalEffects({ ...reading, low, high }, t),
     });
   }
@@ -313,23 +320,23 @@ function conditionOf(w: Reading, t: Required<GeographyTraits>): Condition {
 }
 
 function skyLabel(w: Reading, t: Required<GeographyTraits>, dark: boolean): string {
-  if (w.underground) return "None (underground)";
-  if (w.precipitation?.thunder) return "Towering thunderclouds";
-  if (w.precipitation) return w.precipitation.type === "snow" && w.beaufort >= 7 ? "Whiteout" : "Overcast";
-  if (w.fog) return w.fog === "ice fog" ? "Ice fog" : w.fog === "fog" ? "Fog" : "Mist";
-  if (t.dusty && w.beaufort >= 8) return "Sandstorm";
-  if (t.dusty && w.beaufort >= 6) return "Dust haze";
-  if (w.cover === "clear") return dark ? "Clear and starry" : "Clear";
-  return { partly: "Partly cloudy", mostly: "Mostly cloudy", overcast: "Overcast" }[w.cover!];
+  if (w.underground) return "sky.underground";
+  if (w.precipitation?.thunder) return "sky.thunderclouds";
+  if (w.precipitation) return w.precipitation.type === "snow" && w.beaufort >= 7 ? "sky.whiteout" : "sky.overcast";
+  if (w.fog) return w.fog === "ice fog" ? "sky.iceFog" : w.fog === "fog" ? "sky.fog" : "sky.mist";
+  if (t.dusty && w.beaufort >= 8) return "sky.sandstorm";
+  if (t.dusty && w.beaufort >= 6) return "sky.dustHaze";
+  if (w.cover === "clear") return dark ? "sky.clearStarry" : "sky.clear";
+  return `sky.${w.cover!}`;
 }
 
 function precipLabel(p: Precipitation | null, beaufort: number, underground: boolean): string {
-  if (underground) return "None (dripping water)";
-  if (!p) return "None";
-  if (p.type === "snow" && beaufort >= 7) return "Blizzard";
-  if (p.type === "hail") return "Hail with thunder";
-  const label = `${p.intensity.charAt(0).toUpperCase()}${p.intensity.slice(1)} ${p.type}`;
-  return p.thunder ? `${label} with thunder` : label;
+  if (underground) return "precip.dripping";
+  if (!p) return "precip.none";
+  if (p.type === "snow" && beaufort >= 7) return "precip.blizzard";
+  if (p.type === "hail") return "precip.hail";
+  // Thunder needs warm air, so only rain carries it.
+  return `precip.${p.type}.${p.intensity}${p.thunder ? ".thunder" : ""}`;
 }
 
 /** Neighbouring hours with the same label, merged into stretches. */

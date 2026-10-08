@@ -5,6 +5,7 @@ import { articleFolders } from "@/server/db/schema";
 import { requireWorldId } from "@/server/world/active-world";
 import { cleanFolderName } from "@/server/maps/folders";
 import { findArticleFolder, listArticleFolderItems } from "@/server/articles/folders";
+import { errorResponse } from "@/i18n/server";
 
 /** Every folder and every membership (`{ folderId, articleId }`). */
 export async function GET() {
@@ -17,11 +18,11 @@ export async function GET() {
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const name = cleanFolderName(body?.name);
-  if (!name) return NextResponse.json({ error: "A folder name is required." }, { status: 400 });
+  if (!name) return errorResponse("folderNameRequired", 400);
 
   const worldId = await requireWorldId();
   const parentId = typeof body?.parentId === "string" && body.parentId ? body.parentId : null;
-  if (parentId && !(await findArticleFolder(worldId, parentId))) return NextResponse.json({ error: "Unknown parent folder." }, { status: 400 });
+  if (parentId && !(await findArticleFolder(worldId, parentId))) return errorResponse("parentFolderUnknown", 400);
 
   const [folder] = await db.insert(articleFolders).values({ worldId, name, parentId }).returning();
   return NextResponse.json({ folder }, { status: 201 });

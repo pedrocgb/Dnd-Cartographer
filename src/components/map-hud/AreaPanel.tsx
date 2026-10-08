@@ -8,15 +8,17 @@ import MarkerCard from "@/components/marker-panel/MarkerCard";
 import { areaReadings, formatArea, formatLength, shapeAreaPx, shapePerimeterPx, splitReadings, type AreaReading } from "@/server/scale/area";
 import { formatNumber, type ScaleConfig } from "@/server/scale/scale-config";
 import type { AreaTool, MeasuredShape } from "./AreaLayer";
+import { useT } from "@/i18n/useT";
+import type { MessageKey } from "@/i18n/messages";
 
-const TOOLS: { tool: AreaTool; label: string; tip: string; Icon: typeof Square }[] = [
-  { tool: "rectangle", label: "Rectangle", tip: "Rectangle / Square — drag; hold Shift for an equal-sided square", Icon: Square },
-  { tool: "circle", label: "Circle", tip: "Circle — press at the center and drag out the radius", Icon: Circle },
-  { tool: "polygon", label: "Polygon", tip: "Polygon — click each vertex, click the first point (or press Enter) to close", Icon: Hexagon },
+const TOOLS: { tool: AreaTool; label: MessageKey<"maps">; tip: MessageKey<"maps">; Icon: typeof Square }[] = [
+  { tool: "rectangle", label: "zones.shape.rectangle", tip: "area.rectangleHint", Icon: Square },
+  { tool: "circle", label: "zones.shape.circle", tip: "zones.tool.circleHint", Icon: Circle },
+  { tool: "polygon", label: "zones.shape.polygon", tip: "zones.tool.polygonHint", Icon: Hexagon },
 ];
 
 const SHAPE_ICON = { rectangle: Square, circle: Circle, polygon: Hexagon, area: Hexagon } as const;
-const SHAPE_NAME = { rectangle: "Rectangle", circle: "Circle", polygon: "Polygon", area: "Area" } as const;
+const SHAPE_NAME = { rectangle: "zones.shape.rectangle", circle: "zones.shape.circle", polygon: "zones.shape.polygon", area: "panel.area" } as const;
 
 function ReadingRow({ reading, primary = false }: { reading: AreaReading; primary?: boolean }) {
   return (
@@ -33,6 +35,7 @@ function ReadingRow({ reading, primary = false }: { reading: AreaReading; primar
  * perimeter always shows.
  */
 export function AreaReadings({ areaPx, perimeterPx, config }: { areaPx: number; perimeterPx?: number; config: ScaleConfig }) {
+  const t = useT("maps");
   const { settings } = useSettings();
   const [expanded, setExpanded] = useState(false);
   const { main, more } = splitReadings(areaReadings(areaPx, config), settings.lengthSystem);
@@ -45,13 +48,13 @@ export function AreaReadings({ areaPx, perimeterPx, config }: { areaPx: number; 
       {more.length > 0 && (
         <button type="button" className="area-more" aria-expanded={expanded} onClick={() => setExpanded((e) => !e)}>
           <ChevronRight size={13} strokeWidth={2.25} className={expanded ? "marker-collapsible-chevron open" : "marker-collapsible-chevron"} aria-hidden />
-          {expanded ? "Show less" : "Show more"}
+          {expanded ? t("area.showLess") : t("area.showMore")}
         </button>
       )}
       {expanded && more.map((r) => <ReadingRow key={r.key} reading={r} />)}
       {perimeter && (
         <div className="area-reading perimeter">
-          <dt>Perimeter</dt>
+          <dt>{t("area.perimeter")}</dt>
           <dd>{perimeter}</dd>
         </div>
       )}
@@ -87,46 +90,48 @@ export default function AreaPanel({
   onOpenScale: () => void;
   onClose: () => void;
 }) {
+  const t = useT("maps");
+  const tc = useT("common");
   const { settings } = useSettings();
   const calibrated = config.framePxPerUnit !== null;
   const selected = shapes.find((s) => s.id === selectedId) ?? null;
   const single = selected ?? (shapes.length === 1 ? shapes[0] : null);
   const totalPx = shapes.reduce((sum, s) => sum + shapeAreaPx(s.shape), 0);
-  const nameOf = (s: MeasuredShape) => `${SHAPE_NAME[s.shape.kind]} ${shapes.indexOf(s) + 1}`;
+  const nameOf = (s: MeasuredShape) => t("area.shapeName", { shape: t(SHAPE_NAME[s.shape.kind]), n: shapes.indexOf(s) + 1 });
 
   return (
     <div className="grid-panel area-panel">
       <div className="marker-side-panel-header">
         <h2>
           <LandPlot size={16} strokeWidth={2.25} style={{ verticalAlign: "-2px", marginRight: "6px" }} />
-          Area
+          {t("panel.area")}
         </h2>
-        <button className="btn btn-ghost btn-icon" onClick={onClose} aria-label="Close area panel">
+        <button className="btn btn-ghost btn-icon" onClick={onClose} aria-label={tc("closePanel", { title: t("panel.area") })}>
           <X size={16} strokeWidth={2.25} />
         </button>
       </div>
 
       {!calibrated && (
         <div className="area-calibrate">
-          <p className="field-label">The map has no scale yet, so areas read in map pixels. Calibrate it to get km², acres and the rest.</p>
+          <p className="field-label">{t("area.noScale")}</p>
           <button type="button" className="btn btn-sm" onClick={onOpenScale}>
             <Ruler size={14} strokeWidth={2.25} />
-            Calibrate the scale
+            {t("area.calibrate")}
           </button>
         </div>
       )}
 
-      <div className="zone-tool-row" role="toolbar" aria-label="Shape">
-        {TOOLS.map((t) => (
-          <button key={t.tool} type="button" className={tool === t.tool ? "active" : ""} aria-label={t.label} aria-pressed={tool === t.tool} data-tooltip={t.tip} onClick={() => onSetTool(t.tool)}>
-            <t.Icon size={15} strokeWidth={2.25} />
+      <div className="zone-tool-row" role="toolbar" aria-label={t("area.shape")}>
+        {TOOLS.map((item) => (
+          <button key={item.tool} type="button" className={tool === item.tool ? "active" : ""} aria-label={t(item.label)} aria-pressed={tool === item.tool} data-tooltip={t(item.tip)} onClick={() => onSetTool(item.tool)}>
+            <item.Icon size={15} strokeWidth={2.25} />
           </button>
         ))}
       </div>
 
-      <MarkerCard title={shapes.length ? `Shapes (${shapes.length})` : "Shapes"} defaultOpen>
+      <MarkerCard title={shapes.length ? t("area.shapesCount", { n: shapes.length }) : t("area.shapes")} defaultOpen>
         {shapes.length === 0 ? (
-          <p className="field-label">Draw on the map to measure an area. Several shapes add up to a total.</p>
+          <p className="field-label">{t("area.empty")}</p>
         ) : (
           <>
             <ul className="area-shape-list">
@@ -140,7 +145,7 @@ export default function AreaPanel({
                       <span>{nameOf(s)}</span>
                       <span className="field-label">{formatArea(px, config, settings.lengthSystem) ?? `${formatInteger(px)} px²`}</span>
                     </button>
-                    <button type="button" className="btn btn-ghost btn-icon" aria-label={`Remove ${nameOf(s)}`} data-tooltip="Remove" onClick={() => onRemove(s.id)}>
+                    <button type="button" className="btn btn-ghost btn-icon" aria-label={t("area.removeNamed", { name: nameOf(s) })} data-tooltip={t("area.remove")} onClick={() => onRemove(s.id)}>
                       <X size={14} strokeWidth={2.25} />
                     </button>
                   </li>
@@ -149,14 +154,14 @@ export default function AreaPanel({
             </ul>
             <button type="button" className="btn btn-sm" onClick={onClear}>
               <Trash2 size={14} strokeWidth={2.25} />
-              Clear all
+              {t("area.clearAll")}
             </button>
           </>
         )}
       </MarkerCard>
 
       {shapes.length > 0 && calibrated && (
-        <MarkerCard title={single ? `${nameOf(single)}` : `Total of ${shapes.length} shapes`} defaultOpen>
+        <MarkerCard title={single ? nameOf(single) : t("area.total", { n: shapes.length })} defaultOpen>
           {single ? (
             <AreaReadings areaPx={shapeAreaPx(single.shape)} perimeterPx={shapePerimeterPx(single.shape)} config={config} />
           ) : (
@@ -164,7 +169,7 @@ export default function AreaPanel({
           )}
           {selected && shapes.length > 1 && (
             <button type="button" className="btn btn-sm btn-ghost" onClick={() => onSelect(null)}>
-              Show the total
+              {t("area.showTotal")}
             </button>
           )}
         </MarkerCard>

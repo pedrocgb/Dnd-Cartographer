@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
+import { errorResponse, serverT } from "@/i18n/server";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { outlineNodes } from "@/server/db/schema";
 import { requireWorldId } from "@/server/world/active-world";
-import { badRequest, calendarErrorResponse, notFound, readBody } from "@/server/calendars/respond";
+import { badRequest, calendarErrorResponse, readBody } from "@/server/calendars/respond";
 import { campaignOf } from "@/server/sessions/store";
 import { checkMoves } from "@/server/writer/logic";
 import { parseMoves } from "@/server/writer/parse";
@@ -18,13 +19,13 @@ type RouteContext = { params: Promise<{ id: string }> };
  */
 export async function POST(request: Request, { params }: RouteContext) {
   const { id } = await params;
-  if (!(await campaignOf(await requireWorldId(), id))) return notFound("Campaign not found.");
+  if (!(await campaignOf(await requireWorldId(), id))) return errorResponse("campaignNotFound", 404);
   const body = await readBody(request);
-  if (!body) return badRequest("Invalid request body.");
+  if (!body) return errorResponse("invalidBody", 400);
   try {
     const moves = parseMoves(body.moves);
     const nodes = await nodesOf(id);
-    const problem = checkMoves(nodes, moves);
+    const problem = checkMoves(nodes, moves, await serverT("writer"));
     if (problem) return badRequest(problem);
     await db.transaction(async (tx) => {
       for (const m of moves) {

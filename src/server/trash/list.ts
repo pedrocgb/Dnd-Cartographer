@@ -1,7 +1,7 @@
 import { and, eq, isNotNull } from "drizzle-orm";
 import { db } from "../db/client";
 import { articles, calendarEntries, calendars, campaignCharacters, maps, organizations, people, territories } from "../db/schema";
-import { TEMPLATE_LABELS, isGenericTemplate, personTemplate } from "../articles/templates";
+import { isGenericTemplate, personTemplate, templateLabel } from "../articles/templates";
 import { trashedDescendantsLookup, trashedMapRoots, type TrashItem, type TrashRef } from "./trash";
 import { serverT } from "@/i18n/server";
 import type { MessageKey } from "@/i18n/messages";
@@ -13,6 +13,7 @@ const ms = (d: Date | null) => (d ? d.getTime() : 0);
 /** Every trashed item of the world, unsorted (see filterSortTrash). */
 export async function listTrash(worldId: string): Promise<TrashItem[]> {
   const t = await serverT("trash");
+  const ta = await serverT("articles");
   const [mapRows, articleRows, personRows, orgRows, territoryRows, calendarRows, entryRows, rosterRows] = await Promise.all([
     db.select({ id: maps.id, name: maps.name, parentId: maps.parentId, deletedAt: maps.deletedAt }).from(maps).where(eq(maps.worldId, worldId)),
     db.select({ id: articles.id, title: articles.title, template: articles.template, deletedAt: articles.deletedAt }).from(articles).where(and(eq(articles.worldId, worldId), isNotNull(articles.deletedAt))),
@@ -49,7 +50,7 @@ export async function listTrash(worldId: string): Promise<TrashItem[]> {
       kind: "article",
       id: a.id,
       name: a.title || t("untitled.article"),
-      subtype: isGenericTemplate(a.template) ? TEMPLATE_LABELS[a.template] : t("kind.article"),
+      subtype: isGenericTemplate(a.template) ? templateLabel(a.template, ta) : t("kind.article"),
       deletedAt: ms(a.deletedAt),
     })),
     ...personRows.map((p): TrashItem => ({
@@ -57,12 +58,12 @@ export async function listTrash(worldId: string): Promise<TrashItem[]> {
       kind: "person",
       id: p.id,
       name: p.name || t("untitled.person"),
-      subtype: TEMPLATE_LABELS[personTemplate(p.kind)],
+      subtype: templateLabel(personTemplate(p.kind), ta),
       deletedAt: ms(p.deletedAt),
       campaignCount: rosterCounts.get(p.id) ?? 0,
     })),
-    ...orgRows.map((o): TrashItem => ({ ...base, kind: "organization", id: o.id, name: o.name || t("untitled.organization"), subtype: TEMPLATE_LABELS.organization, deletedAt: ms(o.deletedAt) })),
-    ...territoryRows.map((tr): TrashItem => ({ ...base, kind: "territory", id: tr.id, name: tr.name || t("untitled.territory"), subtype: TEMPLATE_LABELS.territory, deletedAt: ms(tr.deletedAt) })),
+    ...orgRows.map((o): TrashItem => ({ ...base, kind: "organization", id: o.id, name: o.name || t("untitled.organization"), subtype: templateLabel("organization", ta), deletedAt: ms(o.deletedAt) })),
+    ...territoryRows.map((tr): TrashItem => ({ ...base, kind: "territory", id: tr.id, name: tr.name || t("untitled.territory"), subtype: templateLabel("territory", ta), deletedAt: ms(tr.deletedAt) })),
     ...calendarRows.map((c): TrashItem => ({ ...base, kind: "calendar", id: c.id, name: c.name || t("untitled.calendar"), subtype: t("kind.calendar"), deletedAt: ms(c.deletedAt) })),
     ...entryRows.map((e): TrashItem => ({
       ...base,

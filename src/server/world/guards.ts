@@ -4,6 +4,7 @@ import { db } from "../db/client";
 import { requireWorldId } from "./active-world";
 import { worldDeletePlan, worldFilterSql } from "./delete-plan";
 import { serverT } from "@/i18n/server";
+import type { MessageKey } from "@/i18n/messages";
 
 const plan = worldDeletePlan();
 
@@ -27,8 +28,10 @@ export async function rowInWorld(table: WorldTable, id: string, worldId: string)
  * For by-id routes: a 404 response when the row isn't in the open world
  * (missing, or another world's), else null. `const denied = await notInWorld("markers", id); if (denied) return denied;`
  */
-export async function notInWorld(table: WorldTable, id: string, what = "Not found."): Promise<NextResponse | null> {
-  return (await rowInWorld(table, id, await requireWorldId())) ? null : NextResponse.json({ error: what }, { status: 404 });
+export async function notInWorld(table: WorldTable, id: string, what: MessageKey<"errors"> = "notFound"): Promise<NextResponse | null> {
+  if (await rowInWorld(table, id, await requireWorldId())) return null;
+  const t = await serverT("errors");
+  return NextResponse.json({ error: t(what) }, { status: 404 });
 }
 
 /** Whether every given id (null/undefined ones are skipped) is a row of the world, e.g. a document or category picked in a body. */

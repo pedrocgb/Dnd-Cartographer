@@ -7,6 +7,7 @@ import { dayLabel } from "@/components/calendars/evaluate";
 import { loadWorldCalendars } from "@/components/calendars/profile-lookup";
 import type { ClientCalendar } from "@/components/calendars/types";
 import { sessionHref, sessionLabel, type BriefSession, type ClientCampaign } from "./types";
+import { useT } from "@/i18n/useT";
 
 /**
  * "In sessions": game sessions that link this article, where it played (a
@@ -14,6 +15,7 @@ import { sessionHref, sessionLabel, type BriefSession, type ClientCampaign } fro
  * Hidden when there are none.
  */
 export default function SessionBacklinks({ articleId }: { articleId: string }) {
+  const t = useT("campaign");
   const [data, setData] = useState<{ sessions: BriefSession[]; campaigns: ClientCampaign[]; calendars: ClientCalendar[] } | null>(null);
 
   useEffect(() => {
@@ -40,11 +42,11 @@ export default function SessionBacklinks({ articleId }: { articleId: string }) {
   };
 
   return (
-    <section className="article-card cal-backlinks" aria-label="In sessions">
+    <section className="article-card cal-backlinks" aria-label={t("session.inSessions")}>
       <header className="article-card-header">
         <span className="article-card-label">
           <ScrollText size={15} strokeWidth={2.25} />
-          In sessions
+          {t("session.inSessions")}
         </span>
       </header>
       <ul>

@@ -8,6 +8,8 @@
  * row of the generic `articles` table. Characters and player characters
  * share `people`, told apart by its `kind` ("npc" / "player").
  */
+import type { Translator } from "../../i18n/translate";
+
 export const ARTICLE_TEMPLATE_KEYS = [
   "character",
   "playerCharacter",
@@ -76,6 +78,11 @@ export const TEMPLATE_LABELS: Record<ArticleTemplateKey, string> = {
   document: "Document",
   language: "Language",
 };
+
+/** A template's display name in the user's language (`TEMPLATE_LABELS` stays English: it is the reserved tag). */
+export function templateLabel(key: ArticleTemplateKey, t: Translator<"articles">): string {
+  return t(`template.${key}.label`);
+}
 
 /** Templates backed by a politics table instead of `articles`. */
 export const RECORD_TEMPLATES = ["character", "playerCharacter", "organization", "territory"] as const;

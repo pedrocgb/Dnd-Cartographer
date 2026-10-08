@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { errorResponse } from "@/i18n/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { zones } from "@/server/db/schema";
@@ -7,13 +8,13 @@ import { notInWorld } from "@/server/world/guards";
 
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const denied = await notInWorld("zones", id, "Zone not found.");
+  const denied = await notInWorld("zones", id, "zoneNotFound");
   if (denied) return denied;
   const [restored] = await db
     .update(zones)
     .set({ deletedAt: null, updatedAt: new Date() })
     .where(eq(zones.id, id))
     .returning();
-  if (!restored) return NextResponse.json({ error: "Zone not found." }, { status: 404 });
+  if (!restored) return errorResponse("zoneNotFound", 404);
   return NextResponse.json({ zone: withLayerIds(restored) });
 }

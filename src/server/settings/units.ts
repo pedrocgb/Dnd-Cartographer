@@ -1,6 +1,7 @@
 import type { NumberFormat, TemperatureUnit, UnitSystem } from "./settings";
 import { formatDecimal } from "./number-format";
 import type { InfoMeasure } from "../articles/info-fields";
+import { activeT } from "../../i18n/active";
 
 /**
  * Display conversions for the unit settings. Values are stored in their
@@ -16,9 +17,9 @@ const L_PER_GALLON = 3.785411784;
 export const roundForInput = (n: number) => Math.round(n * 100) / 100;
 
 export const distanceUnit = (system: UnitSystem) => (system === "metric" ? "km" : "mi");
-export const speedUnit = (system: UnitSystem) => (system === "metric" ? "km/h" : "mph");
+export const speedUnit = (system: UnitSystem) => (system === "metric" ? "km/h" : activeT("common")("unit.mph"));
 /** Short lengths: creature speeds and the like. */
-export const shortLengthUnit = (system: UnitSystem) => (system === "metric" ? "m" : "ft.");
+export const shortLengthUnit = (system: UnitSystem) => (system === "metric" ? "m" : activeT("common")("unit.ft"));
 export const weightUnit = (system: UnitSystem) => (system === "metric" ? "kg" : "lb");
 export const volumeUnit = (system: UnitSystem) => (system === "metric" ? "L" : "gal");
 
@@ -39,14 +40,14 @@ export const toFeet = (value: number, system: UnitSystem) => (system === "metric
 export const fromKg = (kg: number, system: UnitSystem) => (system === "metric" ? kg : kg * LB_PER_KG);
 export const fromLitres = (litres: number, system: UnitSystem) => (system === "metric" ? litres : litres / L_PER_GALLON);
 
-/** Placeholder examples for measurement info fields (free text, never converted). */
+/** Placeholder examples for measurement info fields (free text, never converted); shown as "e.g. …". */
 export const MEASURE_EXAMPLES: Record<InfoMeasure, Record<UnitSystem, string>> = {
-  height: { metric: "e.g. 1.80 m", imperial: "e.g. 5 ft 11 in" },
-  weight: { metric: "e.g. 80 kg", imperial: "e.g. 176 lb" },
-  size: { metric: "e.g. 90 cm, 2 kg", imperial: "e.g. 3 ft, 4 lb" },
-  elevation: { metric: "e.g. 2,400 m", imperial: "e.g. 7,900 ft" },
-  distance: { metric: "e.g. 120 km", imperial: "e.g. 75 mi" },
-  area: { metric: "e.g. 2,500 km²", imperial: "e.g. 965 sq mi" },
+  height: { metric: "1.80 m", imperial: "5 ft 11 in" },
+  weight: { metric: "80 kg", imperial: "176 lb" },
+  size: { metric: "90 cm, 2 kg", imperial: "3 ft, 4 lb" },
+  elevation: { metric: "2,400 m", imperial: "7,900 ft" },
+  distance: { metric: "120 km", imperial: "75 mi" },
+  area: { metric: "2,500 km²", imperial: "965 sq mi" },
 };
 
 /**
@@ -54,6 +55,8 @@ export const MEASURE_EXAMPLES: Record<InfoMeasure, Record<UnitSystem, string>> =
  * setting, everything else the length one; its numbers follow the number format.
  */
 export const measureExample = (measure: InfoMeasure, settings: { weightSystem: UnitSystem; lengthSystem: UnitSystem; numberFormat?: NumberFormat }) =>
-  MEASURE_EXAMPLES[measure][measure === "weight" ? settings.weightSystem : settings.lengthSystem].replace(/\d[\d,]*(?:\.\d+)?/g, (n) =>
-    formatDecimal(Number(n.replace(/,/g, "")), { format: settings.numberFormat, minimumFractionDigits: n.includes(".") ? n.split(".")[1].length : 0 }),
-  );
+  activeT("common")("unit.example", {
+    value: MEASURE_EXAMPLES[measure][measure === "weight" ? settings.weightSystem : settings.lengthSystem].replace(/\d[\d,]*(?:\.\d+)?/g, (n) =>
+      formatDecimal(Number(n.replace(/,/g, "")), { format: settings.numberFormat, minimumFractionDigits: n.includes(".") ? n.split(".")[1].length : 0 }),
+    ),
+  });

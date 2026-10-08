@@ -2,6 +2,7 @@
 
 import { History } from "lucide-react";
 import { HISTORY_MAX, HISTORY_TTL_MS } from "@/lib/tool-history";
+import { useT } from "@/i18n/useT";
 
 export interface RecentItem {
   id: string;
@@ -17,6 +18,7 @@ const TTL_DAYS = Math.round(HISTORY_TTL_MS / (24 * 60 * 60 * 1000));
 
 /** An Advanced Tool's recent results (see useToolHistory); clicking one reopens it. */
 export default function RecentList({ title, noun, items, onOpen }: { title: string; noun: string; items: RecentItem[]; onOpen: (id: string) => void }) {
+  const t = useT("tools");
   return (
     <section className="settings-card">
       <div className="settings-card-head">
@@ -24,13 +26,11 @@ export default function RecentList({ title, noun, items, onOpen }: { title: stri
           <History size={16} strokeWidth={2.25} aria-hidden />
           {title}
         </h2>
-        <p>
-          The last {HISTORY_MAX} {noun} you generated in this world, kept in this browser for {TTL_DAYS} days.
-        </p>
+        <p>{t("recent.about", { max: HISTORY_MAX, noun, days: TTL_DAYS })}</p>
       </div>
       <div className="settings-card-body">
         {items.length === 0 ? (
-          <p className="tool-empty">Nothing yet. Generated {noun} show up here.</p>
+          <p className="tool-empty">{t("recent.empty", { noun })}</p>
         ) : (
           <ul className="tool-history">
             {items.map((item) => (

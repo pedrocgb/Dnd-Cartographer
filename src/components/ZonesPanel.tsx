@@ -1,6 +1,6 @@
 "use client";
 
-import { formatDecimal } from "@/server/settings/number-format";
+import { formatDecimal, formatInteger } from "@/server/settings/number-format";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Skeleton, SkeletonRegion } from "./Skeleton";
 import { AreaReadings } from "./map-hud/AreaPanel";
@@ -36,16 +36,17 @@ import ToolSection from "./ToolSection";
 import { useListDrag } from "./use-list-drag";
 import type { MapLayerData } from "./layer-images";
 import { buildTerritoryTree, TerritoryTreeRow } from "./TerritoryTree";
+import { territoryTypeLabel } from "@/server/politics/hierarchy-config";
 import { articleHref } from "@/server/articles/templates";
 import { COLOR_PRESETS, normalizeColor } from "@/server/markers/icon-registry";
 import { BRUSH_SIZE_MAX, BRUSH_SIZE_MIN, isPaintTool, type ZoneData, type ZoneRegionData, type ZoneTool } from "./ZoneLayer";
+import { useT } from "@/i18n/useT";
 
 async function json<T>(res: Response): Promise<T> {
   return res.json();
 }
 
 const SHAPE_ICON = { rectangle: Square, circle: Circle, polygon: Hexagon, area: Brush } as const;
-const SHAPE_LABEL = { rectangle: "Rectangle", circle: "Circle", polygon: "Polygon", area: "Painted area" } as const;
 
 interface Territory {
   id: string;
@@ -55,6 +56,8 @@ interface Territory {
 }
 
 function TerritoryLinkPicker({ onPick, onCancel }: { onPick: (id: string) => void; onCancel: () => void }) {
+  const t = useT("maps");
+  const tc = useT("common");
   const [q, setQ] = useState("");
   const [territories, setTerritories] = useState<Territory[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -84,13 +87,13 @@ function TerritoryLinkPicker({ onPick, onCancel }: { onPick: (id: string) => voi
 
   return (
     <div className="politics-picker">
-      <input type="text" placeholder="Search territories…" value={q} onChange={(e) => setQ(e.target.value)} />
+      <input type="text" placeholder={t("zones.territory.search")} value={q} onChange={(e) => setQ(e.target.value)} />
       <ul className="politics-list politics-tree">
         {searching
           ? searchResults.map((t) => (
               <li key={t.id} className="politics-list-row">
                 <button type="button" className="politics-list-pick" onClick={() => onPick(t.id)}>
-                  {t.name} <span className="field-label">({t.type})</span>
+                  {t.name} <span className="field-label">({territoryTypeLabel(t.type)})</span>
                 </button>
               </li>
             ))
@@ -99,7 +102,7 @@ function TerritoryLinkPicker({ onPick, onCancel }: { onPick: (id: string) => voi
             ))}
       </ul>
       <button className="btn btn-sm" onClick={onCancel}>
-        Cancel
+        {tc("cancel")}
       </button>
     </div>
   );
@@ -107,6 +110,7 @@ function TerritoryLinkPicker({ onPick, onCancel }: { onPick: (id: string) => voi
 
 /** `mixed`: several zones linked to different territories (or some to none). */
 function ZoneTerritoryLink({ zone, mixed = false, onUpdate }: { zone: ZoneData; mixed?: boolean; onUpdate: (patch: Partial<ZoneData>) => void }) {
+  const t = useT("maps");
   const [picking, setPicking] = useState(false);
   const [chain, setChain] = useState<Territory[] | null>(null);
   // Tracks which territoryId `chain` was actually loaded for, so a stale
@@ -140,45 +144,45 @@ function ZoneTerritoryLink({ zone, mixed = false, onUpdate }: { zone: ZoneData; 
   return (
     <div className="zone-territory-link">
       <span className="field-label">
-        Political territory (optional) <MixedTag show={mixed} />
+        {t("zones.territory.label")} <MixedTag show={mixed} />
       </span>
       {mixed && !picking ? (
         <div className="zone-territory-chain">
-          <span className="field-label">The selected zones link to different territories.</span>
+          <span className="field-label">{t("zones.territory.mixed")}</span>
           <div className="marker-panel-actions">
             <button className="btn btn-sm" onClick={() => setPicking(true)}>
               <Crown size={13} strokeWidth={2.25} />
-              Link all to…
+              {t("zones.territory.linkAll")}
             </button>
             <button className="btn btn-sm" onClick={() => onUpdate({ territoryId: null })}>
-              Remove all links
+              {t("zones.territory.removeAll")}
             </button>
           </div>
         </div>
       ) : zone.territoryId && !picking ? (
         <div className="zone-territory-chain">
           {chainLoading ? (
-            <SkeletonRegion label="Loading the territory…">
+            <SkeletonRegion label={t("zones.territory.loading")}>
               <Skeleton width="70%" />
             </SkeletonRegion>
           ) : visibleChain === null ? (
-            <span className="field-label">Linked territory is unavailable.</span>
+            <span className="field-label">{t("zones.territory.unavailable")}</span>
           ) : (
             <span>
               {visibleChain.map((t, i) => (
                 <span key={t.id}>
                   {i > 0 && " › "}
-                  {t.name} <span className="field-label">({t.type})</span>
+                  {t.name} <span className="field-label">({territoryTypeLabel(t.type)})</span>
                 </span>
               ))}
             </span>
           )}
           <div className="marker-panel-actions">
             <a href={articleHref("territory", zone.territoryId)} target="_blank" rel="noopener noreferrer" className="btn btn-sm">
-              Open profile
+              {t("zones.territory.openProfile")}
             </a>
             <button className="btn btn-sm" onClick={() => onUpdate({ territoryId: null })}>
-              Remove link
+              {t("zones.territory.removeLink")}
             </button>
           </div>
         </div>
@@ -193,7 +197,7 @@ function ZoneTerritoryLink({ zone, mixed = false, onUpdate }: { zone: ZoneData; 
       ) : (
         <button className="btn btn-sm" onClick={() => setPicking(true)}>
           <Crown size={13} strokeWidth={2.25} />
-          Link to territory…
+          {t("zones.territory.link")}
         </button>
       )}
     </div>
@@ -217,27 +221,28 @@ const NO_MIXED: ReadonlySet<string> = new Set();
 
 /** Fill and outline: for a zone (or several: `mixed` fields differ between them), or a region's default style. */
 function ZoneStyleFields({ v, sectioned = true, mixed = NO_MIXED, onChange }: { v: ZoneStyle; sectioned?: boolean; mixed?: ReadonlySet<string>; onChange: (patch: Partial<ZoneStyle>) => void }) {
+  const t = useT("maps");
   const m = (key: keyof ZoneStyle) => mixed.has(key);
-  const percent = (key: keyof ZoneStyle, value: number) => (m(key) ? <span className="mixed-tag">Mixed</span> : `${Math.round(value * 100)}%`);
+  const percent = (key: keyof ZoneStyle, value: number) => (m(key) ? <span className="mixed-tag">{t("layerFolders.mixed")}</span> : `${Math.round(value * 100)}%`);
   return (
     <>
-      <Group id="zone-fill" title="Fill" sectioned={sectioned}>
+      <Group id="zone-fill" title={t("zones.fill")} sectioned={sectioned}>
         <span className="field-label">
-          Fill color <MixedTag show={m("fillColor")} />
+          {t("zones.fillColor")} <MixedTag show={m("fillColor")} />
         </span>
         <ColorWheel value={v.fillColor} mixed={m("fillColor")} onChange={(fillColor) => onChange({ fillColor })} />
         <label className="grid-field">
           <div className="grid-field-header">
-            <span className="field-label">Fill opacity</span>
+            <span className="field-label">{t("zones.fillOpacity")}</span>
             <span className="grid-field-value">{percent("fillOpacity", v.fillOpacity)}</span>
           </div>
           <input type="range" min={0} max={100} value={Math.round(v.fillOpacity * 100)} onChange={(e) => onChange({ fillOpacity: Number(e.target.value) / 100 })} />
         </label>
       </Group>
 
-      <Group id="zone-outline" title="Outline" sectioned={sectioned}>
+      <Group id="zone-outline" title={t("zones.outline")} sectioned={sectioned}>
         <span className="field-label">
-          Outline color <MixedTag show={m("strokeColor")} />
+          {t("zones.outlineColor")} <MixedTag show={m("strokeColor")} />
         </span>
         <div className="color-swatch-row">
           {COLOR_PRESETS.map((c) => (
@@ -246,21 +251,21 @@ function ZoneStyleFields({ v, sectioned = true, mixed = NO_MIXED, onChange }: { 
               className={!m("strokeColor") && c === v.strokeColor ? "color-swatch active" : "color-swatch"}
               style={{ background: c }}
               onClick={() => onChange({ strokeColor: normalizeColor(c) })}
-              aria-label={`Outline color ${c}`}
+              aria-label={t("zones.outlineColorValue", { color: c })}
             />
           ))}
         </div>
         <label className="grid-field">
           <div className="grid-field-header">
-            <span className="field-label">Outline opacity</span>
+            <span className="field-label">{t("zones.outlineOpacity")}</span>
             <span className="grid-field-value">{percent("strokeOpacity", v.strokeOpacity)}</span>
           </div>
           <input type="range" min={0} max={100} value={Math.round(v.strokeOpacity * 100)} onChange={(e) => onChange({ strokeOpacity: Number(e.target.value) / 100 })} />
         </label>
         <label className="grid-field">
           <div className="grid-field-header">
-            <span className="field-label">Outline width</span>
-            <span className="grid-field-value">{m("strokeWidth") ? <span className="mixed-tag">Mixed</span> : formatDecimal(v.strokeWidth, { minimumFractionDigits: 2 })}</span>
+            <span className="field-label">{t("zones.outlineWidth")}</span>
+            <span className="grid-field-value">{m("strokeWidth") ? <span className="mixed-tag">{t("layerFolders.mixed")}</span> : formatDecimal(v.strokeWidth, { minimumFractionDigits: 2 })}</span>
           </div>
           <input type="range" min={0} max={2} step={0.05} value={v.strokeWidth} onChange={(e) => onChange({ strokeWidth: Number(e.target.value) })} />
         </label>
@@ -296,6 +301,8 @@ function ZoneEditor({
   onDone: () => void;
   scaleConfig: ScaleConfig | null;
 }) {
+  const t = useT("maps");
+  const tc = useT("common");
   const [name, setName] = useState(zone.name);
   const focusedRef = useRef(false);
   // Ref-guarded, same as GridPanel's SliderField — resyncs the field from
@@ -325,19 +332,19 @@ function ZoneEditor({
         />
         <button type="button" className="btn btn-sm btn-primary zone-editor-done" onClick={onDone}>
           <Check size={13} strokeWidth={2.25} />
-          Done
+          {tc("done")}
         </button>
       </div>
-      <span className="field-label">{SHAPE_LABEL[zone.shapeType]}</span>
+      <span className="field-label">{t(`zones.shape.${zone.shapeType}`)}</span>
 
       <ZoneStyleFields v={zone} onChange={onUpdate} />
       <ZoneArea zones={[zone]} config={scaleConfig} />
 
-      <ToolSection id="zone-territory" title="Political territory">
+      <ToolSection id="zone-territory" title={t("zones.territory.section")}>
         <ZoneTerritoryLink zone={zone} onUpdate={onUpdate} />
       </ToolSection>
 
-      <ToolSection id="zone-layers" title="Folder and layers">
+      <ToolSection id="zone-layers" title={t("panel.folderLayers")}>
         <FolderSelect value={zone.regionId} folders={regionOptions} disabled={zone.locked || region?.locked} onChange={(regionId) => regionId && onUpdate({ regionId, sortOrder: endOf(regionId) })} />
         <LayerChecklist
           layers={layers}
@@ -351,7 +358,7 @@ function ZoneEditor({
 
       <button className="btn btn-danger" onClick={onDelete} disabled={zone.locked}>
         <Trash2 size={14} strokeWidth={2.25} />
-        Delete zone
+        {t("zones.deleteZone")}
       </button>
     </div>
   );
@@ -402,6 +409,8 @@ function RegionRow({
   dropProps?: React.HTMLAttributes<HTMLElement>;
   dropInto?: boolean;
 }) {
+  const t = useT("maps");
+  const tc = useT("common");
   const isAddingZone = isActive && activeTool !== "select";
   const addZoneDisabled = region.locked || !region.visible;
   const [renaming, setRenaming] = useState(false);
@@ -421,7 +430,7 @@ function RegionRow({
   return (
     <li className="zone-region">
       <div className={["zone-region-row", isActive && "active", isOpen && "folder-open", dropInto && "drop-into"].filter(Boolean).join(" ")} {...dropProps}>
-        <button className="zone-tree-toggle" onClick={onToggleExpand} aria-label={isExpanded ? "Collapse" : "Expand"}>
+        <button className="zone-tree-toggle" onClick={onToggleExpand} aria-label={isExpanded ? t("layerFolders.collapse") : t("layerFolders.expand")}>
           {isExpanded ? <ChevronDown size={13} strokeWidth={2.25} /> : <ChevronRight size={13} strokeWidth={2.25} />}
         </button>
         {renaming ? (
@@ -430,7 +439,7 @@ function RegionRow({
             className="zone-region-name-input"
             value={draftName}
             autoFocus
-            aria-label="Region name"
+            aria-label={t("zones.region.name")}
             onFocus={(e) => e.currentTarget.select()}
             onChange={(e) => setDraftName(e.target.value)}
             onBlur={commitName}
@@ -448,43 +457,40 @@ function RegionRow({
             className="zone-region-name"
             onClick={sharedFrom ? onToggleExpand : onSelectRegion}
             onDoubleClick={sharedFrom ? undefined : startRename}
-            data-tooltip={sharedFrom ? undefined : "Click: open its settings, new zones go here. Double-click to rename."}
+            data-tooltip={sharedFrom ? undefined : t("zones.region.openHint")}
           >
             {region.name} <span className="field-label">({zones.length})</span>
-            {sharedFrom && <span className="field-label zone-region-shared"> · from {sharedFrom}</span>}
+            {sharedFrom && <span className="field-label zone-region-shared">{t("layerFolders.from", { layer: sharedFrom })}</span>}
             {!sharedFrom && region.extraLayerIds.length > 0 && (
-              <span className="field-label zone-region-shared">
-                {" "}
-                · +{region.extraLayerIds.length} {region.extraLayerIds.length === 1 ? "layer" : "layers"}
-              </span>
+              <span className="field-label zone-region-shared">{t("layerFolders.extraLayers", { count: region.extraLayerIds.length, n: formatInteger(region.extraLayerIds.length) })}</span>
             )}
           </button>
         )}
         {!sharedFrom && (
         <div className="zone-row-actions">
-          <button className="btn btn-ghost btn-icon-xs" onClick={() => onMoveRegion("up")} disabled={!canMoveUp} aria-label="Move Region up" data-tooltip="Move up">
+          <button className="btn btn-ghost btn-icon-xs" onClick={() => onMoveRegion("up")} disabled={!canMoveUp} aria-label={t("zones.region.moveUp")} data-tooltip={t("layerFolders.moveUpHint")}>
             <ArrowUp size={12} strokeWidth={2.25} />
           </button>
-          <button className="btn btn-ghost btn-icon-xs" onClick={() => onMoveRegion("down")} disabled={!canMoveDown} aria-label="Move Region down" data-tooltip="Move down">
+          <button className="btn btn-ghost btn-icon-xs" onClick={() => onMoveRegion("down")} disabled={!canMoveDown} aria-label={t("zones.region.moveDown")} data-tooltip={t("layerFolders.moveDownHint")}>
             <ArrowDown size={12} strokeWidth={2.25} />
           </button>
           <button
             className="btn btn-ghost btn-icon-xs"
             onClick={() => onUpdateRegion({ visible: !region.visible })}
-            aria-label={region.visible ? "Hide Region" : "Show Region"}
-            data-tooltip={region.visible ? "Hide Region" : "Show Region"}
+            aria-label={region.visible ? t("zones.region.hide") : t("zones.region.show")}
+            data-tooltip={region.visible ? t("zones.region.hide") : t("zones.region.show")}
           >
             {region.visible ? <Eye size={12} strokeWidth={2.25} /> : <EyeOff size={12} strokeWidth={2.25} />}
           </button>
           <button
             className="btn btn-ghost btn-icon-xs"
             onClick={() => onUpdateRegion({ locked: !region.locked })}
-            aria-label={region.locked ? "Unlock Region" : "Lock Region"}
-            data-tooltip={region.locked ? "Unlock Region" : "Lock Region"}
+            aria-label={region.locked ? t("zones.region.unlock") : t("zones.region.lock")}
+            data-tooltip={region.locked ? t("zones.region.unlock") : t("zones.region.lock")}
           >
             {region.locked ? <Lock size={12} strokeWidth={2.25} /> : <LockOpen size={12} strokeWidth={2.25} />}
           </button>
-          <button className="btn btn-ghost btn-icon-xs" onClick={onDeleteRegion} aria-label="Delete Region" data-tooltip="Delete Region">
+          <button className="btn btn-ghost btn-icon-xs" onClick={onDeleteRegion} aria-label={t("zones.region.delete")} data-tooltip={t("zones.region.delete")}>
             <Trash2 size={12} strokeWidth={2.25} />
           </button>
         </div>
@@ -498,7 +504,7 @@ function RegionRow({
             {isAddingZone ? (
               <button type="button" className="zone-add-row zone-add-row-done" onClick={onStopAddZone}>
                 <Check size={13} strokeWidth={2.25} />
-                Done
+                {tc("done")}
               </button>
             ) : (
               <button
@@ -506,15 +512,15 @@ function RegionRow({
                 className="zone-add-row"
                 onClick={onStartAddZone}
                 disabled={addZoneDisabled}
-                data-tooltip={addZoneDisabled ? "Region is hidden or locked" : "Start drawing a new zone in this Region"}
+                data-tooltip={addZoneDisabled ? t("zones.region.addBlocked") : t("zones.region.addHint")}
               >
                 <Plus size={13} strokeWidth={2.25} />
-                Add zone
+                {t("zones.region.addZone")}
               </button>
             )}
           </li>
           )}
-          {zones.length === 0 && <li className="field-label zone-empty-hint">No zones yet.</li>}
+          {zones.length === 0 && <li className="field-label zone-empty-hint">{t("zones.region.empty")}</li>}
           {zones.map(renderZone)}
         </ul>
       )}
@@ -582,6 +588,8 @@ export default function ZonesPanel({
   onUpdateMany: (ids: string[], patchOf: (zone: ZoneData) => Partial<ZoneData>, opts?: { includeLocked?: boolean }) => void;
   onDeleteMany: (ids: string[]) => void;
 }) {
+  const t = useT("maps");
+  const tc = useT("common");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [creatingRegion, setCreatingRegion] = useState(false);
   const [newRegionName, setNewRegionName] = useState("");
@@ -603,7 +611,7 @@ export default function ZonesPanel({
     (a, b) => Number(sharedRegionIds.has(a.id)) - Number(sharedRegionIds.has(b.id)) || a.sortOrder - b.sortOrder
   );
   const ownRegionCount = sortedRegions.filter((r) => !sharedRegionIds.has(r.id)).length;
-  const layerNameOf = (id: string | null) => layers.find((l) => l.id === id)?.name ?? "another layer";
+  const layerNameOf = (id: string | null) => layers.find((l) => l.id === id)?.name ?? t("panel.anotherLayer");
   const zonesByRegion = new Map<string, ZoneData[]>();
   for (const region of sortedRegions) {
     zonesByRegion.set(
@@ -699,53 +707,53 @@ export default function ZonesPanel({
       <div className="marker-side-panel-header">
         <h2>
           <Shapes size={16} strokeWidth={2.25} style={{ verticalAlign: "-2px", marginRight: "6px" }} />
-          Zones
+          {t("panel.zones")}
         </h2>
-        <button className="btn btn-ghost btn-icon" onClick={onClose} aria-label="Close zones panel">
+        <button className="btn btn-ghost btn-icon" onClick={onClose} aria-label={tc("closePanel", { title: t("panel.zones") })}>
           <X size={16} strokeWidth={2.25} />
         </button>
       </div>
-      <p className="panel-layer-label">Layer: {layerName}</p>
+      <p className="panel-layer-label">{t("panel.layer", { name: layerName })}</p>
 
       <div className="zone-tool-row">
-        <button className={activeTool === "select" ? "active" : ""} aria-label="Select / edit" data-tooltip="Select / edit" onClick={() => onSetActiveTool("select")}>
+        <button className={activeTool === "select" ? "active" : ""} aria-label={t("zones.tool.select")} data-tooltip={t("zones.tool.select")} onClick={() => onSetActiveTool("select")}>
           <MousePointer2 size={15} strokeWidth={2.25} />
         </button>
         <button
-          className={activeTool === "rectangle" ? "active" : ""} aria-label="Rectangle"
-          data-tooltip="Rectangle / Square — hold Shift for an equal-sided square"
+          className={activeTool === "rectangle" ? "active" : ""} aria-label={t("zones.shape.rectangle")}
+          data-tooltip={t("zones.tool.rectangleHint")}
           disabled={drawingDisabled}
           onClick={() => onSetActiveTool("rectangle")}
         >
           <Square size={15} strokeWidth={2.25} />
         </button>
         <button
-          className={activeTool === "circle" ? "active" : ""} aria-label="Circle"
-          data-tooltip="Circle — press at the center and drag out the radius"
+          className={activeTool === "circle" ? "active" : ""} aria-label={t("zones.shape.circle")}
+          data-tooltip={t("zones.tool.circleHint")}
           disabled={drawingDisabled}
           onClick={() => onSetActiveTool("circle")}
         >
           <Circle size={15} strokeWidth={2.25} />
         </button>
         <button
-          className={activeTool === "polygon" ? "active" : ""} aria-label="Polygon"
-          data-tooltip="Polygon — click each vertex, click the first point (or press Enter) to close"
+          className={activeTool === "polygon" ? "active" : ""} aria-label={t("zones.shape.polygon")}
+          data-tooltip={t("zones.tool.polygonHint")}
           disabled={drawingDisabled}
           onClick={() => onSetActiveTool("polygon")}
         >
           <Hexagon size={15} strokeWidth={2.25} />
         </button>
         <button
-          className={activeTool === "brush" ? "active" : ""} aria-label="Brush"
-          data-tooltip="Brush — paint a new zone, or paint onto the selected zone to grow it. [ and ] or Shift + mouse wheel change the size."
+          className={activeTool === "brush" ? "active" : ""} aria-label={t("zones.tool.brush")}
+          data-tooltip={t("zones.tool.brushHint")}
           disabled={drawingDisabled && !selectedZonePaintable}
           onClick={() => onSetActiveTool("brush")}
         >
           <Brush size={15} strokeWidth={2.25} />
         </button>
         <button
-          className={activeTool === "eraser" ? "active" : ""} aria-label="Eraser"
-          data-tooltip="Eraser — erase part of the selected zone. [ and ] or Shift + mouse wheel change the size."
+          className={activeTool === "eraser" ? "active" : ""} aria-label={t("zones.tool.eraser")}
+          data-tooltip={t("zones.tool.eraserHint")}
           disabled={!selectedZonePaintable}
           onClick={() => onSetActiveTool("eraser")}
         >
@@ -755,7 +763,7 @@ export default function ZonesPanel({
       {isPaintTool(activeTool) ? (
         <div className="zone-brush-settings">
           <label className="grid-field">
-            <span className="field-label">Brush size: {brushSize}px</span>
+            <span className="field-label">{t("zones.brush.size", { n: formatInteger(brushSize) })}</span>
             <input
               type="range"
               min={BRUSH_SIZE_MIN}
@@ -767,26 +775,26 @@ export default function ZonesPanel({
           <p className="field-label zone-tool-hint">
             {activeTool === "eraser"
               ? selectedZone
-                ? `Erasing from: ${selectedZone.name}${selectedZonePaintable ? "" : " (locked)"}`
-                : "Select a zone to erase from."
+                ? t(selectedZonePaintable ? "zones.brush.erasingFrom" : "zones.brush.erasingFromLocked", { name: selectedZone.name })
+                : t("zones.brush.selectToErase")
               : selectedZone
-                ? `Painting into: ${selectedZone.name}${selectedZonePaintable ? "" : " (locked)"}`
+                ? t(selectedZonePaintable ? "zones.brush.paintingInto" : "zones.brush.paintingIntoLocked", { name: selectedZone.name })
                 : activeRegion && !drawingDisabled
-                  ? `Painting a new zone in: ${activeRegion.name}`
-                  : "Create or select an unlocked, visible Region to paint."}
+                  ? t("zones.brush.paintingNew", { name: activeRegion.name })
+                  : t("zones.brush.needRegion")}
           </p>
           {activeTool === "brush" && selectedZone && (
-            <button type="button" className="btn btn-sm" onClick={() => onSelectZone(null)} data-tooltip="Deselect so the next stroke starts a new zone (Esc)">
+            <button type="button" className="btn btn-sm" onClick={() => onSelectZone(null)} data-tooltip={t("zones.brush.deselectHint")}>
               <Plus size={13} strokeWidth={2.25} />
-              Paint a new zone
+              {t("zones.brush.paintNew")}
             </button>
           )}
         </div>
       ) : (
         <p className="field-label zone-tool-hint">
-          {activeRegion ? `Drawing in: ${activeRegion.name}` : "Create or select a Region to draw."}
-          {activeRegion?.locked && " (locked — unlock to draw)"}
-          {activeRegion && !activeRegion.visible && " (hidden — show to draw)"}
+          {activeRegion ? t("zones.draw.in", { name: activeRegion.name }) : t("zones.draw.needRegion")}
+          {activeRegion?.locked && t("zones.draw.locked")}
+          {activeRegion && !activeRegion.visible && t("zones.draw.hidden")}
         </p>
       )}
 
@@ -837,7 +845,7 @@ export default function ZonesPanel({
         <div className="zone-new-region">
           <input
             type="text"
-            placeholder="Region name (e.g. Duchies, Forests)"
+            placeholder={t("zones.newRegion.placeholder")}
             value={newRegionName}
             autoFocus
             onChange={(e) => setNewRegionName(e.target.value)}
@@ -847,16 +855,16 @@ export default function ZonesPanel({
             }}
           />
           <button className="btn btn-sm btn-primary" onClick={submitNewRegion}>
-            Create
+            {tc("create")}
           </button>
           <button className="btn btn-sm" onClick={() => setCreatingRegion(false)}>
-            Cancel
+            {tc("cancel")}
           </button>
         </div>
       ) : (
         <button className="btn btn-sm" onClick={() => setCreatingRegion(true)}>
           <Plus size={14} strokeWidth={2.25} />
-          New Zone Region
+          {t("zones.newRegion.button")}
         </button>
       )}
 
@@ -932,14 +940,15 @@ export default function ZonesPanel({
  * map's scale, so it's never out of date after a reshape or recalibration.
  */
 function ZoneArea({ zones, config }: { zones: ZoneData[]; config: ScaleConfig | null }) {
+  const t = useT("maps");
   const shapes = zones.flatMap((z) => zoneAreaShape(z.shapeType, z.geometry) ?? []);
   const areaPx = shapes.reduce((sum, s) => sum + shapeAreaPx(s), 0);
   return (
-    <ToolSection id="zone-area" title={zones.length > 1 ? "Total area" : "Area"}>
+    <ToolSection id="zone-area" title={zones.length > 1 ? t("zones.area.total") : t("zones.area.one")}>
       {!config ? (
         <Skeleton width="60%" />
       ) : config.framePxPerUnit === null ? (
-        <p className="field-label">Calibrate the map&rsquo;s scale (Scale &amp; measure) to see {zones.length > 1 ? "their" : "this zone&rsquo;s"} area.</p>
+        <p className="field-label">{zones.length > 1 ? t("zones.area.calibrateMany") : t("zones.area.calibrateOne")}</p>
       ) : (
         <AreaReadings areaPx={areaPx} perimeterPx={shapes.length === 1 ? shapePerimeterPx(shapes[0]) : undefined} config={config} />
       )}
@@ -971,6 +980,7 @@ function MultiZoneEditor({
   onDone: () => void;
   scaleConfig: ScaleConfig | null;
 }) {
+  const t = useT("maps");
   const [first] = zones;
   const mixed = mixedKeys(zones);
   const layersOf = sharedLayers(zones.map((z) => z.extraLayerIds));
@@ -996,16 +1006,16 @@ function MultiZoneEditor({
       />
       <ZoneStyleFields v={first} mixed={mixed} onChange={setAll} />
       <ZoneArea zones={zones} config={scaleConfig} />
-      <ToolSection id="zone-territory" title="Political territory">
+      <ToolSection id="zone-territory" title={t("zones.territory.section")}>
         <ZoneTerritoryLink zone={first} mixed={mixed.has("territoryId")} onUpdate={setAll} />
       </ToolSection>
-      <ToolSection id="zone-layers" title="Folder and layers">
+      <ToolSection id="zone-layers" title={t("panel.folderLayers")}>
         <FolderSelect
           value={first.regionId}
           mixed={mixed.has("regionId")}
           folders={regionOptions}
           disabled={!oneLayer}
-          hint={oneLayer ? undefined : "Their regions are on different layers."}
+          hint={oneLayer ? undefined : t("zones.multi.differentLayers")}
           onChange={(regionId) => {
             if (!regionId) return;
             const start = endOf(regionId);

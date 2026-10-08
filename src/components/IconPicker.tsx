@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Search } from "lucide-react";
 import { RawIcon } from "./MarkerIcon";
-import { groupIcons, searchIcons } from "@/server/markers/icon-registry";
+import { groupIcons, iconGroupLabel, iconLabel, searchIcons } from "@/server/markers/icon-registry";
 import { useT } from "@/i18n/useT";
 
 /** The marker icon grid: a search box over labels and synonyms, icons grouped by section. */
@@ -19,16 +19,16 @@ export default function IconPicker({ value, onChange }: { value: string; onChang
       </label>
       {groups.length === 0 && <p className="field-label">{t("iconPicker.noMatch", { query })}</p>}
       {groups.map(({ group, icons }) => (
-        <section key={group} className="icon-picker-group" aria-label={group}>
-          <h4>{group}</h4>
+        <section key={group} className="icon-picker-group" aria-label={iconGroupLabel(group)}>
+          <h4>{iconGroupLabel(group)}</h4>
           <div className="icon-grid">
             {icons.map((icon) => (
               <button
                 key={icon.key}
                 type="button"
                 className={icon.key === value ? "active" : ""}
-                data-tooltip={icon.label}
-                aria-label={icon.label}
+                data-tooltip={iconLabel(icon.key)}
+                aria-label={iconLabel(icon.key)}
                 aria-pressed={icon.key === value}
                 onClick={() => onChange(icon.key)}
               >

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { sortLayers, type LayerPatch, type MapLayerData } from "./layer-images";
+import { activeT } from "@/i18n/active";
 
 const POLL_MS = 1200;
 
@@ -120,7 +121,7 @@ export function useMapLayers(mapId: string) {
       headers: { "Content-Type": file.type },
       body: file,
     });
-    if (!res.ok) return (await res.json().catch(() => ({}))).error ?? "Upload failed.";
+    if (!res.ok) return (await res.json().catch(() => ({}))).error ?? activeT("common")("uploadFailed");
     await refresh();
     return null;
   }

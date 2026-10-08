@@ -5,12 +5,20 @@
 import { and, eq, inArray, isNull, like, or } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { articles, documentMentions, fronts, organizations, outlineNodes, people, quests, richDocuments, sessions, territories } from "@/server/db/schema";
-import { articleHref, personTemplate, TEMPLATE_LABELS, type ArticleTemplateKey } from "@/server/articles/templates";
-import { NODE_KIND_LABELS } from "@/server/writer/types";
+import { articleHref, isArticleTemplate, personTemplate, templateLabel, type ArticleTemplateKey } from "@/server/articles/templates";
+import { serverLocale } from "@/i18n/server";
+import { createTranslator } from "@/i18n/translate";
 import { mentionHref, type MentionOption } from "./kinds";
 
 const PER_SOURCE = 8;
 const MAX_BACKLINKS = 200;
+
+/** Group and page-type names in the user's language. */
+async function mentionWords() {
+  const locale = await serverLocale();
+  const ta = createTranslator(locale, "articles");
+  return { relations: createTranslator(locale, "relations"), writer: createTranslator(locale, "writer"), campaign: createTranslator(locale, "campaign"), template: (key: ArticleTemplateKey) => templateLabel(key, ta) };
+}
 
 const pattern = (q: string) => `%${q.replace(/[%_\\]/g, "")}%`;
 
@@ -28,15 +36,16 @@ export async function searchMentions(worldId: string, q: string, campaignId: str
       ? db.select({ id: outlineNodes.id, name: outlineNodes.title, kind: outlineNodes.kind }).from(outlineNodes).where(and(eq(outlineNodes.worldId, worldId), eq(outlineNodes.campaignId, campaignId), isNull(outlineNodes.deletedAt), like(outlineNodes.title, p))).limit(PER_SOURCE)
       : [],
   ]);
-  const article = (template: string, id: string, label: string): MentionOption => ({ kind: template, id, label, campaign: null, group: TEMPLATE_LABELS[template as ArticleTemplateKey] ?? "Article" });
+  const words = await mentionWords();
+  const article = (template: string, id: string, label: string): MentionOption => ({ kind: template, id, label, campaign: null, group: isArticleTemplate(template) ? words.template(template) : words.relations("mention.article") });
   const all: MentionOption[] = [
     ...pp.map((x) => article(personTemplate(x.kind), x.id, x.name)),
     ...oo.map((x) => article("organization", x.id, x.name)),
     ...tt.map((x) => article("territory", x.id, x.name)),
     ...aa.map((x) => article(x.template, x.id, x.name)),
-    ...qq.map((x) => ({ kind: "quest", id: x.id, label: x.name, campaign: campaignId, group: "Quest" })),
-    ...ff.map((x) => ({ kind: "front", id: x.id, label: x.name, campaign: campaignId, group: "Front" })),
-    ...nn.map((x) => ({ kind: "node", id: x.id, label: x.name, campaign: campaignId, group: NODE_KIND_LABELS[x.kind] })),
+    ...qq.map((x) => ({ kind: "quest", id: x.id, label: x.name, campaign: campaignId, group: words.relations("mention.quest") })),
+    ...ff.map((x) => ({ kind: "front", id: x.id, label: x.name, campaign: campaignId, group: words.relations("mention.front") })),
+    ...nn.map((x) => ({ kind: "node", id: x.id, label: x.name, campaign: campaignId, group: words.writer(`nodeKind.${x.kind}`) })),
   ];
   // Names starting with the query first, then shorter names.
   const lower = q.toLowerCase();
@@ -74,13 +83,14 @@ export async function backlinksTo(worldId: string, targetId: string): Promise<Ba
     db.select().from(organizations).where(and(or(inArray(organizations.descriptionDocumentId, ids), inArray(organizations.sidebarDocumentId, ids), inArray(organizations.footerDocumentId, ids)), isNull(organizations.deletedAt))),
     db.select().from(territories).where(and(or(inArray(territories.descriptionDocumentId, ids), inArray(territories.sidebarDocumentId, ids), inArray(territories.footerDocumentId, ids)), isNull(territories.deletedAt))),
   ]);
+  const words = await mentionWords();
   const out: Backlink[] = [];
   const pick = (docIds: (string | null)[]) => docIds.filter((d): d is string => d !== null && ids.includes(d));
-  for (const n of nodes) out.push({ documentId: n.documentId!, type: NODE_KIND_LABELS[n.kind], title: n.title, href: mentionHref({ kind: "node", id: n.id, campaign: n.campaignId }) });
-  for (const q of qs) out.push({ documentId: q.bodyDocumentId!, type: "Quest", title: q.title, href: mentionHref({ kind: "quest", id: q.id, campaign: q.campaignId }) });
-  for (const s of ss) out.push({ documentId: s.recapDocumentId!, type: "Session recap", title: `Session ${s.number}${s.title ? ` · ${s.title}` : ""}`, href: `/sessions?campaign=${encodeURIComponent(s.campaignId)}&session=${encodeURIComponent(s.id)}` });
+  for (const n of nodes) out.push({ documentId: n.documentId!, type: words.writer(`nodeKind.${n.kind}`), title: n.title, href: mentionHref({ kind: "node", id: n.id, campaign: n.campaignId }) });
+  for (const q of qs) out.push({ documentId: q.bodyDocumentId!, type: words.relations("mention.quest"), title: q.title, href: mentionHref({ kind: "quest", id: q.id, campaign: q.campaignId }) });
+  for (const s of ss) out.push({ documentId: s.recapDocumentId!, type: words.relations("mention.sessionRecap"), title: s.title ? words.campaign("session.labelNamed", { n: s.number, title: s.title }) : words.campaign("session.label", { n: s.number }), href: `/sessions?campaign=${encodeURIComponent(s.campaignId)}&session=${encodeURIComponent(s.id)}` });
   const add = (template: ArticleTemplateKey, id: string, title: string, docIds: (string | null)[]) => {
-    for (const d of pick(docIds)) out.push({ documentId: d, type: TEMPLATE_LABELS[template], title, href: articleHref(template, id) });
+    for (const d of pick(docIds)) out.push({ documentId: d, type: words.template(template), title, href: articleHref(template, id) });
   };
   for (const a of as) add(a.template as ArticleTemplateKey, a.id, a.title, [a.bodyDocumentId, a.sidebarDocumentId, a.footerDocumentId]);
   for (const p of ps) add(personTemplate(p.kind), p.id, p.name, [p.descriptionDocumentId, p.sidebarDocumentId, p.footerDocumentId]);

@@ -10,6 +10,7 @@ import DeleteArticleButton from "./DeleteArticleButton";
 import { InfoForm, InfoView, type InfoLookups } from "./InfoBar";
 import { patchRecord, useEditingResetOnSelect } from "./shared";
 import type { GenericArticle as GenericArticleData, OpenArticle } from "./types";
+import { useT } from "@/i18n/useT";
 
 const recordUrl = (id: string) => `/api/articles/${id}`;
 
@@ -32,6 +33,7 @@ export default function GenericArticle({
   onDeleted: () => void;
   onOpenArticle: OpenArticle;
 }) {
+  const ta = useT("articles");
   const [editing, setEditing] = useEditingResetOnSelect(article.id);
   const update = (body: Record<string, unknown>) => patchRecord(recordUrl(article.id), body).then(onChanged);
   const infoSet = INFO_FIELD_SETS[article.template];
@@ -50,14 +52,14 @@ export default function GenericArticle({
         <DeleteArticleButton url={recordUrl(article.id)} name={article.title} template={article.template} onDeleted={onDeleted} />
       }
       image={
-        <PortraitUploader endpoint={`${recordUrl(article.id)}/portrait`} portraitKey={article.portraitKey} updatedAt={article.updatedAt} label="Image" onChanged={onChanged} />
+        <PortraitUploader endpoint={`${recordUrl(article.id)}/portrait`} portraitKey={article.portraitKey} updatedAt={article.updatedAt} label={ta("portrait.image")} onChanged={onChanged} />
       }
       infoActions={
         infoSet &&
         !editing && (
           <button className="btn btn-sm btn-ghost" onClick={() => setEditing(true)}>
             <Pencil size={13} strokeWidth={2.25} />
-            Edit
+            {ta("view.edit")}
           </button>
         )
       }

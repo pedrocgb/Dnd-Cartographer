@@ -126,7 +126,7 @@ describe("generateWeatherDay", () => {
 
   it("dates each day effect to the hours it holds for", () => {
     const day = roll({ climate: "Temperate", geography: "Coastal", season: "Autumn" }, 50).find((d) => d.hours.some((h) => h.precipitation?.type === "rain"))!;
-    const muddy = day.effects.find((e) => e.text.startsWith("Exposed paths") || e.text.startsWith("Roads turn"));
+    const muddy = day.effects.find((e) => e.text === "effect.rain" || e.text === "effect.heavyRain");
     if (muddy) for (const [start, end] of muddy.windows) for (let hour = start; hour < end; hour++) expect(day.hours[hour].precipitation?.type).toBe("rain");
   });
 });

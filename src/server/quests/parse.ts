@@ -1,9 +1,12 @@
 /**
  * Strict parsers for quest JSON coming from clients (pure; relative imports
- * only). Each returns the cleaned value or throws ParseError (a 400) with a
- * plain-language message.
+ * only). Each returns the cleaned value or throws ParseError (a 400). Shape
+ * errors only reach malformed requests, so they stay in English; what a user
+ * can run into carries a `campaign` Problem.
  */
 import { ParseError } from "../calendars/parse";
+import type { Problem } from "../calendars/engine";
+import type { MessageKey } from "../../i18n/messages";
 import {
   CLOCK_SIZES,
   FRONT_KINDS,
@@ -45,9 +48,12 @@ const MAX_TITLE = 160;
 const MAX_LINE = 500;
 const MAX_SUMMARY = 2000;
 
-const fail = (message: string): never => {
+const fail = (message: string | Problem): never => {
   throw new ParseError(message);
 };
+
+/** A `campaign` Problem. */
+const problem = (key: MessageKey<"campaign">, params?: Problem["params"]): Problem => ({ ns: "campaign", key, params });
 
 const obj = (v: unknown, what: string): Record<string, unknown> =>
   v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : fail(`${what} is missing or malformed.`);
@@ -66,7 +72,7 @@ const oneOf = <T extends string>(values: readonly T[], v: unknown, what: string)
 
 export function parseQuestTitle(v: unknown): string {
   const title = text(v, "The quest's title", MAX_TITLE);
-  return title || fail("A quest needs a title.");
+  return title || fail(problem("problem.questTitle"));
 }
 
 export const parseQuestSummary = (v: unknown) => text(v, "The summary", MAX_SUMMARY);
@@ -126,7 +132,7 @@ export function parseQuestLog(v: unknown, questIds: ReadonlySet<string>): QuestL
   return list(v ?? [], "The quest log", MAX_LOG).map((l, i): QuestLogLine => {
     const x = obj(l, `Quest log line ${i + 1}`);
     const questId = ident(x.questId, `Quest log line ${i + 1}`);
-    if (!questIds.has(questId)) fail("The quest log names a quest that isn't in this campaign.");
+    if (!questIds.has(questId)) fail(problem("problem.logQuestMissing"));
     if (seen.has(questId)) fail("A quest can appear only once in a session's quest log.");
     seen.add(questId);
     const objectiveIds = [...new Set(list(x.objectiveIds ?? [], "Objectives done", MAX_OBJECTIVES).map((o) => ident(o, "An objective")))];
@@ -144,8 +150,11 @@ export function parseQuestLog(v: unknown, questIds: ReadonlySet<string>): QuestL
   });
 }
 
-const int = (v: unknown, what: string, min: number, max: number): number =>
-  Number.isSafeInteger(v) && (v as number) >= min && (v as number) <= max ? (v as number) : fail(`${what} must be a whole number from ${min.toLocaleString("en-US")} to ${max.toLocaleString("en-US")}.`);
+/** `what` is a Problem for the numbers a user types (rewards); the rest are shape errors. */
+const int = (v: unknown, what: string | Problem, min: number, max: number): number =>
+  Number.isSafeInteger(v) && (v as number) >= min && (v as number) <= max
+    ? (v as number)
+    : fail(typeof what === "string" ? `${what} must be a whole number from ${min.toLocaleString("en-US")} to ${max.toLocaleString("en-US")}.` : problem("problem.wholeNumber", { what, min, max }));
 
 const refs = (v: unknown, what: string, max: number): ArticleRef[] => {
   const byId = new Map<string, ArticleRef>();
@@ -186,18 +195,18 @@ export function parseClock(v: unknown): Clock | null {
 export function parseRewards(v: unknown, currencyIds: ReadonlySet<string>): Rewards | null {
   if (v === null || v === undefined) return null;
   const x = obj(v, "The rewards");
-  const xp = x.xp === null || x.xp === undefined || x.xp === "" ? null : int(x.xp, "Reward XP", 0, MAX_XP);
+  const xp = x.xp === null || x.xp === undefined || x.xp === "" ? null : int(x.xp, problem("problem.what.rewardXp"), 0, MAX_XP);
   const coins = list(x.coins ?? [], "Reward coins", MAX_REWARD_ROWS).map((c, i) => {
     const y = obj(c, `Reward coin ${i + 1}`);
     const currencyId = ident(y.currencyId, `Reward coin ${i + 1}`);
-    if (!currencyIds.has(currencyId)) fail("A reward is in a coin this campaign doesn't use.");
-    return { currencyId, amount: int(y.amount, "A reward amount", 1, MAX_AMOUNT) };
+    if (!currencyIds.has(currencyId)) fail(problem("problem.rewardCoin"));
+    return { currencyId, amount: int(y.amount, problem("problem.what.rewardAmount"), 1, MAX_AMOUNT) };
   });
   const items = list(x.items ?? [], "Reward items", MAX_REWARD_ROWS)
     .map((it, i) => {
       const y = obj(it, `Reward item ${i + 1}`);
       const linked = y.articleId ? ref(y, `Reward item ${i + 1}`) : null;
-      return { id: ident(y.id, `Reward item ${i + 1}`), name: text(y.name, "A reward item", 120), template: linked?.template ?? null, articleId: linked?.articleId ?? null, quantity: int(y.quantity ?? 1, "A reward quantity", 1, 100_000) };
+      return { id: ident(y.id, `Reward item ${i + 1}`), name: text(y.name, "A reward item", 120), template: linked?.template ?? null, articleId: linked?.articleId ?? null, quantity: int(y.quantity ?? 1, problem("problem.what.rewardQuantity"), 1, 100_000) };
     })
     .filter((it) => it.name || it.articleId);
   return xp === null && coins.length === 0 && items.length === 0 ? null : { xp, coins, items };
@@ -216,8 +225,8 @@ export function parseQuestDays(body: Record<string, unknown>): { startDay?: numb
   if ("deadlineDay" in body) out.deadlineDay = day(body.deadlineDay, "The quest's deadline");
   if ("endDay" in body) out.endDay = day(body.endDay, "The quest's end");
   const start = out.startDay ?? null;
-  if (start !== null && out.endDay != null && out.endDay < start) fail("A quest can't end before it starts.");
-  if (start !== null && out.deadlineDay != null && out.deadlineDay < start) fail("A quest's deadline can't be before it starts.");
+  if (start !== null && out.endDay != null && out.endDay < start) fail(problem("problem.endBeforeStart"));
+  if (start !== null && out.deadlineDay != null && out.deadlineDay < start) fail(problem("problem.deadlineBeforeStart"));
   return out;
 }
 
@@ -242,7 +251,7 @@ export function parseMapPositions(v: unknown): Record<string, MapPoint | null> {
 
 export function parseFrontName(v: unknown): string {
   const name = text(v, "The front's name", 120);
-  return name || fail("A front needs a name.");
+  return name || fail(problem("problem.frontName"));
 }
 
 export const parseFrontKind = (v: unknown): FrontKind => oneOf(FRONT_KINDS, v, "The front's type");

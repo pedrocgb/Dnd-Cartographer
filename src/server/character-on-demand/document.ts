@@ -1,4 +1,5 @@
 import type { Backstory } from "@/lib/character-on-demand/backstory";
+import type { Translator } from "@/i18n/translate";
 
 /** One "Label: value" line of a generated character's details. */
 export interface DetailLine {
@@ -20,22 +21,22 @@ const bullets = (lines: DetailLine[]) => ({
 /**
  * The body of a character made by Character On Demand: its details as a
  * list, then the backstory (appearance, what they want, personality) with
- * the secret in a GM-only secret block.
+ * the secret in a GM-only secret block. Headings are in the language of `t`.
  */
-export function buildCharacterDocument(details: DetailLine[], backstory?: Backstory | null) {
-  const content: unknown[] = [heading("Generated details"), bullets(details)];
+export function buildCharacterDocument(details: DetailLine[], backstory: Backstory | null | undefined, t: Translator<"character">) {
+  const content: unknown[] = [heading(t("doc.details")), bullets(details)];
   if (backstory) {
     content.push(
-      heading("Appearance"),
+      heading(t("modal.appearance")),
       { type: "paragraph", content: [text(backstory.appearance)] },
-      heading("Right now"),
+      heading(t("modal.rightNow")),
       { type: "paragraph", content: [text(backstory.want)] },
-      heading("Personality"),
+      heading(t("doc.personality")),
       bullets([
-        { label: "Quirk", value: backstory.quirk },
-        { label: "Fear", value: backstory.fear },
+        { label: t("modal.quirk"), value: backstory.quirk },
+        { label: t("modal.fear"), value: backstory.fear },
       ]),
-      { type: "secret", attrs: { revealed: false }, content: [labelled({ label: "Secret", value: backstory.secret })] },
+      { type: "secret", attrs: { revealed: false }, content: [labelled({ label: t("modal.secret"), value: backstory.secret })] },
     );
   }
   return { type: "doc", content };

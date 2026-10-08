@@ -8,6 +8,7 @@ import { templateOf } from "@/components/articles/templates";
 import { NODE_KIND_LABELS } from "@/server/writer/types";
 import type { SharedSection, ShareView as View } from "@/server/share/load";
 import { sectionAnchor as anchorId, type JsonNode } from "@/server/share/transform";
+import { useT } from "@/i18n/useT";
 
 type Loaded = { state: "loading" } | { state: "gone" } | { state: "ready"; view: View };
 
@@ -29,6 +30,8 @@ async function fetchView(token: string): Promise<View | null | undefined> {
  * changes anything in it, so viewers never need to reload.
  */
 export default function ShareView({ token }: { token: string }) {
+  const ta = useT("articles");
+  const tc = useT("common");
   const [loaded, setLoaded] = useState<Loaded>({ state: "loading" });
 
   useEffect(() => {
@@ -63,12 +66,12 @@ export default function ShareView({ token }: { token: string }) {
     };
   }, [token]);
 
-  if (loaded.state === "loading") return <p className="share-status" role="status">Loading…</p>;
+  if (loaded.state === "loading") return <p className="share-status" role="status">{tc("loading")}</p>;
   if (loaded.state === "gone") {
     return (
       <div className="share-status share-gone" role="alert">
         <Link2Off size={20} strokeWidth={2} aria-hidden />
-        <p>This link is no longer available.</p>
+        <p>{ta("share.gone")}</p>
       </div>
     );
   }
@@ -77,6 +80,7 @@ export default function ShareView({ token }: { token: string }) {
 }
 
 function SharedCard({ variant, Icon, label, doc }: { variant: string; Icon: LucideIcon; label: string; doc: JsonNode | null }) {
+  const ta = useT("articles");
   return (
     <section className={`article-card article-card-${variant}`} aria-label={label}>
       <header className="article-card-header">
@@ -85,12 +89,13 @@ function SharedCard({ variant, Icon, label, doc }: { variant: string; Icon: Luci
           <span className="field-label">{label}</span>
         </span>
       </header>
-      {doc ? <ReadOnlyRich content={doc} /> : <p className="article-card-placeholder">Nothing here yet.</p>}
+      {doc ? <ReadOnlyRich content={doc} /> : <p className="article-card-placeholder">{ta("share.empty")}</p>}
     </section>
   );
 }
 
 function SharedArticle({ view }: { view: Extract<View, { kind: "article" }> }) {
+  const ta = useT("articles");
   const { Icon } = templateOf(view.template);
   const [zoomed, setZoomed] = useState<ZoomedImage | null>(null);
   return (
@@ -105,7 +110,7 @@ function SharedArticle({ view }: { view: Extract<View, { kind: "article" }> }) {
         <button
           type="button"
           className="share-portrait-button"
-          aria-label={`View ${view.title}'s image full size`}
+          aria-label={ta("share.viewImage", { name: view.title })}
           onClick={() => setZoomed({ src: view.portraitFullUrl ?? view.portraitUrl!, alt: view.title, caption: null })}
         >
           {/* eslint-disable-next-line @next/next/no-img-element -- served by the share's own route, not a static asset */}
@@ -114,27 +119,28 @@ function SharedArticle({ view }: { view: Extract<View, { kind: "article" }> }) {
       )}
       <ImageLightbox image={zoomed} onClose={() => setZoomed(null)} />
       <div className={view.footer ? "article-cards has-footer" : "article-cards"}>
-        <SharedCard variant="body" Icon={TextAlignStart} label="Body" doc={view.body} />
-        <SharedCard variant="sidebar" Icon={PanelRightClose} label="Sidebar" doc={view.sidebar} />
-        {view.footer && <SharedCard variant="footer" Icon={Footprints} label="Footer" doc={view.footer} />}
+        <SharedCard variant="body" Icon={TextAlignStart} label={ta("card.body.label")} doc={view.body} />
+        <SharedCard variant="sidebar" Icon={PanelRightClose} label={ta("card.sidebar.label")} doc={view.sidebar} />
+        {view.footer && <SharedCard variant="footer" Icon={Footprints} label={ta("card.footer.label")} doc={view.footer} />}
       </div>
     </article>
   );
 }
 
 function SharedStory({ view }: { view: Extract<View, { kind: "writer" }> }) {
+  const ta = useT("articles");
   const { root, sections } = view;
   return (
     <article className="wr-reader" aria-label={root.title}>
       <header className="wr-reader-head">
-        {root.kind ? <span className={`wr-kind wr-kind-${root.kind}`}>{NODE_KIND_LABELS[root.kind]}</span> : <span className="field-label">Campaign</span>}
+        {root.kind ? <span className={`wr-kind wr-kind-${root.kind}`}>{NODE_KIND_LABELS[root.kind]}</span> : <span className="field-label">{ta("share.campaign")}</span>}
         <h1 className="wr-reader-title">{root.title}</h1>
         {root.lead && <p className="wr-reader-lead">{root.lead}</p>}
       </header>
 
       {sections.length > 0 && (
-        <nav className="wr-reader-toc" aria-label="Contents">
-          <h2 className="field-label">Contents</h2>
+        <nav className="wr-reader-toc" aria-label={ta("share.contents")}>
+          <h2 className="field-label">{ta("share.contents")}</h2>
           <TocList list={sections} />
         </nav>
       )}

@@ -10,7 +10,7 @@ import { validateImageFile, InvalidImageError } from "./validate";
  * Streams an upload to a temp file and checks it's a real image under
  * `maxBytes`. Resolves the temp path; the caller converts and removes it.
  */
-export async function receiveImageUpload(body: ReadableStream<Uint8Array>, maxBytes: number, what: string): Promise<string> {
+export async function receiveImageUpload(body: ReadableStream<Uint8Array>, maxBytes: number, what: "image" | "portrait"): Promise<string> {
   const tempPath = tempUploadPath(crypto.randomUUID());
   await mkdir(path.dirname(tempPath), { recursive: true });
 
@@ -19,7 +19,8 @@ export async function receiveImageUpload(body: ReadableStream<Uint8Array>, maxBy
 
   if (size > maxBytes) {
     await rm(tempPath, { force: true });
-    throw new InvalidImageError(`File is ${(size / 1024 / 1024).toFixed(1)} MiB, over the ${maxBytes / 1024 / 1024} MiB ${what} limit.`);
+    const mib = (bytes: number) => Math.round((bytes / 1024 / 1024) * 10) / 10;
+    throw new InvalidImageError(what === "portrait" ? "portraitTooLarge" : "imageTooLarge", { size: mib(size), max: mib(maxBytes) });
   }
 
   try {

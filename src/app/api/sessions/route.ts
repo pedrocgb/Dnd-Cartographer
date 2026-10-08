@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
+import { errorResponse } from "@/i18n/server";
 import { and, asc, eq, gte, isNull, like, lte, or } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { campaigns, sessions } from "@/server/db/schema";
 import { requireWorldId } from "@/server/world/active-world";
 import { cleanName } from "@/server/calendars/parse";
-import { badRequest, notFound, readBody } from "@/server/calendars/respond";
+import { readBody } from "@/server/calendars/respond";
 import { campaignOf, createNextSession, sessionsOf, toClientSession, type SessionRow } from "@/server/sessions/store";
 
 /** Widest in-world window one request may ask for, like calendar entries. */
@@ -23,7 +24,7 @@ export async function GET(request: Request) {
   const worldId = await requireWorldId();
   const campaignId = url.searchParams.get("campaignId");
   if (campaignId) {
-    if (!(await campaignOf(worldId, campaignId))) return notFound("Campaign not found.");
+    if (!(await campaignOf(worldId, campaignId))) return errorResponse("campaignNotFound", 404);
     return NextResponse.json({ sessions: await sessionsOf(campaignId) });
   }
   const live = and(eq(sessions.worldId, worldId), isNull(sessions.deletedAt), isNull(campaigns.archivedAt));
@@ -39,8 +40,8 @@ export async function GET(request: Request) {
   }
   const from = Number(url.searchParams.get("from"));
   const to = Number(url.searchParams.get("to"));
-  if (!Number.isSafeInteger(from) || !Number.isSafeInteger(to) || to < from) return badRequest("Pass a campaignId, an articleId, or a from/to day range.");
-  if (to - from > MAX_WINDOW) return badRequest(`Ask for at most ${MAX_WINDOW} days at once.`);
+  if (!Number.isSafeInteger(from) || !Number.isSafeInteger(to) || to < from) return errorResponse("sessionRangeMissing", 400);
+  if (to - from > MAX_WINDOW) return errorResponse("entryRangeTooLong", 400, undefined, { n: MAX_WINDOW });
   const rows = await select()
     .where(and(live, lte(sessions.startDay, to), gte(sessions.endDay, from)))
     .orderBy(asc(sessions.startDay), asc(sessions.number));
@@ -50,11 +51,11 @@ export async function GET(request: Request) {
 /** Creates the campaign's next session (see createNextSession). */
 export async function POST(request: Request) {
   const body = await readBody(request);
-  if (!body) return badRequest("Invalid request body.");
-  if (typeof body.campaignId !== "string") return badRequest("Pick the campaign.");
+  if (!body) return errorResponse("invalidBody", 400);
+  if (typeof body.campaignId !== "string") return errorResponse("sessionCampaignRequired", 400);
   const worldId = await requireWorldId();
   const campaign = await campaignOf(worldId, body.campaignId);
-  if (!campaign) return notFound("Campaign not found.");
+  if (!campaign) return errorResponse("campaignNotFound", 404);
   const row = await createNextSession(worldId, campaign.id, cleanName(body.title, 120));
   return NextResponse.json({ session: toClientSession(row) }, { status: 201 });
 }

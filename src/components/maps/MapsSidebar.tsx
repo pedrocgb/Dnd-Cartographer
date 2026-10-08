@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { ChevronDown, ChevronRight, Compass, Folder, FolderOpen, FolderPlus, Plus, Settings } from "lucide-react";
 import type { TreeEntry } from "./map-tree";
-import type { FolderSummary, MapSummary } from "./types";
+import { useT } from "@/i18n/useT";
+import { assetStateLabel, type FolderSummary, type MapSummary } from "./types";
 
 type Entry = TreeEntry<MapSummary, FolderSummary>;
 /** What's being dragged: a map or a folder. */
@@ -83,6 +84,7 @@ export default function MapsSidebar({
   settingsFor: string | null;
   actions: MapsSidebarActions;
 }) {
+  const t = useT("maps");
   const [dragging, setDragging] = useState<DragItem | null>(null);
   const [dropKey, setDropKey] = useState<string | null>(null);
 
@@ -156,7 +158,7 @@ export default function MapsSidebar({
               </span>
             </button>
             <span className="maps-row-actions">
-              <RowAction label={`${folder.name} settings`} onClick={() => actions.onFolderSettings(entry)}>
+              <RowAction label={t("sidebar.settingsOf", { name: folder.name })} onClick={() => actions.onFolderSettings(entry)}>
                 <Settings size={13} strokeWidth={2.25} />
               </RowAction>
             </span>
@@ -164,7 +166,7 @@ export default function MapsSidebar({
           {open && (
             <ul className="maps-tree-children">
               {entry.children.map(renderEntry)}
-              {entry.children.length === 0 && <li className="field-label maps-tree-empty">Empty — drag maps here.</li>}
+              {entry.children.length === 0 && <li className="field-label maps-tree-empty">{t("sidebar.emptyFolder")}</li>}
             </ul>
           )}
         </li>
@@ -195,7 +197,7 @@ export default function MapsSidebar({
             <button
               type="button"
               className="maps-row-toggle"
-              aria-label={expanded ? `Collapse ${map.name}` : `Expand ${map.name}`}
+              aria-label={expanded ? t("sidebar.collapse", { name: map.name }) : t("sidebar.expand", { name: map.name })}
               aria-expanded={expanded}
               onClick={() => actions.onToggleMap(map.id)}
             >
@@ -207,10 +209,10 @@ export default function MapsSidebar({
           <Link href={`/maps/${map.id}`} className="maps-row-main" draggable={false}>
             <Compass size={15} strokeWidth={2.25} aria-hidden />
             <span className="maps-row-name">{map.name}</span>
-            {map.assetState && map.assetState !== "ready" && <span className="map-pill-tag warn">{map.assetState}</span>}
+            {map.assetState && map.assetState !== "ready" && <span className="map-pill-tag warn">{assetStateLabel(map.assetState, t)}</span>}
           </Link>
           <span className="maps-row-actions">
-            <RowAction label={`${map.name} settings`} onClick={() => actions.onMapSettings(map)}>
+            <RowAction label={t("sidebar.settingsOf", { name: map.name })} onClick={() => actions.onMapSettings(map)}>
               <Settings size={13} strokeWidth={2.25} />
             </RowAction>
           </span>
@@ -221,8 +223,8 @@ export default function MapsSidebar({
   }
 
   return (
-    <aside className="articles-sidebar maps-sidebar" aria-label="Maps">
-      <input type="search" placeholder="Search maps and folders…" aria-label="Search maps and folders" value={query} onChange={(e) => onQueryChange(e.target.value)} />
+    <aside className="articles-sidebar maps-sidebar" aria-label={t("title")}>
+      <input type="search" placeholder={t("sidebar.search")} aria-label={t("sidebar.searchLabel")} value={query} onChange={(e) => onQueryChange(e.target.value)} />
 
       {/* Empty space here is the root drop zone. */}
       <nav
@@ -231,22 +233,20 @@ export default function MapsSidebar({
         onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node) && setDropKey(null)}
       >
         <ul className="maps-tree-root">{tree.map(renderEntry)}</ul>
-        {tree.length === 0 && <p className="field-label">{searching ? <>Nothing matches &ldquo;{query.trim()}&rdquo;.</> : "No maps yet."}</p>}
+        {tree.length === 0 && <p className="field-label">{searching ? t("sidebar.noMatch", { query: query.trim() }) : t("sidebar.empty")}</p>}
         {dragging && (
-          <p className="field-label maps-tree-drop-hint">
-            Drop on a folder to file it there{dragging.kind === "map" ? ", on a map to nest it," : ""} or here for the root.
-          </p>
+          <p className="field-label maps-tree-drop-hint">{dragging.kind === "map" ? t("sidebar.dropHintMap") : t("sidebar.dropHintFolder")}</p>
         )}
       </nav>
 
       <div className="maps-sidebar-footer">
         <button type="button" className="articles-folder articles-create" onClick={actions.onNewMap}>
           <Plus size={16} strokeWidth={2.25} aria-hidden />
-          <span className="articles-folder-name">New Map</span>
+          <span className="articles-folder-name">{t("newMap")}</span>
         </button>
         <button type="button" className="articles-folder maps-create-folder" onClick={actions.onNewFolder}>
           <FolderPlus size={16} strokeWidth={2.25} aria-hidden />
-          <span className="articles-folder-name">Create folder</span>
+          <span className="articles-folder-name">{t("createFolder")}</span>
         </button>
       </div>
     </aside>

@@ -22,6 +22,10 @@
 
 import { applyDateFormat } from "../settings/date-format";
 import type { WorldDateFormat } from "../settings/settings";
+import { activeSettings } from "../settings/active";
+import { translate } from "../../i18n/translate";
+import type { MessageKey } from "../../i18n/messages";
+import type { Locale } from "../../i18n/config";
 
 export interface Weekday {
   id: string;
@@ -86,7 +90,30 @@ export const MAX_ABS_YEAR = 1_000_000;
 /** Combined leap/condition cycle limit (years) — keeps far-year math bounded. */
 export const MAX_RULE_CYCLE = 20_000;
 
-export class CalendarError extends Error {}
+/**
+ * A calendar message as a `calendars` key plus params, so the client words it
+ * in the active language and API routes in the user's (`serverT`). A param
+ * that is itself a Problem is worded first, in the same language. The
+ * campaign parsers (quests, sessions, writer) share this with `ns: "campaign"`.
+ */
+export type Problem = { ns?: undefined; key: MessageKey<"calendars">; params?: ProblemParams } | { ns: "campaign"; key: MessageKey<"campaign">; params?: ProblemParams };
+type ProblemParams = Record<string, string | number | Problem>;
+
+export function problemText(problem: Problem, locale: Locale = activeSettings().language): string {
+  const params = problem.params && Object.fromEntries(Object.entries(problem.params).map(([k, v]) => [k, typeof v === "object" ? problemText(v, locale) : v]));
+  return problem.ns === "campaign" ? translate(locale, "campaign", problem.key, params) : translate(locale, "calendars", problem.key, params);
+}
+
+/** Base of the calendar domain errors: `problem` (when given) is what users read; `message` is its English wording. */
+export class CalendarError extends Error {
+  readonly problem?: Problem;
+  constructor(problem: Problem | string) {
+    super(typeof problem === "string" ? problem : problemText(problem, "en-US"));
+    if (typeof problem !== "string") this.problem = problem;
+  }
+}
+
+export const problemOf = (e: unknown): Problem => (e instanceof CalendarError && e.problem ? e.problem : { key: "problem.unexpected" });
 
 const mod = (n: number, m: number) => ((n % m) + m) % m;
 
@@ -98,7 +125,7 @@ export function matchesYear(rule: YearRule, internalYear: number): boolean {
 
 export function toInternalYear(def: Pick<CalendarDefinition, "year">, displayYear: number): number {
   if (def.year.hasYearZero) return displayYear;
-  if (displayYear === 0) throw new CalendarError("This calendar has no year 0.");
+  if (displayYear === 0) throw new CalendarError({ key: "problem.noYearZero" });
   return displayYear > 0 ? displayYear : displayYear + 1;
 }
 
@@ -123,7 +150,7 @@ function cycleLength(def: CalendarDefinition): number {
   let cycle = 1;
   for (const n of intervals) {
     cycle = lcm(cycle, n);
-    if (cycle > MAX_RULE_CYCLE) throw new CalendarError(`The leap and conditional rules only repeat every ${cycle}+ years; keep it under ${MAX_RULE_CYCLE}.`);
+    if (cycle > MAX_RULE_CYCLE) throw new CalendarError({ key: "problem.ruleCycle", params: { cycle, max: MAX_RULE_CYCLE } });
   }
   return cycle;
 }
@@ -182,31 +209,37 @@ export const yearLength = (def: CalendarDefinition, internalYear: number) => yea
 
 function checkYear(internalYear: number) {
   if (!Number.isInteger(internalYear) || Math.abs(internalYear) > MAX_ABS_YEAR) {
-    throw new CalendarError(`Years are supported between -${MAX_ABS_YEAR} and ${MAX_ABS_YEAR}.`);
+    throw new CalendarError({ key: "problem.yearRange", params: { max: MAX_ABS_YEAR } });
   }
 }
 
 /** Why `date` doesn't exist in this calendar, or null when it does. */
-export function dateError(def: CalendarDefinition, date: LocalDate): string | null {
+export function dateProblem(def: CalendarDefinition, date: LocalDate): Problem | null {
   let y: number;
   try {
     y = toInternalYear(def, date.year);
     checkYear(y);
   } catch (e) {
-    return (e as Error).message;
+    return problemOf(e);
   }
   const period = def.periods.find((p) => p.id === date.periodId);
-  if (!period) return "That month doesn't exist in this calendar.";
+  if (!period) return { key: "problem.noMonth" };
   const entry = yearPeriods(def, y).find((p) => p.period.id === date.periodId);
-  if (!entry) return `${period.name} doesn't occur in year ${date.year}${def.year.suffix ? ` ${def.year.suffix}` : ""}.`;
+  if (!entry) return { key: "problem.monthNotInYear", params: { month: period.name, year: `${date.year}${def.year.suffix ? ` ${def.year.suffix}` : ""}` } };
   if (!Number.isInteger(date.day) || date.day < 1 || date.day > entry.days) {
-    return `${period.name} has ${entry.days} day${entry.days === 1 ? "" : "s"} in year ${date.year}.`;
+    return { key: "problem.monthDays", params: { month: period.name, count: entry.days, n: entry.days, year: date.year } };
   }
   return null;
 }
 
+/** `dateProblem` in words (the active language). */
+export function dateError(def: CalendarDefinition, date: LocalDate): string | null {
+  const problem = dateProblem(def, date);
+  return problem && problemText(problem);
+}
+
 function assertDate(def: CalendarDefinition, date: LocalDate) {
-  const problem = dateError(def, date);
+  const problem = dateProblem(def, date);
   if (problem) throw new CalendarError(problem);
 }
 
@@ -252,7 +285,7 @@ export function toWorldDay(def: CalendarDefinition, date: LocalDate): number {
 }
 
 export function fromWorldDay(def: CalendarDefinition, worldDay: number): LocalDate {
-  if (!Number.isSafeInteger(worldDay)) throw new CalendarError("That day is outside the supported range.");
+  if (!Number.isSafeInteger(worldDay)) throw new CalendarError({ key: "problem.dayRange" });
   return inverseOrdinal(def, worldDay - def.sync.worldDay + ordinal(def, def.sync.date));
 }
 
@@ -313,13 +346,17 @@ export const weekLength = (def: CalendarDefinition) => Math.max(1, def.weekdays.
 
 export interface DefinitionIssue {
   field: string;
+  problem: Problem;
+  /** `problem` in the active language. */
   message: string;
 }
 
+const issue = (field: string, problem: Problem): DefinitionIssue => ({ field, problem, message: problemText(problem) });
+
 function ruleIssues(rule: YearRule, field: string): DefinitionIssue[] {
   const issues: DefinitionIssue[] = [];
-  for (const n of ruleIntervals(rule)) if (!Number.isInteger(n) || n < 1) issues.push({ field, message: "Intervals must be whole numbers of 1 or more years." });
-  for (const o of [rule.offset, ...(rule.exceptions ?? []).map((e) => e.offset)]) if (!Number.isInteger(o)) issues.push({ field, message: "Offsets must be whole numbers." });
+  for (const n of ruleIntervals(rule)) if (!Number.isInteger(n) || n < 1) issues.push(issue(field, { key: "problem.intervals" }));
+  for (const o of [rule.offset, ...(rule.exceptions ?? []).map((e) => e.offset)]) if (!Number.isInteger(o)) issues.push(issue(field, { key: "problem.offsets" }));
   return issues;
 }
 
@@ -328,49 +365,51 @@ export function validateDefinition(def: CalendarDefinition): DefinitionIssue[] {
   const issues: DefinitionIssue[] = [];
   const ids = new Set<string>();
   const unique = (id: string, field: string) => {
-    if (!id) issues.push({ field, message: "Every item needs an id." });
-    else if (ids.has(id)) issues.push({ field, message: `The id "${id}" is used twice.` });
+    if (!id) issues.push(issue(field, { key: "problem.noId" }));
+    else if (ids.has(id)) issues.push(issue(field, { key: "problem.idTwice", params: { id } }));
     ids.add(id);
   };
   def.weekdays.forEach((w, i) => {
     unique(w.id, `weekdays.${i}`);
-    if (!w.name.trim()) issues.push({ field: `weekdays.${i}`, message: `Weekday ${i + 1} needs a name.` });
+    if (!w.name.trim()) issues.push(issue(`weekdays.${i}`, { key: "problem.weekdayName", params: { n: i + 1 } }));
   });
-  if (!def.periods.some((p) => p.kind === "month")) issues.push({ field: "periods", message: "Add at least one month." });
+  if (!def.periods.some((p) => p.kind === "month")) issues.push(issue("periods", { key: "problem.noMonths" }));
   def.periods.forEach((p, i) => {
     unique(p.id, `periods.${i}`);
-    if (!p.name.trim()) issues.push({ field: `periods.${i}`, message: `Month ${i + 1} needs a name.` });
-    if (!Number.isInteger(p.days) || p.days < 1) issues.push({ field: `periods.${i}`, message: `${p.name || `Month ${i + 1}`} needs 1 or more days.` });
-    if (p.kind === "month" && !p.inWeek) issues.push({ field: `periods.${i}`, message: `${p.name}: months always take part in the week; use a special period to step outside it.` });
+    const month: string | Problem = p.name || { key: "default.month", params: { n: i + 1 } };
+    if (!p.name.trim()) issues.push(issue(`periods.${i}`, { key: "problem.monthName", params: { n: i + 1 } }));
+    if (!Number.isInteger(p.days) || p.days < 1) issues.push(issue(`periods.${i}`, { key: "problem.monthDaysMin", params: { month } }));
+    if (p.kind === "month" && !p.inWeek) issues.push(issue(`periods.${i}`, { key: "problem.monthInWeek", params: { month } }));
     if (p.condition) issues.push(...ruleIssues(p.condition, `periods.${i}`));
   });
   def.leapRules.forEach((l, i) => {
     unique(l.id, `leapRules.${i}`);
-    if (!def.periods.some((p) => p.id === l.periodId)) issues.push({ field: `leapRules.${i}`, message: `${l.name || "A leap rule"} points to a month that no longer exists.` });
-    if (!Number.isInteger(l.days) || l.days < 1) issues.push({ field: `leapRules.${i}`, message: `${l.name || "A leap rule"} must add 1 or more days.` });
+    const rule: string | Problem = l.name || { key: "default.aLeapRule" };
+    if (!def.periods.some((p) => p.id === l.periodId)) issues.push(issue(`leapRules.${i}`, { key: "problem.leapMonthGone", params: { rule } }));
+    if (!Number.isInteger(l.days) || l.days < 1) issues.push(issue(`leapRules.${i}`, { key: "problem.leapDaysMin", params: { rule } }));
     issues.push(...ruleIssues(l.rule, `leapRules.${i}`));
   });
   if (def.weekdays.length > 0 && !def.weekdays.some((w) => w.id === def.weekAnchor.weekdayId)) {
-    issues.push({ field: "weekAnchor", message: "Pick the weekday the week starts from." });
+    issues.push(issue("weekAnchor", { key: "problem.weekAnchorPick" }));
   }
-  if (!Number.isSafeInteger(def.sync.worldDay)) issues.push({ field: "sync", message: "The synchronization day must be a whole number." });
+  if (!Number.isSafeInteger(def.sync.worldDay)) issues.push(issue("sync", { key: "problem.syncDay" }));
   if (issues.length) return issues;
 
   // Structural checks need a consistent definition first.
   try {
     cycleLength(def);
-    if (structure(def).prefixDays[structure(def).cycle] <= 0) issues.push({ field: "periods", message: "Some year must have at least one day." });
+    if (structure(def).prefixDays[structure(def).cycle] <= 0) issues.push(issue("periods", { key: "problem.emptyYear" }));
   } catch (e) {
-    issues.push({ field: "leapRules", message: (e as Error).message });
+    issues.push(issue("leapRules", problemOf(e)));
     return issues;
   }
-  const syncProblem = dateError(def, def.sync.date);
-  if (syncProblem) issues.push({ field: "sync", message: `Synchronization date: ${syncProblem}` });
+  const syncProblem = dateProblem(def, def.sync.date);
+  if (syncProblem) issues.push(issue("sync", { key: "problem.syncDate", params: { problem: syncProblem } }));
   if (def.weekdays.length > 0 && def.weekReset === "continuous") {
-    const anchorProblem = dateError(def, def.weekAnchor.date);
-    if (anchorProblem) issues.push({ field: "weekAnchor", message: `Weekday anchor: ${anchorProblem}` });
+    const anchorProblem = dateProblem(def, def.weekAnchor.date);
+    if (anchorProblem) issues.push(issue("weekAnchor", { key: "problem.anchorDate", params: { problem: anchorProblem } }));
     else if (!def.periods.find((p) => p.id === def.weekAnchor.date.periodId)?.inWeek) {
-      issues.push({ field: "weekAnchor", message: "The weekday anchor must fall on a day that has a weekday." });
+      issues.push(issue("weekAnchor", { key: "problem.anchorWeekday" }));
     }
   }
   return issues;

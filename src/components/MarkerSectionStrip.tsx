@@ -2,12 +2,13 @@
 
 import { Book, Info, Crown, Link as LinkIcon } from "lucide-react";
 import type { MarkerSection } from "./MarkerPanel";
+import { useT } from "@/i18n/useT";
 
-const SECTIONS: { key: MarkerSection; label: string; Icon: typeof Info }[] = [
-  { key: "basic", label: "Basic Information", Icon: Info },
-  { key: "politics", label: "Political References", Icon: Crown },
-  { key: "articles", label: "Articles", Icon: Book },
-  { key: "links", label: "Links", Icon: LinkIcon },
+const SECTIONS: { key: MarkerSection; Icon: typeof Info }[] = [
+  { key: "basic", Icon: Info },
+  { key: "politics", Icon: Crown },
+  { key: "articles", Icon: Book },
+  { key: "links", Icon: LinkIcon },
 ];
 
 /**
@@ -24,22 +25,26 @@ export default function MarkerSectionStrip({
   section: MarkerSection;
   onChange: (section: MarkerSection) => void;
 }) {
+  const tm = useT("maps");
   return (
-    <div className="marker-section-strip" role="tablist" aria-label="Marker sections">
-      {SECTIONS.map(({ key, label, Icon }) => (
-        <button
-          key={key}
-          type="button"
-          role="tab"
-          aria-selected={section === key}
-          aria-label={label}
-          data-tooltip={label}
-          className={section === key ? "marker-section-strip-btn active" : "marker-section-strip-btn"}
-          onClick={() => onChange(key)}
-        >
-          <Icon size={17} strokeWidth={2.25} />
-        </button>
-      ))}
+    <div className="marker-section-strip" role="tablist" aria-label={tm("markerPanel.sections")}>
+      {SECTIONS.map(({ key, Icon }) => {
+        const label = tm(`markerPanel.section.${key}`);
+        return (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={section === key}
+            aria-label={label}
+            data-tooltip={label}
+            className={section === key ? "marker-section-strip-btn active" : "marker-section-strip-btn"}
+            onClick={() => onChange(key)}
+          >
+            <Icon size={17} strokeWidth={2.25} />
+          </button>
+        );
+      })}
     </div>
   );
 }

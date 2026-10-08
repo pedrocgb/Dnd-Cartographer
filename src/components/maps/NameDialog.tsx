@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Modal from "@/components/Modal";
+import { useT } from "@/i18n/useT";
 
 /** A one-field name dialog: create a folder, rename a folder or a map. `onSave` resolves an error message, or null when done. */
 export default function NameDialog({
@@ -21,6 +22,7 @@ export default function NameDialog({
   onSave: (name: string) => Promise<string | null>;
   onCancel: () => void;
 }) {
+  const tc = useT("common");
   const [name, setName] = useState(initialName);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +33,7 @@ export default function NameDialog({
     if (trimmed === initialName) return onCancel();
     setBusy(true);
     setError(null);
-    const problem = await onSave(trimmed).catch(() => "Could not reach the server. Try again.");
+    const problem = await onSave(trimmed).catch(() => tc("serverUnreachable"));
     setBusy(false);
     if (problem) setError(problem);
   }
@@ -60,10 +62,10 @@ export default function NameDialog({
         {error && <p className="form-error">{error}</p>}
         <div className="confirm-dialog-actions">
           <button type="button" className="btn btn-sm" onClick={onCancel} disabled={busy}>
-            Cancel
+            {tc("cancel")}
           </button>
           <button type="submit" className="btn btn-sm btn-primary" disabled={busy || !trimmed}>
-            {busy ? "Saving…" : saveLabel}
+            {busy ? tc("saving") : saveLabel}
           </button>
         </div>
       </form>

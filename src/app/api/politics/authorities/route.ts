@@ -3,6 +3,7 @@ import { eq, and } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { authorityAssignments, territories, people, organizations } from "@/server/db/schema";
 import { requireWorldId } from "@/server/world/active-world";
+import { errorResponse } from "@/i18n/server";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -31,20 +32,20 @@ export async function POST(request: Request) {
   const holderId = typeof body?.holderId === "string" ? body.holderId : "";
   const role = typeof body?.role === "string" ? body.role.trim() : "";
 
-  if (!territoryId) return NextResponse.json({ error: "territoryId is required." }, { status: 400 });
-  if (!holderType) return NextResponse.json({ error: "holderType must be 'person' or 'organization'." }, { status: 400 });
-  if (!holderId) return NextResponse.json({ error: "holderId is required." }, { status: 400 });
-  if (!role) return NextResponse.json({ error: "A role is required." }, { status: 400 });
+  if (!territoryId) return errorResponse("territoryIdRequired", 400);
+  if (!holderType) return errorResponse("holderTypeInvalid", 400);
+  if (!holderId) return errorResponse("holderIdRequired", 400);
+  if (!role) return errorResponse("roleRequired", 400);
 
   const worldId = await requireWorldId();
   const territory = await db.query.territories.findFirst({ where: and(eq(territories.id, territoryId), eq(territories.worldId, worldId)) });
-  if (!territory) return NextResponse.json({ error: "Territory not found." }, { status: 404 });
+  if (!territory) return errorResponse("territoryNotFound", 404);
 
   const holder =
     holderType === "person"
       ? await db.query.people.findFirst({ where: and(eq(people.id, holderId), eq(people.worldId, worldId)) })
       : await db.query.organizations.findFirst({ where: and(eq(organizations.id, holderId), eq(organizations.worldId, worldId)) });
-  if (!holder) return NextResponse.json({ error: `${holderType === "person" ? "Person" : "Organization"} not found.` }, { status: 404 });
+  if (!holder) return errorResponse(holderType === "person" ? "personNotFound" : "organizationNotFound", 404);
 
   const [created] = await db
     .insert(authorityAssignments)

@@ -2,6 +2,7 @@
 
 import { ArrowUp, PenLine } from "lucide-react";
 import { scrollToTop, useFloatingInPane, type Position } from "@/components/ScrollToTopButton";
+import { useT } from "@/i18n/useT";
 
 const SIZE = 40;
 const GAP = 16;
@@ -24,16 +25,17 @@ const besideText = (pane: HTMLElement): Position => {
  * the pane: back to top (only while the story scrolls) above Edit.
  */
 export default function ReaderDock({ pane, onEdit }: { pane: HTMLElement | null; onEdit: () => void }) {
+  const t = useT("writer");
   const { scrollable, position } = useFloatingInPane(pane, besideText);
   if (!pane || !position) return null;
   return (
     <div className="wr-reader-dock" style={position}>
       {scrollable && (
-        <button type="button" className="scroll-to-top" aria-label="Back to top" data-tooltip="Back to top" onClick={() => scrollToTop(pane)}>
+        <button type="button" className="scroll-to-top" aria-label={t("reader.backToTop")} data-tooltip={t("reader.backToTop")} onClick={() => scrollToTop(pane)}>
           <ArrowUp size={18} strokeWidth={2.25} />
         </button>
       )}
-      <button type="button" className="scroll-to-top" aria-label="Edit" data-tooltip="Edit" onClick={onEdit}>
+      <button type="button" className="scroll-to-top" aria-label={t("ui.edit")} data-tooltip={t("ui.edit")} onClick={onEdit}>
         <PenLine size={18} strokeWidth={2.25} />
       </button>
     </div>

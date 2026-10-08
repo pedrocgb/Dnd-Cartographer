@@ -7,6 +7,7 @@ import { describeRecurrence } from "@/server/calendars/recurrence";
 import { dayLabel } from "./evaluate";
 import { loadWorldCalendars } from "./profile-lookup";
 import type { ClientEntry, WorldCalendars } from "./types";
+import { useT } from "@/i18n/useT";
 
 /**
  * "On the calendar": the dated notes, events and direct links that point
@@ -14,6 +15,7 @@ import type { ClientEntry, WorldCalendars } from "./types";
  * there are none.
  */
 export default function CalendarBacklinks({ articleId }: { articleId: string }) {
+  const t = useT("calendars");
   const [data, setData] = useState<{ entries: ClientEntry[]; world: WorldCalendars } | null>(null);
 
   useEffect(() => {
@@ -40,11 +42,11 @@ export default function CalendarBacklinks({ articleId }: { articleId: string }) 
   const ctx = { calendar: (id: string) => world.calendars.find((c) => c.id === id)?.definition ?? null };
 
   return (
-    <section className="article-card cal-backlinks" aria-label="On the calendar">
+    <section className="article-card cal-backlinks" aria-label={t("backlinks.title")}>
       <header className="article-card-header">
         <span className="article-card-label">
           <CalendarDays size={15} strokeWidth={2.25} />
-          On the calendar
+          {t("backlinks.title")}
         </span>
       </header>
       <ul>
@@ -53,7 +55,7 @@ export default function CalendarBacklinks({ articleId }: { articleId: string }) 
             <Link className="politics-link-button" href={`/calendars?day=${e.worldDay}`}>
               {dayLabel(calendar.definition, e.worldDay)}
             </Link>
-            <span>{e.kind === "link" ? "Linked to this day" : e.title || "Note"}</span>
+            <span>{e.kind === "link" ? t("backlinks.linked") : e.title || t("views.note")}</span>
             {e.recurrence.kind !== "none" && <span className="cal-help">{describeRecurrence(e.recurrence, ctx)}</span>}
           </li>
         ))}
