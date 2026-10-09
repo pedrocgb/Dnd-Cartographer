@@ -65,6 +65,24 @@ export function rotationFromDrag(center: Pt, pointer: Pt, snap: boolean): number
   return normalizeDeg(snap ? Math.round(deg / 15) * 15 : deg);
 }
 
+/** Font sizes of vertical drag that sweep the whole curve range (-100..100 is 2× this). */
+const CURVE_DRAG_EMS = 4;
+/** Below this the curve handles snap back to straight. */
+const CURVE_SNAP = 4;
+
+/**
+ * Curve while dragging a side curve handle: up (in the text's own frame, so
+ * a rotated text curves along its own up) arches it, down bows it.
+ */
+export function curveFromDrag(start: Pt, current: Pt, startCurve: number, fontSize: number, rotationDeg: number): number {
+  const a = (rotationDeg * Math.PI) / 180;
+  // The drag in the text's unrotated frame: only its vertical part counts.
+  const dyLocal = -(current.x - start.x) * Math.sin(a) + (current.y - start.y) * Math.cos(a);
+  const next = startCurve - (dyLocal / Math.max(fontSize * CURVE_DRAG_EMS, 1e-6)) * 100;
+  const clamped = Math.min(100, Math.max(-100, next));
+  return Math.abs(clamped) < CURVE_SNAP ? 0 : Math.round(clamped);
+}
+
 /**
  * Drop-shadow offset in the text's local (rotated) coordinates, so the shadow
  * keeps falling towards `angleDeg` in the world whatever the text rotation.

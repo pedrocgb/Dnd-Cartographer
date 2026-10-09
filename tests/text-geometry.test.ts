@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { arcPaths, isCurved, lineBaselines, rotationFromDrag, scaleFromDrag, shadowOffset } from "../src/components/text-geometry";
+import { arcPaths, curveFromDrag, isCurved, lineBaselines, rotationFromDrag, scaleFromDrag, shadowOffset } from "../src/components/text-geometry";
 
 function parseArc(d: string) {
   const n = d.replace(/[MA]/g, " ").trim().split(/\s+/).map(Number);
@@ -53,5 +53,22 @@ describe("gestures", () => {
     const o = shadowOffset(0, 0.1, 100, 90); // world: right; text rotated 90°
     expect(o.x).toBeCloseTo(0);
     expect(o.y).toBeCloseTo(-10);
+  });
+});
+
+describe("curveFromDrag", () => {
+  const start = { x: 0, y: 0 };
+  it("arches when dragged up and bows when dragged down", () => {
+    expect(curveFromDrag(start, { x: 0, y: -20 }, 0, 10, 0)).toBe(50);
+    expect(curveFromDrag(start, { x: 0, y: 20 }, 0, 10, 0)).toBe(-50);
+  });
+  it("follows the text's own up when rotated", () => {
+    // Rotated 90° (clockwise on screen): the text's up points along +x on the map.
+    expect(curveFromDrag(start, { x: 20, y: 0 }, 0, 10, 90)).toBe(50);
+    expect(curveFromDrag(start, { x: 0, y: -20 }, 0, 10, 90)).toBe(0);
+  });
+  it("clamps and snaps back to straight near zero", () => {
+    expect(curveFromDrag(start, { x: 0, y: -1000 }, 0, 10, 0)).toBe(100);
+    expect(curveFromDrag(start, { x: 0, y: 1 }, 2, 10, 0)).toBe(0);
   });
 });

@@ -6,7 +6,7 @@ import type OpenSeadragonType from "openseadragon";
 import { setOsdNavEnabled } from "./osd-nav";
 import { OVERLAY_Z, addFullMapOverlay, removeFullMapOverlay } from "./osd-overlay-stack";
 import { clientToImagePoint, frameSize, type Pt } from "./osd-coords";
-import { arcPaths, isCurved, lineBaselines, rotationFromDrag, scaleFromDrag, shadowOffset } from "./text-geometry";
+import { arcPaths, curveFromDrag, isCurved, lineBaselines, rotationFromDrag, scaleFromDrag, shadowOffset } from "./text-geometry";
 import { mapFontFamily } from "@/server/texts/fonts";
 import type { TextFields } from "@/server/texts/text-config";
 import { useT } from "@/i18n/useT";
@@ -27,7 +27,7 @@ export interface MapTextData extends TextFields {
 }
 
 /** Geometry the user is dragging, previewed until mouseup commits it. */
-type Preview = { id: string } & Partial<Pick<MapTextData, "x" | "y" | "rotation" | "fontSize">>;
+type Preview = { id: string } & Partial<Pick<MapTextData, "x" | "y" | "rotation" | "fontSize" | "curve">>;
 
 const CLICK_THRESHOLD_PX = 5;
 
@@ -48,7 +48,7 @@ interface Props {
   onSelect: (id: string | null) => void;
   /** Ctrl/Cmd+click: add the text to (or take it out of) the selection. */
   onToggleSelect?: (id: string) => void;
-  onUpdate: (id: string, patch: Partial<Pick<MapTextData, "x" | "y" | "rotation" | "fontSize">>) => void;
+  onUpdate: (id: string, patch: Partial<Pick<MapTextData, "x" | "y" | "rotation" | "fontSize" | "curve">>) => void;
   onDelete: (id: string) => void;
 }
 
@@ -230,6 +230,23 @@ export default function TextLayer({
     );
   }
 
+  function beginCurve(e: React.MouseEvent, text: MapTextData) {
+    const start = toImagePoint(e.clientX, e.clientY);
+    if (!start) return;
+    let curve = text.curve;
+    drag(
+      e,
+      (cur) => {
+        curve = curveFromDrag(start, cur, text.curve, text.fontSize, text.rotation);
+        setPreview({ id: text.id, curve });
+      },
+      (dragged) => {
+        setPreview(null);
+        if (dragged && curve !== text.curve) callbacksRef.current.onUpdate(text.id, { curve });
+      }
+    );
+  }
+
   function onBackgroundMouseDown(e: React.MouseEvent) {
     if (e.button !== 0) return;
     if (placing) {
@@ -262,6 +279,7 @@ export default function TextLayer({
         onTextHover={onTextHover}
         onScaleMouseDown={beginScale}
         onRotateMouseDown={beginRotate}
+        onCurveMouseDown={beginCurve}
       />
     );
     // Handlers are recreated each render but only read the deps below (and
@@ -287,6 +305,7 @@ interface SvgProps {
   onTextHover: (hovering: boolean) => void;
   onScaleMouseDown: (e: React.MouseEvent, text: MapTextData) => void;
   onRotateMouseDown: (e: React.MouseEvent, text: MapTextData) => void;
+  onCurveMouseDown: (e: React.MouseEvent, text: MapTextData) => void;
 }
 
 function TextSvg(props: SvgProps) {
@@ -338,6 +357,7 @@ function TextSvg(props: SvgProps) {
             onHover={props.onTextHover}
             onScaleMouseDown={(e) => props.onScaleMouseDown(e, t)}
             onRotateMouseDown={(e) => props.onRotateMouseDown(e, t)}
+            onCurveMouseDown={(e) => props.onCurveMouseDown(e, t)}
           />
         );
       })}
@@ -367,6 +387,7 @@ function TextItem({
   onHover,
   onScaleMouseDown,
   onRotateMouseDown,
+  onCurveMouseDown,
 }: {
   text: MapTextData;
   fontEpoch: number;
@@ -378,6 +399,7 @@ function TextItem({
   onHover: (hovering: boolean) => void;
   onScaleMouseDown: (e: React.MouseEvent) => void;
   onRotateMouseDown: (e: React.MouseEvent) => void;
+  onCurveMouseDown: (e: React.MouseEvent) => void;
 }) {
   const lines = text.text.split("\n");
   const measureRefs = useRef<(SVGTextElement | null)[]>([]);
@@ -490,7 +512,7 @@ function TextItem({
       )}
 
       {frame && selected && (
-        <TextHandles frame={frame} handleSize={handleSize} onScaleMouseDown={onScaleMouseDown} onRotateMouseDown={onRotateMouseDown} />
+        <TextHandles frame={frame} handleSize={handleSize} onScaleMouseDown={onScaleMouseDown} onRotateMouseDown={onRotateMouseDown} onCurveMouseDown={onCurveMouseDown} />
       )}
     </g>
   );
@@ -547,11 +569,13 @@ function TextHandles({
   handleSize,
   onScaleMouseDown,
   onRotateMouseDown,
+  onCurveMouseDown,
 }: {
   frame: Box;
   handleSize: number;
   onScaleMouseDown: (e: React.MouseEvent) => void;
   onRotateMouseDown: (e: React.MouseEvent) => void;
+  onCurveMouseDown: (e: React.MouseEvent) => void;
 }) {
   const tm = useT("maps");
   const hs = handleSize;
@@ -581,6 +605,19 @@ function TextHandles({
         onMouseDown={onRotateMouseDown}
         data-tooltip={tm("text.rotateHint")}
       />
+      {[-1, 1].map((side) => (
+        <CurveHandle
+          key={side}
+          x={side < 0 ? frame.x - hs * 2.5 : frame.x + frame.width + hs * 2.5}
+          y={frame.y + frame.height / 2}
+          size={hs}
+          side={side}
+          strokeWidth={screenPx(1.75)}
+          ringWidth={screenPx(1)}
+          hint={tm("text.curveHint")}
+          onMouseDown={onCurveMouseDown}
+        />
+      ))}
       {corners.map((c, i) => (
         <rect
           key={i}
@@ -594,6 +631,32 @@ function TextHandles({
           onMouseDown={onScaleMouseDown}
         />
       ))}
+    </g>
+  );
+}
+
+/** An arrowhead's two strokes at `tip`, opening back towards `toward`. */
+function arrowHead(tip: Pt, toward: Pt, len: number): string {
+  const a = Math.atan2(toward.y - tip.y, toward.x - tip.x);
+  const wing = (d: number) => `${tip.x + Math.cos(a + d) * len} ${tip.y + Math.sin(a + d) * len}`;
+  return `M ${wing(0.6)} L ${tip.x} ${tip.y} L ${wing(-0.6)}`;
+}
+
+/**
+ * A side handle that curves the text: a round button with a curved arrow
+ * pointing up and down, bulging away from the text (`side` -1 = left).
+ */
+function CurveHandle({ x, y, size, side, strokeWidth, ringWidth, hint, onMouseDown }: { x: number; y: number; size: number; side: number; strokeWidth: string; ringWidth: string; hint: string; onMouseDown: (e: React.MouseEvent) => void }) {
+  const u = size;
+  const top = { x: -0.3 * u * side, y: -0.75 * u };
+  const bottom = { x: -0.3 * u * side, y: 0.75 * u };
+  const control = { x: 0.6 * u * side, y: 0 };
+  const arrow = { fill: "none", stroke: "#0D0E10", strokeLinecap: "round" as const, strokeLinejoin: "round" as const, style: { strokeWidth, pointerEvents: "none" as const } };
+  return (
+    <g transform={`translate(${x} ${y})`}>
+      <circle r={u * 1.3} fill="#fff" stroke="#0D0E10" style={{ strokeWidth: ringWidth, pointerEvents: "all", cursor: "ns-resize" }} onMouseDown={onMouseDown} data-tooltip={hint} />
+      <path d={`M ${top.x} ${top.y} Q ${control.x} ${control.y} ${bottom.x} ${bottom.y}`} {...arrow} />
+      <path d={`${arrowHead(top, control, 0.45 * u)} ${arrowHead(bottom, control, 0.45 * u)}`} {...arrow} />
     </g>
   );
 }
