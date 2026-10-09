@@ -15,6 +15,8 @@ import ZoneLayer, { DEFAULT_BRUSH_SIZE, isPaintTool, zonePaintOrder, type Painte
 import ZonesPanel from "./ZonesPanel";
 import ZoneToolBar from "./map-tools/ZoneToolBar";
 import TextToolBar from "./map-tools/TextToolBar";
+import LineToolBar from "./map-tools/LineToolBar";
+import { lineLabelIn } from "./line-fields";
 import MarkersPanel from "./MarkersPanel";
 import LayersPanel from "./LayersPanel";
 import TextLayer, { type MapTextData } from "./TextLayer";
@@ -1099,6 +1101,7 @@ export default function MapWorkspace({
   if (activeLineGroupId && !ownLineGroups.some((g) => g.id === activeLineGroupId)) setActiveLineGroupId(null);
   const activeLineGroup = ownLineGroups.find((g) => g.id === activeLineGroupId) ?? null;
   const selectedLine = layerLines.find((l) => l.id === selectedLineId) ?? null;
+  const lineMaxWidth = Math.max(8, Math.round(Math.max(imageWidth, imageHeight) / 50));
   const routeGroupById = useMemo(() => new Map(routesApi.groups.map((g) => [g.id, g])), [routesApi.groups]);
   const liveLayerIds = useMemo(() => new Set(layers.map((l) => l.id)), [layers]);
   const routeExtras = useCallback((r: MapRouteData) => withFolderLayers(r.extraLayerIds, r.groupId ? routeGroupById.get(r.groupId) : undefined), [routeGroupById]);
@@ -2433,36 +2436,19 @@ export default function MapWorkspace({
           />
         )}
 
-        {linePanelOpen && !itemsLoaded && <PanelSkeleton className="zones-panel zones-panel-editing line-panel" mainClassName="zones-panel-main" title={t("panel.lines")} Icon={PenTool} onClose={onCloseLinePanel} />}
+        {linePanelOpen && !itemsLoaded && <PanelSkeleton className="zones-panel line-panel" mainClassName="zones-panel-main" title={t("panel.lines")} Icon={PenTool} onClose={onCloseLinePanel} />}
         {linePanelOpen && itemsLoaded && (
           <LinePanel
             layerName={layerLabel}
             selected={selectedLine}
             draft={lineDraft}
             layers={layerApi.layers}
-            mode={lineMode}
-            drawing={drawingLine}
-            maxWidth={Math.max(8, Math.round(Math.max(imageWidth, imageHeight) / 50))}
-            onSetMode={setLineMode}
-            smoothing={lineSmoothing}
-            onSmoothingChange={(value) => {
-              setLineSmoothing(value);
-              saveLineSmoothing(value);
-            }}
-            onToggleDrawing={() => {
-              setAddingMarker(false);
-              setSelectedLineId(null);
-              setDrawingLine((d) => !d);
-            }}
-            onChange={onLinePanelChange}
-            onDelete={() => selectedLine && deleteLine(selectedLine.id)}
-            onDone={() => setSelectedLineId(null)}
+            maxWidth={lineMaxWidth}
             onClose={onCloseLinePanel}
             lines={layerLines}
             groups={lineGroups}
             activeLayerId={activeLayerId}
             activeGroupId={activeLineGroupId}
-            selectedLocked={selectedLine ? lineLocked(selectedLine) : false}
             onSetActiveGroup={setActiveLineGroupId}
             onSelectLine={selectLine}
             onUpdateLine={updateLine}
@@ -2475,10 +2461,45 @@ export default function MapWorkspace({
               lineSel.click(id, mods, order);
             }}
             onUpdateMany={(ids, patchOf, opts) => updateMany("line", ids, (item) => patchOf(item as MapLineData), opts)}
-            onDeleteMany={(ids) => deleteMany("line", ids)}
             onCreateGroup={(name) => createFolder("line", name)}
             onUpdateGroup={updateLineGroup}
             onDeleteGroup={(id, cascade) => deleteFolder("line", id, cascade)}
+          />
+        )}
+        {linePanelOpen && itemsLoaded && (
+          <LineToolBar
+            inset={panelInset}
+            layers={layerApi.layers}
+            lines={layerLines}
+            groups={lineGroups}
+            activeLayerId={activeLayerId}
+            activeGroupId={activeLineGroupId}
+            onSetActiveGroup={setActiveLineGroupId}
+            mode={lineMode}
+            onSetMode={setLineMode}
+            drawing={drawingLine}
+            onToggleDrawing={() => {
+              setAddingMarker(false);
+              setSelectedLineId(null);
+              setDrawingLine((d) => !d);
+            }}
+            smoothing={lineSmoothing}
+            onSmoothingChange={(value) => {
+              setLineSmoothing(value);
+              saveLineSmoothing(value);
+            }}
+            selected={selectedLine}
+            selectedLabel={selectedLine ? lineLabelIn(selectedLine, layerLines, lineGroups, activeLayerId) : ""}
+            selectedLocked={selectedLine ? lineLocked(selectedLine) : false}
+            draft={lineDraft}
+            maxWidth={lineMaxWidth}
+            onChange={onLinePanelChange}
+            onDelete={() => selectedLine && deleteLine(selectedLine.id)}
+            onDone={() => setSelectedLineId(null)}
+            selectedIds={lineSel.ids}
+            isLocked={lineLocked}
+            onUpdateMany={(ids, patchOf, opts) => updateMany("line", ids, (item) => patchOf(item as MapLineData), opts)}
+            onDeleteMany={(ids) => deleteMany("line", ids)}
           />
         )}
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronUp, Eye, EyeOff, Folder, Lock, LockOpen, Trash2, type LucideIcon } from "lucide-react";
 import { formatInteger } from "@/server/settings/number-format";
@@ -293,5 +293,39 @@ export function FolderTargetPopover({
         )
       }
     </ToolBarPopover>
+  );
+}
+
+/**
+ * An item's name, saved when the field is left (Enter). It follows outside
+ * renames while not being edited; `allowEmpty` for items with a fallback label.
+ */
+export function NameField({ sourceKey, value, placeholder, allowEmpty = false, onRename }: { sourceKey: string; value: string; placeholder?: string; allowEmpty?: boolean; onRename: (name: string) => void }) {
+  const tc = useT("common");
+  const [name, setName] = useState(value);
+  const focusedRef = useRef(false);
+  useEffect(() => {
+    if (!focusedRef.current) setName(value);
+  }, [sourceKey, value]);
+  return (
+    <label className="grid-field">
+      <span className="field-label">{tc("name")}</span>
+      <input
+        type="text"
+        value={name}
+        placeholder={placeholder}
+        onFocus={() => {
+          focusedRef.current = true;
+        }}
+        onChange={(e) => setName(e.target.value)}
+        onBlur={() => {
+          focusedRef.current = false;
+          const next = name.trim();
+          if ((next || allowEmpty) && next !== value) onRename(next);
+          else setName(value);
+        }}
+        onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+      />
+    </label>
   );
 }

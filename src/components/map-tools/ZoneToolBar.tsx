@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Brush, Circle, Eraser, Hexagon, MousePointer2, MoreHorizontal, Plus, Square, Trash2, type LucideIcon } from "lucide-react";
 import { formatInteger } from "@/server/settings/number-format";
 import type { ScaleConfig } from "@/server/scale/scale-config";
@@ -12,7 +12,7 @@ import ToolSection from "../ToolSection";
 import type { MapLayerData } from "../layer-images";
 import { BRUSH_SIZE_MAX, BRUSH_SIZE_MIN, isPaintTool, type ZoneData, type ZoneRegionData, type ZoneTool } from "../ZoneLayer";
 import { SHAPE_ICON, ZoneArea, ZoneFillFields, ZoneOutlineFields, ZoneTerritoryLink } from "../zone-fields";
-import { DoneButton, FolderTargetPopover, MultiSelectionGroup, SelectedCount, Swatch, ToolBar, ToolBarButton, ToolBarDivider, ToolBarPopover } from "./ToolBar";
+import { DoneButton, FolderTargetPopover, MultiSelectionGroup, NameField, SelectedCount, Swatch, ToolBar, ToolBarButton, ToolBarDivider, ToolBarPopover } from "./ToolBar";
 
 type DrawTool = Exclude<ZoneTool, "select" | "eraser">;
 
@@ -250,7 +250,7 @@ function ZoneProperties({
       </ToolBarPopover>
       <ToolBarPopover label={t("toolBar.more")} hint={t("zoneBar.moreHint")} wide face={<MoreHorizontal size={16} strokeWidth={2.25} aria-hidden />}>
         <div className="tool-bar-pop-fields">
-          {!multi && <ZoneName zone={first} onRename={(name) => setAll({ name })} />}
+          {!multi && <NameField sourceKey={first.id} value={first.name} onRename={(name) => setAll({ name })} />}
           <ZoneArea zones={zones} config={scaleConfig} />
           <ToolSection id="zone-territory" title={t("zones.territory.section")}>
             <ZoneTerritoryLink zone={first} mixed={mixed.has("territoryId")} onUpdate={setAll} />
@@ -293,33 +293,5 @@ function ZoneProperties({
         </div>
       </ToolBarPopover>
     </>
-  );
-}
-
-/** Renames the zone when the field is left (Enter); follows outside renames while not being edited. */
-function ZoneName({ zone, onRename }: { zone: ZoneData; onRename: (name: string) => void }) {
-  const tc = useT("common");
-  const [name, setName] = useState(zone.name);
-  const focusedRef = useRef(false);
-  useEffect(() => {
-    if (!focusedRef.current) setName(zone.name);
-  }, [zone.id, zone.name]);
-  return (
-    <label className="grid-field">
-      <span className="field-label">{tc("name")}</span>
-      <input
-        type="text"
-        value={name}
-        onFocus={() => {
-          focusedRef.current = true;
-        }}
-        onChange={(e) => setName(e.target.value)}
-        onBlur={() => {
-          focusedRef.current = false;
-          if (name.trim() && name !== zone.name) onRename(name.trim());
-        }}
-        onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-      />
-    </label>
   );
 }
