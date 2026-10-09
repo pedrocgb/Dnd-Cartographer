@@ -138,6 +138,8 @@ export default function RouteLayer({
                 points={d}
                 className="route-hit"
                 strokeWidth={Math.max(12, route.width + 8)}
+                // Keeps the press from the map's pan (this layer sits inside it).
+                onPointerDown={(e) => e.button === 0 && e.stopPropagation()}
                 onClick={(e) => {
                   e.stopPropagation();
                   onPick(route.id, clickMods(e));

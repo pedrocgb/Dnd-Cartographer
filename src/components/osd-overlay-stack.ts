@@ -11,10 +11,12 @@ export const OVERLAY_Z = {
   grid: 1,
   zones: 2,
   lines: 3,
-  texts: 4,
-  markers: 5,
+  // Travel routes (window-sized, see use-screen-overlay.ts): above lines, under texts and markers.
+  routes: 4,
+  texts: 5,
+  markers: 6,
   // Selection tool hover box, above every item it can outline.
-  selection: 6,
+  selection: 7,
   hoveredMarker: 1000,
 } as const;
 

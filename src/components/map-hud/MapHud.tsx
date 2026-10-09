@@ -11,6 +11,8 @@ import LegendPanel from "./LegendPanel";
 import ScalePanel from "./ScalePanel";
 import TravelPanel, { routeLabel, useTravelDraft } from "./TravelPanel";
 import RouteLayer from "./RouteLayer";
+import { useScreenOverlay } from "@/components/use-screen-overlay";
+import { OVERLAY_Z } from "@/components/osd-overlay-stack";
 import type { RouteControls } from "./use-map-routes";
 import { isModalOpen } from "@/components/Modal";
 import { isTypingTarget } from "@/components/keyboard";
@@ -163,8 +165,9 @@ export default function MapHud({
   const legend = legendPanelOpen ? ownLegend : layerVisible ? legendForLayer(legendApi.legends, activeLayerId) : null;
   const scaleShown = scaleBar.config.framePxPerUnit !== null && (scaleBar.visible || scalePanelOpen);
 
-  return (
-    <>
+  // Routes draw inside the map's own stack (under texts and markers), in their own root.
+  const routeRoot = useScreenOverlay(viewer, OVERLAY_Z.routes);
+  const routeLayer = (
       <RouteLayer
         viewer={viewer}
         osd={osd}
@@ -182,6 +185,13 @@ export default function MapHud({
         onPick={(id, mods) => routes.sel.click(id, mods.toggle ? { toggle: true, range: false } : { toggle: false, range: false }, [])}
         onReshape={(id, points) => routes.update(id, { points })}
       />
+  );
+  useEffect(() => {
+    routeRoot.current?.render(routeLayer);
+  });
+
+  return (
+    <>
       {legend && (
         <div className={legend.visible ? "map-hud-slot" : "map-hud-slot map-hud-hidden"}>
           <MapLegend
