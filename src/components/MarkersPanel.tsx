@@ -1,19 +1,19 @@
 "use client";
 
 import { useMemo, useState, useSyncExternalStore } from "react";
-import { ChevronDown, ChevronRight, ChevronUp, ArrowDownAZ, ArrowUpZA, Filter, Folder, FolderOpen, MapPinned, Search, X } from "lucide-react";
+import { ChevronDown, ChevronRight, ChevronUp, ArrowDownAZ, ArrowUpZA, Eye, EyeOff, Filter, Folder, FolderOpen, Lock, LockOpen, MapPinned, Search, X } from "lucide-react";
 import { RawIcon } from "./MarkerIcon";
-import { ICONS, MARKER_CATEGORIES, DEFAULT_MARKER_CATEGORY, groupIcons, iconGroupLabel, iconLabel, markerCategoryLabel, searchIcons } from "@/server/markers/icon-registry";
+import { MARKER_CATEGORIES, DEFAULT_MARKER_CATEGORY, groupIcons, iconGroupLabel, iconLabel, markerCategoryLabel, searchIcons } from "@/server/markers/icon-registry";
 import { STATUS_TAGS, ENVIRONMENT_TAGS, OWNERSHIP_TAGS, markerTagLabel } from "@/server/markers/tag-registry";
 import { useToggleSet } from "./useToggleSet";
 import { parseIdList, readStored, subscribeToStorage, writeStored } from "./stored";
 import type { Marker } from "./MarkerLayer";
 import type { MapLayerData } from "./layer-images";
+import type { MarkerPatch } from "./marker-panel/types";
 import { useT } from "@/i18n/useT";
 
 const NONE_VALUE = "__none__";
 
-const ICON_UNIVERSE = ICONS.map((i) => i.key);
 const CATEGORY_UNIVERSE: string[] = [...MARKER_CATEGORIES];
 const STATUS_UNIVERSE = [...STATUS_TAGS, NONE_VALUE];
 const ENVIRONMENT_UNIVERSE = [...ENVIRONMENT_TAGS, NONE_VALUE];
@@ -103,14 +103,33 @@ function FilterSection({
 
 type SortOrder = "default" | "az" | "za";
 
-/** Left column: every marker of the map, searchable and filterable; a row jumps to its marker. */
-function MarkersList({ markers, layers, onSelect }: { markers: Marker[]; layers: MapLayerData[]; onSelect: (markerId: string) => void }) {
+/** What a list row changes on its marker. */
+export type MarkerVisibilityPatch = Pick<MarkerPatch, "locked"> & { visible?: boolean };
+
+/**
+ * Every marker of the map, searchable and filterable (the filters only
+ * narrow this list; the map's own icon filter is in the marker bar). A row
+ * jumps to its marker; its eye and lock buttons show/hide and lock it.
+ */
+function MarkersList({
+  markers,
+  layers,
+  selectedId,
+  onSelect,
+  onUpdate,
+}: {
+  markers: Marker[];
+  layers: MapLayerData[];
+  selectedId: string | null;
+  onSelect: (markerId: string) => void;
+  onUpdate: (markerId: string, patch: MarkerVisibilityPatch) => void;
+}) {
   const tm = useT("maps");
   const [search, setSearch] = useState("");
   const [sortOrder, setSortOrder] = useState<SortOrder>("default");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
-  const iconFilter = useToggleSet(ICON_UNIVERSE);
   const categoryFilter = useToggleSet(CATEGORY_UNIVERSE);
   const statusFilter = useToggleSet(STATUS_UNIVERSE);
   const environmentFilter = useToggleSet(ENVIRONMENT_UNIVERSE);
@@ -142,7 +161,6 @@ function MarkersList({ markers, layers, onSelect }: { markers: Marker[]; layers:
     let result = markers.filter((m) => {
       if (q && !m.name.toLowerCase().includes(q)) return false;
       if (!layerAllOn && !layerSelected.has(m.layerId ?? "")) return false;
-      if (!iconFilter.allOn && !iconFilter.selected.has(m.iconKey)) return false;
       if (!categoryFilter.allOn && !categoryFilter.selected.has(markerCategory(m))) return false;
       if (!statusFilter.allOn) {
         const hasNone = m.statusTags.length === 0;
@@ -166,8 +184,6 @@ function MarkersList({ markers, layers, onSelect }: { markers: Marker[]; layers:
     sortOrder,
     layerAllOn,
     layerSelected,
-    iconFilter.allOn,
-    iconFilter.selected,
     categoryFilter.allOn,
     categoryFilter.selected,
     statusFilter.allOn,
@@ -177,6 +193,8 @@ function MarkersList({ markers, layers, onSelect }: { markers: Marker[]; layers:
     ownershipFilter.allOn,
     ownershipFilter.selected,
   ]);
+
+  const activeFilters = [layerAllOn, categoryFilter.allOn, statusFilter.allOn, environmentFilter.allOn, ownershipFilter.allOn].filter((on) => !on).length;
 
   return (
     <>
@@ -203,6 +221,13 @@ function MarkersList({ markers, layers, onSelect }: { markers: Marker[]; layers:
         </button>
       </div>
 
+      <button type="button" className="marker-filters-toggle" aria-expanded={filtersOpen} onClick={() => setFiltersOpen((o) => !o)}>
+        <Filter size={14} strokeWidth={2.25} aria-hidden />
+        <span>{tm("markersList.filters")}</span>
+        {activeFilters > 0 && <span className="marker-filters-badge">{activeFilters}</span>}
+        {filtersOpen ? <ChevronUp size={14} strokeWidth={2.25} aria-hidden /> : <ChevronDown size={14} strokeWidth={2.25} aria-hidden />}
+      </button>
+      {filtersOpen && (
       <div className="marker-filter-list">
         {layers.length > 1 && (
           <FilterSection
@@ -218,19 +243,6 @@ function MarkersList({ markers, layers, onSelect }: { markers: Marker[]; layers:
             labelFor={layerName}
           />
         )}
-        <FilterSection
-          label={tm("markers.filter.icon")}
-          expanded={Boolean(expanded.icon)}
-          onToggleExpanded={() => toggleExpanded("icon")}
-          universe={ICON_UNIVERSE}
-          selected={iconFilter.selected}
-          allOn={iconFilter.allOn}
-          onToggleValue={iconFilter.toggle}
-          onSelectAll={iconFilter.selectAll}
-          onClearAll={iconFilter.clearAll}
-          renderValue={(key) => <RawIcon iconKey={key} size={16} />}
-          titleFor={iconLabel}
-        />
         <FilterSection
           label={tm("markers.filter.category")}
           labelFor={markerCategoryLabel}
@@ -280,6 +292,7 @@ function MarkersList({ markers, layers, onSelect }: { markers: Marker[]; layers:
           onClearAll={ownershipFilter.clearAll}
         />
       </div>
+      )}
 
       {filtered.length === 0 ? (
         <p className="field-label">
@@ -288,16 +301,31 @@ function MarkersList({ markers, layers, onSelect }: { markers: Marker[]; layers:
       ) : (
         <ul className="marker-list">
           {filtered.map((m) => (
-            <li key={m.id}>
-              <button
-                className="marker-list-row"
-                onClick={() => onSelect(m.id)}
-              >
+            <li key={m.id} className={m.id === selectedId ? "marker-list-item active" : "marker-list-item"}>
+              <button className={m.visible ? "marker-list-row" : "marker-list-row muted"} aria-pressed={m.id === selectedId} onClick={() => onSelect(m.id)}>
                 <span className="marker-list-icon" style={{ color: m.color }}>
                   <RawIcon iconKey={m.iconKey} size={16} />
                 </span>
-                {m.name}
+                <span className="marker-list-name">{m.name}</span>
                 {layers.length > 1 && m.layerId && <span className="marker-list-layer">{layerName(m.layerId)}</span>}
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost btn-icon-xs"
+                aria-label={m.visible ? tm("markersList.hide", { name: m.name }) : tm("markersList.show", { name: m.name })}
+                data-tooltip={m.visible ? tm("markersList.hideHint") : tm("markersList.showHint")}
+                onClick={() => onUpdate(m.id, { visible: !m.visible })}
+              >
+                {m.visible ? <Eye size={12} strokeWidth={2.25} /> : <EyeOff size={12} strokeWidth={2.25} />}
+              </button>
+              <button
+                type="button"
+                className={m.locked ? "btn btn-ghost btn-icon-xs active" : "btn btn-ghost btn-icon-xs"}
+                aria-label={m.locked ? tm("markersList.unlock", { name: m.name }) : tm("markersList.lock", { name: m.name })}
+                data-tooltip={m.locked ? tm("markerPanel.unlock") : tm("markerPanel.lock")}
+                onClick={() => onUpdate(m.id, { locked: !m.locked })}
+              >
+                {m.locked ? <Lock size={12} strokeWidth={2.25} /> : <LockOpen size={12} strokeWidth={2.25} />}
               </button>
             </li>
           ))}
@@ -310,8 +338,8 @@ function MarkersList({ markers, layers, onSelect }: { markers: Marker[]; layers:
 const OPEN_ICON_GROUPS_KEY = "markers-icon-groups-open";
 const readOpenIconGroups = () => readStored(OPEN_ICON_GROUPS_KEY);
 
-/** Right column: which icons show on the map (never changes marker data). */
-function IconFilter({
+/** Which icons show on the map (never changes marker data): the marker bar's "Shown icons". */
+export function IconFilter({
   selected,
   allOn,
   onToggle,
@@ -398,21 +426,23 @@ function IconFilter({
 }
 
 /**
- * The Markers tool: a lateral panel with the map's markers (left) beside
- * the icon filter (right), both open together like the other tools'
- * list-and-settings panels.
+ * The Markers tool's list: every marker of the map (search, sort, filters,
+ * show/hide, lock). The marker bar places markers and edits the selected
+ * one; the marker card shows its content.
  */
 export default function MarkersPanel({
   markers,
   layers,
+  selectedId,
   onSelectMarker,
-  iconFilter,
+  onUpdateMarker,
   onClose,
 }: {
   markers: Marker[];
   layers: MapLayerData[];
+  selectedId: string | null;
   onSelectMarker: (markerId: string) => void;
-  iconFilter: { selected: Set<string>; allOn: boolean; toggle: (iconKey: string) => void; selectAll: () => void; clearAll: () => void };
+  onUpdateMarker: (markerId: string, patch: MarkerVisibilityPatch) => void;
   onClose: () => void;
 }) {
   const tm = useT("maps");
@@ -425,20 +455,11 @@ export default function MarkersPanel({
             <MapPinned size={16} strokeWidth={2.25} aria-hidden />
             {tm("panel.markers")}
           </h2>
-        </div>
-        <MarkersList markers={markers} layers={layers} onSelect={onSelectMarker} />
-      </section>
-      <section className="markers-panel-col markers-panel-filter" aria-labelledby="markers-panel-filter-title">
-        <div className="marker-side-panel-header">
-          <h2 id="markers-panel-filter-title">
-            <Filter size={16} strokeWidth={2.25} aria-hidden />
-            {tm("markers.filterTitle")}
-          </h2>
           <button type="button" className="btn btn-ghost btn-icon" onClick={onClose} aria-label={tm("markers.close")} data-tooltip={tc("close")}>
             <X size={16} strokeWidth={2.25} />
           </button>
         </div>
-        <IconFilter selected={iconFilter.selected} allOn={iconFilter.allOn} onToggle={iconFilter.toggle} onSelectAll={iconFilter.selectAll} onClearAll={iconFilter.clearAll} />
+        <MarkersList markers={markers} layers={layers} selectedId={selectedId} onSelect={onSelectMarker} onUpdate={onUpdateMarker} />
       </section>
     </div>
   );

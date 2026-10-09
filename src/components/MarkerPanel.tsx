@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { X, Lock, Unlock, Copy, Check, Trash2, Pencil, ChevronLeft } from "lucide-react";
+import { X, Pencil, Check, Book, Info, Crown, Link as LinkIcon } from "lucide-react";
 import DescriptionSection from "./DescriptionSection";
 import MarkerIcon from "./MarkerIcon";
 import { DEFAULT_MARKER_CATEGORY, markerCategoryLabel } from "@/server/markers/icon-registry";
@@ -11,8 +11,6 @@ import type { MapLayerData } from "./layer-images";
 import PoliticalReferencesPanel from "./PoliticalReferencesPanel";
 import MarkerLinksPanel from "./MarkerLinksPanel";
 import MarkerArticlesPanel from "./MarkerArticlesPanel";
-import MarkerAppearance from "./marker-panel/MarkerAppearance";
-import MarkerDetails from "./marker-panel/MarkerDetails";
 import MarkerCard from "./marker-panel/MarkerCard";
 import { MarkerSubjectEdit, MarkerSubjectView } from "./marker-panel/MarkerSubject";
 import { MarkerLinkedMapEdit, MarkerLinkedMapView } from "./marker-panel/MarkerLinkedMap";
@@ -21,6 +19,13 @@ import type { MarkerUpdate } from "./marker-panel/types";
 import { useT } from "@/i18n/useT";
 
 export type MarkerSection = "basic" | "politics" | "articles" | "links";
+
+const SECTIONS: { key: MarkerSection; Icon: typeof Info }[] = [
+  { key: "basic", Icon: Info },
+  { key: "politics", Icon: Crown },
+  { key: "articles", Icon: Book },
+  { key: "links", Icon: LinkIcon },
+];
 
 interface MapOption {
   id: string;
@@ -64,81 +69,32 @@ function TagChips({ marker, layer, chain }: { marker: Marker; layer: MapLayerDat
   );
 }
 
-function MarkerActions({
-  marker,
-  onUpdate,
-  onDuplicate,
-  onDelete,
-  onDone,
-}: {
-  marker: Marker;
-  onUpdate: MarkerUpdate;
-  onDuplicate: () => void;
-  onDelete: () => void;
-  onDone: () => void;
-}) {
-  const tm = useT("maps");
-  const tc = useT("common");
-  const [copied, setCopied] = useState(false);
-
-  function copyLink() {
-    const target = `${window.location.origin}${window.location.pathname}?marker=${marker.id}`;
-    navigator.clipboard.writeText(target).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    });
-  }
-
-  return (
-    <>
-      <h3 className="marker-section-title">{tm("markerPanel.actions")}</h3>
-      <div className="marker-panel-actions">
-        <button className="btn btn-sm" onClick={() => onUpdate({ locked: !marker.locked })}>
-          {marker.locked ? <Unlock size={14} strokeWidth={2.25} /> : <Lock size={14} strokeWidth={2.25} />}
-          {marker.locked ? tm("markerPanel.unlock") : tm("markerPanel.lock")}
-        </button>
-        <button className="btn btn-sm" onClick={onDuplicate}>
-          <Copy size={14} strokeWidth={2.25} />
-          {tm("markerPanel.duplicate")}
-        </button>
-        <button className="btn btn-sm" onClick={copyLink}>
-          {copied ? <Check size={14} strokeWidth={2.25} /> : <Copy size={14} strokeWidth={2.25} />}
-          {copied ? tm("markerPanel.copied") : tm("markerPanel.copyLink")}
-        </button>
-        <button className="btn btn-sm btn-danger" onClick={onDelete}>
-          <Trash2 size={14} strokeWidth={2.25} />
-          {tc("delete")}
-        </button>
-        <button className="btn btn-sm btn-primary" onClick={onDone}>
-          <ChevronLeft size={14} strokeWidth={2.25} />
-          {tc("done")}
-        </button>
-      </div>
-    </>
-  );
-}
-
+/**
+ * The marker card, docked on the map's right: the selected marker's
+ * content — its name, tags, linked map, main article and description
+ * (Overview), its political ties, articles and links — as tabs. Its look,
+ * details and actions are in the marker bar. The pencil switches Overview
+ * between reading and editing.
+ */
 export default function MarkerPanel({
   marker,
   maps,
   layers,
   section,
+  onSectionChange,
   autoFocusName,
   startInEdit,
   onUpdate,
-  onDuplicate,
-  onDelete,
   onClose,
 }: {
   marker: Marker;
   maps: MapOption[];
   layers: MapLayerData[];
   section: MarkerSection;
+  onSectionChange: (section: MarkerSection) => void;
   autoFocusName: boolean;
   startInEdit: boolean;
   onUpdate: MarkerUpdate;
-  onDuplicate: () => void;
-  onDelete: () => void;
   onClose: () => void;
 }) {
   const tm = useT("maps");
@@ -176,7 +132,7 @@ export default function MarkerPanel({
   }
 
   return (
-    <div className="marker-side-panel">
+    <div className="marker-side-panel marker-card-panel">
       <div className="marker-side-panel-header">
         {editing ? (
           <input
@@ -200,9 +156,34 @@ export default function MarkerPanel({
             <h2>{marker.name}</h2>
           </div>
         )}
+        <button
+          type="button"
+          className={editing ? "btn btn-ghost btn-icon active" : "btn btn-ghost btn-icon"}
+          aria-pressed={editing}
+          aria-label={editing ? tm("markerCard.doneEditing") : tm("markerPanel.edit")}
+          data-tooltip={editing ? tm("markerCard.doneEditing") : tm("markerCard.editHint")}
+          onClick={() => {
+            if (editing && name.trim() && name !== marker.name) onUpdate({ name });
+            setEditing((e) => !e);
+          }}
+        >
+          {editing ? <Check size={16} strokeWidth={2.25} /> : <Pencil size={16} strokeWidth={2.25} />}
+        </button>
         <button className="btn btn-ghost btn-icon" onClick={onClose} aria-label={tm("markerPanel.close")}>
           <X size={16} strokeWidth={2.25} />
         </button>
+      </div>
+
+      <div className="marker-card-tabs" role="tablist" aria-label={tm("markerPanel.sections")}>
+        {SECTIONS.map(({ key, Icon }) => {
+          const label = tm(`markerPanel.section.${key}`);
+          return (
+            <button key={key} type="button" role="tab" aria-selected={section === key} className={section === key ? "marker-card-tab active" : "marker-card-tab"} onClick={() => onSectionChange(key)}>
+              <Icon size={14} strokeWidth={2.25} aria-hidden />
+              <span>{label}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* All four sections stay mounted and are only hidden via CSS when
@@ -234,20 +215,6 @@ export default function MarkerPanel({
           />
         </MarkerCard>
 
-        {editing && (
-          <>
-            <MarkerAppearance marker={marker} onUpdate={onUpdate} />
-            <MarkerDetails marker={marker} layers={layers} onUpdate={onUpdate} />
-            <MarkerActions marker={marker} onUpdate={onUpdate} onDuplicate={onDuplicate} onDelete={onDelete} onDone={() => setEditing(false)} />
-          </>
-        )}
-
-        {!editing && (
-          <button className="btn btn-primary marker-edit-fab" onClick={() => setEditing(true)}>
-            <Pencil size={14} strokeWidth={2.25} />
-            {tm("markerPanel.edit")}
-          </button>
-        )}
       </div>
 
       <div className={section === "politics" ? "marker-section-body" : "marker-section-body marker-section-body-hidden"}>

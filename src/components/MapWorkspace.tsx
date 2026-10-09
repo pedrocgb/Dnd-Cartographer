@@ -3,12 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { isArticleTemplate, type ArticleTemplateKey } from "@/server/articles/templates";
-import { ListTree, MapPin, MapPinned, PenTool, Shapes, Type as TypeIcon, ZoomIn, ZoomOut, Home, Maximize, Minimize, Undo2, Redo2 } from "lucide-react";
+import { ListTree, MapPinned, PenTool, Shapes, Type as TypeIcon, ZoomIn, ZoomOut, Home, Maximize, Minimize, Undo2, Redo2 } from "lucide-react";
 import { PanelSkeleton } from "./Skeleton";
 import type OpenSeadragonType from "openseadragon";
 import MarkerLayer, { type Marker } from "./MarkerLayer";
 import MarkerPanel, { type MarkerSection } from "./MarkerPanel";
-import MarkerSectionStrip from "./MarkerSectionStrip";
+import MarkerToolBar from "./map-tools/MarkerToolBar";
 import GridLayer, { type MapGrid } from "./GridLayer";
 import GridToolBar from "./map-tools/GridToolBar";
 import ZoneLayer, { DEFAULT_BRUSH_SIZE, isPaintTool, zonePaintOrder, type PaintedZone, type ZoneData, type ZoneRegionData, type ZoneTool } from "./ZoneLayer";
@@ -683,7 +683,7 @@ export default function MapWorkspace({
 
   // Central place to change which marker is selected. Profile links inside
   // the Political References / Links sections open in a new tab (see
-  // MarkerSectionStrip's consumers) rather than navigating this page away,
+  // the marker card's tabs) rather than navigating this page away,
   // so there's no "restore after navigating back" state to manage here —
   // the map/marker/section simply never went anywhere.
   // Only one lateral tool is ever open at a time — selecting/placing a
@@ -706,7 +706,8 @@ export default function MapWorkspace({
   }
 
   function selectMarker(markerId: string, opts?: { startInEdit?: boolean }) {
-    closeToolPanels();
+    // The Markers tool stays open beside its selected marker; any other tool closes.
+    if (!markersPanelOpen) closeToolPanels();
     setSelectedMarkerId(markerId);
     setMarkerSection("basic");
     setAutoFocusName(false);
@@ -927,7 +928,7 @@ export default function MapWorkspace({
     })
       .then((r) => json<{ marker: Marker }>(r))
       .then((d) => {
-        closeToolPanels();
+        if (!markersPanelOpen) closeToolPanels();
         setMarkers((prev) => [...prev, d.marker]);
         recordCreate("marker", d.marker.id);
         setSelectedMarkerId(d.marker.id);
@@ -1171,7 +1172,10 @@ export default function MapWorkspace({
   const sidePanelOpen =
     gridPanelOpen || zonesPanelOpen || markersPanelOpen || layersPanelOpen || textPanelOpen || linePanelOpen || scenePanelOpen || legendPanelOpen || scalePanelOpen || areaPanelOpen || travelPanelOpen;
   // The Selection tool has no side panel, but is exclusive with them all the same.
-  const anyToolPanelOpen = sidePanelOpen || selectToolOn;
+  // The Markers tool is the one that keeps a marker selected (its list beside the marker card).
+  const otherSidePanelOpen =
+    gridPanelOpen || zonesPanelOpen || layersPanelOpen || textPanelOpen || linePanelOpen || scenePanelOpen || legendPanelOpen || scalePanelOpen || areaPanelOpen || travelPanelOpen;
+  const anyToolPanelOpen = otherSidePanelOpen || selectToolOn;
   const [lastAnyToolPanelOpen, setLastAnyToolPanelOpen] = useState(anyToolPanelOpen);
   if (anyToolPanelOpen !== lastAnyToolPanelOpen) {
     setLastAnyToolPanelOpen(anyToolPanelOpen);
@@ -1686,6 +1690,12 @@ export default function MapWorkspace({
       return;
     }
     if ((e.key === "Delete" || e.key === "Backspace") && !e.defaultPrevented && !isModalOpen() && !isTypingTarget(e.target)) {
+      // The selected marker (unless locked) goes, like any selected item.
+      if (selectedMarker) {
+        e.preventDefault();
+        if (!selectedMarker.locked) deleteMarker(selectedMarker.id);
+        return;
+      }
       const open = openListKind();
       if (open && selectionOf(open).ids.length > 1) {
         e.preventDefault();
@@ -2079,22 +2089,35 @@ export default function MapWorkspace({
         <div ref={viewerElRef} className="spike-viewer" />
 
         {selectedMarker && (
-          <>
-            <MarkerSectionStrip section={markerSection} onChange={setMarkerSection} />
-            <MarkerPanel
-              key={selectedMarker.id}
-              marker={selectedMarker}
-              maps={allMaps}
-              layers={layerApi.layers}
-              section={markerSection}
-              autoFocusName={autoFocusName}
-              startInEdit={startInEdit}
-              onUpdate={(patch) => updateMarker(selectedMarker.id, patch)}
-              onDuplicate={() => duplicateMarker(selectedMarker.id)}
-              onDelete={() => deleteMarker(selectedMarker.id)}
-              onClose={() => setSelectedMarkerId(null)}
-            />
-          </>
+          <MarkerPanel
+            key={selectedMarker.id}
+            marker={selectedMarker}
+            maps={allMaps}
+            layers={layerApi.layers}
+            section={markerSection}
+            onSectionChange={setMarkerSection}
+            autoFocusName={autoFocusName}
+            startInEdit={startInEdit}
+            onUpdate={(patch) => updateMarker(selectedMarker.id, patch)}
+            onClose={() => setSelectedMarkerId(null)}
+          />
+        )}
+        {(markersPanelOpen || selectedMarker) && (
+          <MarkerToolBar
+            inset={panelInset}
+            toolOpen={markersPanelOpen}
+            adding={addingMarker}
+            placingName={placing?.name ?? null}
+            onToggleAdding={() => setAddingMarker((a) => !a)}
+            iconFilter={iconFilter}
+            marker={selectedMarker}
+            layers={layerApi.layers}
+            onUpdate={(patch) => selectedMarker && updateMarker(selectedMarker.id, patch)}
+            onDuplicate={() => selectedMarker && duplicateMarker(selectedMarker.id)}
+            onDelete={() => selectedMarker && deleteMarker(selectedMarker.id)}
+            onDeselect={() => setSelectedMarkerId(null)}
+            onClose={onCloseMarkersPanel}
+          />
         )}
 
         <div
@@ -2104,14 +2127,6 @@ export default function MapWorkspace({
             left: 12 + panelInset,
           }}
         >
-          <button
-            className={addingMarker ? "btn active" : "btn"}
-            onClick={() => setAddingMarker((a) => !a)}
-          >
-            <MapPin size={15} strokeWidth={2.25} />
-            {addingMarker ? (placing ? t("toolbar.clickToPlace", { name: placing.name }) : t("toolbar.clickMap")) : t("toolbar.addMarker")}
-          </button>
-
           <select
             className="layer-select"
             value={activeLayerId}
@@ -2529,7 +2544,9 @@ export default function MapWorkspace({
         )}
 
         {markersPanelOpen && !itemsLoaded && <PanelSkeleton className="markers-panel" mainClassName="markers-panel-col" title={t("panel.markers")} Icon={MapPinned} onClose={onCloseMarkersPanel} rows={6} />}
-        {markersPanelOpen && itemsLoaded && <MarkersPanel markers={markers} layers={layerApi.layers} onSelectMarker={onFocusMarker} iconFilter={iconFilter} onClose={onCloseMarkersPanel} />}
+        {markersPanelOpen && itemsLoaded && (
+          <MarkersPanel markers={markers} layers={layerApi.layers} selectedId={selectedMarkerId} onSelectMarker={onFocusMarker} onUpdateMarker={updateMarker} onClose={onCloseMarkersPanel} />
+        )}
 
         {saveError && (
           <div className="undo-toast save-error-toast" role="alert">

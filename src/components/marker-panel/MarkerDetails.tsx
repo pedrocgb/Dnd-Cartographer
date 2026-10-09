@@ -24,7 +24,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 /**
- * The marker panel's Details card: classification and placement — category,
+ * The marker bar's Details: classification and placement — category,
  * environment, ownership, status and layers (the linked map has its own card). Searchable pickers
  * for the long lists, chips for status.
  */
@@ -50,7 +50,7 @@ export default function MarkerDetails({
   }
 
   return (
-    <MarkerCard title={t("marker.details")}>
+    <MarkerCard title={t("marker.details")} bare>
       <Field label={t("field.category")}>
         <InfoPicker
           options={categoryOptions}
