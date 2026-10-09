@@ -67,6 +67,8 @@
   "crop.save": "Save image",
   "color.value": "Value",
   "color.mixed": "Mixed",
+  "slider.reset": "Reset {label}",
+  "slider.value": "{label} value",
   "color.mixedHint": "The selected items have different colors. Picking one sets it on all of them.",
   "color.hex": "Hex",
   "font.label": "Font",

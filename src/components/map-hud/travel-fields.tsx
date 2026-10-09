@@ -5,7 +5,7 @@ import ColorWheel from "@/components/ColorWheel";
 import SegmentedControl from "@/components/marker-panel/SegmentedControl";
 import Toggle from "@/components/Toggle";
 import ToolSection from "@/components/ToolSection";
-import { SliderField } from "@/components/GridPanel";
+import { SliderField } from "@/components/SliderField";
 import { MixedTag, folderTree, type MapFolderData } from "@/components/LayerFolders";
 import { formatNumber, unitSuffix, type ScaleConfig } from "@/server/scale/scale-config";
 import { DEFAULT_ROUTE_STYLE, ROUTE_STYLES, ROUTE_WIDTH, type MapRouteData, type RouteStyle } from "@/server/travel/route-config";

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { AlignCenter, AlignLeft, AlignRight, Bold } from "lucide-react";
 import ColorWheel from "./ColorWheel";
 import FontPicker from "./FontPicker";
-import { SliderField } from "./GridPanel";
+import { SliderField } from "./SliderField";
 import { MixedCheckbox, MixedTag } from "./LayerFolders";
 import type { MapTextData } from "./TextLayer";
 import { LIMITS, type TextAlign, type TextStyle } from "@/server/texts/text-config";

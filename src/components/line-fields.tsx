@@ -1,7 +1,7 @@
 "use client";
 
 import ColorWheel from "./ColorWheel";
-import { SliderField } from "./GridPanel";
+import { SliderField } from "./SliderField";
 import { MixedCheckbox, MixedTag, folderTree, type MapFolderData } from "./LayerFolders";
 import type { MapLineData } from "./LineLayer";
 import { LINE_LIMITS, type LineCap, type LineStyle, type LineStyleKind } from "@/server/lines/line-config";

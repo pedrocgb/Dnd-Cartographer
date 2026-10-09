@@ -4,6 +4,8 @@ import { useEffect, useRef } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import type OpenSeadragonType from "openseadragon";
 import { OVERLAY_Z, addFullMapOverlay, removeFullMapOverlay } from "./osd-overlay-stack";
+import { screenPxPerImagePx } from "./osd-coords";
+import { setOsdNavEnabled } from "./osd-nav";
 
 export interface MapGrid {
   id: string;
@@ -154,12 +156,69 @@ export default function GridLayer({
   viewer,
   osd,
   grid,
+  aligning = false,
+  onAlign,
 }: {
   viewer: OpenSeadragonType.Viewer | null;
   osd: typeof OpenSeadragonType | null;
   grid: MapGrid | null;
+  /** While on, a left-drag on the map moves the grid (its offsets) instead of panning. */
+  aligning?: boolean;
+  onAlign?: (offsets: Pick<MapGrid, "horizontalOffset" | "verticalOffset">) => void;
 }) {
   const overlayRef = useRef<{ el: HTMLDivElement; root: Root } | null>(null);
+  const latest = useRef({ grid, onAlign });
+  useEffect(() => {
+    latest.current = { grid, onAlign };
+  });
+
+  // Align: a left-drag anywhere on the map slides the grid with the pointer
+  // (offsets in % of a cell, kept within -100..100); Shift moves it 4× slower
+  // for fine work. Pan stays on the middle button and the wheel.
+  useEffect(() => {
+    if (!viewer || !aligning) return;
+    const el = viewer.element;
+    setOsdNavEnabled(viewer, false);
+    const clamp = (v: number) => Math.round(Math.min(100, Math.max(-100, v)));
+    function onDown(e: PointerEvent) {
+      const start = latest.current.grid;
+      const size = viewer!.world.getItemAt(0)?.getContentSize();
+      if (e.button !== 0 || !start || !size) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const scale = screenPxPerImagePx(viewer);
+      const cellW = size.x / start.columns;
+      const cellH = size.y / start.rows;
+      let last = { x: e.clientX, y: e.clientY };
+      let offsets = { horizontalOffset: start.horizontalOffset, verticalOffset: start.verticalOffset };
+      // Unrounded running offsets, so slow (Shift) drags still add up.
+      let exact = { x: start.horizontalOffset, y: start.verticalOffset };
+      function onMove(ev: PointerEvent) {
+        const slow = ev.shiftKey ? 0.25 : 1;
+        exact = {
+          x: Math.min(100, Math.max(-100, exact.x + (((ev.clientX - last.x) / scale / cellW) * 100) * slow)),
+          y: Math.min(100, Math.max(-100, exact.y + (((ev.clientY - last.y) / scale / cellH) * 100) * slow)),
+        };
+        last = { x: ev.clientX, y: ev.clientY };
+        const next = { horizontalOffset: clamp(exact.x), verticalOffset: clamp(exact.y) };
+        if (next.horizontalOffset === offsets.horizontalOffset && next.verticalOffset === offsets.verticalOffset) return;
+        offsets = next;
+        latest.current.onAlign?.(next);
+      }
+      function onUp() {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+      }
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+    }
+    // Capture: before OSD's tracker and the map's other layers see the press.
+    el.addEventListener("pointerdown", onDown, true);
+    return () => {
+      el.removeEventListener("pointerdown", onDown, true);
+      setOsdNavEnabled(viewer, true);
+    };
+  }, [viewer, aligning]);
 
   useEffect(() => {
     if (!viewer || !osd) return;

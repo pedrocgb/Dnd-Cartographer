@@ -103,6 +103,7 @@ export const SHORTCUT_GROUPS: ShortcutGroupEntry[] = [
       { keys: ["Shift+Wheel"], action: "action.resizeBrush", context: "context.zoneBrush" },
       { keys: ["Delete", "Backspace"], action: "action.removeVertex", context: "context.editingZone" },
       { keys: ["Shift"], action: "action.snapRotation", context: "context.rotatingText" },
+      { keys: ["Shift"], action: "action.fineAlign", context: "context.aligningGrid" },
     ],
   },
   {

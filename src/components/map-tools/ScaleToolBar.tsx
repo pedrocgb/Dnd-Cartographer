@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Crosshair, Eye, EyeOff, Move, Palette, Ruler, X } from "lucide-react";
 import SegmentedControl from "@/components/marker-panel/SegmentedControl";
 import Toggle from "@/components/Toggle";
-import { SliderField } from "@/components/GridPanel";
+import { SliderField } from "@/components/SliderField";
 import { DEFAULT_SCALE, formatNumber, SCALE_LIMITS, scaleUnitLabel, SCALE_UNITS, SUBDIVISIONS, unitSuffix, type ScaleStyle, type ScaleUnit } from "@/server/scale/scale-config";
 import type { MeasureMode } from "../map-hud/MeasureLayer";
 import type { ScaleBarPatch, ScaleBarState } from "../map-hud/use-map-scale-bar";

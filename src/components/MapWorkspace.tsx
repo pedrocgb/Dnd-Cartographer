@@ -3,14 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { isArticleTemplate, type ArticleTemplateKey } from "@/server/articles/templates";
-import { Grid3x3, ListTree, MapPin, MapPinned, PenTool, Shapes, Type as TypeIcon, ZoomIn, ZoomOut, Home, Maximize, Minimize, Undo2, Redo2 } from "lucide-react";
+import { ListTree, MapPin, MapPinned, PenTool, Shapes, Type as TypeIcon, ZoomIn, ZoomOut, Home, Maximize, Minimize, Undo2, Redo2 } from "lucide-react";
 import { PanelSkeleton } from "./Skeleton";
 import type OpenSeadragonType from "openseadragon";
 import MarkerLayer, { type Marker } from "./MarkerLayer";
 import MarkerPanel, { type MarkerSection } from "./MarkerPanel";
 import MarkerSectionStrip from "./MarkerSectionStrip";
 import GridLayer, { type MapGrid } from "./GridLayer";
-import GridPanel from "./GridPanel";
+import GridToolBar from "./map-tools/GridToolBar";
 import ZoneLayer, { DEFAULT_BRUSH_SIZE, isPaintTool, zonePaintOrder, type PaintedZone, type ZoneData, type ZoneRegionData, type ZoneTool } from "./ZoneLayer";
 import ZonesPanel from "./ZonesPanel";
 import ZoneToolBar from "./map-tools/ZoneToolBar";
@@ -335,6 +335,9 @@ export default function MapWorkspace({
   const selectedZoneId = zoneSel.single;
   const setSelectedZoneId = zoneSel.select;
   const [activeZoneTool, setActiveZoneTool] = useState<ZoneTool>("select");
+  /** Grid tool: a left-drag on the map moves the grid. Ends when the tool closes. */
+  const [gridAligning, setGridAligning] = useState(false);
+  if (!gridPanelOpen && gridAligning) setGridAligning(false);
   const [brushSize, setBrushSize] = useState(DEFAULT_BRUSH_SIZE);
   const [zoneUndo, setZoneUndo] = useState<{ zone: ZoneData; timer: ReturnType<typeof setTimeout> } | null>(null);
   /** Style the next new zone starts with (null until loaded from storage on first use). */
@@ -543,7 +546,9 @@ export default function MapWorkspace({
   // would have to fight for specificity.
   useEffect(() => {
     if (!viewerElRef.current) return;
-    viewerElRef.current.style.cursor = selectToolOn
+    viewerElRef.current.style.cursor = gridPanelOpen && gridAligning
+      ? "move"
+      : selectToolOn
       ? hovered
         ? "pointer"
         : ""
@@ -554,7 +559,7 @@ export default function MapWorkspace({
         : (zonesPanelOpen && activeZoneTool !== "select") || areaPanelOpen
           ? ZONE_DRAW_CURSOR
           : "";
-  }, [addingMarker, zonesPanelOpen, activeZoneTool, areaPanelOpen, textPanelOpen, placingText, linePanelOpen, drawingLine, selectToolOn, hovered]);
+  }, [addingMarker, zonesPanelOpen, activeZoneTool, areaPanelOpen, textPanelOpen, placingText, linePanelOpen, drawingLine, selectToolOn, hovered, gridPanelOpen, gridAligning]);
 
   // Middle-mouse-button drag also pans the map, same as OpenSeadragon's own
   // left-drag pan — implemented independently of OSD's built-in navigation
@@ -1665,6 +1670,7 @@ export default function MapWorkspace({
       return onCloseLinePanel();
     }
     if (travelPanelOpen && routeSel.ids.length) return routeSel.select(null);
+    if (gridPanelOpen && gridAligning) return setGridAligning(false);
     if (sidePanelOpen) return closeToolPanels();
     if (!selectToolOn) onOpenSelectTool();
   }
@@ -2178,7 +2184,7 @@ export default function MapWorkspace({
           </div>
         </div>
 
-        <GridLayer viewer={viewer} osd={osd} grid={layerVisible ? grid : null} />
+        <GridLayer viewer={viewer} osd={osd} grid={layerVisible ? grid : null} aligning={gridPanelOpen && gridAligning && Boolean(grid)} onAlign={onUpdateGrid} />
 
         <ZoneLayer
           viewer={viewer}
@@ -2297,16 +2303,18 @@ export default function MapWorkspace({
           onRouteDrawingChange={setRouteDrawing}
         />
 
-        {gridPanelOpen && !grid && <PanelSkeleton className="grid-panel" title={t("panel.grid")} Icon={Grid3x3} onClose={onCloseGridPanel} rows={4} />}
         {gridPanelOpen && grid && (
-          <GridPanel
+          <GridToolBar
+            inset={panelInset}
             layerName={layerLabel}
             grid={grid}
+            imageWidth={imageWidth}
+            imageHeight={imageHeight}
+            aligning={gridAligning}
+            onSetAligning={setGridAligning}
             onUpdate={onUpdateGrid}
             onDelete={onDeleteGrid}
             onClose={onCloseGridPanel}
-            imageWidth={imageWidth}
-            imageHeight={imageHeight}
           />
         )}
 

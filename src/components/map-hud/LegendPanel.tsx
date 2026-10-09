@@ -7,7 +7,7 @@ import SegmentedControl from "@/components/marker-panel/SegmentedControl";
 import MarkerCard from "@/components/marker-panel/MarkerCard";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import Toggle from "@/components/Toggle";
-import { SliderField } from "@/components/GridPanel";
+import { SliderField } from "@/components/SliderField";
 import type { MapLayerData } from "@/components/layer-images";
 import { DEFAULT_LEGEND, LEGEND_ITEM_SIZES, LEGEND_LIMITS, type ClientLegend, type LegendConfig } from "@/server/legends/legend-config";
 import LegendItemsWindow from "./LegendItemsWindow";

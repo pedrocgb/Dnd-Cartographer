@@ -2832,52 +2832,6 @@ button.article-title-text:hover {
   }
 }
 
-.grid-shape-row {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-2);
-}
-
-.grid-shape-row button {
-  aspect-ratio: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-default);
-  background: var(--bg-surface-raised);
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: border-color var(--transition-fast), background var(--transition-fast), color var(--transition-fast);
-}
-
-.grid-shape-row button:hover {
-  border-color: var(--border-strong);
-  color: var(--text-primary);
-}
-
-.grid-shape-row button.active {
-  border-color: var(--teal-500);
-  background: var(--teal-900);
-  color: var(--teal-300);
-}
-
-.grid-linked-toggle {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: var(--text-xs);
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-
-.grid-linked-toggle input[type="checkbox"] {
-  width: 14px;
-  height: 14px;
-  accent-color: var(--teal-500);
-  cursor: pointer;
-}
-
 .grid-field {
   display: flex;
   flex-direction: column;
