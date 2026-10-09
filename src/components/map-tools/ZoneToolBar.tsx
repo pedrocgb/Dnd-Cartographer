@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Brush, Check, ChevronUp, Circle, Eraser, EyeOff, Folder, Hexagon, Lock, MousePointer2, MoreHorizontal, Plus, Square, Trash2, type LucideIcon } from "lucide-react";
+import { Brush, Circle, Eraser, Hexagon, MousePointer2, MoreHorizontal, Plus, Square, Trash2, type LucideIcon } from "lucide-react";
 import { formatInteger } from "@/server/settings/number-format";
 import type { ScaleConfig } from "@/server/scale/scale-config";
 import { useT } from "@/i18n/useT";
@@ -12,7 +12,7 @@ import ToolSection from "../ToolSection";
 import type { MapLayerData } from "../layer-images";
 import { BRUSH_SIZE_MAX, BRUSH_SIZE_MIN, isPaintTool, type ZoneData, type ZoneRegionData, type ZoneTool } from "../ZoneLayer";
 import { SHAPE_ICON, ZoneArea, ZoneFillFields, ZoneOutlineFields, ZoneTerritoryLink } from "../zone-fields";
-import { DoneButton, MultiSelectionGroup, SelectedCount, Swatch, ToolBar, ToolBarButton, ToolBarDivider, ToolBarPopover } from "./ToolBar";
+import { DoneButton, FolderTargetPopover, MultiSelectionGroup, SelectedCount, Swatch, ToolBar, ToolBarButton, ToolBarDivider, ToolBarPopover } from "./ToolBar";
 
 type DrawTool = Exclude<ZoneTool, "select" | "eraser">;
 
@@ -141,33 +141,20 @@ export default function ZoneToolBar({
       <ToolBarButton Icon={Eraser} label={t("zones.tool.eraser")} hint={t("zones.tool.eraserHint")} pressed={activeTool === "eraser"} disabled={!paintable} onClick={() => arm("eraser")} />
       {isPaintTool(activeTool) && (
         <label className="tool-bar-slider" data-tooltip={t("zoneBar.brushSizeHint")}>
-          <span className="tool-bar-value">{t("zoneBar.brushSizeValue", { n: formatInteger(brushSize) })}</span>
+          <span className="tool-bar-value">{t("toolBar.px", { n: formatInteger(brushSize) })}</span>
           <input type="range" min={BRUSH_SIZE_MIN} max={BRUSH_SIZE_MAX} value={brushSize} aria-label={t("zones.brush.size", { n: formatInteger(brushSize) })} onChange={(e) => onBrushSizeChange(Number(e.target.value))} />
         </label>
       )}
       <ToolBarDivider />
-      <ToolBarPopover
+      <FolderTargetPopover
         label={t("zoneBar.region", { name: activeRegion?.name ?? t("zoneBar.noRegion") })}
         hint={t("zoneBar.regionHint")}
-        face={
-          <>
-            <Folder size={16} strokeWidth={2.25} aria-hidden />
-            <span className="tool-bar-text">{activeRegion?.name ?? t("zoneBar.noRegion")}</span>
-            <ChevronUp size={14} strokeWidth={2.25} aria-hidden />
-          </>
-        }
-      >
-        {(close) => (
-          <RegionChoices
-            regions={ownRegions}
-            activeId={activeRegionId}
-            onPick={(id) => {
-              onSetActiveRegion(id);
-              close();
-            }}
-          />
-        )}
-      </ToolBarPopover>
+        folders={ownRegions}
+        activeId={activeRegionId}
+        placeholder={t("zoneBar.noRegion")}
+        emptyText={t("zoneBar.noRegions")}
+        onPick={(id) => id && onSetActiveRegion(id)}
+      />
 
       {selected.length > 0 && <ToolBarDivider />}
       {single && <SelectedZone zone={single} />}
@@ -203,29 +190,6 @@ export default function ZoneToolBar({
         />
       )}
     </ToolBar>
-  );
-}
-
-/** The layer's regions, to pick the one new zones go into. */
-function RegionChoices({ regions, activeId, onPick }: { regions: ZoneRegionData[]; activeId: string | null; onPick: (id: string) => void }) {
-  const t = useT("maps");
-  if (regions.length === 0) return <p className="field-label">{t("zoneBar.noRegions")}</p>;
-  return (
-    <>
-      <span className="field-label">{t("zoneBar.regionHint")}</span>
-      <ul className="tool-bar-choices">
-        {regions.map((r) => (
-          <li key={r.id}>
-            <button type="button" aria-pressed={r.id === activeId} onClick={() => onPick(r.id)}>
-              {r.id === activeId ? <Check size={14} strokeWidth={2.25} aria-hidden /> : <Folder size={14} strokeWidth={2.25} aria-hidden />}
-              <span className="tool-bar-text">{r.name}</span>
-              {r.locked && <Lock size={12} strokeWidth={2.25} aria-label={t("zoneBar.regionLocked")} />}
-              {!r.visible && <EyeOff size={12} strokeWidth={2.25} aria-label={t("zoneBar.regionHidden")} />}
-            </button>
-          </li>
-        ))}
-      </ul>
-    </>
   );
 }
 

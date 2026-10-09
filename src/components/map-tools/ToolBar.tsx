@@ -2,10 +2,10 @@
 
 import { useEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Check, Eye, EyeOff, Lock, LockOpen, Trash2, type LucideIcon } from "lucide-react";
+import { Check, ChevronUp, Eye, EyeOff, Folder, Lock, LockOpen, Trash2, type LucideIcon } from "lucide-react";
 import { formatInteger } from "@/server/settings/number-format";
 import { useT } from "@/i18n/useT";
-import { useNoun, type FolderNoun } from "../LayerFolders";
+import { useNoun, type FolderNoun, type MapFolderData } from "../LayerFolders";
 import { usePopover } from "../usePopover";
 
 const ICON = { size: 16, strokeWidth: 2.25 } as const;
@@ -214,5 +214,84 @@ export function DoneButton({ onClick }: { onClick: () => void }) {
     <ToolBarButton Icon={Check} label={tc("done")} hint={t("toolBar.doneHint")} onClick={onClick}>
       <span>{tc("done")}</span>
     </ToolBarButton>
+  );
+}
+
+/**
+ * The folder new items go into: the button shows it, its popover lists the
+ * layer's folders (and `noneLabel`, for tools whose items can go in no folder).
+ */
+export function FolderTargetPopover({
+  label,
+  hint,
+  folders,
+  activeId,
+  placeholder,
+  noneLabel,
+  emptyText,
+  onPick,
+}: {
+  /** The button's accessible name, with the current folder in it. */
+  label: string;
+  hint: string;
+  folders: MapFolderData[];
+  activeId: string | null;
+  /** Shown when no folder is picked and there's no "none" choice. */
+  placeholder: string;
+  noneLabel?: string;
+  /** Shown instead of the list when there's nothing to pick. */
+  emptyText: string;
+  onPick: (id: string | null) => void;
+}) {
+  const t = useT("maps");
+  const active = folders.find((f) => f.id === activeId);
+  const choices: { id: string | null; name: string; folder?: MapFolderData }[] = [
+    ...folders.map((f) => ({ id: f.id, name: f.name, folder: f })),
+    ...(noneLabel ? [{ id: null, name: noneLabel }] : []),
+  ];
+  return (
+    <ToolBarPopover
+      label={label}
+      hint={hint}
+      face={
+        <>
+          <Folder {...ICON} aria-hidden />
+          <span className="tool-bar-text">{active?.name ?? noneLabel ?? placeholder}</span>
+          <ChevronUp size={14} strokeWidth={2.25} aria-hidden />
+        </>
+      }
+    >
+      {(close) =>
+        choices.length === 0 ? (
+          <p className="field-label">{emptyText}</p>
+        ) : (
+          <>
+            <span className="field-label">{hint}</span>
+            <ul className="tool-bar-choices">
+              {choices.map(({ id, name, folder }) => {
+                const on = id === (active ? active.id : null) && (id !== null || Boolean(noneLabel));
+                return (
+                  <li key={id ?? "none"}>
+                    <button
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => {
+                        onPick(id);
+                        close();
+                      }}
+                    >
+                      {on ? <Check size={14} strokeWidth={2.25} aria-hidden /> : <Folder size={14} strokeWidth={2.25} aria-hidden />}
+                      <span className="tool-bar-text">{name}</span>
+                      {folder?.locked && <Lock size={12} strokeWidth={2.25} aria-label={t("toolBar.folderLocked")} />}
+                      {folder && !folder.visible && <EyeOff size={12} strokeWidth={2.25} aria-label={t("toolBar.folderHidden")} />}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        )
+      }
+    </ToolBarPopover>
   );
 }

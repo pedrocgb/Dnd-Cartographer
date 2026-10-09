@@ -14,6 +14,7 @@ import GridPanel from "./GridPanel";
 import ZoneLayer, { DEFAULT_BRUSH_SIZE, isPaintTool, zonePaintOrder, type PaintedZone, type ZoneData, type ZoneRegionData, type ZoneTool } from "./ZoneLayer";
 import ZonesPanel from "./ZonesPanel";
 import ZoneToolBar from "./map-tools/ZoneToolBar";
+import TextToolBar from "./map-tools/TextToolBar";
 import MarkersPanel from "./MarkersPanel";
 import LayersPanel from "./LayersPanel";
 import TextLayer, { type MapTextData } from "./TextLayer";
@@ -1087,6 +1088,7 @@ export default function MapWorkspace({
   if (activeTextGroupId && !ownTextGroups.some((g) => g.id === activeTextGroupId)) setActiveTextGroupId(null);
   const activeTextGroup = ownTextGroups.find((g) => g.id === activeTextGroupId) ?? null;
   const selectedText = layerTexts.find((t) => t.id === selectedTextId) ?? null;
+  const textMaxFontSize = Math.max(64, Math.round(Math.max(imageWidth, imageHeight) / 6));
   // A folder hides or locks its lines, and shows them on its extra layers too.
   const lineGroupById = useMemo(() => new Map(lineGroups.map((g) => [g.id, g])), [lineGroups]);
   const lineExtras = useCallback((l: MapLineData) => withFolderLayers(l.extraLayerIds, l.groupId ? lineGroupById.get(l.groupId) : undefined), [lineGroupById]);
@@ -2371,25 +2373,15 @@ export default function MapWorkspace({
           />
         )}
 
-        {textPanelOpen && !itemsLoaded && <PanelSkeleton className="zones-panel zones-panel-editing text-panel" mainClassName="zones-panel-main" title={t("panel.text")} Icon={TypeIcon} onClose={onCloseTextPanel} />}
+        {textPanelOpen && !itemsLoaded && <PanelSkeleton className="zones-panel text-panel" mainClassName="zones-panel-main" title={t("panel.text")} Icon={TypeIcon} onClose={onCloseTextPanel} />}
         {textPanelOpen && itemsLoaded && (
           <TextPanel
             layerName={layerLabel}
             selected={selectedText}
             draft={textDraft}
             layers={layerApi.layers}
-            placing={placingText}
-            maxFontSize={Math.max(64, Math.round(Math.max(imageWidth, imageHeight) / 6))}
-            onTogglePlacing={() => {
-              setAddingMarker(false);
-              setSelectedTextId(null);
-              setPlacingText((p) => !p);
-            }}
-            onChange={onTextPanelChange}
-            onDelete={() => selectedText && deleteText(selectedText.id)}
-            onDone={() => setSelectedTextId(null)}
+            maxFontSize={textMaxFontSize}
             onClose={onCloseTextPanel}
-            selectedLocked={selectedText ? textLocked(selectedText) : false}
             texts={layerTexts}
             groups={textGroups}
             activeLayerId={activeLayerId}
@@ -2407,10 +2399,37 @@ export default function MapWorkspace({
               textSel.click(id, mods, order);
             }}
             onUpdateMany={(ids, patchOf, opts) => updateMany("text", ids, (item) => patchOf(item as MapTextData), opts)}
-            onDeleteMany={(ids) => deleteMany("text", ids)}
             onCreateGroup={(name) => createFolder("text", name)}
             onUpdateGroup={updateTextGroup}
             onDeleteGroup={(id, cascade) => deleteFolder("text", id, cascade)}
+          />
+        )}
+        {textPanelOpen && itemsLoaded && (
+          <TextToolBar
+            inset={panelInset}
+            layers={layerApi.layers}
+            texts={layerTexts}
+            groups={textGroups}
+            activeLayerId={activeLayerId}
+            activeGroupId={activeTextGroupId}
+            onSetActiveGroup={setActiveTextGroupId}
+            placing={placingText}
+            onTogglePlacing={() => {
+              setAddingMarker(false);
+              setSelectedTextId(null);
+              setPlacingText((p) => !p);
+            }}
+            selected={selectedText}
+            selectedLocked={selectedText ? textLocked(selectedText) : false}
+            draft={textDraft}
+            maxFontSize={textMaxFontSize}
+            onChange={onTextPanelChange}
+            onDelete={() => selectedText && deleteText(selectedText.id)}
+            onDone={() => setSelectedTextId(null)}
+            selectedIds={textSel.ids}
+            isLocked={textLocked}
+            onUpdateMany={(ids, patchOf, opts) => updateMany("text", ids, (item) => patchOf(item as MapTextData), opts)}
+            onDeleteMany={(ids) => deleteMany("text", ids)}
           />
         )}
 
