@@ -2064,7 +2064,7 @@ export default function MapWorkspace({
 
   return (
     <div className="viewer-layout">
-      <div className="viewer-canvas-area" ref={setCanvasArea}>
+      <div className="viewer-canvas-area" ref={setCanvasArea} style={{ "--panel-inset": `${panelInset}px` } as React.CSSProperties}>
         <div ref={viewerElRef} className="spike-viewer" />
 
         {selectedMarker && (

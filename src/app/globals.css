@@ -2985,13 +2985,14 @@ input[type="range"]::-moz-range-track {
 .undo-toast.save-error-toast {
   border-color: var(--danger-500);
   color: var(--danger-300);
-  bottom: calc(var(--space-4) + 48px);
+  top: calc(var(--space-4) + 48px);
 }
 
+/* Top center of the map's free part (right of the side panel): the tool bars own the bottom. */
 .undo-toast {
   position: absolute;
-  bottom: var(--space-4);
-  left: 50%;
+  top: var(--space-4);
+  left: calc(var(--panel-inset, 0px) + (100% - var(--panel-inset, 0px)) / 2);
   transform: translateX(-50%);
   background: var(--bg-surface-raised);
   border: 1px solid var(--border-default);
