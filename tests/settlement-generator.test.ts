@@ -29,6 +29,7 @@ import {
 } from "../src/lib/settlement-generator/options";
 import { FOUNDING_DETAILS, changeAllowed } from "../src/lib/settlement-generator/origins";
 import { contextOf, rollRules, ruleWeight, type Rule } from "../src/lib/settlement-generator/rules";
+import { rollLayout } from "../src/lib/settlement-generator/layout";
 import { POPULATION_BANDS, roundPopulation } from "../src/lib/settlement-generator/population";
 
 /** A fixed sequence of rolls, repeated. */
@@ -370,5 +371,80 @@ describe("rules", () => {
     const picks = rollRules(RULES, { tone: "Grim", purposes: [] }, 3, seeded(1));
     expect(picks).toEqual(["a"]);
     expect(new Set(rollRules(RULES, { tone: "Lively", purposes: [] }, 3, seeded(2))).size).toBe(3);
+  });
+});
+
+describe("layout", () => {
+  /** A settlement and its layout, rolled like the tool does. */
+  const lay = (opts: Partial<SettlementOptions>, rng: Rng) => {
+    const s = gen(opts, rng);
+    return { s, layout: rollLayout(contextOf(s.inputs, s.purposes, s.origins), rng) };
+  };
+  const layMany = (opts: Partial<SettlementOptions>, n = 1500, seed = 3) => {
+    const rng = seeded(seed);
+    return Array.from({ length: n }, () => lay(opts, rng));
+  };
+
+  it("rolls a whole layout for every type, geography and climate", () => {
+    const rng = seeded(31);
+    for (const type of SETTLEMENT_TYPES)
+      for (const geography of GEOGRAPHIES)
+        for (const climate of CLIMATES)
+          for (let i = 0; i < 3; i++) {
+            const { layout } = lay({ type, geography, climate }, rng);
+            expect(new Set(layout.roads.map((r) => r.from)).size).toBe(layout.roads.length);
+            expect(new Set(layout.outlying).size).toBe(layout.outlying.length);
+          }
+  });
+
+  it("keeps docks by the water and bridges where there is something to cross", () => {
+    for (const geography of ["Plains", "Desert", "Oasis", "Steppe", "Tundra", "Hills"] as const)
+      for (const { layout } of layMany({ geography }, 200)) expect(layout.docks).toBeNull();
+    for (const { layout } of layMany({ geography: "Coast" }, 300)) expect(layout.docks).not.toBeNull();
+    for (const { s, layout } of layMany({ geography: "Desert" }, 300))
+      if (s.origins.founding !== "Ford" && s.origins.recentChange !== "Destroyed Bridge") expect(layout.bridges).toBeNull();
+    for (const { s, layout } of layMany({ geography: "Riverbank" }, 1500)) if (s.origins.recentChange === "Destroyed Bridge") expect(layout.bridges).toBe("Broken Bridge");
+  });
+
+  it("follows the place: tunnels underground, oasis pools in oases, sea lanes to islands", () => {
+    const share2 = <T,>(list: T[], test: (x: T) => boolean) => list.filter(test).length / list.length;
+    const under = layMany({ geography: "Underground" });
+    expect(share2(under, ({ layout }) => layout.streets === "Tunnels and Galleries")).toBeGreaterThan(0.6);
+    expect(share2(under, ({ layout }) => layout.materials === "Carved Rock")).toBeGreaterThan(0.6);
+    for (const { layout } of under) expect(["Timber and Thatch", "Mud Brick", "Sod and Turf"]).not.toContain(layout.materials);
+    expect(share2(layMany({ geography: "Oasis" }), ({ layout }) => layout.waterSource === "Oasis Pool")).toBeGreaterThan(0.6);
+    expect(share2(layMany({ geography: "Island" }), ({ layout }) => layout.roads.some((r) => r.kind === "Sea Lane" || r.kind === "Ferry Landing"))).toBeGreaterThan(0.8);
+    expect(share2(layMany({ geography: "Swamp", type: "Village" }), ({ layout }) => layout.streets === "Stilt Walkways")).toBeGreaterThan(0.4);
+  });
+
+  it("follows the origins and the people", () => {
+    const share2 = <T,>(list: T[], test: (x: T) => boolean) => list.filter(test).length / list.length;
+    const towns = layMany({ type: "Town" }, 3000);
+    const grid = (planned: boolean) => share2(towns.filter(({ s }) => (s.origins.growth === "Planned") === planned), ({ layout }) => layout.streets === "Grid");
+    expect(grid(true)).toBeGreaterThan(grid(false) * 5);
+    const packed = (overcrowded: boolean) => share2(towns.filter(({ s }) => (s.origins.condition === "Overcrowded") === overcrowded), ({ layout }) => layout.density === "Packed");
+    expect(packed(true)).toBeGreaterThan(packed(false) * 3);
+    for (const { layout } of layMany({ type: "Homestead" }, 500)) {
+      expect(layout.roads.length).toBe(1);
+      expect(["Market Square", "Palace", "Guildhall", "Keep"]).not.toContain(layout.center);
+      expect(["Sewers", "Public Bathhouses", "Night-Soil Carts"]).not.toContain(layout.sanitation);
+    }
+    for (const { layout } of layMany({ type: "Metropolis" }, 300)) expect(layout.roads.length).toBeGreaterThanOrEqual(6);
+    const rich = layMany({ type: "City", prosperity: "Exceptionally Rich" });
+    const poor = layMany({ type: "City", prosperity: "Destitute" });
+    const stone = (list: typeof rich) => share2(list, ({ layout }) => layout.materials === "Dressed Stone");
+    expect(stone(rich)).toBeGreaterThan(stone(poor) * 5);
+    for (const { layout } of layMany({ type: "Encampment" }, 500))
+      expect(["Market Square", "Palace", "Guildhall", "Village Green", "Communal Well", "Farmyard", "Crossroads Inn"]).not.toContain(layout.center);
+  });
+
+  it("never shows a mine head where nobody mines", () => {
+    for (const { s, layout } of layMany({ geography: "Plains" }, 2000)) {
+      const mining = s.purposes.primary === "Mining" || s.purposes.secondary.includes("Mining") || s.origins.founding === "Mineral Deposit";
+      if (!mining) {
+        expect(layout.center).not.toBe("Mine Head");
+        expect(layout.outlying).not.toContain("Mine Head");
+      }
+    }
   });
 });
