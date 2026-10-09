@@ -849,6 +849,9 @@ function ZoneSvg(props: SvgProps) {
             key={zone.id}
             className={zone.id === props.pulseId ? "scene-focus-pulse" : undefined}
             style={{ pointerEvents: clickable ? "auto" : "none", cursor: clickable ? "move" : "default" }}
+            // While nothing is selected the map's own pan is on, and its pointerdown would
+            // swallow this press (no mousedown follows): a press on a zone stays the zone's.
+            onPointerDown={clickable ? (e) => e.button === 0 && e.stopPropagation() : undefined}
             onMouseDown={clickable ? (e) => props.onZoneMouseDown?.(zone, e) : undefined}
           >
             <ZoneShapeScaled zone={zone} geom={geom} areaPath={cached?.areaPath ?? null} strokeScale={strokeScale} />
