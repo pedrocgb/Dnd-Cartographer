@@ -216,23 +216,41 @@ export default function ColorWheel({ value, mixed = false, onChange }: { value: 
             }}
           />
         </label>
+      </div>
 
-        <div className="color-wheel-rgb">
-          {(["R", "G", "B"] as const).map((label, i) => (
-            <label key={label} className="color-wheel-field">
-              <span className="field-label">{label}</span>
-              <input
-                type="number"
-                min={0}
-                max={255}
-                value={showMixed ? "" : rgb[i]}
-                placeholder={showMixed ? "–" : undefined}
-                onChange={(e) => updateRgbChannel(i as 0 | 1 | 2, e.target.value)}
-              />
-            </label>
-          ))}
-        </div>
+      <div className="color-wheel-rgb">
+        {(["R", "G", "B"] as const).map((label, i) => (
+          <label key={label} className="color-wheel-field">
+            <span className="field-label">{label}</span>
+            <ChannelInput value={rgb[i]} mixed={showMixed} onCommit={(raw) => updateRgbChannel(i as 0 | 1 | 2, raw)} />
+          </label>
+        ))}
       </div>
     </div>
+  );
+}
+
+/**
+ * One RGB channel (0–255), typed in: digits only, no spinner. It can be
+ * emptied while typing; leaving the field shows the color's value again.
+ */
+function ChannelInput({ value, mixed, onCommit }: { value: number; mixed: boolean; onCommit: (raw: string) => void }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      maxLength={3}
+      value={draft ?? (mixed ? "" : String(value))}
+      placeholder={mixed ? "–" : undefined}
+      onFocus={(e) => e.currentTarget.select()}
+      onChange={(e) => {
+        const digits = e.target.value.replace(/\D/g, "");
+        setDraft(digits);
+        if (digits !== "") onCommit(digits);
+      }}
+      onBlur={() => setDraft(null)}
+      onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+    />
   );
 }

@@ -5080,6 +5080,7 @@ input[type="range"]::-moz-range-track {
 
 .color-wheel {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-3);
   align-items: flex-start;
 }
@@ -5129,10 +5130,20 @@ input[type="range"]::-moz-range-track {
   border: 1px solid var(--border-default);
 }
 
+/* Its own row under the wheel, so three digits always fit. */
 .color-wheel-rgb {
+  flex: 1 1 100%;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-2);
+}
+
+/* Room for three digits in a narrow column. */
+.color-wheel-rgb input[type="text"] {
+  min-width: 0;
+  padding: 4px 2px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---------- Markers panel: list (left) and icon filter (right), like .zones-panel ---------- */
