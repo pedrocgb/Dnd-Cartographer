@@ -9,7 +9,9 @@ import MapScaleBar from "./MapScaleBar";
 import MeasureLayer, { type MeasureMode } from "./MeasureLayer";
 import LegendPanel from "./LegendPanel";
 import ScaleToolBar from "@/components/map-tools/ScaleToolBar";
-import TravelPanel, { routeLabel, useTravelDraft } from "./TravelPanel";
+import TravelPanel from "./TravelPanel";
+import { routeLabel, routeLabelIn, useTravelDraft } from "./travel-fields";
+import TravelToolBar from "@/components/map-tools/TravelToolBar";
 import RouteLayer from "./RouteLayer";
 import { useScreenOverlay } from "@/components/use-screen-overlay";
 import { OVERLAY_Z } from "@/components/osd-overlay-stack";
@@ -265,6 +267,18 @@ export default function MapHud({
           activeLayerId={activeLayerId}
           layerName={layerName}
           routes={routes}
+          draft={draft}
+          onOpenScale={onOpenScalePanel}
+          onClose={onCloseTravelPanel}
+        />
+      )}
+      {travelPanelOpen && routes.loaded && scaleLoaded && (
+        <TravelToolBar
+          inset={inset}
+          config={scaleBar.config}
+          layers={layers}
+          activeLayerId={activeLayerId}
+          routes={routes}
           drawing={drawingDraft}
           onToggleDrawing={() => {
             if (drawingDraft) {
@@ -285,8 +299,8 @@ export default function MapHud({
           onDraftChange={setDraft}
           planOf={planOf}
           livePlan={livePx > 0 ? planTravel(milesOf(livePx, drawSettings), drawSettings) : null}
+          labelOf={(route) => routeLabelIn(route, layerRoutes, routes.groups, activeLayerId)}
           onOpenScale={onOpenScalePanel}
-          onClose={onCloseTravelPanel}
         />
       )}
       {areaPanelOpen && scaleLoaded && (
