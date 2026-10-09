@@ -1495,6 +1495,65 @@ textarea::placeholder {
   margin-top: var(--space-2);
 }
 
+/* The icon filter's groups, folded like folders */
+.icon-filter-folder {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.icon-filter-folder-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.icon-filter-folder-head:hover:not(:disabled) {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+.icon-filter-folder-head:disabled {
+  cursor: default;
+}
+
+.icon-filter-folder-head svg {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+}
+
+.icon-filter-folder.open .icon-filter-folder-head svg {
+  color: var(--teal-300);
+}
+
+.icon-filter-folder-name {
+  flex: 1 1 auto;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.icon-filter-folder-count {
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+  font-weight: 400;
+}
+
+.icon-filter-folder .icon-filter-list {
+  padding-left: var(--space-4);
+}
+
 .icon-grid button.active {
   border-color: var(--teal-500);
   background: var(--teal-900);

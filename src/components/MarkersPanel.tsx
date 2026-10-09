@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, ArrowDownAZ, ArrowUpZA, Filter, MapPinned, Search, X } from "lucide-react";
+import { useMemo, useState, useSyncExternalStore } from "react";
+import { ChevronDown, ChevronRight, ChevronUp, ArrowDownAZ, ArrowUpZA, Filter, Folder, FolderOpen, MapPinned, Search, X } from "lucide-react";
 import { RawIcon } from "./MarkerIcon";
 import { ICONS, MARKER_CATEGORIES, DEFAULT_MARKER_CATEGORY, groupIcons, iconGroupLabel, iconLabel, markerCategoryLabel, searchIcons } from "@/server/markers/icon-registry";
 import { STATUS_TAGS, ENVIRONMENT_TAGS, OWNERSHIP_TAGS, markerTagLabel } from "@/server/markers/tag-registry";
 import { useToggleSet } from "./useToggleSet";
+import { parseIdList, readStored, subscribeToStorage, writeStored } from "./stored";
 import type { Marker } from "./MarkerLayer";
 import type { MapLayerData } from "./layer-images";
 import { useT } from "@/i18n/useT";
@@ -306,6 +307,9 @@ function MarkersList({ markers, layers, onSelect }: { markers: Marker[]; layers:
   );
 }
 
+const OPEN_ICON_GROUPS_KEY = "markers-icon-groups-open";
+const readOpenIconGroups = () => readStored(OPEN_ICON_GROUPS_KEY);
+
 /** Right column: which icons show on the map (never changes marker data). */
 function IconFilter({
   selected,
@@ -323,6 +327,18 @@ function IconFilter({
   const tm = useT("maps");
   const [query, setQuery] = useState("");
   const groups = groupIcons(searchIcons(query));
+  // Icon groups fold like folders: closed until opened, and remembered (per browser).
+  const storedOpen = useSyncExternalStore(subscribeToStorage, readOpenIconGroups, () => null);
+  const [changedOpen, setChangedOpen] = useState<Set<string> | null>(null);
+  const openGroups = useMemo(() => changedOpen ?? parseIdList(storedOpen), [changedOpen, storedOpen]);
+  const toggleGroup = (group: string) => {
+    const next = new Set(openGroups);
+    if (!next.delete(group)) next.add(group);
+    setChangedOpen(next);
+    writeStored(OPEN_ICON_GROUPS_KEY, JSON.stringify([...next]));
+  };
+  // While searching, every group with a match shows open (without changing what's remembered).
+  const searching = query.trim().length > 0;
   return (
     <>
       <p className="field-label">{tm("markers.iconHint")}</p>
@@ -341,9 +357,20 @@ function IconFilter({
         <input type="text" value={query} placeholder={tm("markers.searchIcons")} aria-label={tm("markers.searchIcons")} onChange={(e) => setQuery(e.target.value)} />
       </label>
 
-      {groups.map(({ group, icons }) => (
-        <section key={group} className="icon-picker-group" aria-label={iconGroupLabel(group)}>
-          <h4>{iconGroupLabel(group)}</h4>
+      {groups.map(({ group, icons }) => {
+        const open = searching || openGroups.has(group);
+        const shown = icons.filter((icon) => selected.has(icon.key)).length;
+        return (
+        <section key={group} className={open ? "icon-filter-folder open" : "icon-filter-folder"} aria-label={iconGroupLabel(group)}>
+          <button type="button" className="icon-filter-folder-head" aria-expanded={open} disabled={searching} onClick={() => toggleGroup(group)}>
+            {open ? <ChevronDown size={14} aria-hidden /> : <ChevronRight size={14} aria-hidden />}
+            {open ? <FolderOpen size={15} aria-hidden /> : <Folder size={15} aria-hidden />}
+            <span className="icon-filter-folder-name">{iconGroupLabel(group)}</span>
+            <span className="icon-filter-folder-count" data-tooltip={tm("markers.groupShownHint")}>
+              {tm("markers.groupShown", { shown, total: icons.length })}
+            </span>
+          </button>
+          {open && (
           <ul className="icon-filter-list">
             {icons.map((icon) => {
               const active = selected.has(icon.key);
@@ -362,8 +389,10 @@ function IconFilter({
               );
             })}
           </ul>
+          )}
         </section>
-      ))}
+        );
+      })}
     </>
   );
 }
