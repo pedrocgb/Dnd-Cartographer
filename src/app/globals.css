@@ -15479,6 +15479,7 @@ button.app-nav-menu-item {
 }
 /* With a tool bar on the map, the hint sits just above it, like the bar's caption. */
 .viewer-canvas-area:has(.tool-bar-dock) .measure-hint {
+  left: var(--tool-bar-center, 50%);
   bottom: calc(var(--space-4) + 54px);
 }
 .measure-calibrate {

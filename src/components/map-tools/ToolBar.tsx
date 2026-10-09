@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronUp, Eye, EyeOff, Folder, Lock, LockOpen, Trash2, type LucideIcon } from "lucide-react";
 import { formatInteger } from "@/server/settings/number-format";
@@ -13,16 +13,57 @@ const ICON = { size: 16, strokeWidth: 2.25 } as const;
 /** The bar's buttons that take focus, in order. */
 const focusables = (bar: HTMLElement) => [...bar.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")];
 
+/** Gap kept between the bar and the side panel or the map's right edge (px). */
+const EDGE_GAP = 12;
+
 /**
- * A map tool's bar, floating at the bottom of the map (centered on the part
- * the side panel leaves free): its modes first, then what the selected item
- * can change. One Tab stop (WAI-ARIA toolbar): the arrow keys, Home and End
+ * Where the bar's center goes, in its map area's coordinates: under the
+ * middle of the window, unless that would put it over the side panel or
+ * past the map's right edge. Followed on window and map resizes (a sidebar
+ * collapsing moves the map without resizing the window), and shared with
+ * the map's drawing hints (`--tool-bar-center`) so they stay above the bar.
+ */
+function useScreenCenter(dock: React.RefObject<HTMLDivElement | null>, inset: number): number | null {
+  const [center, setCenter] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const el = dock.current;
+    const area = el?.offsetParent as HTMLElement | null;
+    if (!el || !area) return;
+    function measure() {
+      const rect = area!.getBoundingClientRect();
+      const half = el!.offsetWidth / 2;
+      const min = inset + half + EDGE_GAP;
+      const max = rect.width - half - EDGE_GAP;
+      const next = Math.max(min, Math.min(window.innerWidth / 2 - rect.left, max));
+      area!.style.setProperty("--tool-bar-center", `${next}px`);
+      setCenter(next);
+    }
+    measure();
+    const resize = new ResizeObserver(measure);
+    resize.observe(area);
+    resize.observe(el);
+    window.addEventListener("resize", measure);
+    return () => {
+      resize.disconnect();
+      window.removeEventListener("resize", measure);
+      area.style.removeProperty("--tool-bar-center");
+    };
+  }, [dock, inset]);
+  return center;
+}
+
+/**
+ * A map tool's bar, floating at the bottom of the map, centered on the
+ * window (clear of the side panel): its modes first, then what the selected
+ * item can change. One Tab stop (WAI-ARIA toolbar): the arrow keys, Home and End
  * move between its buttons. `caption`, above the bar, says what the armed
  * mode will do.
  */
 export function ToolBar({ label, inset, caption, children }: { label: string; inset: number; caption?: ReactNode; children: ReactNode }) {
   const bar = useRef<HTMLDivElement>(null);
+  const dock = useRef<HTMLDivElement>(null);
   const current = useRef<HTMLButtonElement | null>(null);
+  const center = useScreenCenter(dock, inset);
 
   // Buttons come and go with the selection: keep exactly one of them tabbable.
   useEffect(() => {
@@ -51,7 +92,7 @@ export function ToolBar({ label, inset, caption, children }: { label: string; in
   }
 
   return (
-    <div className="tool-bar-dock" style={{ left: `calc(${inset}px + (100% - ${inset}px) / 2)`, maxWidth: `calc(100% - ${inset}px - 24px)` }}>
+    <div ref={dock} className="tool-bar-dock" style={{ left: center === null ? `calc(${inset}px + (100% - ${inset}px) / 2)` : `${center}px`, maxWidth: `calc(100% - ${inset}px - ${EDGE_GAP * 2}px)` }}>
       {caption && <p className="tool-bar-caption">{caption}</p>}
       <div ref={bar} className="tool-bar" role="toolbar" aria-label={label} onFocus={onFocus} onKeyDown={onKeyDown}>
         {children}
