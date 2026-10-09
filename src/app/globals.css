@@ -17761,6 +17761,34 @@ button.app-nav-menu-item {
   font-size: var(--text-sm);
 }
 
+/* Settlement Generator */
+.settlement-result {
+  scroll-margin-top: var(--space-4);
+}
+.settlement-result .settings-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.settlement-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.settlement-section h4 {
+  margin: 0 0 var(--space-2);
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.settlement-summary {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}
 /* Weather Generator */
 .weather-icon {
   color: var(--brass-300);

@@ -13,6 +13,7 @@ import enNav from "./en-US/nav.json";
 import enPolitics from "./en-US/politics.json";
 import enRelations from "./en-US/relations.json";
 import enSettings from "./en-US/settings.json";
+import enSettlement from "./en-US/settlement.json";
 import enShortcuts from "./en-US/shortcuts.json";
 import enTools from "./en-US/tools.json";
 import enWeather from "./en-US/weather.json";
@@ -33,6 +34,7 @@ import ptNav from "./pt-BR/nav.json";
 import ptPolitics from "./pt-BR/politics.json";
 import ptRelations from "./pt-BR/relations.json";
 import ptSettings from "./pt-BR/settings.json";
+import ptSettlement from "./pt-BR/settlement.json";
 import ptShortcuts from "./pt-BR/shortcuts.json";
 import ptTools from "./pt-BR/tools.json";
 import ptWeather from "./pt-BR/weather.json";
@@ -45,14 +47,14 @@ import ptWriter from "./pt-BR/writer.json";
  * re-renders at once (no fetch). en-US is the source: its keys type `t()`.
  * New namespace: add its JSON in both folders and one line per locale here.
  */
-const EN = { articles: enArticles, calendars: enCalendars, campaign: enCampaign, character: enCharacter, common: enCommon, editor: enEditor, errors: enErrors, icons: enIcons, info: enInfo, maps: enMaps, nav: enNav, politics: enPolitics, relations: enRelations, settings: enSettings, shortcuts: enShortcuts, tools: enTools, trash: enTrash, weather: enWeather, worlds: enWorlds, writer: enWriter };
+const EN = { articles: enArticles, calendars: enCalendars, campaign: enCampaign, character: enCharacter, common: enCommon, editor: enEditor, errors: enErrors, icons: enIcons, info: enInfo, maps: enMaps, nav: enNav, politics: enPolitics, relations: enRelations, settings: enSettings, settlement: enSettlement, shortcuts: enShortcuts, tools: enTools, trash: enTrash, weather: enWeather, worlds: enWorlds, writer: enWriter };
 
 export type Namespace = keyof typeof EN;
 export type Dictionary = Record<string, string>;
 
 export const MESSAGES: Record<Locale, { [N in Namespace]: Dictionary }> = {
   "en-US": EN,
-  "pt-BR": { articles: ptArticles, calendars: ptCalendars, campaign: ptCampaign, character: ptCharacter, common: ptCommon, editor: ptEditor, errors: ptErrors, icons: ptIcons, info: ptInfo, maps: ptMaps, nav: ptNav, politics: ptPolitics, relations: ptRelations, settings: ptSettings, shortcuts: ptShortcuts, tools: ptTools, trash: ptTrash, weather: ptWeather, worlds: ptWorlds, writer: ptWriter },
+  "pt-BR": { articles: ptArticles, calendars: ptCalendars, campaign: ptCampaign, character: ptCharacter, common: ptCommon, editor: ptEditor, errors: ptErrors, icons: ptIcons, info: ptInfo, maps: ptMaps, nav: ptNav, politics: ptPolitics, relations: ptRelations, settings: ptSettings, settlement: ptSettlement, shortcuts: ptShortcuts, tools: ptTools, trash: ptTrash, weather: ptWeather, worlds: ptWorlds, writer: ptWriter },
 };
 
 type PluralSuffix = "zero" | "one" | "other";

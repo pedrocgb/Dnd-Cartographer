@@ -16,7 +16,8 @@
     "backup": "node scripts/backup.mjs",
     "restore": "node scripts/restore.mjs",
     "cleanup": "node scripts/cleanup-orphans.mjs",
-    "names:build": "tsx scripts/build-name-collections.mts"
+    "names:build": "tsx scripts/build-name-collections.mts",
+    "settlement-names:build": "tsx scripts/build-settlement-names.mts"
   },
   "dependencies": {
     "@floating-ui/dom": "^1.8.0",

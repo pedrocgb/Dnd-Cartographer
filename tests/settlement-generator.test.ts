@@ -2,15 +2,21 @@ import { describe, it, expect } from "vitest";
 import { LOCALES, type Locale } from "../src/i18n/config";
 import { expand } from "../src/lib/character-on-demand/backstory/grammar";
 import { NARRATIVES, slotKey, writeSummary } from "../src/lib/settlement-generator/narrative";
+import type { LabelGroup } from "../src/lib/settlement-generator/labels";
+import { MESSAGES } from "../src/i18n/messages";
 import { pick, randInt, weightedPick, type Rng } from "../src/lib/random";
 import { generateSettlement, type GeneratedSettlement } from "../src/lib/settlement-generator/generate";
 import { resolveInputs } from "../src/lib/settlement-generator/inputs";
-import { PLACEHOLDER_NAMES, pickName } from "../src/lib/settlement-generator/names";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { pickName, type NamePool } from "../src/lib/settlement-generator/names";
+import { parseNameList } from "../src/lib/settlement-generator/parse-names";
 import {
   AGES,
   CLIMATES,
   CONDITIONS,
   DEFAULT_OPTIONS,
+  FOUNDINGS,
   GROWTHS,
   PURPOSES,
   RECENT_CHANGES,
@@ -42,9 +48,15 @@ function seeded(seed: number): Rng {
   };
 }
 
+const POOL: NamePool = [{ tags: [], names: ["Testford", "Mockham"] }];
+
+/** Resolves the options and rolls, like the tool does. */
+const gen = (opts: Partial<SettlementOptions>, rng: Rng, locale: Locale = "en-US") =>
+  generateSettlement(resolveInputs({ ...DEFAULT_OPTIONS, ...opts }, rng), POOL, rng, locale);
+
 function rollMany(opts: Partial<SettlementOptions>, n = 2000, seed = 1): GeneratedSettlement[] {
   const rng = seeded(seed);
-  return Array.from({ length: n }, () => generateSettlement({ ...DEFAULT_OPTIONS, ...opts }, PLACEHOLDER_NAMES, rng, "en-US"));
+  return Array.from({ length: n }, () => gen(opts, rng));
 }
 
 const share = (list: GeneratedSettlement[], test: (s: GeneratedSettlement) => boolean) => list.filter(test).length / list.length;
@@ -121,7 +133,7 @@ describe("generateSettlement", () => {
     for (const type of SETTLEMENT_TYPES)
       for (const geography of GEOGRAPHIES)
         for (const climate of CLIMATES) {
-          const s = generateSettlement({ ...DEFAULT_OPTIONS, type, geography, climate }, PLACEHOLDER_NAMES, rng, "en-US");
+          const s = gen({ type, geography, climate }, rng);
           const [min, max] = POPULATION_BANDS[type];
           expect(s.population).toBeGreaterThanOrEqual(min);
           expect(s.population).toBeLessThanOrEqual(max);
@@ -197,10 +209,58 @@ describe("generateSettlement", () => {
 });
 
 describe("names and numbers", () => {
-  it("favors names whose tags match", () => {
+  const CAMPS: NamePool = [
+    { tags: ["Military"], names: ["Spear Camp", "Shield Camp"] },
+    { tags: ["Mining"], names: ["Pick Camp", "Ore Camp"] },
+    { tags: ["Trade"], names: ["Caravan Rest", "Market Tents"] },
+  ];
+
+  it("favors names whose group fits the primary purpose", () => {
     const rng = seeded(8);
-    const picks = Array.from({ length: 2000 }, () => pickName(PLACEHOLDER_NAMES, ["Coast", "Port"], rng));
-    expect(picks.filter((n) => n === "Gullhaven" || n === "Saltmere").length / picks.length).toBeGreaterThan(0.3);
+    const picks = Array.from({ length: 3000 }, () => pickName(CAMPS, { primary: "Mining", secondary: [] }, rng));
+    expect(picks.filter((n) => n.endsWith("Ore Camp") || n === "Pick Camp").length / picks.length).toBeGreaterThan(0.7);
+    expect(new Set(picks).size).toBe(6);
+  });
+
+  it("steers clear of names to avoid, unless nothing else comes up", () => {
+    const rng = seeded(9);
+    const picks = Array.from({ length: 2000 }, () => pickName(POOL, { primary: "Farming", secondary: [] }, rng, new Set(["Testford"])));
+    // Each pick rerolls a few times: with half the pool avoided, ~1/64 slip through.
+    expect(picks.filter((n) => n === "Testford").length / picks.length).toBeLessThan(0.05);
+    expect(pickName([{ tags: [], names: ["Only"] }], { primary: "Farming", secondary: [] }, rng, new Set(["Only"]))).toBe("Only");
+  });
+
+  it("parses a name list: category, sections, numbered rows only, no duplicates", () => {
+    const md = [
+      "# Title",
+      "**Category:** Encampment  ",
+      "## Military and garrison",
+      "| No. | Name | Category | Camp type |",
+      "| ---: | --- | --- | --- |",
+      "| 1 | Ashbanner Camp | Encampment | Military |",
+      "| 2 | ashbanner camp | Encampment | Military |",
+      "## Mining and quarry",
+      "| 3 | Pick \\| Shovel | Encampment | Mining |",
+      "## Sources",
+      "- [S01](https://example.com)",
+    ].join("\n");
+    const { category, sections } = parseNameList(md);
+    expect(category).toBe("Encampment");
+    expect([...sections]).toEqual([
+      ["Military and garrison", ["Ashbanner Camp"]],
+      ["Mining and quarry", ["Pick | Shovel"]],
+    ]);
+  });
+
+  it("has a built name list for every type", () => {
+    for (const type of SETTLEMENT_TYPES) {
+      const file = path.join(import.meta.dirname, "../src/lib/settlement-generator/names", `${type.toLowerCase()}.json`);
+      const pool = JSON.parse(readFileSync(file, "utf8")) as NamePool;
+      const names = pool.flatMap((g) => g.names);
+      expect(names.length, type).toBeGreaterThanOrEqual(200);
+      expect(new Set(names.map((n) => n.toLowerCase())).size, type).toBe(names.length);
+      for (const g of pool) for (const tag of g.tags) expect(PURPOSES).toContain(tag);
+    }
   });
 
   it("rounds populations like people say them", () => {
@@ -250,7 +310,7 @@ describe("summary", () => {
     const rng = seeded(21);
     for (const locale of LOCALES)
       for (let i = 0; i < 300; i++) {
-        const s = generateSettlement(DEFAULT_OPTIONS, PLACEHOLDER_NAMES, rng, locale);
+        const s = gen({}, rng, locale);
         expect(s.locale).toBe(locale);
         expect(s.summary.startsWith(s.name)).toBe(true);
         expect(s.summary).not.toMatch(/[{}|\u0001]/);
@@ -267,5 +327,27 @@ describe("summary", () => {
     expect(camp).toContain("Foi fundado entre ruínas élficas, com as primeiras casas erguidas das pedras caídas.");
     expect(writeSummary({ ...base, inputs: { ...inputs, type: "City" }, origins }, "pt-BR", rolls(0))).toContain("uma cidade mineradora superlotada");
     expect(writeSummary({ ...base, inputs, origins }, "en-US", rolls(0))).toContain("Pedravelha is an overcrowded mining hamlet among rolling hills.");
+  });
+});
+
+describe("labels", () => {
+  it("words every value a settlement can hold, in every language", () => {
+    const groups: Record<LabelGroup, readonly string[]> = {
+      type: SETTLEMENT_TYPES,
+      geography: GEOGRAPHIES,
+      climate: [...CLIMATES, "Subterranean"],
+      prosperity: PROSPERITIES,
+      tone: TONES,
+      purpose: PURPOSES,
+      founding: FOUNDINGS,
+      detail: Object.values(FOUNDING_DETAILS).flat(),
+      age: AGES,
+      growth: GROWTHS,
+      condition: CONDITIONS,
+      change: RECENT_CHANGES,
+    };
+    for (const locale of LOCALES)
+      for (const [group, values] of Object.entries(groups))
+        for (const value of values) expect(Object.hasOwn(MESSAGES[locale].settlement, `${group}.${value}`), `${locale} ${group}.${value}`).toBe(true);
   });
 });

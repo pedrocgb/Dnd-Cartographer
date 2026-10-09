@@ -1,39 +1,51 @@
-import { weightedPick, type Rng } from "../random";
+import { pick, weightedPick, type Rng } from "../random";
+import type { Purpose, SettlementType } from "./options";
 
-/** A settlement name and the themes it suits (geographies, climates, purposes…), lower case. */
-export interface SettlementName {
-  name: string;
-  tags: readonly string[];
+/** Names that suit the same purposes (empty `tags`: any settlement of the type). */
+export interface NameGroup {
+  tags: readonly Purpose[];
+  names: readonly string[];
+}
+/** One settlement type's names, built from docs/settlements-names-list. */
+export type NamePool = readonly NameGroup[];
+
+/** How much more likely a group is when its tags match the primary or a secondary purpose. */
+const PRIMARY_BONUS = 8;
+const SECONDARY_BONUS = 2;
+/** Rerolls before accepting a recently used name. */
+const AVOID_TRIES = 6;
+
+/**
+ * Picks a name: first a group, weighted by its size and by how well its tags
+ * fit the purposes, then any name in it. Constant work per pick whatever the
+ * list's size. Names in `avoid` (e.g. the recent ones) are rerolled a few times.
+ */
+export function pickName(
+  pool: NamePool,
+  purposes: { primary: Purpose; secondary: readonly Purpose[] },
+  rng: Rng,
+  avoid: ReadonlySet<string> = new Set()
+): string {
+  const fit = (g: NameGroup) =>
+    1 + (g.tags.includes(purposes.primary) ? PRIMARY_BONUS : 0) + (g.tags.some((t) => purposes.secondary.includes(t)) ? SECONDARY_BONUS : 0);
+  const groups = pool.map((g) => [g, g.names.length * fit(g)] as const);
+  let name = "";
+  for (let i = 0; i < AVOID_TRIES; i++) {
+    name = pick(weightedPick(groups, rng).names, rng);
+    if (!avoid.has(name)) break;
+  }
+  return name;
 }
 
-/** Stand-in pool until the tagged name list is imported. */
-export const PLACEHOLDER_NAMES: readonly SettlementName[] = [
-  { name: "Saltmere", tags: ["coast", "fishing", "port"] },
-  { name: "Gullhaven", tags: ["coast", "island", "port"] },
-  { name: "Ironhollow", tags: ["mountains", "hills", "mining"] },
-  { name: "Greyspire", tags: ["mountains", "military"] },
-  { name: "Millford", tags: ["riverbank", "farming", "crafting"] },
-  { name: "Reedwater", tags: ["swamp", "river delta", "fishing"] },
-  { name: "Thornwood", tags: ["forest", "logging", "hunting"] },
-  { name: "Sunwell", tags: ["oasis", "desert", "arid", "trade"] },
-  { name: "Frosthold", tags: ["tundra", "polar", "hunting"] },
-  { name: "Ashfall", tags: ["volcanic", "mining"] },
-  { name: "Deepdelve", tags: ["underground", "mining"] },
-  { name: "Brightmeadow", tags: ["plains", "valley", "farming", "peaceful"] },
-  { name: "Windrest", tags: ["steppe", "plains", "herding"] },
-  { name: "Stillwater", tags: ["lake shore", "fishing", "peaceful"] },
-  { name: "Redcliff", tags: ["canyon", "hills"] },
-  { name: "Kingsbridge", tags: ["riverbank", "trade", "administrative"] },
-];
+const cache = new Map<SettlementType, Promise<NamePool>>();
 
-/** How much more likely a name is for each of its tags that matches the settlement. */
-const MATCH_BONUS = 3;
-
-/** Picks a name, favoring those whose tags match the settlement's themes; any name can still come up. */
-export function pickName(pool: readonly SettlementName[], themes: readonly string[], rng: Rng): string {
-  const wanted = new Set(themes.map((t) => t.toLowerCase()));
-  return weightedPick(
-    pool.map((n) => [n.name, 1 + MATCH_BONUS * n.tags.filter((t) => wanted.has(t)).length] as const),
-    rng
-  );
+/** One type's names, fetched as its own chunk the first time it's needed. */
+export function loadNamePool(type: SettlementType): Promise<NamePool> {
+  let pool = cache.get(type);
+  if (!pool) {
+    pool = import(`./names/${type.toLowerCase()}.json`).then((m: { default: NamePool }) => m.default);
+    pool.catch(() => cache.delete(type));
+    cache.set(type, pool);
+  }
+  return pool;
 }

@@ -1,10 +1,9 @@
 import type { Locale } from "../../i18n/config";
 import { activeSettings } from "../../server/settings/active";
 import type { Rng } from "../random";
-import { resolveInputs, type InputField, type ResolvedInputs } from "./inputs";
-import { pickName, type SettlementName } from "./names";
+import type { InputField, ResolvedInputs } from "./inputs";
+import { pickName, type NamePool } from "./names";
 import { writeSummary } from "./narrative";
-import type { SettlementOptions } from "./options";
 import { rollOrigins, type Origins } from "./origins";
 import { rollPopulation } from "./population";
 import { rollPurposes, type Purposes } from "./purposes";
@@ -25,21 +24,22 @@ export interface GeneratedSettlement {
 }
 
 /**
- * Rolls a settlement. The inputs come first, then everything else follows
- * from them in order: purposes, origins and condition, population, name,
- * and a summary in the active language by default.
+ * Rolls a settlement from resolved inputs (see resolveInputs; the type's
+ * names must be loaded for it). Everything follows from the inputs in order:
+ * purposes, origins and condition, population, name, and a summary in the
+ * active language by default. `avoid` holds names to steer clear of.
  */
 export function generateSettlement(
-  opts: SettlementOptions,
-  names: readonly SettlementName[],
+  { inputs, randomized }: { inputs: ResolvedInputs; randomized: InputField[] },
+  names: NamePool,
   rng: Rng = Math.random,
-  locale: Locale = activeSettings().language
+  locale: Locale = activeSettings().language,
+  avoid: ReadonlySet<string> = new Set()
 ): GeneratedSettlement {
-  const { inputs, randomized } = resolveInputs(opts, rng);
   const purposes = rollPurposes(inputs, rng);
   const origins = rollOrigins(inputs, purposes, rng);
   const population = rollPopulation(inputs, origins.condition, rng);
-  const name = pickName(names, [...Object.values(inputs), purposes.primary, ...purposes.secondary], rng);
+  const name = pickName(names, purposes, rng, avoid);
   const summary = writeSummary({ name, inputs, purposes, origins }, locale, rng);
   return { version: 1, inputs, randomized, name, population, purposes, origins, summary, locale };
 }

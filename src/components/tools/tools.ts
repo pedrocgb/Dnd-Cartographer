@@ -1,8 +1,8 @@
-import { CloudSun, Dices, type LucideIcon } from "lucide-react";
+import { Castle, CloudSun, Dices, type LucideIcon } from "lucide-react";
 
 export interface Tool {
   /** Its key in the `tools` messages: `${id}.label`, `${id}.description`. */
-  id: "characterOnDemand" | "weather";
+  id: "characterOnDemand" | "weather" | "settlementGenerator";
   href: string;
   label: string;
   description: string;
@@ -13,4 +13,5 @@ export interface Tool {
 export const TOOLS: Tool[] = [
   { id: "characterOnDemand", href: "/tools/character-on-demand", label: "Character On Demand", description: "Random named characters", icon: Dices },
   { id: "weather", href: "/tools/weather", label: "Weather Generator", description: "Weather by climate and place", icon: CloudSun },
+  { id: "settlementGenerator", href: "/tools/settlement-generator", label: "Settlement Generator", description: "Whole settlements shaped by a mood", icon: Castle },
 ];
