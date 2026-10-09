@@ -17,6 +17,7 @@ import {
   type SettlementType,
   type Tone,
 } from "./options";
+import { rollRule, ruleAllowed, type Rule, type SettlementContext } from "./rules";
 import { factor, type Weights } from "./weights";
 
 export interface Origins {
@@ -303,150 +304,90 @@ const AGE_CONDITION: Weights<Age, Condition> = {
 
 // ── Recent change ───────────────────────────────────────────────────────────
 
-export interface ChangeContext {
-  inputs: ResolvedInputs;
-  purposes: Purposes;
-  founding: Founding;
-  condition: Condition;
-}
+/** What the recent change can depend on: everything rolled before it. */
+export type ChangeContext = Omit<SettlementContext, "recentChange">;
 
-interface ChangeRule {
-  key: RecentChange;
-  weight?: number;
-  /** When false, the change can't have happened here. */
-  requires?: (ctx: ChangeContext) => boolean;
-  condition?: Partial<Record<Condition, number>>;
-  tone?: Partial<Record<Tone, number>>;
-  prosperity?: Partial<Record<Prosperity, number>>;
-  geography?: Partial<Record<Geography, number>>;
-  /** Applied once for each of the settlement's purposes that is listed. */
-  purpose?: Partial<Record<Purpose, number>>;
-}
-
-const has = (ctx: ChangeContext, ...purposes: Purpose[]) =>
-  purposes.some((p) => ctx.purposes.primary === p || ctx.purposes.secondary.includes(p));
+const has = (ctx: ChangeContext, ...purposes: Purpose[]) => purposes.some((p) => ctx.purposes.includes(p));
 const mines = (ctx: ChangeContext) => has(ctx, "Mining") || ctx.founding === "Mineral Deposit";
-const notHomestead = (ctx: ChangeContext) => ctx.inputs.type !== "Homestead";
+const notHomestead = (ctx: ChangeContext) => ctx.type !== "Homestead";
 /** Too few people for prisons, informers or a court. */
-const beyondHamlet = (ctx: ChangeContext) => ctx.inputs.type !== "Homestead" && ctx.inputs.type !== "Hamlet";
+const beyondHamlet = (ctx: ChangeContext) => ctx.type !== "Homestead" && ctx.type !== "Hamlet";
 const WATERSIDE: readonly Geography[] = ["Coast", "Riverbank", "Lake Shore", "Island", "River Delta", "Swamp", "Valley"];
 const BRIDGED: readonly Geography[] = ["Riverbank", "River Delta", "Canyon", "Valley", "Swamp"];
 
-const CHANGES: readonly ChangeRule[] = [
-  { key: "New Ruler", requires: notHomestead, condition: { Rebuilding: 2, Stable: 1.2 }, tone: { Oppressive: 1.5 } },
+const CHANGES: readonly Rule<RecentChange, ChangeContext>[] = [
+  { key: "New Ruler", requires: notHomestead, by: { condition: { Rebuilding: 2, Stable: 1.2 }, tone: { Oppressive: 1.5 } } },
   {
     key: "Failed Harvest",
     requires: (c) => has(c, "Farming", "Herding"),
-    condition: { Declining: 2, Growing: 0.3 },
-    prosperity: { Destitute: 2, Poor: 2, "Exceptionally Rich": 0.3 },
-    tone: { Grim: 1.5 },
+    by: { condition: { Declining: 2, Growing: 0.3 }, prosperity: { Destitute: 2, Poor: 2, "Exceptionally Rich": 0.3 }, tone: { Grim: 1.5 } },
   },
-  { key: "Reopened Mine", requires: mines, weight: 1.5, condition: { Recovering: 4, Growing: 2, Declining: 0.3, "Partly Abandoned": 0.5 } },
-  {
-    key: "Exhausted Mine",
-    requires: mines,
-    weight: 1.5,
-    condition: { Declining: 5, "Partly Abandoned": 4, Growing: 0.1, Overcrowded: 0.2 },
-  },
-  {
-    key: "Destroyed Bridge",
-    requires: (c) => BRIDGED.includes(c.inputs.geography) || c.founding === "Ford",
-    condition: { Rebuilding: 3, Declining: 1.5 },
-  },
-  {
-    key: "Refugees",
-    condition: { Overcrowded: 3, Growing: 1.5 },
-    purpose: { Refuge: 2 },
-    tone: { Grim: 1.3, Peaceful: 1.2 },
-  },
-  {
-    key: "Discovery",
-    condition: { Growing: 1.5 },
-    tone: { Mysterious: 3 },
-    purpose: { Scholarly: 2, Mining: 1.3 },
-  },
+  { key: "Reopened Mine", requires: mines, weight: 1.5, by: { condition: { Recovering: 4, Growing: 2, Declining: 0.3, "Partly Abandoned": 0.5 } } },
+  { key: "Exhausted Mine", requires: mines, weight: 1.5, by: { condition: { Declining: 5, "Partly Abandoned": 4, Growing: 0.1, Overcrowded: 0.2 } } },
+  { key: "Destroyed Bridge", requires: (c) => BRIDGED.includes(c.geography) || c.founding === "Ford", by: { condition: { Rebuilding: 3, Declining: 1.5 } } },
+  { key: "Refugees", by: { condition: { Overcrowded: 3, Growing: 1.5 }, purposes: { Refuge: 2 }, tone: { Grim: 1.3, Peaceful: 1.2 } } },
+  { key: "Discovery", by: { condition: { Growing: 1.5 }, tone: { Mysterious: 3 }, purposes: { Scholarly: 2, Mining: 1.3 } } },
   {
     key: "Plague",
-    condition: { Overcrowded: 3, Declining: 1.5, "Partly Abandoned": 2 },
-    prosperity: { Destitute: 2, Poor: 1.3 },
-    tone: { Grim: 3, Peaceful: 0.5 },
-    geography: { Swamp: 1.5, "River Delta": 1.3 },
+    by: {
+      condition: { Overcrowded: 3, Declining: 1.5, "Partly Abandoned": 2 },
+      prosperity: { Destitute: 2, Poor: 1.3 },
+      tone: { Grim: 3, Peaceful: 0.5 },
+      geography: { Swamp: 1.5, "River Delta": 1.3 },
+    },
   },
-  { key: "New Trade Route", requires: notHomestead, condition: { Growing: 3, Recovering: 2, Declining: 0.3 }, purpose: { Trade: 1.5, Port: 1.3 } },
-  {
-    key: "Lost Trade Route",
-    requires: notHomestead,
-    condition: { Declining: 3, "Partly Abandoned": 2, Growing: 0.2 },
-    purpose: { Trade: 1.5, Port: 1.3 },
-  },
+  { key: "New Trade Route", requires: notHomestead, by: { condition: { Growing: 3, Recovering: 2, Declining: 0.3 }, purposes: { Trade: 1.5, Port: 1.3 } } },
+  { key: "Lost Trade Route", requires: notHomestead, by: { condition: { Declining: 3, "Partly Abandoned": 2, Growing: 0.2 }, purposes: { Trade: 1.5, Port: 1.3 } } },
   {
     key: "Monsters",
-    tone: { Grim: 1.5, Harsh: 1.5, Mysterious: 1.3 },
-    geography: { Forest: 2, Swamp: 2, Mountains: 2, Underground: 2, Tundra: 2 },
-    condition: { "Partly Abandoned": 1.5 },
+    by: {
+      tone: { Grim: 1.5, Harsh: 1.5, Mysterious: 1.3 },
+      geography: { Forest: 2, Swamp: 2, Mountains: 2, Underground: 2, Tundra: 2 },
+      condition: { "Partly Abandoned": 1.5 },
+    },
   },
-  {
-    key: "Schism",
-    requires: notHomestead,
-    weight: 0.5,
-    purpose: { Religious: 6 },
-    tone: { Oppressive: 1.5, Mysterious: 1.3 },
-  },
-  { key: "Fire", condition: { Rebuilding: 3, Overcrowded: 2 }, geography: { Forest: 1.5 } },
+  { key: "Schism", requires: notHomestead, weight: 0.5, by: { purposes: { Religious: 6 }, tone: { Oppressive: 1.5, Mysterious: 1.3 } } },
+  { key: "Fire", by: { condition: { Rebuilding: 3, Overcrowded: 2 }, geography: { Forest: 1.5 } } },
   {
     key: "Flood",
-    requires: (c) => WATERSIDE.includes(c.inputs.geography),
-    condition: { Rebuilding: 2, Recovering: 2 },
-    geography: { "River Delta": 2, Swamp: 1.5 },
+    requires: (c) => WATERSIDE.includes(c.geography),
+    by: { condition: { Rebuilding: 2, Recovering: 2 }, geography: { "River Delta": 2, Swamp: 1.5 } },
   },
   {
     key: "Raid",
-    condition: { Rebuilding: 1.5, Recovering: 1.5 },
-    tone: { Harsh: 2.5, Grim: 1.5, Peaceful: 0.3 },
-    geography: { Steppe: 2, Coast: 1.3 },
+    by: { condition: { Rebuilding: 1.5, Recovering: 1.5 }, tone: { Harsh: 2.5, Grim: 1.5, Peaceful: 0.3 }, geography: { Steppe: 2, Coast: 1.3 } },
   },
-  { key: "Disappearances", weight: 0.6, tone: { Mysterious: 6, Grim: 2.5, Lively: 0.3 } },
+  { key: "Disappearances", weight: 0.6, by: { tone: { Mysterious: 6, Grim: 2.5, Lively: 0.3 } } },
   {
     key: "Crackdown",
     requires: beyondHamlet,
     weight: 0.6,
-    tone: { Oppressive: 6, Decadent: 1.5, Peaceful: 0.2 },
-    purpose: { Smuggling: 2, Military: 1.3 },
+    by: { tone: { Oppressive: 6, Decadent: 1.5, Peaceful: 0.2 }, purposes: { Smuggling: 2, Military: 1.3 } },
   },
   {
     key: "Festival",
     weight: 0.5,
-    tone: { Lively: 5, Peaceful: 2, Decadent: 2, Grim: 0.2, Oppressive: 0.4 },
-    condition: { Growing: 1.5, "Partly Abandoned": 0.3 },
-    purpose: { Religious: 1.5, Leisure: 2 },
+    by: {
+      tone: { Lively: 5, Peaceful: 2, Decadent: 2, Grim: 0.2, Oppressive: 0.4 },
+      condition: { Growing: 1.5, "Partly Abandoned": 0.3 },
+      purposes: { Religious: 1.5, Leisure: 2 },
+    },
   },
   {
     key: "Windfall",
-    condition: { Growing: 2, Recovering: 1.5, Declining: 0.4 },
-    prosperity: { Wealthy: 2, "Exceptionally Rich": 2, Destitute: 0.3 },
-    tone: { Grim: 0.3 },
+    by: {
+      condition: { Growing: 2, Recovering: 1.5, Declining: 0.4 },
+      prosperity: { Wealthy: 2, "Exceptionally Rich": 2, Destitute: 0.3 },
+      tone: { Grim: 0.3 },
+    },
   },
   {
     key: "Eruption",
-    requires: (c) => c.inputs.geography === "Volcanic",
+    requires: (c) => c.geography === "Volcanic",
     weight: 2,
-    condition: { "Partly Abandoned": 2, Rebuilding: 2, Recovering: 1.5 },
+    by: { condition: { "Partly Abandoned": 2, Rebuilding: 2, Recovering: 1.5 } },
   },
 ];
-
-function changeWeight(rule: ChangeRule, ctx: ChangeContext): number {
-  if (rule.requires && !rule.requires(ctx)) return 0;
-  const { inputs, purposes } = ctx;
-  const purposeFactor = [purposes.primary, ...purposes.secondary].reduce((w, p) => w * (rule.purpose?.[p] ?? 1), 1);
-  return (
-    (rule.weight ?? 1) *
-    (rule.condition?.[ctx.condition] ?? 1) *
-    (rule.tone?.[inputs.tone] ?? 1) *
-    (rule.prosperity?.[inputs.prosperity] ?? 1) *
-    (rule.geography?.[inputs.geography] ?? 1) *
-    purposeFactor
-  );
-}
 
 /** Rolls why, when and how the settlement came to be, and how it is doing now. */
 export function rollOrigins(inputs: ResolvedInputs, purposes: Purposes, rng: Rng): Origins {
@@ -481,13 +422,12 @@ export function rollOrigins(inputs: ResolvedInputs, purposes: Purposes, rng: Rng
     ),
     rng
   );
-  const ctx: ChangeContext = { inputs, purposes, founding, condition };
-  const recentChange = weightedPick(CHANGES.map((rule) => [rule.key, changeWeight(rule, ctx)] as const), rng);
+  const ctx: ChangeContext = { ...inputs, primary: purposes.primary, purposes: [purposes.primary, ...purposes.secondary], founding, foundingDetail, age, growth, condition };
+  const recentChange = rollRule(CHANGES, ctx, rng);
   return { founding, foundingDetail, age, growth, condition, recentChange };
 }
 
 /** Whether a recent change could have happened here; exported for tests. */
 export function changeAllowed(change: RecentChange, ctx: ChangeContext): boolean {
-  const rule = CHANGES.find((r) => r.key === change)!;
-  return !rule.requires || rule.requires(ctx);
+  return ruleAllowed(CHANGES, change, ctx);
 }

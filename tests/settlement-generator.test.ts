@@ -28,6 +28,7 @@ import {
   type SettlementOptions,
 } from "../src/lib/settlement-generator/options";
 import { FOUNDING_DETAILS, changeAllowed } from "../src/lib/settlement-generator/origins";
+import { contextOf, rollRules, ruleWeight, type Rule } from "../src/lib/settlement-generator/rules";
 import { POPULATION_BANDS, roundPopulation } from "../src/lib/settlement-generator/population";
 
 /** A fixed sequence of rolls, repeated. */
@@ -140,8 +141,7 @@ describe("generateSettlement", () => {
           expect(s.inputs).toMatchObject({ type, geography, climate });
           expect(FOUNDING_DETAILS[s.origins.founding]).toContain(s.origins.foundingDetail);
           expect(new Set(allPurposes(s)).size).toBe(allPurposes(s).length);
-          const ctx = { inputs: s.inputs, purposes: s.purposes, founding: s.origins.founding, condition: s.origins.condition };
-          expect(changeAllowed(s.origins.recentChange, ctx)).toBe(true);
+          expect(changeAllowed(s.origins.recentChange, contextOf(s.inputs, s.purposes, s.origins))).toBe(true);
         }
   });
 
@@ -349,5 +349,26 @@ describe("labels", () => {
     for (const locale of LOCALES)
       for (const [group, values] of Object.entries(groups))
         for (const value of values) expect(Object.hasOwn(MESSAGES[locale].settlement, `${group}.${value}`), `${locale} ${group}.${value}`).toBe(true);
+  });
+});
+
+describe("rules", () => {
+  type Ctx = { tone: string; purposes: string[] };
+  const RULES: Rule<"a" | "b" | "c", Ctx>[] = [
+    { key: "a", weight: 2, by: { tone: { Grim: 3 }, purposes: { Mining: 2, Trade: 0.5 } } },
+    { key: "b", requires: (c) => c.tone !== "Grim" },
+    { key: "c", by: { tone: { Grim: 0 } } },
+  ];
+
+  it("multiplies the base weight by every matching factor, once per list member", () => {
+    expect(ruleWeight(RULES[0], { tone: "Grim", purposes: ["Mining", "Trade"] })).toBe(2 * 3 * 2 * 0.5);
+    expect(ruleWeight(RULES[0], { tone: "Peaceful", purposes: [] })).toBe(2);
+    expect(ruleWeight(RULES[1], { tone: "Grim", purposes: [] })).toBe(0);
+  });
+
+  it("rolls several different options and stops when none are left", () => {
+    const picks = rollRules(RULES, { tone: "Grim", purposes: [] }, 3, seeded(1));
+    expect(picks).toEqual(["a"]);
+    expect(new Set(rollRules(RULES, { tone: "Lively", purposes: [] }, 3, seeded(2))).size).toBe(3);
   });
 });
