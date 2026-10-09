@@ -259,12 +259,11 @@ textarea::placeholder {
 
 /* ---------- Nav ---------- */
 
-/* Three columns: links, the (optional) in-world date in the true middle, search. The side columns
-   share the leftover width equally, so the middle stays centered until a side needs more room. */
+/* Two columns: links, then search, language and the (optional) in-world date on the right. */
 .app-nav {
   flex: 0 0 auto;
   display: grid;
-  grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr);
+  grid-template-columns: minmax(max-content, 1fr) auto;
   align-items: center;
   gap: var(--space-4);
   padding: var(--space-3) var(--space-5);
@@ -341,7 +340,10 @@ textarea::placeholder {
 
 .app-nav-date-slot {
   display: flex;
-  justify-content: center;
+}
+
+.app-nav-date-slot:empty {
+  display: none;
 }
 
 .app-nav-date {
@@ -13444,8 +13446,6 @@ textarea.rel-notes {
   overflow: hidden;
 }
 
-.rel-workspace {
-  display: grid;
 /* Boards on the Campaign area: the workspace fills what's left under the header. */
 .boards-screen {
   flex: 1 1 auto;
@@ -13453,6 +13453,8 @@ textarea.rel-notes {
   overflow: hidden;
 }
 
+.rel-workspace {
+  display: grid;
   grid-template-columns: 292px minmax(0, 1fr);
   height: 100%;
   min-height: 0;
@@ -14241,9 +14243,9 @@ textarea.rel-notes {
   opacity: 0;
 }
 
+/* Width and min height come from the note's stored size (NoteCard); it still grows with its text. */
 .rel-note {
   display: flex;
-/* Width and min height come from the note's stored size (NoteCard); it still grows with its text. */
   padding: 12px 12px 14px;
   border-radius: 3px 3px 3px 14px;
   background: color-mix(in srgb, var(--rel-note, #facc15) 88%, #fff);
@@ -14255,12 +14257,12 @@ textarea.rel-notes {
   overflow-wrap: anywhere;
 }
 
+/* Not stretched: its height is the text's, which a resize can't go under. */
 .rel-note-text {
   flex: 1 1 auto;
-/* Not stretched: its height is the text's, which a resize can't go under. */
+  align-self: flex-start;
 }
 
-  align-self: flex-start;
 .rel-note-empty {
   opacity: 0.55;
   font-style: italic;
@@ -14273,9 +14275,9 @@ textarea.rel-notes {
 .rel-note-input {
   flex: 1 1 auto;
   padding: 0;
+  overflow: hidden;
   border: 0;
   outline: none;
-  overflow: hidden;
   background: transparent;
   color: inherit;
   font: inherit;
@@ -14286,8 +14288,6 @@ textarea.rel-notes {
   color: rgba(31, 26, 14, 0.5);
 }
 
-/* Floating toolbar by the selected card */
-.rel-float-toolbar {
 /* Resize handles on the selected note */
 .react-flow__resize-control.handle.rel-note-handle {
   width: 9px;
@@ -14301,6 +14301,8 @@ textarea.rel-notes {
   border-color: transparent;
 }
 
+/* Floating toolbar by the selected card */
+.rel-float-toolbar {
   display: flex;
   align-items: center;
   gap: 2px;
@@ -14372,8 +14374,6 @@ textarea.rel-notes {
   border-color: var(--text-primary);
 }
 
-/* Boards list */
-.rel-board-list {
 .rel-float-btn.active {
   background: var(--bg-surface-hover);
   color: var(--teal-300);
@@ -14583,6 +14583,8 @@ textarea.rel-notes {
   cursor: default;
 }
 
+/* Boards list */
+.rel-board-list {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -14790,6 +14792,44 @@ textarea.rel-notes {
 .app-nav-menu-item:focus-visible {
   background: var(--bg-surface);
   color: var(--text-primary);
+}
+
+.app-nav-menu-popup-end {
+  left: auto;
+  right: 0;
+}
+
+button.app-nav-menu-item {
+  border: none;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.app-nav-flag {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 16px;
+  border-radius: 3px;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.35);
+}
+
+.app-nav-language-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.app-nav-language-text strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.app-nav-language-text span {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
 }
 
 /* ---------- Campaign area ---------- */

@@ -3,9 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Compass, Book, CalendarDays, Swords, ChevronDown, Settings, Waypoints, GitFork, LayoutDashboard, Globe2, Wrench, ScrollText, PenLine, type LucideIcon } from "lucide-react";
+import { Compass, Book, CalendarDays, Check, Swords, ChevronDown, Settings, Waypoints, GitFork, LayoutDashboard, Globe2, Wrench, ScrollText, PenLine, type LucideIcon } from "lucide-react";
 import SearchBox from "./SearchBox";
 import WorldDateLabel from "./WorldDateLabel";
+import { LANGUAGE_OPTIONS } from "./settings/languages";
+import { useSettings } from "./settings/SettingsProvider";
 import { TOOLS } from "./tools/tools";
 import { useT } from "@/i18n/useT";
 import type { MessageKey } from "@/i18n/messages";
@@ -21,17 +23,18 @@ const ARTICLE_VIEWS: { href: string; labelKey: MessageKey<"nav">; icon: LucideIc
   { href: "/articles", labelKey: "articles", icon: Book },
   { href: "/articles?type=relationships", labelKey: "relationships", icon: Waypoints },
   { href: "/articles?type=family", labelKey: "familyTrees", icon: GitFork },
-  { href: "/articles?type=boards", labelKey: "boards", icon: LayoutDashboard },
 ];
 
 /** The active campaign's two areas. */
 const CAMPAIGN_VIEWS: { href: string; labelKey: MessageKey<"nav">; icon: LucideIcon }[] = [
-  { href: "/sessions", labelKey: "sessions", icon: ScrollText },
   { href: "/writer", labelKey: "writer", icon: PenLine },
+  { href: "/sessions", labelKey: "sessions", icon: ScrollText },
+  { href: "/boards", labelKey: "boards", icon: LayoutDashboard },
 ];
 
 /** A small dropdown of links: click to open, Esc or a click outside closes it. */
-function NavMenu({ label, items, triggerClass, children }: { label: string; items: MenuItem[]; triggerClass: string; children: React.ReactNode }) {
+/** A top bar dropdown: opens on click; closes on Esc, a click outside, or a page change. */
+function TopMenu({ label, triggerClass, trigger, align = "left", children }: { label: string; triggerClass: string; trigger: React.ReactNode; align?: "left" | "right"; children: (close: () => void) => React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const pathname = usePathname();
@@ -62,26 +65,80 @@ function NavMenu({ label, items, triggerClass, children }: { label: string; item
       }}
     >
       <button type="button" className={triggerClass} aria-haspopup="true" aria-expanded={open} aria-label={label} data-tooltip={open ? undefined : label} onClick={() => setOpen((o) => !o)}>
-        {children}
+        {trigger}
       </button>
       {open && (
-        <div className="app-nav-menu-popup" role="menu">
-          {items.map(({ href, label: itemLabel, icon: Icon }) => (
-            <Link key={href} href={href} role="menuitem" className="app-nav-menu-item" onClick={() => setOpen(false)}>
-              <Icon size={15} strokeWidth={2.25} aria-hidden />
-              {itemLabel}
-            </Link>
-          ))}
+        <div className={align === "right" ? "app-nav-menu-popup app-nav-menu-popup-end" : "app-nav-menu-popup"} role="menu">
+          {children(() => setOpen(false))}
         </div>
       )}
     </div>
   );
 }
 
+function NavMenu({ label, items, triggerClass, children }: { label: string; items: MenuItem[]; triggerClass: string; children: React.ReactNode }) {
+  return (
+    <TopMenu label={label} triggerClass={triggerClass} trigger={children}>
+      {(close) =>
+        items.map(({ href, label: itemLabel, icon: Icon }) => (
+          <Link key={href} href={href} role="menuitem" className="app-nav-menu-item" onClick={close}>
+            <Icon size={15} strokeWidth={2.25} aria-hidden />
+            {itemLabel}
+          </Link>
+        ))
+      }
+    </TopMenu>
+  );
+}
+
+/** The app's language, switched from the top bar (also in Settings > General). */
+function LanguageMenu() {
+  const t = useT("nav");
+  const { settings, updateSetting } = useSettings();
+  const current = LANGUAGE_OPTIONS.find((o) => o.key === settings.language) ?? LANGUAGE_OPTIONS[0];
+  return (
+    <TopMenu
+      label={t("languageMenu")}
+      triggerClass="app-nav-link app-nav-language"
+      align="right"
+      trigger={
+        <>
+          <current.Flag className="app-nav-flag" />
+          {current.key}
+          <ChevronDown size={14} strokeWidth={2.25} aria-hidden />
+        </>
+      }
+    >
+      {(close) =>
+        LANGUAGE_OPTIONS.map(({ key, label, region, Flag }) => (
+          <button
+            key={key}
+            type="button"
+            role="menuitemradio"
+            aria-checked={key === settings.language}
+            className="app-nav-menu-item"
+            onClick={() => {
+              close();
+              void updateSetting("language", key);
+            }}
+          >
+            <Flag className="app-nav-flag" />
+            <span className="app-nav-language-text">
+              <strong>{label}</strong>
+              <span>{region}</span>
+            </span>
+            {key === settings.language && <Check size={15} strokeWidth={2.5} aria-hidden />}
+          </button>
+        ))
+      }
+    </TopMenu>
+  );
+}
+
 /**
- * The top bar: Maps, Articles (and its views), the Campaign area (Sessions,
- * Writer), Calendars and Settings (which also holds Trash, Import and Export);
- * optionally the current in-world date in the middle. The brand is the open
+ * The top bar: Maps, Articles (and its views), the Campaign area (Writer,
+ * Sessions, Boards), Calendars and Settings (which also holds Trash, Import and
+ * Export); on the right, search, the language and optionally the in-world date. The brand is the open
  * world's name and leads to the worlds screen, where the bar shows nothing else.
  */
 export default function AppNav({ world }: { world: { id: string; name: string } | null }) {
@@ -120,7 +177,7 @@ export default function AppNav({ world }: { world: { id: string; name: string } 
           {t("articles")}
           <ChevronDown size={14} strokeWidth={2.25} aria-hidden />
         </NavMenu>
-        <NavMenu label={t("campaignMenu")} items={CAMPAIGN_VIEWS.map(({ labelKey, ...v }) => ({ ...v, label: t(labelKey) }))} triggerClass={linkClass(pathname.startsWith("/sessions") || pathname.startsWith("/writer"))}>
+        <NavMenu label={t("campaignMenu")} items={CAMPAIGN_VIEWS.map(({ labelKey, ...v }) => ({ ...v, label: t(labelKey) }))} triggerClass={linkClass(pathname.startsWith("/sessions") || pathname.startsWith("/writer") || pathname.startsWith("/boards"))}>
           <Swords size={16} strokeWidth={2.25} />
           {t("campaign")}
           <ChevronDown size={14} strokeWidth={2.25} aria-hidden />
@@ -139,9 +196,10 @@ export default function AppNav({ world }: { world: { id: string; name: string } 
           {t("settings")}
         </Link>
       </div>
-      <WorldDateLabel />
       <div className="app-nav-end">
         <SearchBox />
+        <LanguageMenu />
+        <WorldDateLabel />
       </div>
     </nav>
   );
