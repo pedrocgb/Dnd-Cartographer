@@ -15563,16 +15563,7 @@ button.app-nav-menu-item {
   flex-direction: column;
   gap: var(--space-1);
 }
-.legend-delete {
-  align-self: flex-start;
-  color: var(--danger-300, #f87171);
-}
 .legend-items,
-.legend-editor {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
 .legend-items-header {
   display: flex;
   align-items: center;
@@ -15633,6 +15624,10 @@ button.app-nav-menu-item {
   border-color: var(--border-default);
   background: var(--bg-surface-hover);
 }
+.legend-item-card.selected {
+  border-color: var(--teal-500);
+  background: var(--teal-900);
+}
 .legend-item-card.dragged {
   opacity: 0.4;
 }
@@ -15681,90 +15676,6 @@ button.app-nav-menu-item {
   flex: 1 1 auto;
   color: var(--text-tertiary);
   font-style: italic;
-}
-.legend-item-chevron {
-  flex-shrink: 0;
-  color: var(--text-tertiary);
-}
-.legend-editor-nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
-.legend-editor-count {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  color: var(--text-secondary);
-  font-size: var(--text-xs);
-}
-.legend-preview {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-3);
-  min-height: 64px;
-  padding: var(--space-3);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  background:
-    radial-gradient(circle at 30% 20%, rgb(255 255 255 / 0.04), transparent 60%),
-    var(--bg-inset);
-  font-size: var(--text-base, 15px);
-}
-.legend-label-row {
-  display: flex;
-  gap: var(--space-1);
-}
-.legend-label-row input {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-.legend-format {
-  display: inline-flex;
-  flex-shrink: 0;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-}
-.legend-format button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  border: 0;
-  background: var(--bg-surface-raised);
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-.legend-format button + button {
-  border-left: 1px solid var(--border-default);
-}
-.legend-format button:hover {
-  color: var(--text-primary);
-  background: var(--bg-surface-hover);
-}
-.legend-format button.active {
-  background: var(--teal-900);
-  color: var(--teal-300);
-}
-.legend-colors-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.legend-color {
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  border: 1px solid rgb(255 255 255 / 0.25);
-  border-radius: 50%;
-  cursor: pointer;
-}
-.legend-color.active {
-  outline: 2px solid var(--teal-400);
-  outline-offset: 2px;
 }
 .legend-icon-picker .icon-picker {
   max-height: 260px;

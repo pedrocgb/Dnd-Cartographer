@@ -8,6 +8,7 @@ import MapLegend from "./MapLegend";
 import MapScaleBar from "./MapScaleBar";
 import MeasureLayer, { type MeasureMode } from "./MeasureLayer";
 import LegendPanel from "./LegendPanel";
+import LegendToolBar from "@/components/map-tools/LegendToolBar";
 import ScaleToolBar from "@/components/map-tools/ScaleToolBar";
 import TravelPanel from "./TravelPanel";
 import { routeLabel, routeLabelIn, useTravelDraft } from "./travel-fields";
@@ -247,6 +248,18 @@ export default function MapHud({
       {legendPanelOpen && legendApi.loaded && (
         <LegendPanel
           layerName={layerName}
+          legend={ownLegend}
+          error={legendApi.error}
+          selectedItemId={selectedItemId}
+          onSelectItem={setSelectedItemId}
+          onCreate={() => void legendApi.create(activeLayerId)}
+          onUpdate={(patch) => legendApi.update(activeLayerId, patch)}
+          onClose={onCloseLegendPanel}
+        />
+      )}
+      {legendPanelOpen && legendApi.loaded && (
+        <LegendToolBar
+          inset={inset}
           layerId={activeLayerId}
           layers={layers}
           legend={ownLegend}

@@ -1,220 +1,15 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { ArrowLeft, Bold, ChevronLeft, ChevronRight, GripVertical, ImageUp, Italic, LayoutList, Plus, Strikethrough, Trash2 } from "lucide-react";
-import IconPicker from "@/components/IconPicker";
-import SegmentedControl from "@/components/marker-panel/SegmentedControl";
+import { useState } from "react";
+import { GripVertical, LayoutList, Plus } from "lucide-react";
 import { newId } from "@/components/calendars/api";
-import { isAcceptedImage, uploadArticleImage } from "@/components/rich-editor/images";
-import { COLOR_PRESETS } from "@/server/markers/icon-registry";
-import { DEFAULT_ITEM_ICON, LEGEND_LIMITS, type LegendImage, type LegendItem } from "@/server/legends/legend-config";
+import { DEFAULT_ITEM_ICON, LEGEND_LIMITS, type LegendItem } from "@/server/legends/legend-config";
 import { LegendSwatch, LegendText, moveItem } from "./MapLegend";
 import { useT } from "@/i18n/useT";
 
-type IconImage = Extract<LegendImage, { kind: "icon" }>;
-
-function ColorSwatches({ label, value, onChange }: { label: string; value: string; onChange: (hex: string) => void }) {
-  return (
-    <div className="legend-field">
-      <span className="field-label">{label}</span>
-      <div className="legend-colors-row" role="radiogroup" aria-label={label}>
-        {COLOR_PRESETS.map((hex) => (
-          <button
-            key={hex}
-            type="button"
-            role="radio"
-            aria-checked={hex.toUpperCase() === value.toUpperCase()}
-            aria-label={hex}
-            data-tooltip={hex}
-            className={hex.toUpperCase() === value.toUpperCase() ? "legend-color active" : "legend-color"}
-            style={{ background: hex }}
-            onClick={() => onChange(hex)}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/** Click or drop a PNG/JPEG/WebP; it becomes the item's rectangle, cropped to fill it. */
-function UploadField({ image, onChange }: { image: LegendImage; onChange: (image: LegendImage) => void }) {
-  const t = useT("maps");
-  const tc = useT("common");
-  const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [over, setOver] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  async function upload(file: File) {
-    if (!isAcceptedImage(file)) return setError(tc("imageTypes"));
-    setUploading(true);
-    setError(null);
-    try {
-      onChange({ kind: "upload", src: await uploadArticleImage(file) });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : tc("uploadFailed"));
-    } finally {
-      setUploading(false);
-    }
-  }
-
-  return (
-    <>
-      <button
-        type="button"
-        className={over ? "legend-dropzone over" : "legend-dropzone"}
-        disabled={uploading}
-        onClick={() => fileRef.current?.click()}
-        onDragOver={(e) => {
-          e.preventDefault();
-          setOver(true);
-        }}
-        onDragLeave={() => setOver(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setOver(false);
-          const file = e.dataTransfer.files[0];
-          if (file) void upload(file);
-        }}
-      >
-        {image.kind === "upload" ? <LegendSwatch image={image} size="large" /> : <ImageUp size={22} strokeWidth={1.75} aria-hidden />}
-        <span>{uploading ? tc("uploading") : image.kind === "upload" ? t("legend.replaceImage") : t("legend.dropImage")}</span>
-        <span className="field-label">{t("legend.imageHint")}</span>
-      </button>
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/png,image/jpeg,image/webp"
-        hidden
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          e.target.value = "";
-          if (file) void upload(file);
-        }}
-      />
-      {error && <p className="form-error">{error}</p>}
-    </>
-  );
-}
-
-/** One item's editor: live preview, label with its text style, and its image (icon or upload). */
-function ItemEditor({
-  item,
-  index,
-  count,
-  onChange,
-  onDelete,
-  onBack,
-  onStep,
-}: {
-  item: LegendItem;
-  index: number;
-  count: number;
-  onChange: (patch: Partial<LegendItem>) => void;
-  onDelete: () => void;
-  onBack: () => void;
-  onStep: (delta: -1 | 1) => void;
-}) {
-  const t = useT("maps");
-  // The icon kept while trying an upload, so switching back restores it.
-  const [lastIcon, setLastIcon] = useState<IconImage>(item.image.kind === "icon" ? item.image : (DEFAULT_ITEM_ICON as IconImage));
-  const [source, setSource] = useState<"icon" | "upload">(item.image.kind);
-  const icon = item.image.kind === "icon" ? item.image : lastIcon;
-  const setIcon = (next: IconImage) => {
-    setLastIcon(next);
-    onChange({ image: next });
-  };
-  const styleButton = (key: "bold" | "italic" | "strike", label: string, Icon: typeof Bold) => (
-    <button type="button" className={item[key] ? "active" : ""} aria-label={label} aria-pressed={item[key]} data-tooltip={label} onClick={() => onChange({ [key]: !item[key] })}>
-      <Icon size={14} strokeWidth={2.5} />
-    </button>
-  );
-
-  return (
-    <div className="legend-editor">
-      <div className="legend-editor-nav">
-        <button type="button" className="btn btn-sm btn-ghost" onClick={onBack}>
-          <ArrowLeft size={14} strokeWidth={2.25} />
-          {t("legend.allItems")}
-        </button>
-        <span className="legend-editor-count">
-          <button type="button" className="btn btn-ghost btn-icon-xs" disabled={index === 0} aria-label={t("legend.previous")} data-tooltip={t("legend.previous")} onClick={() => onStep(-1)}>
-            <ChevronLeft size={14} strokeWidth={2.25} />
-          </button>
-          {index + 1} / {count}
-          <button type="button" className="btn btn-ghost btn-icon-xs" disabled={index === count - 1} aria-label={t("legend.next")} data-tooltip={t("legend.next")} onClick={() => onStep(1)}>
-            <ChevronRight size={14} strokeWidth={2.25} />
-          </button>
-        </span>
-      </div>
-
-      <div className="legend-preview" aria-label={t("legend.preview")}>
-        <LegendSwatch image={item.image} size="large" />
-        {item.text ? <LegendText item={item} /> : <span className="field-label">{t("legend.yourLabel")}</span>}
-      </div>
-
-      <div className="legend-field">
-        <label className="field-label" htmlFor={`legend-text-${item.id}`}>
-          {t("legend.label")}
-        </label>
-        <div className="legend-label-row">
-          <input
-            id={`legend-text-${item.id}`}
-            type="text"
-            autoFocus
-            placeholder={t("legend.labelPlaceholder")}
-            value={item.text}
-            maxLength={LEGEND_LIMITS.text}
-            onChange={(e) => onChange({ text: e.target.value })}
-          />
-          <div className="legend-format" role="group" aria-label={t("legend.textStyle")}>
-            {styleButton("bold", t("text.bold"), Bold)}
-            {styleButton("italic", t("legend.italic"), Italic)}
-            {styleButton("strike", t("legend.strike"), Strikethrough)}
-          </div>
-        </div>
-      </div>
-
-      <div className="legend-field">
-        <span className="field-label">{t("legend.image")}</span>
-        <SegmentedControl
-          ariaLabel={t("legend.imageSource")}
-          value={source}
-          segments={[
-            { key: "icon", label: t("legend.icon") },
-            { key: "upload", label: t("legend.upload") },
-          ]}
-          onChange={(key) => {
-            setSource(key);
-            if (key === "icon" && item.image.kind !== "icon") onChange({ image: lastIcon });
-          }}
-        />
-      </div>
-      {source === "icon" ? (
-        <>
-          <ColorSwatches label={t("legend.background")} value={icon.fill} onChange={(fill) => setIcon({ ...icon, fill })} />
-          <ColorSwatches label={t("legend.iconColor")} value={icon.color} onChange={(color) => setIcon({ ...icon, color })} />
-          <div className="legend-field legend-icon-picker">
-            <span className="field-label">{t("legend.icon")}</span>
-            <IconPicker value={icon.key} onChange={(key) => setIcon({ ...icon, key })} />
-          </div>
-        </>
-      ) : (
-        <UploadField image={item.image} onChange={(image) => onChange({ image })} />
-      )}
-
-      <button type="button" className="btn btn-sm btn-ghost legend-delete" onClick={onDelete}>
-        <Trash2 size={14} strokeWidth={2.25} />
-        {t("legend.deleteItem")}
-      </button>
-    </div>
-  );
-}
-
 /**
- * The Legend tool's Items window (right of its settings): the list of
- * items — drag the grip (or Alt+↑/↓) to reorder, click one to edit it —
- * and, once picked, that item's editor.
+ * The legend's items, as a list: drag the grip (or Alt+↑/↓) to reorder,
+ * click one to pick it (the legend bar edits it), Add for a new one.
  */
 export default function LegendItemsWindow({
   items,
@@ -230,32 +25,12 @@ export default function LegendItemsWindow({
   const t = useT("maps");
   const [drag, setDrag] = useState<{ id: string; overId: string | null; after: boolean } | null>(null);
   const [armedId, setArmedId] = useState<string | null>(null);
-  const selectedIndex = items.findIndex((i) => i.id === selectedItemId);
-  const selected = selectedIndex >= 0 ? items[selectedIndex] : null;
   const full = items.length >= LEGEND_LIMITS.items;
 
   function addItem() {
     const item: LegendItem = { id: newId("item"), image: DEFAULT_ITEM_ICON, text: "", bold: false, italic: false, strike: false };
     onChangeItems([...items, item]);
     onSelectItem(item.id);
-  }
-
-  if (selected) {
-    return (
-      <ItemEditor
-        key={selected.id}
-        item={selected}
-        index={selectedIndex}
-        count={items.length}
-        onChange={(patch) => onChangeItems(items.map((i) => (i.id === selected.id ? { ...i, ...patch } : i)))}
-        onDelete={() => {
-          onChangeItems(items.filter((i) => i.id !== selected.id));
-          onSelectItem(null);
-        }}
-        onBack={() => onSelectItem(null)}
-        onStep={(delta) => onSelectItem(items[selectedIndex + delta]?.id ?? selected.id)}
-      />
-    );
   }
 
   return (
@@ -289,7 +64,7 @@ export default function LegendItemsWindow({
               return (
                 <li
                   key={item.id}
-                  className={`legend-item-card${drag?.id === item.id ? " dragged" : ""}${drop}`}
+                  className={`legend-item-card${item.id === selectedItemId ? " selected" : ""}${drag?.id === item.id ? " dragged" : ""}${drop}`}
                   draggable={armedId === item.id}
                   onDragStart={(e) => {
                     e.dataTransfer.effectAllowed = "move";
@@ -326,7 +101,8 @@ export default function LegendItemsWindow({
                     type="button"
                     className="legend-item-open"
                     aria-label={t("legend.editItem", { name: item.text || t("legend.untitled") })}
-                    onClick={() => onSelectItem(item.id)}
+                    aria-pressed={item.id === selectedItemId}
+                    onClick={() => onSelectItem(item.id === selectedItemId ? null : item.id)}
                     onKeyDown={(e) => {
                       if (!e.altKey || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
                       e.preventDefault();
@@ -336,7 +112,6 @@ export default function LegendItemsWindow({
                   >
                     <LegendSwatch image={item.image} size="medium" />
                     {item.text ? <LegendText item={item} /> : <span className="legend-item-untitled">{t("legend.noLabel")}</span>}
-                    <ChevronRight size={14} strokeWidth={2.25} aria-hidden className="legend-item-chevron" />
                   </button>
                 </li>
               );
