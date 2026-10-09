@@ -4,7 +4,7 @@ import { formatDecimal } from "@/server/settings/number-format";
 import { useEffect, useMemo, useState } from "react";
 import { Brush, Circle, Crown, Hexagon, Square } from "lucide-react";
 import { Skeleton, SkeletonRegion } from "./Skeleton";
-import { AreaReadings } from "./map-hud/AreaPanel";
+import { AreaReadings } from "./map-hud/area-readings";
 import { shapeAreaPx, shapePerimeterPx, zoneAreaShape } from "@/server/scale/area";
 import type { ScaleConfig } from "@/server/scale/scale-config";
 import ColorWheel from "./ColorWheel";

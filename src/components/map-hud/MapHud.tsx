@@ -8,7 +8,7 @@ import MapLegend from "./MapLegend";
 import MapScaleBar from "./MapScaleBar";
 import MeasureLayer, { type MeasureMode } from "./MeasureLayer";
 import LegendPanel from "./LegendPanel";
-import ScalePanel from "./ScalePanel";
+import ScaleToolBar from "@/components/map-tools/ScaleToolBar";
 import TravelPanel, { routeLabel, useTravelDraft } from "./TravelPanel";
 import RouteLayer from "./RouteLayer";
 import { useScreenOverlay } from "@/components/use-screen-overlay";
@@ -18,9 +18,9 @@ import { isModalOpen } from "@/components/Modal";
 import { isTypingTarget } from "@/components/keyboard";
 import { formatDuration, planTravel, unitToMiles, type TravelSettings } from "@/server/travel/travel";
 import { DEFAULT_ROUTE_STYLE, sanitizeRouteStyle, type MapRouteData, type RoutePt, type RouteStyle } from "@/server/travel/route-config";
-import { LandPlot, LayoutList, Route, Ruler } from "lucide-react";
+import { LayoutList, Route } from "lucide-react";
 import AreaLayer, { type AreaTool, type MeasuredShape } from "./AreaLayer";
-import AreaPanel from "./AreaPanel";
+import AreaToolBar from "@/components/map-tools/AreaToolBar";
 import { PanelSkeleton } from "../Skeleton";
 import { useMapLegends } from "./use-map-legends";
 import type { MapScaleBarApi } from "./use-map-scale-bar";
@@ -300,9 +300,9 @@ export default function MapHud({
           onAdd={(shape) => setAreaShapes((prev) => [...prev, { id: crypto.randomUUID(), shape }])}
         />
       )}
-      {areaPanelOpen && !scaleLoaded && <PanelSkeleton className="grid-panel area-panel" title={t("panel.area")} Icon={LandPlot} onClose={onCloseAreaPanel} rows={4} />}
       {areaPanelOpen && scaleLoaded && (
-        <AreaPanel
+        <AreaToolBar
+          inset={inset}
           tool={areaTool}
           onSetTool={setAreaTool}
           shapes={areaShapes}
@@ -321,9 +321,8 @@ export default function MapHud({
           onClose={onCloseAreaPanel}
         />
       )}
-      {scalePanelOpen && !scaleLoaded && <PanelSkeleton className="grid-panel scale-panel" title={t("panel.scale")} Icon={Ruler} onClose={onCloseScalePanel} rows={4} />}
       {scalePanelOpen && scaleLoaded && (
-        <ScalePanel scaleBar={scaleBar} error={scaleError} measureMode={measureMode} onSetMeasureMode={setMeasureMode} onUpdate={updateScale} onClose={onCloseScalePanel} />
+        <ScaleToolBar inset={inset} scaleBar={scaleBar} error={scaleError} measureMode={measureMode} onSetMeasureMode={setMeasureMode} onUpdate={updateScale} onClose={onCloseScalePanel} />
       )}
     </>
   );
