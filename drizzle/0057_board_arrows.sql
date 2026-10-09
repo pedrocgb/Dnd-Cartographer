@@ -1,0 +1,1 @@
+ALTER TABLE `relationship_boards` ADD `arrows` text DEFAULT '[]' NOT NULL;

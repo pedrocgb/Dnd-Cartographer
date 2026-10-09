@@ -277,6 +277,8 @@
   "outlinePlaceMissing": "That place isn't in this campaign's outline.",
   "boardNotFound": "Board not found.",
   "boardNameRequired": "A board needs a name.",
+  "boardArrowsInvalid": "Arrows must be a list.",
+  "boardGroupsInvalid": "Groups must be a list.",
   "weatherTooManyIds": "Too many ids.",
   "weatherDayRequired": "A day is required.",
   "weatherDayInvalid": "Pick a valid calendar day.",

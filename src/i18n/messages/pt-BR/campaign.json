@@ -352,6 +352,8 @@
   "header.tab.sessionsHint": "Sessões, missões, fronts e o mapa de relações",
   "header.tab.writer": "Escritor",
   "header.tab.writerHint": "Estrutura, tramas e a história até aqui",
+  "header.tab.boards": "Quadros",
+  "header.tab.boardsHint": "Telas livres de artigos e notas, compartilhadas por todas as campanhas",
   "header.activeCampaign": "Campanha ativa",
   "header.archivedName": "{name} (arquivada)",
   "manager.couldNotLoad": "Não foi possível carregar as campanhas.",

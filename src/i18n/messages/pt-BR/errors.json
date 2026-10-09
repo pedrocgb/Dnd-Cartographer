@@ -277,6 +277,8 @@
   "outlinePlaceMissing": "Esse lugar não está na estrutura desta campanha.",
   "boardNotFound": "Quadro não encontrado.",
   "boardNameRequired": "Um quadro precisa de um nome.",
+  "boardArrowsInvalid": "As setas precisam ser uma lista.",
+  "boardGroupsInvalid": "Os grupos precisam ser uma lista.",
   "weatherTooManyIds": "Ids demais.",
   "weatherDayRequired": "Informe um dia.",
   "weatherDayInvalid": "Escolha um dia válido do calendário.",

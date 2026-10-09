@@ -2,14 +2,14 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, ExternalLink, LayoutDashboard, Loader2, Pencil, Plus, StickyNote, Trash2, Users, X } from "lucide-react";
+import { ArrowLeftRight, ArrowRight, Check, ExternalLink, FilePlus, LayoutDashboard, Loader2, Minus, Pencil, Plus, StickyNote, Trash2, Users, X } from "lucide-react";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import InfoPicker, { type PickerOption } from "@/components/articles/InfoPicker";
 import { Skeleton } from "@/components/Skeleton";
 import { templateLabel } from "@/server/articles/templates";
 import { useT } from "@/i18n/useT";
 import { activeT } from "@/i18n/active";
-import { isNoteId, MAX_BOARD_NAME, NOTE_PREFIX, type BoardCard, type BoardFilters } from "@/server/relations/boards";
+import { ARROW_DEFAULT, ARROW_DIRS, isNoteId, MAX_BOARD_NAME, NOTE_PREFIX, type BoardArrow, type BoardCard, type BoardFilters, type BoardGroup } from "@/server/relations/boards";
 import type { ClientBoard } from "@/server/relations/board-store";
 import { webEdges } from "@/server/relations/graph";
 import type { Point } from "@/server/relations/layout";
@@ -30,6 +30,8 @@ const NOTE_COLORS = [
   { color: "#60a5fa", name: "blue" },
   { color: "#4ade80", name: "green" },
 ] as const;
+const ARROW_COLORS = [{ color: ARROW_DEFAULT, name: "gray" }, ...NOTE_COLORS] as const;
+const DIR_ICONS = { one: ArrowRight, both: ArrowLeftRight, none: Minus } as const;
 const SAVE_DELAY = 600;
 
 type SaveState = "idle" | "saving" | "saved" | "error";
@@ -106,12 +108,27 @@ function BoardRow({ board, active, onOpen, onRename, onDelete }: { board: Client
   );
 }
 
+/** An article made from a note; `error`: it was created, but the note's text didn't make it into its body. */
+export interface CreatedFromNote {
+  id: string;
+  error: string | null;
+}
+
 /**
  * Saved relationship boards: a free canvas where the user places articles
  * (their real relations drawn between them) and sticky notes. Cards save
  * as they move; the board's filters save with it.
  */
-export default function BoardsPage({ boardId, onOpenBoard }: { boardId: string | null; onOpenBoard: (id: string | null) => void }) {
+export default function BoardsPage({
+  boardId,
+  onOpenBoard,
+  createArticleFrom,
+}: {
+  boardId: string | null;
+  onOpenBoard: (id: string | null) => void;
+  /** Opens "Create article" for a note's text; resolves the new article, or null when cancelled. */
+  createArticleFrom?: (text: string) => Promise<CreatedFromNote | null>;
+}) {
   const t = useT("relations");
   const ta = useT("articles");
   const { relations, derived, catalog, openArticle } = useRelations();
@@ -151,9 +168,14 @@ export default function BoardsPage({ boardId, onOpenBoard }: { boardId: string |
   useEffect(() => () => void flush(), [flush, boardId]);
 
   const board = boards?.find((b) => b.id === boardId) ?? null;
+  // The latest boards, for work that resumes after a dialog (state may have moved on meanwhile).
+  const boardsRef = useRef(boards);
+  useEffect(() => {
+    boardsRef.current = boards;
+  }, [boards]);
 
   /** Updates a board locally at once and saves it shortly after (moves come in bursts). */
-  const change = (id: string, patch: Partial<Pick<ClientBoard, "cards" | "filters" | "name">>, now = false) => {
+  const change = (id: string, patch: Partial<Pick<ClientBoard, "cards" | "arrows" | "groups" | "filters" | "name">>, now = false) => {
     setBoards((prev) => prev?.map((b) => (b.id === id ? { ...b, ...patch } : b)) ?? prev);
     if (pending.current && pending.current.id !== id) void flush();
     pending.current = { id, patch: { ...(pending.current?.id === id ? pending.current.patch : {}), ...patch } };
@@ -164,10 +186,14 @@ export default function BoardsPage({ boardId, onOpenBoard }: { boardId: string |
   };
 
   const cards = useMemo(() => board?.cards ?? [], [board]);
+  const arrows = useMemo(() => board?.arrows ?? [], [board]);
+  const cardGroups = useMemo(() => board?.groups ?? [], [board]);
   const filters = useMemo<BoardFilters>(() => board?.filters ?? {}, [board]);
   const groups = useMemo(() => filters.groups ?? [], [filters]);
   const setCards = (next: BoardCard[]) => board && change(board.id, { cards: next });
   const setFilters = (next: BoardFilters) => board && change(board.id, { filters: next });
+  const setArrows = (next: BoardArrow[]) => board && change(board.id, { arrows: next });
+  const setCardGroups = (next: BoardGroup[]) => board && change(board.id, { groups: next });
 
   const create = async () => {
     setError(null);
@@ -208,13 +234,20 @@ export default function BoardsPage({ boardId, onOpenBoard }: { boardId: string |
     () =>
       cards.flatMap((c): CanvasCard[] => {
         const position = { x: c.x, y: c.y };
-        if (isNoteId(c.id)) return [{ kind: "note", id: c.id, position, text: c.text ?? "", color: c.color }];
+        if (isNoteId(c.id)) return [{ kind: "note", id: c.id, position, text: c.text ?? "", color: c.color, w: c.w, h: c.h }];
         const entry = catalog.get(c.id);
         return entry ? [{ kind: "record", id: c.id, position, entry }] : [];
       }),
     [cards, catalog]
   );
-  const lines = useMemo<CanvasLine[]>(() => edges.map((edge) => ({ kind: "graph", edge })), [edges]);
+  const lines = useMemo<CanvasLine[]>(
+    () => [
+      ...edges.map((edge): CanvasLine => ({ kind: "graph", edge })),
+      // An arrow to a card no longer on the board (a deleted article) isn't drawn.
+      ...arrows.filter((a) => present.has(a.from) && present.has(a.to)).map((arrow): CanvasLine => ({ kind: "arrow", arrow })),
+    ],
+    [edges, arrows, present]
+  );
   const missing = cards.filter((c) => !isNoteId(c.id) && !catalog.has(c.id)).length;
 
   const recordOptions = useMemo<PickerOption[]>(
@@ -240,9 +273,42 @@ export default function BoardsPage({ boardId, onOpenBoard }: { boardId: string |
     if (!from) return;
     setCards([...cards, ...tiesOf(id).map((other, i) => ({ id: other, ...spotFor(cards, from, i) }))]);
   };
-  const removeCards = (ids: string[]) => {
-    setCards(cards.filter((c) => !ids.includes(c.id)));
-    if (selected && ids.includes(selected)) setSelected(null);
+  /** Cards, groups (with their cards) and arrows, in one save; a card's arrows and group membership go with it. */
+  const deleteItems = (cardIds: string[], groupIds: string[] = [], arrowIds: string[] = []) => {
+    if (!board) return;
+    const gone = new Set([...cardIds, ...cardGroups.filter((g) => groupIds.includes(g.id)).flatMap((g) => g.members)]);
+    change(board.id, {
+      cards: cards.filter((c) => !gone.has(c.id)),
+      arrows: arrows.filter((a) => !arrowIds.includes(a.id) && !gone.has(a.from) && !gone.has(a.to)),
+      groups: cardGroups.filter((g) => !groupIds.includes(g.id)).map((g) => ({ ...g, members: g.members.filter((m) => !gone.has(m)) })).filter((g) => g.members.length),
+    });
+    if (selected && gone.has(selected)) setSelected(null);
+  };
+  const removeCards = (ids: string[]) => deleteItems(ids);
+  /** A new group of these cards (taken out of any other group). */
+  const groupCards = (ids: string[]) => {
+    const taken = new Set(ids);
+    const rest = cardGroups.map((g) => ({ ...g, members: g.members.filter((m) => !taken.has(m)) })).filter((g) => g.members.length);
+    setCardGroups([...rest, { id: crypto.randomUUID(), title: t("boards.group.defaultName", { n: cardGroups.length + 1 }), members: ids }]);
+  };
+  const addArrow = (from: string, to: string, sides: Pick<BoardArrow, "fromSide" | "toSide">) => setArrows([...arrows, { id: crypto.randomUUID(), from, to, ...sides }]);
+  const editArrow = (id: string, patch: Partial<BoardArrow>) => setArrows(arrows.map((a) => (a.id === id ? { ...a, ...patch } : a)));
+  const removeArrows = (ids: string[]) => setArrows(arrows.filter((a) => !ids.includes(a.id)));
+
+  /** The note becomes the new article's card, in its place and with its arrows. */
+  const noteToArticle = async (noteId: string, text: string) => {
+    if (!board || !createArticleFrom) return;
+    const created = await createArticleFrom(text);
+    const latest = boardsRef.current?.find((b) => b.id === board.id);
+    if (!created || !latest) return;
+    if (created.error) setError(created.error);
+    const swap = (id: string) => (id === noteId ? created.id : id);
+    change(latest.id, {
+      cards: latest.cards.map((c) => (c.id === noteId ? { id: created.id, x: c.x, y: c.y } : c)),
+      arrows: latest.arrows.map((a) => ({ ...a, from: swap(a.from), to: swap(a.to) })),
+      groups: latest.groups.map((g) => ({ ...g, members: g.members.map(swap) })),
+    });
+    if (selected === noteId) setSelected(created.id);
   };
   const editCard = (id: string, patch: Partial<BoardCard>) => setCards(cards.map((c) => (c.id === id ? { ...c, ...patch } : c)));
   const moved = (moves: Record<string, Point>) => setCards(cards.map((c) => (moves[c.id] ? { ...c, ...moves[c.id] } : c)));
@@ -269,6 +335,11 @@ export default function BoardsPage({ boardId, onOpenBoard }: { boardId: string |
             ))}
           </span>
           <span className="rel-float-sep" aria-hidden />
+          {createArticleFrom && (
+            <button type="button" className="rel-float-btn" onClick={() => void noteToArticle(card.id, card.text)} data-tooltip={t("boards.noteToArticleHint")}>
+              <FilePlus size={14} /> {t("boards.noteToArticle")}
+            </button>
+          )}
           <button type="button" className="rel-float-btn danger" onClick={() => removeCards([card.id])} aria-label={t("boards.deleteNote")} data-tooltip={t("boards.deleteNote")}>
             <Trash2 size={14} />
           </button>
@@ -289,6 +360,71 @@ export default function BoardsPage({ boardId, onOpenBoard }: { boardId: string |
         <span className="rel-float-sep" aria-hidden />
         <button type="button" className="rel-float-btn danger" onClick={() => removeCards([card.id])} aria-label={t("boards.removeFromBoard")} data-tooltip={t("boards.removeFromBoardHint")}>
           <X size={14} />
+        </button>
+      </>
+    );
+  };
+
+  // Floats above the selected arrow's middle.
+  const renderArrowToolbar = (arrow: BoardArrow, editLabel: () => void) => {
+    const dir = arrow.dir ?? "one";
+    const color = arrow.color ?? ARROW_DEFAULT;
+    return (
+      <>
+        <span className="rel-swatches" role="radiogroup" aria-label={t("boards.arrow.direction")}>
+          {ARROW_DIRS.map((d) => {
+            const Icon = DIR_ICONS[d];
+            return (
+              <button
+                key={d}
+                type="button"
+                role="radio"
+                aria-checked={dir === d}
+                aria-label={t(`boards.arrow.${d}`)}
+                data-tooltip={t(`boards.arrow.${d}`)}
+                className={dir === d ? "rel-float-btn active" : "rel-float-btn"}
+                onClick={() => editArrow(arrow.id, { dir: d === "one" ? undefined : d })}
+              >
+                <Icon size={14} />
+              </button>
+            );
+          })}
+        </span>
+        <button
+          type="button"
+          aria-pressed={arrow.dashed ?? false}
+          aria-label={t("boards.arrow.dashed")}
+          data-tooltip={t("boards.arrow.dashed")}
+          className={arrow.dashed ? "rel-float-btn active" : "rel-float-btn"}
+          onClick={() => editArrow(arrow.id, { dashed: arrow.dashed ? undefined : true })}
+        >
+          <span className="rel-dash-icon" aria-hidden />
+        </button>
+        <span className="rel-float-sep" aria-hidden />
+        <span className="rel-swatches" role="radiogroup" aria-label={t("boards.arrow.color")}>
+          {ARROW_COLORS.map((c) => {
+            const name = c.name === "gray" ? t("boards.arrow.gray") : t(`boards.color.${c.name}`);
+            return (
+              <button
+                key={c.color}
+                type="button"
+                role="radio"
+                aria-checked={color === c.color}
+                aria-label={name}
+                data-tooltip={name}
+                className={color === c.color ? "rel-swatch active" : "rel-swatch"}
+                style={{ background: c.color }}
+                onClick={() => editArrow(arrow.id, { color: c.color === ARROW_DEFAULT ? undefined : c.color })}
+              />
+            );
+          })}
+        </span>
+        <span className="rel-float-sep" aria-hidden />
+        <button type="button" className="rel-float-btn" onClick={editLabel} aria-label={t("boards.arrow.editLabel")} data-tooltip={t("boards.arrow.editLabel")}>
+          <Pencil size={14} />
+        </button>
+        <button type="button" className="rel-float-btn danger" onClick={() => removeArrows([arrow.id])} aria-label={t("boards.arrow.delete")} data-tooltip={t("boards.arrow.delete")}>
+          <Trash2 size={14} />
         </button>
       </>
     );
@@ -374,7 +510,20 @@ export default function BoardsPage({ boardId, onOpenBoard }: { boardId: string |
             onSelect={setSelected}
             onDelete={removeCards}
             onNoteText={(id, text) => editCard(id, { text })}
+            onNoteResize={(id, size) => editCard(id, size)}
             renderToolbar={renderToolbar}
+            onArrowAdd={addArrow}
+            onArrowChange={editArrow}
+            onArrowsDelete={removeArrows}
+            renderArrowToolbar={renderArrowToolbar}
+            board={{
+              groups: cardGroups,
+              onGroup: groupCards,
+              onGroupRename: (id, title) => setCardGroups(cardGroups.map((g) => (g.id === id ? { ...g, title } : g))),
+              onUngroup: (id) => setCardGroups(cardGroups.filter((g) => g.id !== id)),
+              onUnlink: (ids) => setArrows(arrows.filter((a) => !ids.includes(a.from) && !ids.includes(a.to))),
+              onDeleteItems: deleteItems,
+            }}
           />
           {edges.length > 0 && (
             <details className="rel-legend-panel">

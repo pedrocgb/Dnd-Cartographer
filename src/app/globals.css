@@ -13446,6 +13446,13 @@ textarea.rel-notes {
 
 .rel-workspace {
   display: grid;
+/* Boards on the Campaign area: the workspace fills what's left under the header. */
+.boards-screen {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
   grid-template-columns: 292px minmax(0, 1fr);
   height: 100%;
   min-height: 0;
@@ -14236,8 +14243,7 @@ textarea.rel-notes {
 
 .rel-note {
   display: flex;
-  width: 190px;
-  min-height: 110px;
+/* Width and min height come from the note's stored size (NoteCard); it still grows with its text. */
   padding: 12px 12px 14px;
   border-radius: 3px 3px 3px 14px;
   background: color-mix(in srgb, var(--rel-note, #facc15) 88%, #fff);
@@ -14251,8 +14257,10 @@ textarea.rel-notes {
 
 .rel-note-text {
   flex: 1 1 auto;
+/* Not stretched: its height is the text's, which a resize can't go under. */
 }
 
+  align-self: flex-start;
 .rel-note-empty {
   opacity: 0.55;
   font-style: italic;
@@ -14264,10 +14272,10 @@ textarea.rel-notes {
 
 .rel-note-input {
   flex: 1 1 auto;
-  min-height: 90px;
   padding: 0;
   border: 0;
   outline: none;
+  overflow: hidden;
   background: transparent;
   color: inherit;
   font: inherit;
@@ -14280,6 +14288,19 @@ textarea.rel-notes {
 
 /* Floating toolbar by the selected card */
 .rel-float-toolbar {
+/* Resize handles on the selected note */
+.react-flow__resize-control.handle.rel-note-handle {
+  width: 9px;
+  height: 9px;
+  border: 1px solid var(--bg-canvas);
+  border-radius: 2px;
+  background: var(--teal-400);
+}
+
+.react-flow__resize-control.line.rel-note-line {
+  border-color: transparent;
+}
+
   display: flex;
   align-items: center;
   gap: 2px;
@@ -14353,6 +14374,215 @@ textarea.rel-notes {
 
 /* Boards list */
 .rel-board-list {
+.rel-float-btn.active {
+  background: var(--bg-surface-hover);
+  color: var(--teal-300);
+}
+
+/* The "dashed line" toggle's icon */
+.rel-dash-icon {
+  width: 16px;
+  border-top: 2px dashed currentColor;
+}
+
+/* Board arrows: dots to drag them from, their labels and the selected one */
+.react-flow__handle.rel-connect-dot {
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--bg-canvas);
+  background: var(--teal-400);
+  opacity: 0;
+  transition: opacity var(--transition-base);
+}
+
+/* Just outside the card's edge (React Flow centers handles on it). */
+.react-flow__handle-top.rel-connect-dot {
+  top: -9px;
+}
+
+.react-flow__handle-bottom.rel-connect-dot {
+  bottom: -9px;
+}
+
+.react-flow__handle-left.rel-connect-dot {
+  left: -9px;
+}
+
+.react-flow__handle-right.rel-connect-dot {
+  right: -9px;
+}
+
+/* Shown on the hovered or selected card, the cards of a hovered group, and every card while an arrow is drawn.
+   Never display:none: React Flow measures the dots once, and a hidden one would start arrows from nowhere. */
+.react-flow__node:hover .rel-connect-dot,
+.react-flow__node.selected .rel-connect-dot,
+.react-flow__node.rel-group-hover .rel-connect-dot,
+.rel-connecting .rel-connect-dot,
+.react-flow__handle.rel-connect-dot:hover,
+.react-flow__handle.rel-connect-dot.connectingfrom {
+  opacity: 1;
+}
+
+.react-flow__edge.rel-arrow.selected .react-flow__edge-path {
+  filter: drop-shadow(0 0 3px var(--teal-400));
+}
+
+.rel-arrow-label-box {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: all;
+}
+
+/* The selected arrow's toolbar (or label being written) floats above every card, even a selected one (z-index 1000). */
+.rel-arrow-label-front {
+  z-index: 2000;
+}
+
+.rel-arrow-toolbar {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  width: max-content;
+  transform: translateX(-50%);
+}
+
+.rel-arrow-label {
+  max-width: 220px;
+  padding: 2px 8px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-full);
+  background: var(--bg-surface-raised);
+  color: var(--text-primary);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  text-align: center;
+  overflow-wrap: anywhere;
+  cursor: text;
+}
+
+.rel-arrow-input {
+  outline: none;
+  border-color: var(--teal-400);
+  font: inherit;
+  font-size: var(--text-xs);
+}
+
+/* Board groups: a frame around their cards, its title on top */
+.rel-group {
+  width: 100%;
+  height: 100%;
+  border: 1.5px dashed color-mix(in srgb, var(--teal-400) 45%, transparent);
+  border-radius: var(--radius-lg);
+  transition: border-color var(--transition-base);
+}
+
+.rel-group:hover,
+.rel-group.selected {
+  border-color: var(--teal-400);
+}
+
+.rel-group.open {
+  border-style: solid;
+  border-color: var(--teal-300);
+}
+
+.rel-group-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+}
+
+.rel-group-icon {
+  flex: 0 0 auto;
+  color: var(--teal-300);
+}
+
+/* A closed group's cards touched by the selection box: the frame shows as selected, not them. */
+.react-flow__node.rel-in-group.selected .rel-node,
+.react-flow__node.rel-in-group.selected .rel-note {
+  box-shadow: none;
+}
+
+.rel-group-title {
+  overflow: hidden;
+  color: var(--teal-300);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: text;
+}
+
+.rel-group-untitled {
+  opacity: 0.6;
+  font-style: italic;
+}
+
+.rel-group-input {
+  width: 100%;
+  max-width: 260px;
+  padding: 2px 6px;
+  border: 1px solid var(--teal-400);
+  border-radius: var(--radius-sm);
+  outline: none;
+  background: var(--bg-surface-raised);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--text-sm);
+}
+
+/* Right-click menu on a board */
+.rel-context-menu {
+  position: fixed;
+  z-index: 100;
+  min-width: 200px;
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface-raised);
+  box-shadow: var(--shadow-lg);
+}
+
+.rel-context-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.rel-context-item:hover:not(:disabled),
+.rel-context-item:focus-visible {
+  outline: none;
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+.rel-context-item.danger:hover:not(:disabled),
+.rel-context-item.danger:focus-visible {
+  background: var(--danger-900);
+  color: var(--danger-300);
+}
+
+.rel-context-item:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
   display: flex;
   flex-direction: column;
   gap: 2px;

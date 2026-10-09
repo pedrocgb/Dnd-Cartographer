@@ -3,15 +3,16 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { PenLine, ScrollText, Swords } from "lucide-react";
+import { LayoutDashboard, PenLine, ScrollText, Swords } from "lucide-react";
 import { api } from "@/components/calendars/api";
 import type { ClientCampaign } from "@/components/sessions/types";
 import { CAMPAIGNS_CHANGED, readActiveCampaign, rememberActiveCampaign } from "./active-campaign";
 import { useT } from "@/i18n/useT";
 
 const TABS = [
-  { href: "/sessions", id: "sessions", icon: ScrollText },
   { href: "/writer", id: "writer", icon: PenLine },
+  { href: "/sessions", id: "sessions", icon: ScrollText },
+  { href: "/boards", id: "boards", icon: LayoutDashboard },
 ] as const;
 
 /** Address parameters that belong to one campaign's content, dropped when switching campaigns. */
@@ -20,7 +21,8 @@ const PER_CAMPAIGN_PARAMS = ["session", "quest", "node"];
 /**
  * The Campaign area's header: its tabs and the active campaign, one picker
  * for all of them (see active-campaign.ts). Campaigns are created and
- * managed on the Sessions tab.
+ * managed on the Sessions tab. Boards belong to the world, so they ignore
+ * the picker.
  */
 export default function CampaignHeader() {
   const t = useT("campaign");

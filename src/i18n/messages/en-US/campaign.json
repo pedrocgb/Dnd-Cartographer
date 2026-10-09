@@ -352,6 +352,8 @@
   "header.tab.sessionsHint": "Sessions, quests, fronts and the relationship map",
   "header.tab.writer": "Writer",
   "header.tab.writerHint": "Outline, plot threads and the story so far",
+  "header.tab.boards": "Boards",
+  "header.tab.boardsHint": "Free canvases of articles and notes, shared by every campaign",
   "header.activeCampaign": "Active campaign",
   "header.archivedName": "{name} (archived)",
   "manager.couldNotLoad": "Could not load the campaigns.",

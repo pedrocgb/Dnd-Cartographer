@@ -1,0 +1,1 @@
+ALTER TABLE `relationship_boards` ADD `groups` text DEFAULT '[]' NOT NULL;

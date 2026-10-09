@@ -1436,8 +1436,12 @@ export const relationshipBoards = sqliteTable(
       .notNull()
       .references(() => worlds.id),
     name: text("name").notNull(),
-    /** JSON [{ id, x, y, text?, color? }]: a record id, or "note:<uuid>" with its text and color. */
+    /** JSON [{ id, x, y, text?, color?, w?, h? }]: a record id, or "note:<uuid>" with its text, color and size. */
     cards: text("cards").notNull().default("[]"),
+    /** JSON [{ id, from, to, label?, dir?, color?, dashed? }]: arrows the user drew between cards. */
+    arrows: text("arrows").notNull().default("[]"),
+    /** JSON [{ id, title, members }]: cards framed together. */
+    groups: text("groups").notNull().default("[]"),
     /** JSON { groups?, types?, showDerived?, asOfDay? }. */
     filters: text("filters").notNull().default("{}"),
     deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),

@@ -52,7 +52,7 @@ interface ShortcutEntry {
 }
 
 interface ShortcutGroupEntry {
-  id: "everywhere" | "mapTools" | "mapEditing" | "drawing" | "textEditor" | "articles";
+  id: "everywhere" | "mapTools" | "mapEditing" | "drawing" | "textEditor" | "articles" | "boards";
   shortcuts: ShortcutEntry[];
 }
 
@@ -144,6 +144,21 @@ export const SHORTCUT_GROUPS: ShortcutGroupEntry[] = [
       { keys: ["Ctrl+Enter"], action: "action.confirm", context: "context.linkDialog" },
       { keys: ["Shift+Click"], action: "action.focusCard", context: "context.relationsCanvas" },
       { keys: ["Enter", "Space"], action: "action.setClock", context: "context.fronts" },
+    ],
+  },
+  {
+    id: "boards",
+    shortcuts: [
+      { keys: ["Middle-drag"], action: "action.panBoard" },
+      { keys: ["Drag"], action: "action.boxSelect", context: "context.emptyCanvas" },
+      { keys: ["Ctrl+Click"], action: "action.toggleSelection" },
+      { keys: ["Right-click"], action: "action.boardMenu" },
+      { keys: ["Delete", "Backspace"], action: "action.deleteSelection" },
+      { keys: ["Drag"], action: "action.drawArrow", context: "context.cardDot" },
+      { keys: ["Double-click"], action: "action.writeOnBoard", context: "context.noteOrArrow" },
+      { keys: ["Double-click"], action: "action.openGroup", context: "context.groupFrame" },
+      { keys: ["Double-click"], action: "action.renameGroup", context: "context.groupTitle" },
+      { keys: ["Esc"], action: "action.closeGroup" },
     ],
   },
 ];

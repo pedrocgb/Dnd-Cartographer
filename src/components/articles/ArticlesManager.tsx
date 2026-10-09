@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { CirclePlus, GitFork, LayoutDashboard, Network, Waypoints } from "lucide-react";
+import { CirclePlus, GitFork, Network, Waypoints } from "lucide-react";
 import { ancestorsOf } from "@/components/TerritoryTree";
 import ScrollToTopButton from "@/components/ScrollToTopButton";
 import { parseIdList, readStored, subscribeToStorage, writeStored } from "@/components/stored";
@@ -12,35 +12,30 @@ import {
   isPersonTemplate,
   personTemplate,
   type ArticleTemplateKey,
-  type GenericTemplateKey,
 } from "@/server/articles/templates";
-import { emptyRequiredInfo } from "@/server/articles/info-fields";
-import { INFO_FIELD_SETS } from "@/server/articles/info-sets";
 import { templateOf } from "./templates";
 import { json, toggleInSet } from "./shared";
-import ArticlesSidebar, { type ArticleLists, type SidebarTab } from "./ArticlesSidebar";
+import ArticlesSidebar, { type SidebarTab } from "./ArticlesSidebar";
 import ArticleFoldersTree from "./ArticleFoldersTree";
 import ArticleFolderView from "./ArticleFolderView";
 import NameDialog from "@/components/maps/NameDialog";
 import { MAX_FOLDER_NAME_LENGTH } from "@/server/maps/folders";
 import { ArticleFoldersContext, useArticleFolderStore } from "./article-folders";
 import { articleCatalog, buildArticleFolderTree, findNode, folderPath } from "./folder-tree";
-import CreateArticleModal from "./CreateArticleModal";
+import CreateArticleFlow, { buildInfoLookups } from "./CreateArticleFlow";
 import GenericArticle from "./GenericArticle";
 import HierarchyProfiles from "./HierarchyProfiles";
-import { TerritoryArticle, TerritoryForm } from "./TerritoryArticle";
-import { CharacterArticle, PersonForm } from "./CharacterArticle";
-import { InfoForm, type InfoLookups } from "./InfoBar";
+import { TerritoryArticle } from "./TerritoryArticle";
+import { CharacterArticle } from "./CharacterArticle";
 import { CreateArticleContext } from "./create-context";
-import { OrganizationArticle, OrganizationForm } from "./OrganizationArticle";
+import { OrganizationArticle } from "./OrganizationArticle";
 import { loadSeasonProfileLookup } from "@/components/calendars/profile-lookup";
 import { ArticleSkeleton } from "@/components/Skeleton";
-import { RelationsContext, type Relation, type RelationsState, type ServerDerived } from "@/components/relations/relations-context";
-import { buildCatalog, derivedEdges } from "@/server/relations/graph";
+import { RelationsContext, type RelationsState } from "@/components/relations/relations-context";
+import { useRelationsData } from "@/components/relations/use-relations-data";
 import RelationsPage from "@/components/relations/RelationsPage";
 import FamilyTreePage from "@/components/relations/FamilyTreePage";
-import BoardsPage from "@/components/relations/BoardsPage";
-import type { GenericArticle as GenericArticleData, HierarchyProfile, Organization, Person, Territory } from "./types";
+import type { HierarchyProfile } from "./types";
 import { useT } from "@/i18n/useT";
 
 /** What the middle pane shows. */
@@ -50,7 +45,6 @@ type View =
   | { kind: "profiles"; id: string | null }
   | { kind: "relationships"; focus: string | null }
   | { kind: "family"; id: string | null; bloodline: boolean }
-  | { kind: "boards"; id: string | null }
   /** One of the user's folders (the sidebar's Folders tab). */
   | { kind: "folder"; id: string };
 
@@ -65,7 +59,6 @@ function viewFromParams(params: URLSearchParams): View {
   if (type === "profile" || type === "profiles") return { kind: "profiles", id };
   if (type === "relationships") return { kind: "relationships", focus: params.get("focus") };
   if (type === "family") return { kind: "family", id, bloodline: params.get("mode") === "bloodline" };
-  if (type === "boards") return { kind: "boards", id };
   if (type === "folder" && id) return { kind: "folder", id };
   if (isArticleTemplate(type)) return id ? { kind: "article", template: type, id } : { kind: "template", template: type };
   return { kind: "template", template: "generic" };
@@ -73,7 +66,7 @@ function viewFromParams(params: URLSearchParams): View {
 
 function urlOf(view: View): string {
   const params = new URLSearchParams();
-  if (view.kind === "profiles" || view.kind === "boards" || view.kind === "folder") {
+  if (view.kind === "profiles" || view.kind === "folder") {
     params.set("type", view.kind);
     if (view.id) params.set("id", view.id);
   } else if (view.kind === "relationships") {
@@ -104,11 +97,8 @@ const readStoredOpenFolders = () => readStored(OPEN_FOLDERS_KEY);
 const readStoredTab = () => readStored(SIDEBAR_TAB_KEY);
 const readStoredUserFolders = () => readStored(OPEN_USER_FOLDERS_KEY);
 
-const EMPTY_LISTS: ArticleLists = { territories: [], people: [], organizations: [], articles: [] };
-
 export default function ArticlesManager() {
   const t = useT("articles");
-  const tc = useT("common");
   const router = useRouter();
   const searchParams = useSearchParams();
   const [requestedView, setView] = useState<View>(() => viewFromParams(searchParams));
@@ -120,13 +110,11 @@ export default function ArticlesManager() {
     const linked = viewFromParams(searchParams);
     if (JSON.stringify(linked) !== JSON.stringify(requestedView)) setView(linked);
   }
-  const [lists, setLists] = useState<ArticleLists>(EMPTY_LISTS);
-  const [loaded, setLoaded] = useState(false);
+  const { lists, relations, catalog, derived: derivedRelationEdges, loaded, refresh: refreshRelationsData } = useRelationsData();
   const [profiles, setProfiles] = useState<HierarchyProfile[]>([]);
   const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
   // Calendars season profiles, for the Season Profile info field (with each one's current season).
   const [seasonProfiles, setSeasonProfiles] = useState<{ id: string; name: string; detail: string }[]>([]);
-  const [relationData, setRelationData] = useState<{ relations: Relation[]; derived: ServerDerived[] }>({ relations: [], derived: [] });
   const [query, setQuery] = useState("");
   // The scrolling main pane, for the floating "back to top" button.
   const [mainEl, setMainEl] = useState<HTMLDivElement | null>(null);
@@ -157,21 +145,14 @@ export default function ArticlesManager() {
 
   const refreshLists = useCallback(() => {
     return Promise.all([
-      fetch("/api/politics/territories").then((r) => json<{ territories: Territory[] }>(r)),
-      fetch("/api/politics/people").then((r) => json<{ people: Person[] }>(r)),
-      fetch("/api/politics/organizations").then((r) => json<{ organizations: Organization[] }>(r)),
-      fetch("/api/articles").then((r) => json<{ articles: GenericArticleData[] }>(r)),
       fetch("/api/articles/tags").then((r) => json<{ tags: string[] }>(r)),
       loadSeasonProfileLookup().catch(() => []),
-      fetch("/api/relations").then((r) => json<{ relations: Relation[]; derived: ServerDerived[] }>(r)),
-    ]).then(([t, p, o, a, tags, seasonProfiles, rel]) => {
-      setLists({ territories: t.territories, people: p.people, organizations: o.organizations, articles: a.articles });
-      setRelationData(rel);
+      refreshRelationsData(),
+    ]).then(([tags, seasonProfiles]) => {
       setSeasonProfiles(seasonProfiles);
       setTagSuggestions(tags.tags);
-      setLoaded(true);
     });
-  }, []);
+  }, [refreshRelationsData]);
 
   const refreshProfiles = useCallback(() => {
     fetch("/api/politics/hierarchy-profiles")
@@ -246,22 +227,7 @@ export default function ArticlesManager() {
     if (folderId) setFolderError(await folderStore.addArticles(folderId, [id]));
   }
 
-  async function createGeneric(template: GenericTemplateKey, title: string): Promise<string | null> {
-    const res = await fetch("/api/articles", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ template, title }),
-    });
-    const data = await res.json();
-    if (!res.ok) return data.error ?? t("manager.createFailed");
-    await fileInCreatingFolder(data.article.id);
-    await refreshLists();
-    setCreating(null);
-    openArticle(template, data.article.id);
-    return null;
-  }
-
-  /** An article was just saved from its create form (in the create modal). */
+  /** An article was just created (in the create modal). */
   function recordCreated(template: ArticleTemplateKey, id: string) {
     setCreating(null);
     void fileInCreatingFolder(id)
@@ -324,30 +290,19 @@ export default function ArticlesManager() {
   }
 
   // What a character's link info fields can point at.
-  const infoLookups = useMemo<InfoLookups>(() => {
-    const lookups: InfoLookups = {
-      character: lists.people.filter((p) => p.kind !== "player"),
-      playerCharacter: lists.people.filter((p) => p.kind === "player"),
-      organization: lists.organizations, territory: lists.territories, seasonProfile: seasonProfiles };
-    for (const a of lists.articles) (lookups[a.template] ??= []).push({ id: a.id, name: a.title });
-    return lookups;
-  }, [lists, seasonProfiles]);
+  const infoLookups = useMemo(() => buildInfoLookups(lists, seasonProfiles), [lists, seasonProfiles]);
 
-  // Every live record (template, name, house color), for relation-backed Info Bar fields and graphs.
-  const catalog = useMemo(() => buildCatalog(lists), [lists]);
-  const derivedRelationEdges = useMemo(() => derivedEdges(catalog, relationData.derived, lists), [catalog, relationData.derived, lists]);
 
 
   const activeTemplate = isToolView(view) ? null : view.template;
   const tools = [
     { key: "relationships", label: t("tools.relationships"), Icon: Waypoints, active: view.kind === "relationships", onOpen: () => go({ kind: "relationships", focus: null }) },
     { key: "family", label: t("tools.family"), Icon: GitFork, active: view.kind === "family", onOpen: () => go({ kind: "family", id: null, bloodline: false }) },
-    { key: "boards", label: t("tools.boards"), Icon: LayoutDashboard, active: view.kind === "boards", onOpen: () => go({ kind: "boards", id: null }) },
     { key: "profiles", label: t("tools.profiles"), Icon: Network, active: view.kind === "profiles", onOpen: () => go({ kind: "profiles", id: null }) },
   ];
   const refresh = () => void refreshLists();
   const relationsState: RelationsState = {
-    relations: relationData.relations,
+    relations,
     derived: derivedRelationEdges,
     catalog,
     templateOf: (id) => catalog.get(id)?.template ?? null,
@@ -393,43 +348,6 @@ export default function ArticlesManager() {
     return article && <GenericArticle key={id} article={article} {...common} />;
   }
 
-  /** A template's create form, shown in the create modal: name plus its required fields. */
-  function renderCreateForm(template: ArticleTemplateKey, onBack: () => void) {
-    const close = () => setCreating(null);
-    if (template === "territory") {
-      return <TerritoryForm profiles={profiles} territories={lists.territories} onSaved={(t) => recordCreated("territory", t.id)} onCancel={close} onBack={onBack} />;
-    }
-    if (isPersonTemplate(template)) {
-      return <PersonForm kind={template === "playerCharacter" ? "player" : "npc"} onSaved={(p) => recordCreated(template, p.id)} onCancel={close} onBack={onBack} />;
-    }
-    if (template === "organization") return <OrganizationForm onSaved={(o) => recordCreated("organization", o.id)} onCancel={close} onBack={onBack} />;
-    return renderGenericCreateForm(template, close, onBack);
-  }
-
-  /** Title plus the template's required info fields (in their set order); nothing else until created. */
-  function renderGenericCreateForm(template: GenericTemplateKey, cancel: () => void, onBack: () => void) {
-    const set = INFO_FIELD_SETS[template];
-    if (!set) return null;
-    return (
-      <InfoForm
-        key={template}
-        set={set}
-        name=""
-        initialValues={emptyRequiredInfo(set)}
-        lookups={infoLookups}
-        allowAdding={false}
-        saveLabel={tc("create")}
-        savingLabel={tc("creating")}
-        onSave={(title, info) =>
-          fetch("/api/articles", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ template, title, info }) })
-        }
-        onSaved={async (res) => recordCreated(template, (await res.json()).article.id)}
-        onCancel={cancel}
-        onBack={onBack}
-      />
-    );
-  }
-
   function renderMiddle() {
     if (view.kind === "profiles") {
       return (
@@ -438,7 +356,6 @@ export default function ArticlesManager() {
     }
     if (view.kind === "relationships") return <RelationsPage focusId={view.focus} onFocus={(focus) => go({ kind: "relationships", focus })} />;
     if (view.kind === "family") return <FamilyTreePage personId={view.id} bloodline={view.bloodline} onChange={(id, bloodline) => go({ kind: "family", id, bloodline })} />;
-    if (view.kind === "boards") return <BoardsPage boardId={view.id} onOpenBoard={(id) => go({ kind: "boards", id })} />;
     if (view.kind === "folder") {
       const node = findNode(fullFolderTree, view.id);
       if (!node) return loaded ? <p className="field-label">{t("manager.folderGone")}</p> : <ArticleSkeleton />;
@@ -527,16 +444,18 @@ export default function ArticlesManager() {
         onTabChange={changeTab}
         userFolders={userFolders}
       />
-      <div ref={setMainEl} className={view.kind === "relationships" || view.kind === "family" || view.kind === "boards" ? "articles-main articles-main-tool" : "articles-main articles-main-centered"}>
+      <div ref={setMainEl} className={view.kind === "relationships" || view.kind === "family" ? "articles-main articles-main-tool" : "articles-main articles-main-centered"}>
         <CreateArticleContext.Provider value={openCreate}>{renderMiddle()}</CreateArticleContext.Provider>
       </div>
       <ScrollToTopButton container={mainEl} />
       {creating && (
-        <CreateArticleModal
+        <CreateArticleFlow
           initialTemplate={creating.template}
+          territories={lists.territories}
+          profiles={profiles}
+          lookups={infoLookups}
           onClose={() => setCreating(null)}
-          onCreate={createGeneric}
-          renderForm={renderCreateForm}
+          onCreated={recordCreated}
         />
       )}
       {namingFolder && (

@@ -4,7 +4,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { relationshipBoards } from "@/server/db/schema";
 import { requireWorldId } from "@/server/world/active-world";
-import { sanitizeBoardCards, sanitizeBoardFilters, sanitizeBoardName, toClientBoard } from "@/server/relations/board-store";
+import { sanitizeBoardArrows, sanitizeBoardCards, sanitizeBoardFilters, sanitizeBoardGroups, sanitizeBoardName, toClientBoard } from "@/server/relations/board-store";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -17,7 +17,7 @@ async function boardOf(id: string) {
 
 const notFound = () => errorResponse("boardNotFound", 404);
 
-/** Renames a board or replaces its cards / filters (each optional). */
+/** Renames a board or replaces its cards / arrows / groups / filters (each optional). */
 export async function PATCH(request: Request, { params }: RouteContext) {
   const { id } = await params;
   if (!(await boardOf(id))) return notFound();
@@ -33,6 +33,16 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     const cards = sanitizeBoardCards(body.cards);
     if (!cards) return NextResponse.json({ error: "Cards must be a list." }, { status: 400 });
     patch.cards = JSON.stringify(cards);
+  }
+  if ("arrows" in body) {
+    const arrows = sanitizeBoardArrows(body.arrows);
+    if (!arrows) return errorResponse("boardArrowsInvalid", 400);
+    patch.arrows = JSON.stringify(arrows);
+  }
+  if ("groups" in body) {
+    const groups = sanitizeBoardGroups(body.groups);
+    if (!groups) return errorResponse("boardGroupsInvalid", 400);
+    patch.groups = JSON.stringify(groups);
   }
   if ("filters" in body) {
     const filters = sanitizeBoardFilters(body.filters);
