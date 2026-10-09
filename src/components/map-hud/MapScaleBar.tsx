@@ -11,6 +11,8 @@ import { useT } from "@/i18n/useT";
 /** Longest the bar may get, as a share of the map window's width. */
 const MAX_WIDTH_SHARE = 0.45;
 const BAR_H = 8;
+/** `.map-scale`'s left/right padding (globals.css), part of the widget's width. */
+const SCALE_PAD_X = 6;
 
 const TONES = {
   light: { fg: "#F4F4F5", bg: "#18181B", plate: "rgb(20 21 24 / 0.78)" },
@@ -110,6 +112,14 @@ export default function MapScaleBar({
   const [widget, setWidget] = useState<HTMLDivElement | null>(null);
   useViewportTick(viewer);
   const screenPerFrame = screenPxPerImagePx(viewer);
+  const maxPx = Math.max(120, (area?.clientWidth ?? 800) * MAX_WIDTH_SHARE);
+  const layout = config.framePxPerUnit ? scaleBarLayout(config.framePxPerUnit * screenPerFrame, config, maxPx) : null;
+  const fontSize = config.labelSize;
+  const suffix = unitSuffix(config);
+  const padL = layout ? Math.ceil(fontSize * 0.4 * layout.labels[0].length) + 6 : 0;
+  const lastLabelHalf = layout ? fontSize * 0.3 * layout.labels[layout.labels.length - 1].length : 0;
+  const suffixW = Math.ceil(fontSize * 0.62 * suffix.length);
+  const width = layout ? Math.ceil(padL + layout.totalPx + Math.max(lastLabelHalf, 0) + 6 + suffixW + 6) : 0;
   const { style, handleProps, dragging } = useHudDrag({
     area,
     widget,
@@ -117,21 +127,14 @@ export default function MapScaleBar({
     inset,
     editable,
     onCommit: (position) => onUpdateConfig({ position }),
+    // The bar's width this frame (plus .map-scale's side padding): it's clamped into the window at its new size.
+    width: width + 2 * SCALE_PAD_X,
   });
-  if (!config.framePxPerUnit) return null;
-  const maxPx = Math.max(120, (area?.clientWidth ?? 800) * MAX_WIDTH_SHARE);
-  const layout = scaleBarLayout(config.framePxPerUnit * screenPerFrame, config, maxPx);
   if (!layout) return null;
 
   const tone = TONES[config.tone];
-  const fontSize = config.labelSize;
-  const suffix = unitSuffix(config);
-  const padL = Math.ceil(fontSize * 0.4 * layout.labels[0].length) + 6;
-  const lastLabelHalf = fontSize * 0.3 * layout.labels[layout.labels.length - 1].length;
-  const suffixW = Math.ceil(fontSize * 0.62 * suffix.length);
   const labelY = fontSize + 2;
   const barY = labelY + 4;
-  const width = Math.ceil(padL + layout.totalPx + Math.max(lastLabelHalf, 0) + 6 + suffixW + 6);
   const height = barY + BAR_H + 6;
 
   return (

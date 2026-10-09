@@ -29,6 +29,11 @@ function useSize(el: HTMLElement | null) {
  * While `editable`, `handleProps` makes an element drag the widget
  * (pointer; arrow keys nudge it, Shift for bigger steps). The position
  * shows live and `onCommit` gets the final one on release.
+ *
+ * `width`: the widget's width this render, when the caller knows it. A
+ * widget that grows every frame (the scale bar while zooming) would
+ * otherwise be clamped with the size measured a frame late and stick out
+ * of the window for a moment.
  */
 export function useHudDrag({
   area,
@@ -37,6 +42,7 @@ export function useHudDrag({
   inset,
   editable,
   onCommit,
+  width,
 }: {
   area: HTMLElement | null;
   widget: HTMLElement | null;
@@ -44,9 +50,11 @@ export function useHudDrag({
   inset: number;
   editable: boolean;
   onCommit: (position: HudPosition) => void;
+  width?: number;
 }) {
   const areaSize = useSize(area);
-  const widgetSize = useSize(widget);
+  const measured = useSize(widget);
+  const widgetSize = width === undefined ? measured : { w: width, h: measured.h };
   const [dragPos, setDragPos] = useState<HudPosition | null>(null);
   const start = useRef<{ x: number; y: number; pos: HudPosition } | null>(null);
 

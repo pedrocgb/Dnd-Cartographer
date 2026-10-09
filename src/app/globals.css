@@ -1257,10 +1257,13 @@ textarea::placeholder {
   min-height: 0;
 }
 
+/* Clips what sits on the map (panels, widgets) to it: a widget overhanging the edge for a frame
+   must never widen the page and flash a scrollbar. */
 .viewer-canvas-area {
   position: relative;
   flex: 1 1 auto;
   min-height: 400px;
+  overflow: hidden;
 }
 
 .viewer-toolbar-left {
