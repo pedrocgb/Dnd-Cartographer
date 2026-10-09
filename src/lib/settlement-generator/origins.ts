@@ -327,6 +327,8 @@ const has = (ctx: ChangeContext, ...purposes: Purpose[]) =>
   purposes.some((p) => ctx.purposes.primary === p || ctx.purposes.secondary.includes(p));
 const mines = (ctx: ChangeContext) => has(ctx, "Mining") || ctx.founding === "Mineral Deposit";
 const notHomestead = (ctx: ChangeContext) => ctx.inputs.type !== "Homestead";
+/** Too few people for prisons, informers or a court. */
+const beyondHamlet = (ctx: ChangeContext) => ctx.inputs.type !== "Homestead" && ctx.inputs.type !== "Hamlet";
 const WATERSIDE: readonly Geography[] = ["Coast", "Riverbank", "Lake Shore", "Island", "River Delta", "Swamp", "Valley"];
 const BRIDGED: readonly Geography[] = ["Riverbank", "River Delta", "Canyon", "Valley", "Swamp"];
 
@@ -406,7 +408,7 @@ const CHANGES: readonly ChangeRule[] = [
   { key: "Disappearances", weight: 0.6, tone: { Mysterious: 6, Grim: 2.5, Lively: 0.3 } },
   {
     key: "Crackdown",
-    requires: notHomestead,
+    requires: beyondHamlet,
     weight: 0.6,
     tone: { Oppressive: 6, Decadent: 1.5, Peaceful: 0.2 },
     purpose: { Smuggling: 2, Military: 1.3 },

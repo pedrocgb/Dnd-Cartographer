@@ -1,11 +1,19 @@
 import { describe, it, expect } from "vitest";
+import { LOCALES, type Locale } from "../src/i18n/config";
+import { expand } from "../src/lib/character-on-demand/backstory/grammar";
+import { NARRATIVES, slotKey, writeSummary } from "../src/lib/settlement-generator/narrative";
 import { pick, randInt, weightedPick, type Rng } from "../src/lib/random";
 import { generateSettlement, type GeneratedSettlement } from "../src/lib/settlement-generator/generate";
 import { resolveInputs } from "../src/lib/settlement-generator/inputs";
 import { PLACEHOLDER_NAMES, pickName } from "../src/lib/settlement-generator/names";
 import {
+  AGES,
   CLIMATES,
+  CONDITIONS,
   DEFAULT_OPTIONS,
+  GROWTHS,
+  PURPOSES,
+  RECENT_CHANGES,
   GEOGRAPHIES,
   PROSPERITIES,
   SETTLEMENT_TYPES,
@@ -15,6 +23,12 @@ import {
 } from "../src/lib/settlement-generator/options";
 import { FOUNDING_DETAILS, changeAllowed } from "../src/lib/settlement-generator/origins";
 import { POPULATION_BANDS, roundPopulation } from "../src/lib/settlement-generator/population";
+
+/** A fixed sequence of rolls, repeated. */
+function rolls(...values: number[]): Rng {
+  let i = 0;
+  return () => values[i++ % values.length];
+}
 
 /** A seeded generator (mulberry32), so the statistical checks never flake. */
 function seeded(seed: number): Rng {
@@ -30,7 +44,7 @@ function seeded(seed: number): Rng {
 
 function rollMany(opts: Partial<SettlementOptions>, n = 2000, seed = 1): GeneratedSettlement[] {
   const rng = seeded(seed);
-  return Array.from({ length: n }, () => generateSettlement({ ...DEFAULT_OPTIONS, ...opts }, PLACEHOLDER_NAMES, rng));
+  return Array.from({ length: n }, () => generateSettlement({ ...DEFAULT_OPTIONS, ...opts }, PLACEHOLDER_NAMES, rng, "en-US"));
 }
 
 const share = (list: GeneratedSettlement[], test: (s: GeneratedSettlement) => boolean) => list.filter(test).length / list.length;
@@ -107,7 +121,7 @@ describe("generateSettlement", () => {
     for (const type of SETTLEMENT_TYPES)
       for (const geography of GEOGRAPHIES)
         for (const climate of CLIMATES) {
-          const s = generateSettlement({ ...DEFAULT_OPTIONS, type, geography, climate }, PLACEHOLDER_NAMES, rng);
+          const s = generateSettlement({ ...DEFAULT_OPTIONS, type, geography, climate }, PLACEHOLDER_NAMES, rng, "en-US");
           const [min, max] = POPULATION_BANDS[type];
           expect(s.population).toBeGreaterThanOrEqual(min);
           expect(s.population).toBeLessThanOrEqual(max);
@@ -194,5 +208,64 @@ describe("names and numbers", () => {
     expect(roundPopulation(734)).toBe(730);
     expect(roundPopulation(4_321)).toBe(4_300);
     expect(roundPopulation(23_740)).toBe(23_500);
+  });
+});
+
+describe("summary", () => {
+  const GROUPS: Record<string, readonly string[]> = {
+    cond: CONDITIONS,
+    purpose: PURPOSES,
+    type: SETTLEMENT_TYPES,
+    geo: GEOGRAPHIES,
+    detail: Object.values(FOUNDING_DETAILS).flat(),
+    age: [...AGES, "RuinsReused"],
+    growth: GROWTHS,
+    change: RECENT_CHANGES,
+    prosperity: PROSPERITIES,
+    tone: TONES,
+  };
+
+  it("has a phrase table for every value, in every language", () => {
+    for (const locale of LOCALES)
+      for (const [group, values] of Object.entries(GROUPS))
+        for (const value of values) expect(NARRATIVES[locale].tables[slotKey(group, value)]?.length, `${locale} ${group} ${value}`).toBeGreaterThan(0);
+  });
+
+  it("has the same tables and entry counts in every language", () => {
+    const counts = (locale: Locale) => Object.fromEntries(Object.entries(NARRATIVES[locale].tables).map(([k, v]) => [k, v.length]));
+    for (const locale of LOCALES) {
+      expect(counts(locale)).toEqual(counts("en-US"));
+      expect(NARRATIVES[locale].templates.length).toBe(NARRATIVES["en-US"].templates.length);
+    }
+  });
+
+  it("expands every entry for both noun genders, with nothing left over", () => {
+    for (const locale of LOCALES)
+      for (const entries of Object.values(NARRATIVES[locale].tables))
+        for (const entry of entries)
+          for (const gender of ["Male", "Female"] as const) expect(expand(entry, NARRATIVES[locale].tables, gender, Math.random)).not.toMatch(/[{}|]/);
+  });
+
+  it("writes a whole paragraph in the language asked for", () => {
+    const rng = seeded(21);
+    for (const locale of LOCALES)
+      for (let i = 0; i < 300; i++) {
+        const s = generateSettlement(DEFAULT_OPTIONS, PLACEHOLDER_NAMES, rng, locale);
+        expect(s.locale).toBe(locale);
+        expect(s.summary.startsWith(s.name)).toBe(true);
+        expect(s.summary).not.toMatch(/[{}|\u0001]/);
+        expect(s.summary.split(/(?<=[.!?]) /).length).toBeGreaterThanOrEqual(5);
+      }
+  });
+
+  it("agrees with the noun in pt-BR and doesn't repeat the ruins", () => {
+    const base = { name: "Pedravelha", purposes: { primary: "Mining" as const, secondary: [] } };
+    const origins = { founding: "Ruins" as const, foundingDetail: "Elven Ruins", age: "Built Over Ruins" as const, growth: "Gradual" as const, condition: "Overcrowded" as const, recentChange: "Fire" as const };
+    const inputs = { type: "Hamlet" as const, geography: "Hills" as const, climate: "Temperate" as const, prosperity: "Poor" as const, tone: "Grim" as const };
+    const camp = writeSummary({ ...base, inputs: { ...inputs, type: "Encampment" }, origins }, "pt-BR", rolls(0));
+    expect(camp).toContain("um acampamento minerador superlotado");
+    expect(camp).toContain("Foi fundado entre ruínas élficas, com as primeiras casas erguidas das pedras caídas.");
+    expect(writeSummary({ ...base, inputs: { ...inputs, type: "City" }, origins }, "pt-BR", rolls(0))).toContain("uma cidade mineradora superlotada");
+    expect(writeSummary({ ...base, inputs, origins }, "en-US", rolls(0))).toContain("Pedravelha is an overcrowded mining hamlet among rolling hills.");
   });
 });
