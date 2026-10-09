@@ -34,7 +34,7 @@ export interface MapFolderData {
 export type FolderNoun = "zone" | "line" | "text" | "route";
 
 /** The item word for `noun`, singular and plural, plus "3 zones" for a count. */
-function useNoun(noun: FolderNoun) {
+export function useNoun(noun: FolderNoun) {
   const t = useT("maps");
   const word = (count: number) => t(`noun.${noun}`, { count });
   return { t, one: word(1), many: word(2), items: (count: number) => t("countNoun", { n: formatInteger(count), noun: word(count) }) };

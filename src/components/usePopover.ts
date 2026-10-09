@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { autoUpdate, computePosition, flip, offset, shift } from "@floating-ui/dom";
+import { autoUpdate, computePosition, flip, offset, shift, type Placement } from "@floating-ui/dom";
 
 /** Gap kept between the popup and the window edges. */
 const VIEWPORT_PADDING = 8;
@@ -12,8 +12,9 @@ const VIEWPORT_PADDING = 8;
  * below). Esc or a click outside closes it; Esc is caught in the capture
  * phase so it closes only the popup, not a modal around it. The popup should
  * render hidden (`visibility: hidden`); it's revealed once positioned.
+ * `placement` is where it opens first (below by default; a bottom toolbar's open above).
  */
-export function usePopover<T extends HTMLElement = HTMLButtonElement>() {
+export function usePopover<T extends HTMLElement = HTMLButtonElement>(placement: Placement = "bottom-start") {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement | null>(null);
   const trigger = useRef<T | null>(null);
@@ -46,11 +47,11 @@ export function usePopover<T extends HTMLElement = HTMLButtonElement>() {
     return autoUpdate(anchor, floating, () => {
       void computePosition(anchor, floating, {
         strategy: "fixed",
-        placement: "bottom-start",
+        placement,
         middleware: [offset(6), flip({ padding: VIEWPORT_PADDING }), shift({ padding: VIEWPORT_PADDING })],
       }).then(({ x, y }) => Object.assign(floating.style, { left: `${x}px`, top: `${y}px`, visibility: "visible" }));
     });
-  }, [open]);
+  }, [open, placement]);
 
   return { open, setOpen, root, trigger, pop };
 }

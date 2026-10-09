@@ -13,6 +13,7 @@ import GridLayer, { type MapGrid } from "./GridLayer";
 import GridPanel from "./GridPanel";
 import ZoneLayer, { DEFAULT_BRUSH_SIZE, isPaintTool, zonePaintOrder, type PaintedZone, type ZoneData, type ZoneRegionData, type ZoneTool } from "./ZoneLayer";
 import ZonesPanel from "./ZonesPanel";
+import ZoneToolBar from "./map-tools/ZoneToolBar";
 import MarkersPanel from "./MarkersPanel";
 import LayersPanel from "./LayersPanel";
 import TextLayer, { type MapTextData } from "./TextLayer";
@@ -2308,16 +2309,12 @@ export default function MapWorkspace({
         {zonesPanelOpen && itemsLoaded && (
           <ZonesPanel
             layerName={layerLabel}
-            scaleConfig={scaleApi.loaded ? scaleApi.scaleBar.config : null}
             regions={layerRegions}
             zones={layerZones}
             activeRegionId={activeZoneRegionId}
-            selectedZoneId={selectedZoneId}
             activeTool={activeZoneTool}
             onSetActiveRegion={setActiveZoneRegionId}
             onSetActiveTool={setZoneTool}
-            brushSize={brushSize}
-            onBrushSizeChange={setBrushSize}
             onSelectZone={setSelectedZoneId}
             onCreateRegion={createZoneRegion}
             onUpdateRegion={updateZoneRegion}
@@ -2327,11 +2324,32 @@ export default function MapWorkspace({
             selectedIds={zoneSel.ids}
             onPick={zoneSel.click}
             onUpdateMany={(ids, patchOf, opts) => updateMany("zone", ids, (item) => patchOf(item as ZoneData), opts)}
-            onDeleteMany={(ids) => deleteMany("zone", ids)}
             onClose={onCloseZonesPanel}
             layers={layers}
             sharedRegionIds={sharedRegionIds}
             captureZoneStyle={() => ({ ...(lastZoneStyleRef.current ?? loadZoneStyle() ?? { fillColor: "#FFFFFF", fillOpacity: 0.25, strokeColor: "#FFFFFF", strokeOpacity: 1, strokeWidth: 0.15 }) })}
+          />
+        )}
+        {zonesPanelOpen && itemsLoaded && (
+          <ZoneToolBar
+            inset={panelInset}
+            regions={layerRegions}
+            sharedRegionIds={sharedRegionIds}
+            zones={layerZones}
+            layers={layers}
+            scaleConfig={scaleApi.loaded ? scaleApi.scaleBar.config : null}
+            activeRegionId={activeZoneRegionId}
+            onSetActiveRegion={setActiveZoneRegionId}
+            activeTool={activeZoneTool}
+            onSetActiveTool={setZoneTool}
+            brushSize={brushSize}
+            onBrushSizeChange={setBrushSize}
+            selectedIds={zoneSel.ids}
+            onSelectZone={setSelectedZoneId}
+            onUpdateZone={updateZone}
+            onDeleteZone={deleteZone}
+            onUpdateMany={(ids, patchOf, opts) => updateMany("zone", ids, (item) => patchOf(item as ZoneData), opts)}
+            onDeleteMany={(ids) => deleteMany("zone", ids)}
           />
         )}
 
