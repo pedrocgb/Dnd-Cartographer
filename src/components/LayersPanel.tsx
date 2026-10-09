@@ -4,7 +4,7 @@ import { useState } from "react";
 import { X, Layers, Plus, Eye, EyeOff, Trash2, GripVertical, RefreshCw, Check, Settings } from "lucide-react";
 import ConfirmDialog from "./ConfirmDialog";
 import LayerImageDialog, { type Frame } from "./LayerImageDialog";
-import { moveLayer, type LayerPatch, type MapLayerData } from "./layer-images";
+import { ALWAYS_DRAW_OPTIONS, moveLayer, type LayerPatch, type MapLayerData } from "./layer-images";
 import { useT } from "@/i18n/useT";
 
 function LayerRow({
@@ -74,6 +74,11 @@ function LayerRow({
     else void upload(file);
   }
 
+  // What the layer draws even while another one is active, shown on the row (set in the layer's settings).
+  const alwaysDrawn = [
+    ...(layer.asset && layer.imageAlwaysVisible ? [{ key: "Image" as const, hint: t("layerImage.alwaysImageHint") }] : []),
+    ...ALWAYS_DRAW_OPTIONS.filter((o) => layer[o.flag]).map((o) => ({ key: o.key, hint: t(`layerImage.always${o.key}Hint`) })),
+  ];
   const rowClass = ["layer-row", isActive && "active", isDragOver && "drag-over", !layer.visible && "hidden-layer"].filter(Boolean).join(" ");
 
   return (
@@ -144,6 +149,17 @@ function LayerRow({
           </button>
         </div>
       </div>
+
+      {alwaysDrawn.length > 0 && (
+        <div className="layer-tags" role="group" aria-label={t("layers.tagsLabel")}>
+          <span className="layer-tags-lead">{t("layers.tagsLead")}</span>
+          {alwaysDrawn.map(({ key, hint }) => (
+            <span key={key} className="layer-tag" data-tooltip={hint}>
+              {t(`layers.tag.${key}`)}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Only the active layer shows its options; the others stay collapsed to the header.
           Kept mounted (inert while collapsed) so the height can animate both ways. */}

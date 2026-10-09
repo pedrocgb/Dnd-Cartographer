@@ -37,6 +37,15 @@ export type LayerPatch = Partial<
 
 export type AlwaysDrawFlag = "zonesAlwaysVisible" | "markersAlwaysVisible" | "textsAlwaysVisible" | "linesAlwaysVisible" | "routesAlwaysVisible";
 
+/** The "always draw" options, in the order the settings and the layer row list them (`key` names their texts). */
+export const ALWAYS_DRAW_OPTIONS: { flag: AlwaysDrawFlag; key: "Zones" | "Markers" | "Texts" | "Lines" | "Routes" }[] = [
+  { flag: "zonesAlwaysVisible", key: "Zones" },
+  { flag: "markersAlwaysVisible", key: "Markers" },
+  { flag: "textsAlwaysVisible", key: "Texts" },
+  { flag: "linesAlwaysVisible", key: "Lines" },
+  { flag: "routesAlwaysVisible", key: "Routes" },
+];
+
 /**
  * Layers whose items of one kind are drawn, in paint order (first = bottom):
  * the active layer plus every layer with that kind's "always draw" flag,

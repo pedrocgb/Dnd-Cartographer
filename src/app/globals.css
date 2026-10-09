@@ -4374,6 +4374,28 @@ input[type="range"]::-moz-range-track {
   gap: var(--space-1);
 }
 
+/* What a layer always draws, under its name */
+.layer-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: 2px 0 0 26px;
+  font-size: var(--text-xs);
+}
+
+.layer-tags-lead {
+  color: var(--text-tertiary);
+}
+
+.layer-tag {
+  padding: 0 6px;
+  border-radius: var(--radius-full);
+  background: var(--teal-900);
+  color: var(--teal-300);
+  line-height: 1.6;
+}
+
 /* Expand/collapse of a layer's options: grid rows 0fr -> 1fr animates to the content's height. */
 .layer-options {
   display: grid;

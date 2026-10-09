@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Crosshair, ImageOff, ImageUp, LoaderCircle, Minus, Plus, RotateCcw } from "lucide-react";
 import ConfirmDialog from "./ConfirmDialog";
 import Modal from "./Modal";
-import type { AlwaysDrawFlag, LayerPatch, MapLayerData } from "./layer-images";
+import { ALWAYS_DRAW_OPTIONS, type LayerPatch, type MapLayerData } from "./layer-images";
 import { useT } from "@/i18n/useT";
 
 export interface Frame {
@@ -15,14 +15,6 @@ export interface Frame {
 
 const STEPS = [1, 10, 100] as const;
 const SCALE_STEP = 0.5;
-
-const ALWAYS_DRAW_OPTIONS: { flag: AlwaysDrawFlag; key: "Zones" | "Markers" | "Texts" | "Lines" | "Routes" }[] = [
-  { flag: "zonesAlwaysVisible", key: "Zones" },
-  { flag: "markersAlwaysVisible", key: "Markers" },
-  { flag: "textsAlwaysVisible", key: "Texts" },
-  { flag: "linesAlwaysVisible", key: "Lines" },
-  { flag: "routesAlwaysVisible", key: "Routes" },
-];
 
 const round1 = (v: number) => Math.round(v * 10) / 10;
 const round2 = (v: number) => Math.round(v * 100) / 100;
